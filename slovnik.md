@@ -6,7 +6,7 @@ Pojmy používané v dokumentech k JUMP Krossu. Nové pojmy přidávej abecedně
 
 | Pojem | Význam |
 |---|---|
-| **JUMP Kross / JUMP Cross** | Celá hra jako taková: jednodenní táborová hra v areálu kláštera v Kostelním Vydří a okolí. Používají se obě podoby názvu. |
+| **JUMP Kross** | Celá hra jako taková: jednodenní táborová hra v areálu kláštera v Kostelním Vydří a okolí. Oficiální název; jiné podoby (JUMP Cross, JUMPCROSS) nepoužívat. |
 | **Klan** | Jeden tým. Hraje jich celkem cca 10–13, každý má cca 10 hráčů. V dokumentech používáme „klan“ místo „tým“. |
 | **Kmotr** | Vedoucí klanu. Každý klan má 2–3 kmotry. |
 | **Stanoviště** | Místo v areálu nebo okolí, kde probíhá disciplína. Může na něm být více klanů najednou, ale kapacita je omezená. |

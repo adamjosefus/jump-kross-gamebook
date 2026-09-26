@@ -20,4 +20,3 @@
 - [ ] Navazuje na celotáborovou hru / téma tábora?
 - [ ] Aplikace, nebo centrální stan se stopkami (nebo kombinace)? — viz [tick](koncept/hra-vedle-hry.md#tick)
 - [ ] Jaký je svět / příběh „hry vedle hry“?
-- [ ] Jak se píše název: JUMP Kross, nebo JUMPCROSS?
