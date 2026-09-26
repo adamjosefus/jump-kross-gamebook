@@ -2,4 +2,5 @@
 
 Záznam učiněných rozhodnutí. Formát: datum — rozhodnutí — proč.
 
-_Zatím nic._
+
+- **2026-09-27** — Kostky se nedají ztratit, jen získat. — Rozhodnutí Adama. Sada kostek klanu během dne jen roste. Viz [kostky](mechaniky/kostky.md).

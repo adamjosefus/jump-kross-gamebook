@@ -10,6 +10,7 @@ Zdroj: nápad Adama, 2026-09-27.
   - něco **získat**,
   - **upravit pravidla / parametry disciplíny**.
 - Klan může během hry **vyhrát / získat další kostky**.
+- Kostky se **nedají ztratit, jen získat**. Sada klanu během dne jen roste.
 - **Kolik a jaké kostky** klan má, ovlivňuje [velkou hru](../hra-vedle-hry.md).
 
 ## Co tím získáváme
@@ -31,7 +32,7 @@ _Nejsou to rozhodnutí, jen náměty._
 **Příklady symbolů:**
 - **zisk:** surovina, body, nová kostka,
 - **úprava disciplíny:** víc času, méně hráčů, jiné pořadí [čísel](cisla-ucastniku.md), opakování pokusu zdarma,
-- **negativní:** penalizace, ztráta kostky, horší podmínky.
+- **negativní:** penalizace, horší podmínky (nikdy ne ztráta kostky).
 
 **Kdy se hází:**
 - jednou před disciplínou (úprava pravidel),
@@ -48,8 +49,9 @@ _Nejsou to rozhodnutí, jen náměty._
 
 - Kolik kostek má klan na startu a jaký je strop?
 - Jak se kostky získávají: výhra na stanovišti, nákup, obchod mezi klany?
-- Dají se kostky ztratit, zničit, ukrást nebo vyměnit?
+- Když se kostky nedají ztratit, nedají se ani předat jinému klanu (obchod, krádež). Platí to? Nebo se dají půjčit či sdílet?
+- Když sada jen roste, jak zabránit tomu, aby se silné klany „rozjely“? Strop počtu kostek, které smí klan použít v jednom hodu?
 - Kdo hází (konkrétní [číslo](cisla-ucastniku.md)?) a kolik kostek smí klan použít najednou?
 - Jak se kostky projeví ve velké hře? Počítá se počet, typy, nebo symboly?
 - Výroba: vlastní kostky (3D tisk, dřevěné kostky s nálepkami, polepené běžné kostky)? Jak zajistit, aby se nedaly padělat?
-- Jak řešit ztrátu kostky v terénu?
+- Fyzická ztráta kostky v terénu (upadne, zakutálí se): evidence kostek klanu ve štábu a náhrada?
