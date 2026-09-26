@@ -6,13 +6,14 @@ Jednodenní táborová hra. Hraje se téměř celý den na různých stanovišt�
 
 ## Terminologie
 
-- Týmům říkáme **klany**.
+Viz [slovník](../slovnik.md). Týmům říkáme **klany**, vedoucím klanů **kmotři**.
 
 ## Čísla
 
-- **Týmy:** cca 12
-- **Velikost týmu:** cca 10 lidí
-- **Celkem hráčů:** cca 120
+- **Klany:** cca 10–13
+- **Velikost klanu:** cca 10 hráčů
+- **Kmotři:** 2–3 na klan (celkem cca 20–40)
+- **Celkem hráčů:** cca 100–130
 
 ## Formát
 
