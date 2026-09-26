@@ -23,7 +23,7 @@ Varianty technického řešení:
 | **Aplikace**, ke které mají přístup všichni | stav světa vidí všichni kdykoli a odkudkoli; automatické výpočty | potřeba zařízení a signálu, vývoj, riziko výpadku |
 | **Centrální stan se stopkami** — člověk vyhodnocuje hru v každém ticku | robustní, bez techniky, silná atmosféra „velína“ | vyhodnocení je úzké hrdlo; klany vidí stav jen ve stanu |
 
-Obě se dají kombinovat — ručně vedený stan jako „zdroj pravdy“ a jednoduchá obrazovka / hlášení jako výstup.
+Obě se dají kombinovat — ručně vedený stan jako „zdroj pravdy“ a jednoduchá obrazovka jako výstup.
 
 ## Stavební kameny
 
@@ -31,7 +31,6 @@ Obě se dají kombinovat — ručně vedený stan jako „zdroj pravdy“ a jedn
 - [Virtuální posádka](mechaniky/virtualni-posadka.md) — klan má kromě živých hráčů i omezený počet virtuálních postav.
 - [Opakovatelnost a kontext](mechaniky/opakovatelnost.md) — disciplíny jde opakovat a znalosti z jiných míst mění výsledek.
 - [Kostky](mechaniky/kostky.md) — klan má sadu kostek se symboly, hodem na stanovišti něco získá nebo upraví disciplínu; sada kostek ovlivňuje velkou hru.
-- [Moderace](moderace.md) — hlášení, která nesou příběh a oznamují změny ve světě.
 
 ## K rozpracování
 
