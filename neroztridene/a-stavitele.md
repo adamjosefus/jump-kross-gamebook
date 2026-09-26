@@ -1,3 +1,11 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [spojující hra, ekonomika]
+souvisi:
+  - neroztridene/navrhy-spojujici-hry.md
+---
+
 # Návrh A — Stavitelé
 
 ## Příběh (příklad)

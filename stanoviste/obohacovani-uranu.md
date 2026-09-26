@@ -1,13 +1,22 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [disciplína, kostky]
+souvisi:
+  - poznamky/2026-09-27-napady.md
+  - koncept/mechaniky/kostky.md
+---
+
 # Stanoviště: Obohacování uranu
 
-| | |
-|---|---|
+|                    |                  |
+| ------------------ | ---------------- |
 | **Typ disciplíny** | logická / náhoda |
-| **Místo** | ? |
-| **Kapacita** | ? |
-| **Délka** | ? |
-| **Obsluha** | ? |
-| **Počasí** | ? |
+| **Místo**          | ?                |
+| **Kapacita**       | ?                |
+| **Délka**          | ?                |
+| **Obsluha**        | ?                |
+| **Počasí**         | ?                |
 
 ## Popis disciplíny
 

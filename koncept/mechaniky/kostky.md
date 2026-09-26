@@ -1,3 +1,13 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [mechanika, kostky]
+souvisi:
+  - koncept/hra-vedle-hry.md
+  - koncept/mechaniky/rpg-system.md
+  - stanoviste/obohacovani-uranu.md
+---
+
 # Kostky
 
 Zdroj: nápad Adama, 2026-09-27.

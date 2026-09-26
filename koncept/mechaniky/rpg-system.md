@@ -1,3 +1,13 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [mechanika, RPG]
+souvisi:
+  - koncept/hra-vedle-hry.md
+  - koncept/mechaniky/kostky.md
+  - koncept/mechaniky/virtualni-posadka.md
+---
+
 # RPG systém klanu
 
 Zdroj: nápad Adama, 2026-09-27. _(Zadáno jako „PRG systém“, zde vykládáno jako RPG. Ověřit.)_

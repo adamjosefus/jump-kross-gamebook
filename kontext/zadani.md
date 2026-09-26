@@ -1,3 +1,12 @@
+---
+stav: schváleno
+aktualizovano: 2026-09-27
+stitky: [zadání, organizace]
+souvisi:
+  - slovnik.md
+  - otevrene-otazky.md
+---
+
 # Zadání a kontext
 
 ## Co je JUMP Kross

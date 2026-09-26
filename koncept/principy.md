@@ -1,6 +1,14 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [principy, spojující hra]
+souvisi:
+  - koncept/hra-vedle-hry.md
+---
+
 # Principy spojující hry
 
-Požadavky, podle kterých hodnotíme návrhy v [navrhy/](navrhy/).
+Požadavky, podle kterých hodnotíme návrhy spojující hry a mechaniky.
 
 ## Musí
 

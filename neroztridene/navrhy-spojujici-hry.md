@@ -1,8 +1,19 @@
-# Návrhy spojující hry
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [spojující hra, návrhy]
+souvisi:
+  - neroztridene/a-stavitele.md
+  - neroztridene/b-ztraceny-rukopis.md
+  - neroztridene/c-mapa-krajiny.md
+  - neroztridene/d-spolecna-hrozba.md
+---
 
-> Pozn.: Návrhy A–D vznikly před prvními Adamovými nápady. Hlavní směr teď určuje [hra vedle hry](../hra-vedle-hry.md) a návrhy slouží jen jako zásobárna motivů, např. pro to, co je „stav světa“.
+# Návrhy spojující hry A–D (přehled)
 
-Každý návrh = jeden soubor. Hodnotí se podle [principů](../principy.md).
+> Pozn.: Návrhy A–D vznikly před prvními Adamovými nápady. Hlavní směr teď určuje [hra vedle hry](../koncept/hra-vedle-hry.md) a návrhy slouží jen jako zásobárna motivů, např. pro to, co je „stav světa“.
+
+Každý návrh = jeden soubor. Hodnotí se podle [principů](../koncept/principy.md).
 
 | Návrh | Jádro mechaniky | Interakce týmů | Náročnost na orgy |
 |---|---|---|---|
@@ -22,4 +33,4 @@ Nejsilnější mi přijde **hybrid A + B („Skriptorium“)**:
 - Některé stránky obsahují **fragment tajemství** — kdo ho poskládá, ví, kde/jak se odehraje finále, a má v něm výhodu.
 - Kolem poledne **událost** (požár v knihovně, příjezd inkvizitora, ztráta pečeti…), která změní ceny nebo pravidla.
 
-Proč: přirozeně to sedí na klášter, surovinová ekonomika řeší rozptyl týmů po stanovištích a tajemství dává dni dramatický oblouk. Záleží ale na odpovědích v [otevřených otázkách](../../otevrene-otazky.md) (věk hráčů, počet orgů, vazba na celotáborovou hru).
+Proč: přirozeně to sedí na klášter, surovinová ekonomika řeší rozptyl týmů po stanovištích a tajemství dává dni dramatický oblouk. Záleží ale na odpovědích v [otevřených otázkách](../otevrene-otazky.md) (věk hráčů, počet orgů, vazba na celotáborovou hru).

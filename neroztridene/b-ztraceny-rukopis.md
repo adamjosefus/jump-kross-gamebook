@@ -1,3 +1,11 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [spojující hra, tajemství]
+souvisi:
+  - neroztridene/navrhy-spojujici-hry.md
+---
+
 # Návrh B — Ztracený rukopis
 
 ## Příběh (příklad)

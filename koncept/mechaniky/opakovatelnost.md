@@ -1,3 +1,12 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [mechanika, stanoviště]
+souvisi:
+  - koncept/hra-vedle-hry.md
+  - koncept/mechaniky/cisla-ucastniku.md
+---
+
 # Opakovatelnost a kontext
 
 Inspirace: *The Witness* — hráč volně prozkoumává otevřený svět a nové herní principy objevuje sám, bez vysvětlování. Když se na stejné místo vrátí později, vidí ho v novém kontextu.

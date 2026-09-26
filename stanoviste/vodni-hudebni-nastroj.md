@@ -1,3 +1,11 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [disciplína, voda, hudba]
+souvisi:
+  - poznamky/2026-09-27-napady.md
+---
+
 # Stanoviště: Vodní hudební nástroj
 
 | | |

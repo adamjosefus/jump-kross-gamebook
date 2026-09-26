@@ -1,3 +1,11 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [inspirace]
+souvisi:
+  - koncept/hra-vedle-hry.md
+---
+
 # Inspirace
 
 | Dílo | Co si z něj bereme | Kde se používá |

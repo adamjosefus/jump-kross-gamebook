@@ -1,3 +1,12 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [mechanika, čísla]
+souvisi:
+  - koncept/hra-vedle-hry.md
+  - koncept/mechaniky/opakovatelnost.md
+---
+
 # Čísla účastníků
 
 ## Pravidla

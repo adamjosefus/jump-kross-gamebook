@@ -1,3 +1,10 @@
+---
+stav: nápad
+aktualizovano: RRRR-MM-DD
+stitky: [disciplína]
+souvisi: []
+---
+
 # Stanoviště: <název>
 
 | | |

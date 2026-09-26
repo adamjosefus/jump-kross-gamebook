@@ -2,37 +2,39 @@
 
 Hub dokumentů k přípravě JUMP Krossu 2027 — jednodenní táborové hry v areálu kláštera v Kostelním Vydří a okolí.
 
-## Rozcestník
+Fáze: **sběr nápadů a volba konceptu spojující hry.**
+Základní směr: [hra vedle hry](koncept/hra-vedle-hry.md) — nepřetržitě běžící hra, kterou klany ovlivňují.
+
+## Průřezové dokumenty
+
+- [Slovník](slovnik.md) — pojmy (klan, kmotr, …)
+- [Otevřené otázky](otevrene-otazky.md)
+- [Rozhodnutí](rozhodnuti.md)
+
+## Složky
 
 | Složka | Co tam patří |
 |---|---|
-| [kontext/](kontext/) | Fakta a vstupy: zadání, areál, lidé, omezení, zkušenosti z minulých ročníků |
-| [koncept/](koncept/) | Spojující (globální) hra — principy, návrhy, rozhodnutí |
-| [stanoviste/](stanoviste/) | Jednotlivá stanoviště a disciplíny (jeden soubor = jedno stanoviště) |
-| [poznamky/](poznamky/) | Volné poznámky a nápady, pojmenované `RRRR-MM-DD-tema.md` |
-| [vystupy/](vystupy/) | Hotové výstupy: pravidla pro hráče, podklady pro organizátory, harmonogram, tiskoviny |
+| [kontext/](kontext/) | Fakta a vstupy: zadání, areál, lidé, inspirace |
+| [koncept/](koncept/) | Spojující hra — principy, hra vedle hry, [mechaniky](koncept/mechaniky/) |
+| [stanoviste/](stanoviste/) | Stanoviště a disciplíny (jeden soubor = jedno stanoviště) |
+| [poznamky/](poznamky/) | Volné poznámky, pojmenované `RRRR-MM-DD-tema.md` |
+| [vystupy/](vystupy/) | Hotové výstupy: pravidla, podklady pro kmotry a organizátory, tiskoviny |
+| [neroztridene/](neroztridene/) | Materiál, u kterého ještě není jasné, kam patří a jestli se použije |
+| [archiv/](archiv/) | Odložené a zamítnuté dokumenty |
 
-## Klíčové dokumenty
+Každá složka má vlastní `README.md` s přehledem dokumentů a jejich stavem.
 
-- [Slovník](slovnik.md) — pojmy (klan, kmotr, …)
-- [Zadání a kontext](kontext/zadani.md)
-- [Hra vedle hry](koncept/hra-vedle-hry.md) — základní pojetí spojující hry
-- [Mechaniky](koncept/mechaniky/) — čísla účastníků, virtuální posádka, opakovatelnost, kostky, RPG systém
-- [Inspirace](kontext/inspirace.md)
-- [Otevřené otázky](otevrene-otazky.md)
-- [Principy spojující hry](koncept/principy.md)
-- [Návrhy spojující hry](koncept/navrhy/)
-- [Šablona stanoviště](stanoviste/_sablona.md)
+## Metadata dokumentů
 
-## Stanoviště
+Každý dokument (kromě `README.md` a `CLAUDE.md`) začíná frontmatterem:
 
-- [Rychlé vylévání](stanoviste/rychle-vylevani.md)
-- [Společný obraz](stanoviste/spolecny-obraz.md)
-- [Vodní hudební nástroj](stanoviste/vodni-hudebni-nastroj.md)
-- [Obohacování uranu](stanoviste/obohacovani-uranu.md)
-
-## Stav
-
-Fáze: **sběr nápadů a volba konceptu spojující hry.**
-
-Základní směr: [hra vedle hry](koncept/hra-vedle-hry.md), tedy nepřetržitě běžící svět, který klany ovlivňují.
+```yaml
+---
+stav: nápad            # nápad | rozpracováno | schváleno | zamítnuto
+aktualizovano: 2026-09-27
+stitky: [mechanika, kostky]
+souvisi:               # cesty od kořene repa
+  - koncept/hra-vedle-hry.md
+---
+```

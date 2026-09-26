@@ -1,3 +1,11 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [otázky]
+souvisi:
+  - rozhodnuti.md
+---
+
 # Otevřené otázky
 
 ## Organizace

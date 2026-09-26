@@ -1,3 +1,16 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [spojující hra, tick]
+souvisi:
+  - koncept/principy.md
+  - koncept/mechaniky/cisla-ucastniku.md
+  - koncept/mechaniky/virtualni-posadka.md
+  - koncept/mechaniky/opakovatelnost.md
+  - koncept/mechaniky/kostky.md
+  - koncept/mechaniky/rpg-system.md
+---
+
 # Hra vedle hry
 
 Základní pojetí spojující hry JUMP Krossu 2027 (zdroj: [nápady 2026-09-27](../poznamky/2026-09-27-napady.md)).

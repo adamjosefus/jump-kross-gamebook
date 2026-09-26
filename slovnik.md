@@ -1,3 +1,11 @@
+---
+stav: rozpracováno
+aktualizovano: 2026-09-27
+stitky: [slovník, pojmy]
+souvisi:
+  - kontext/zadani.md
+---
+
 # Slovník
 
 Pojmy používané v dokumentech k JUMP Krossu. Nové pojmy přidávej abecedně.

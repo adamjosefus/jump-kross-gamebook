@@ -1,3 +1,11 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [disciplína, tvořivá, spolupráce]
+souvisi:
+  - poznamky/2026-09-27-napady.md
+---
+
 # Stanoviště: Společný obraz
 
 | | |

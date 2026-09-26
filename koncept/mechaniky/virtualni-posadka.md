@@ -1,3 +1,12 @@
+---
+stav: nápad
+aktualizovano: 2026-09-27
+stitky: [mechanika, posádka]
+souvisi:
+  - koncept/hra-vedle-hry.md
+  - koncept/mechaniky/rpg-system.md
+---
+
 # Virtuální posádka
 
 Inspirace: *The Last Train Home*.
