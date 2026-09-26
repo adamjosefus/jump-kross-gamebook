@@ -16,7 +16,7 @@ Hub dokumentů k přípravě JUMP Krossu 2027 — jednodenní táborové hry v a
 
 - [Zadání a kontext](kontext/zadani.md)
 - [Hra vedle hry](koncept/hra-vedle-hry.md) — základní pojetí spojující hry
-- [Mechaniky](koncept/mechaniky/) — čísla účastníků, virtuální posádka, opakovatelnost, kostky
+- [Mechaniky](koncept/mechaniky/) — čísla účastníků, virtuální posádka, opakovatelnost, kostky, RPG systém
 - [Inspirace](kontext/inspirace.md)
 - [Otevřené otázky](otevrene-otazky.md)
 - [Principy spojující hry](koncept/principy.md)
