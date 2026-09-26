@@ -30,6 +30,7 @@ Obě se dají kombinovat — ručně vedený stan jako „zdroj pravdy“ a jedn
 - [Čísla účastníků](mechaniky/cisla-ucastniku.md) — každý hráč má pevné číslo, stanoviště s nimi pracují.
 - [Virtuální posádka](mechaniky/virtualni-posadka.md) — klan má kromě živých hráčů i omezený počet virtuálních postav.
 - [Opakovatelnost a kontext](mechaniky/opakovatelnost.md) — disciplíny jde opakovat a znalosti z jiných míst mění výsledek.
+- [Kostky](mechaniky/kostky.md) — klan má sadu kostek se symboly, hodem na stanovišti něco získá nebo upraví disciplínu; sada kostek ovlivňuje velkou hru.
 - [Moderace](moderace.md) — hlášení, která nesou příběh a oznamují změny ve světě.
 
 ## K rozpracování
