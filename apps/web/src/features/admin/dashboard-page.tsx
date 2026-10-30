@@ -15,8 +15,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { StoryGraph } from '@/features/editor/story-graph'
 import { api, errorMessage } from '@/lib/api'
@@ -36,10 +49,18 @@ const formatState = (state: Readonly<Record<string, Value>>) =>
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
     .join(', ')
 
-const ACTION_LABELS: Record<string, string> = { start: 'start', reset: 'reset', admin: 'zásah organizátora' }
+const ACTION_LABELS: Record<string, string> = {
+  start: 'start',
+  reset: 'reset',
+  admin: 'zásah organizátora',
+}
 const actionLabel = (action: string) =>
   ACTION_LABELS[action] ??
-  (action.startsWith('scan:') ? `sken místa ${action.slice(5)}` : action.startsWith('choice:') ? 'volba' : action)
+  (action.startsWith('scan:')
+    ? `sken místa ${action.slice(5)}`
+    : action.startsWith('choice:')
+      ? 'volba'
+      : action)
 
 /** Live view of every team, refreshed by polling. */
 export const DashboardPage = () => {
@@ -47,19 +68,20 @@ export const DashboardPage = () => {
   const graph = usePublishedGraph(overview.data?.version?.source)
   const [moving, setMoving] = useState<TeamStatus>()
 
-  if (overview.isPending) return <Loader2 className="m-8 size-6 animate-spin" />
-  if (overview.isError) return <p className="text-destructive p-8">{errorMessage(overview.error)}</p>
+  if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />
+  if (overview.isError)
+    return <p className='text-destructive p-8'>{errorMessage(overview.error)}</p>
   const { teams, log, version } = overview.data
   const names = new Map(teams.map((team) => [team.id, team.name]))
 
   return (
-    <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-      <div className="flex min-w-0 flex-col gap-6">
+    <div className='grid gap-6 p-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]'>
+      <div className='flex min-w-0 flex-col gap-6'>
         <Card>
           <CardHeader>
             <CardTitle>
               Týmy{' '}
-              <span className="text-muted-foreground text-sm font-normal">
+              <span className='text-muted-foreground text-sm font-normal'>
                 {version === undefined ? 'nepublikováno' : `verze ${version.id}`}
               </span>
             </CardTitle>
@@ -73,29 +95,42 @@ export const DashboardPage = () => {
                   <TableHead>Stav</TableHead>
                   <TableHead>Zařízení</TableHead>
                   <TableHead>Aktivita</TableHead>
-                  <TableHead className="w-20" />
+                  <TableHead className='w-20' />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {teams.map((team) => (
                   <TableRow key={team.id}>
-                    <TableCell className="font-medium">{team.name}</TableCell>
+                    <TableCell className='font-medium'>{team.name}</TableCell>
                     <TableCell>
-                      <span className="flex items-center gap-1.5 font-mono">
+                      <span className='flex items-center gap-1.5 font-mono'>
                         {team.node ?? '—'}
                         {!team.nodeExists && (
-                          <AlertTriangle className="text-destructive size-4" aria-label="Uzel v publikované verzi chybí" />
+                          <AlertTriangle
+                            className='text-destructive size-4'
+                            aria-label='Uzel v publikované verzi chybí'
+                          />
                         )}
-                        {team.finished && <Badge variant="secondary">cíl</Badge>}
+                        {team.finished && <Badge variant='secondary'>cíl</Badge>}
                       </span>
                     </TableCell>
-                    <TableCell className="text-muted-foreground max-w-56 truncate font-mono text-xs" title={formatState(team.state)}>
+                    <TableCell
+                      className='text-muted-foreground max-w-56 truncate font-mono text-xs'
+                      title={formatState(team.state)}
+                    >
                       {formatState(team.state)}
                     </TableCell>
                     <TableCell>{team.devices}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{timeAgo(team.updatedAt)}</TableCell>
+                    <TableCell className='text-muted-foreground text-xs'>
+                      {timeAgo(team.updatedAt)}
+                    </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" title="Přesunout tým" onClick={() => setMoving(team)}>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        title='Přesunout tým'
+                        onClick={() => setMoving(team)}
+                      >
                         <MoveRight />
                       </Button>
                     </TableCell>
@@ -111,30 +146,32 @@ export const DashboardPage = () => {
             <CardHeader>
               <CardTitle>Kde jsou týmy</CardTitle>
             </CardHeader>
-            <CardContent className="h-[60vh]">
+            <CardContent className='h-[60vh]'>
               <StoryGraph graph={graph} highlight={teams.flatMap((team) => team.node ?? [])} />
             </CardContent>
           </Card>
         )}
       </div>
 
-      <Card className="h-fit">
+      <Card className='h-fit'>
         <CardHeader>
           <CardTitle>Poslední kroky</CardTitle>
         </CardHeader>
         <CardContent>
-          <ol className="flex flex-col gap-2 text-sm">
+          <ol className='flex flex-col gap-2 text-sm'>
             {log.map((entry, i) => (
-              <li key={i} className="flex items-baseline gap-2">
-                <span className="text-muted-foreground w-16 shrink-0 text-xs">{timeAgo(entry.at)}</span>
-                <span className="font-medium">{names.get(entry.teamId) ?? `#${entry.teamId}`}</span>
-                <span className="font-mono">
+              <li key={i} className='flex items-baseline gap-2'>
+                <span className='text-muted-foreground w-16 shrink-0 text-xs'>
+                  {timeAgo(entry.at)}
+                </span>
+                <span className='font-medium'>{names.get(entry.teamId) ?? `#${entry.teamId}`}</span>
+                <span className='font-mono'>
                   {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
                 </span>
-                <span className="text-muted-foreground">{actionLabel(entry.action)}</span>
+                <span className='text-muted-foreground'>{actionLabel(entry.action)}</span>
               </li>
             ))}
-            {log.length === 0 && <li className="text-muted-foreground">Zatím nic.</li>}
+            {log.length === 0 && <li className='text-muted-foreground'>Zatím nic.</li>}
           </ol>
         </CardContent>
       </Card>
@@ -146,7 +183,15 @@ export const DashboardPage = () => {
   )
 }
 
-const MoveDialog = ({ team, graph, onClose }: { team: TeamStatus; graph: GameGraph; onClose: () => void }) => {
+const MoveDialog = ({
+  team,
+  graph,
+  onClose,
+}: {
+  team: TeamStatus
+  graph: GameGraph
+  onClose: () => void
+}) => {
   const queryClient = useQueryClient()
   const [node, setNode] = useState(team.node ?? team.startNode)
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2))
@@ -171,7 +216,12 @@ const MoveDialog = ({ team, graph, onClose }: { team: TeamStatus; graph: GameGra
   }
   const move = useMutation({
     mutationFn: () =>
-      api((client) => client.admin.moveTeam({ params: { id: team.id }, payload: { node, state: parsedState ?? {} } })),
+      api((client) =>
+        client.admin.moveTeam({
+          params: { id: team.id },
+          payload: { node, state: parsedState ?? {} },
+        }),
+      ),
     onSuccess: done,
     onError: (error) => toast.error(errorMessage(error)),
   })
@@ -186,10 +236,12 @@ const MoveDialog = ({ team, graph, onClose }: { team: TeamStatus; graph: GameGra
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Tým {team.name}</DialogTitle>
-          <DialogDescription>Přesun i úprava stavu se okamžitě projeví na všech zařízeních týmu.</DialogDescription>
+          <DialogDescription>
+            Přesun i úprava stavu se okamžitě projeví na všech zařízeních týmu.
+          </DialogDescription>
         </DialogHeader>
         <Select value={node} onValueChange={setNode}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className='w-full'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -203,12 +255,12 @@ const MoveDialog = ({ team, graph, onClose }: { team: TeamStatus; graph: GameGra
         <Textarea
           value={stateText}
           onChange={(event) => setStateText(event.target.value)}
-          className="min-h-32 font-mono text-xs"
+          className='min-h-32 font-mono text-xs'
           aria-invalid={parsedState === undefined}
         />
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter className='sm:justify-between'>
           <Button
-            variant="outline"
+            variant='outline'
             onClick={() => {
               if (confirm(`Vrátit tým ${team.name} na start ${team.startNode}?`)) reset.mutate()
             }}
@@ -216,7 +268,10 @@ const MoveDialog = ({ team, graph, onClose }: { team: TeamStatus; graph: GameGra
           >
             <RotateCcw /> Na start
           </Button>
-          <Button onClick={() => move.mutate()} disabled={parsedState === undefined || move.isPending}>
+          <Button
+            onClick={() => move.mutate()}
+            disabled={parsedState === undefined || move.isPending}
+          >
             Uložit
           </Button>
         </DialogFooter>

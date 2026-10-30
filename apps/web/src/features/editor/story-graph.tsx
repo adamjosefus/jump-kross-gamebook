@@ -32,7 +32,10 @@ export const StoryGraph = ({ graph, highlight = [], onNodeClick, className }: St
     const target = element.current
     if (target === null) return
     if (mounted.current === undefined) {
-      mounted.current = mount(target, text, { zoom: { always: true, controls: true }, onError: () => undefined })
+      mounted.current = mount(target, text, {
+        zoom: { always: true, controls: true },
+        onError: () => undefined,
+      })
     } else {
       mounted.current.update(text)
     }
@@ -56,7 +59,10 @@ export const StoryGraph = ({ graph, highlight = [], onNodeClick, className }: St
   return (
     <div
       ref={element}
-      className={cn('story-graph size-full overflow-hidden [&_[data-id^=n_]]:cursor-pointer', className)}
+      className={cn(
+        'story-graph size-full overflow-hidden [&_[data-id^=n_]]:cursor-pointer',
+        className,
+      )}
     />
   )
 }

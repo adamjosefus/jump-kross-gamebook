@@ -69,10 +69,18 @@ export interface StoreShape {
   readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>
   readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>
   readonly createTeam: (name: string, startNode: string) => Effect.Effect<TeamRow, StoreError>
-  readonly updateTeam: (id: number, name: string, startNode: string) => Effect.Effect<TeamRow | undefined, StoreError>
+  readonly updateTeam: (
+    id: number,
+    name: string,
+    startNode: string,
+  ) => Effect.Effect<TeamRow | undefined, StoreError>
   readonly deleteTeam: (id: number) => Effect.Effect<boolean, StoreError>
   /** Returns the updated team, or undefined when the step did not match. */
-  readonly moveTeam: (id: number, expectedStep: number, move: TeamMove) => Effect.Effect<TeamRow | undefined, StoreError>
+  readonly moveTeam: (
+    id: number,
+    expectedStep: number,
+    move: TeamMove,
+  ) => Effect.Effect<TeamRow | undefined, StoreError>
 
   readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>
   /** Resolves a session and records that the device is alive. */

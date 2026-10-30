@@ -1,4 +1,9 @@
-import { HighlightStyle, StreamLanguage, syntaxHighlighting, type StringStream } from '@codemirror/language'
+import {
+  HighlightStyle,
+  StreamLanguage,
+  syntaxHighlighting,
+  type StringStream,
+} from '@codemirror/language'
 import { linter, type Diagnostic as CmDiagnostic } from '@codemirror/lint'
 import type { Extension } from '@codemirror/state'
 import { tags as t } from '@lezer/highlight'
@@ -62,7 +67,12 @@ const gamebookStream = StreamLanguage.define<State>({
 
 // Colors are CSS variables (`--syntax-*` in index.css), so they follow light and dark mode.
 const highlight = HighlightStyle.define([
-  { tag: t.heading, fontWeight: '700', color: 'var(--syntax-heading)', backgroundColor: 'var(--muted)' },
+  {
+    tag: t.heading,
+    fontWeight: '700',
+    color: 'var(--syntax-heading)',
+    backgroundColor: 'var(--muted)',
+  },
   { tag: t.list, fontWeight: '700', color: 'var(--syntax-choice)' },
   { tag: t.link, color: 'var(--syntax-target)', fontWeight: '600' },
   { tag: t.keyword, color: 'var(--syntax-keyword)' },

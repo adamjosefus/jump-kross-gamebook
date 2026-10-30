@@ -3,7 +3,9 @@ import { Context, Effect, Layer, ManagedRuntime } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { HttpApiClient } from 'effect/http-api'
 
-class ApiClient extends Context.Service<ApiClient, HttpApiClient.ForApi<typeof Api>>()('gamebook/ApiClient') {}
+class ApiClient extends Context.Service<ApiClient, HttpApiClient.ForApi<typeof Api>>()(
+  'gamebook/ApiClient',
+) {}
 
 const runtime = ManagedRuntime.make(
   Layer.effect(ApiClient, HttpApiClient.make(Api)).pipe(

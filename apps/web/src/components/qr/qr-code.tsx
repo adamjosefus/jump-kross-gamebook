@@ -21,13 +21,13 @@ export const QrCode = ({ value, logo, logoScale = DEFAULT_LOGO_SCALE, className 
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      role="img"
+      role='img'
       aria-label={`QR kód ${value}`}
-      shapeRendering="crispEdges"
+      shapeRendering='crispEdges'
       className={cn('block aspect-square w-full bg-white', className)}
     >
-      <rect width={size} height={size} fill="#fff" />
-      <path d={path} fill="#000" />
+      <rect width={size} height={size} fill='#fff' />
+      <path d={path} fill='#000' />
       {logo !== undefined && (
         <>
           <rect
@@ -36,7 +36,7 @@ export const QrCode = ({ value, logo, logoScale = DEFAULT_LOGO_SCALE, className 
             width={box.size + box.pad * 2}
             height={box.size + box.pad * 2}
             rx={1}
-            fill="#fff"
+            fill='#fff'
           />
           <image href={logo} x={box.at} y={box.at} width={box.size} height={box.size} />
         </>

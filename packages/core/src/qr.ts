@@ -21,9 +21,13 @@ const FORMAT = /^([TLE]):([1-9]\d{0,5}):([0-9A-Z]{4})$/
 const encoder = new TextEncoder()
 
 const hmac = async (secret: string, message: string): Promise<Uint8Array> => {
-  const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-  ])
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
   return new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(message)))
 }
 

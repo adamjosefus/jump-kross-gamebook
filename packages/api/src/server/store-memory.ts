@@ -1,5 +1,12 @@
 import { Effect, Layer } from 'effect'
-import { Store, type DraftRow, type LocationRow, type LogRow, type TeamRow, type VersionRow } from './store.ts'
+import {
+  Store,
+  type DraftRow,
+  type LocationRow,
+  type LogRow,
+  type TeamRow,
+  type VersionRow,
+} from './store.ts'
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = (initialDraft = '') => {
@@ -67,11 +74,19 @@ export const makeMemoryStore = (initialDraft = '') => {
           updatedAt: now,
         }
         teams.set(id, updated)
-        log.push({ teamId: id, at: now, action: move.action, fromNode: team.node, toNode: move.node, state: move.state })
+        log.push({
+          teamId: id,
+          at: now,
+          action: move.action,
+          fromNode: team.node,
+          toNode: move.node,
+          state: move.state,
+        })
         return updated
       }),
 
-    createSession: (id, teamId) => Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
+    createSession: (id, teamId) =>
+      Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
     touchSession: (id) =>
       Effect.sync(() => {
         const session = sessions.get(id)
@@ -93,4 +108,5 @@ export const makeMemoryStore = (initialDraft = '') => {
   })
 }
 
-export const MemoryStoreLayer = (initialDraft?: string) => Layer.sync(Store, () => makeMemoryStore(initialDraft))
+export const MemoryStoreLayer = (initialDraft?: string) =>
+  Layer.sync(Store, () => makeMemoryStore(initialDraft))

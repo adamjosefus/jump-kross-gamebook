@@ -16,8 +16,8 @@ export const EditorPage = () => {
     queryFn: ({ signal }) => api((client) => client.admin.draft(), { signal }),
     staleTime: Infinity,
   })
-  if (draft.isPending) return <Loader2 className="m-8 size-6 animate-spin" />
-  if (draft.isError) return <p className="text-destructive p-8">{errorMessage(draft.error)}</p>
+  if (draft.isPending) return <Loader2 className='m-8 size-6 animate-spin' />
+  if (draft.isError) return <p className='text-destructive p-8'>{errorMessage(draft.error)}</p>
   return <LoadedEditor initial={draft.data.source} />
 }
 
@@ -30,7 +30,8 @@ const LoadedEditor = ({ initial }: { initial: string }) => {
   const options = useMemo(() => (locations === undefined ? {} : { locations }), [locations])
 
   const save = useMutation({
-    mutationFn: (text: string) => api((client) => client.admin.saveDraft({ payload: { source: text } })),
+    mutationFn: (text: string) =>
+      api((client) => client.admin.saveDraft({ payload: { source: text } })),
     onSuccess: (row) => {
       setSaved(row.source)
       queryClient.setQueryData(adminKeys.draft, row)
@@ -74,39 +75,39 @@ const LoadedEditor = ({ initial }: { initial: string }) => {
   const upToDate = published !== undefined && published.source === source
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b px-4 py-2 text-sm">
-        <span className="text-muted-foreground flex items-center gap-1.5">
+    <div className='flex h-full flex-col'>
+      <div className='flex items-center gap-3 border-b px-4 py-2 text-sm'>
+        <span className='text-muted-foreground flex items-center gap-1.5'>
           {save.isPending ? (
             <>
-              <Loader2 className="size-3.5 animate-spin" /> Ukládám…
+              <Loader2 className='size-3.5 animate-spin' /> Ukládám…
             </>
           ) : source === saved ? (
             <>
-              <Check className="size-3.5" /> Uloženo
+              <Check className='size-3.5' /> Uloženo
             </>
           ) : (
             'Neuloženo'
           )}
         </span>
-        <span className="text-muted-foreground">
+        <span className='text-muted-foreground'>
           {published === undefined
             ? 'Zatím nepublikováno'
             : upToDate
               ? `Publikovaná verze ${published.id} odpovídá textu`
               : `Publikovaná verze ${published.id} je starší než text`}
         </span>
-        <span className="flex-1" />
+        <span className='flex-1' />
         <Button
-          size="sm"
+          size='sm'
           onClick={() => publish.mutate()}
           disabled={publish.isPending || errors > 0 || upToDate}
           title={errors > 0 ? 'Dokument obsahuje chyby' : undefined}
         >
-          {publish.isPending ? <Loader2 className="animate-spin" /> : <Upload />} Publikovat
+          {publish.isPending ? <Loader2 className='animate-spin' /> : <Upload />} Publikovat
         </Button>
       </div>
-      <div className="min-h-0 flex-1">
+      <div className='min-h-0 flex-1'>
         <StoryEditor source={source} onChange={setSource} options={options} />
       </div>
     </div>

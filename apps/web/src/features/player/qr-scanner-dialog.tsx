@@ -2,7 +2,13 @@ import QrScanner from 'qr-scanner'
 import { Camera, Keyboard } from 'lucide-react'
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
 export interface QrScannerDialogProps {
@@ -16,7 +22,12 @@ export interface QrScannerDialogProps {
  * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`) with a manual
  * fallback: the code is printed under every QR, so it can be typed in when the camera fails.
  */
-export const QrScannerDialog = ({ open, onOpenChange, onCode, title = 'Naskenujte QR kód' }: QrScannerDialogProps) => {
+export const QrScannerDialog = ({
+  open,
+  onOpenChange,
+  onCode,
+  title = 'Naskenujte QR kód',
+}: QrScannerDialogProps) => {
   const video = useRef<HTMLVideoElement>(null)
   const [manual, setManual] = useState(false)
   const [cameraError, setCameraError] = useState<string>()
@@ -44,7 +55,9 @@ export const QrScannerDialog = ({ open, onOpenChange, onCode, title = 'Naskenujt
       { preferredCamera: 'environment', highlightScanRegion: true, maxScansPerSecond: 8 },
     )
     scanner.start().catch(() => {
-      setCameraError('Kameru se nepodařilo spustit. Povolte přístup ke kameře, nebo zadejte kód ručně.')
+      setCameraError(
+        'Kameru se nepodařilo spustit. Povolte přístup ke kameře, nebo zadejte kód ručně.',
+      )
     })
     return () => {
       done = true
@@ -68,7 +81,7 @@ export const QrScannerDialog = ({ open, onOpenChange, onCode, title = 'Naskenujt
         onOpenChange(next)
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -76,27 +89,29 @@ export const QrScannerDialog = ({ open, onOpenChange, onCode, title = 'Naskenujt
           </DialogDescription>
         </DialogHeader>
         {manual ? (
-          <form onSubmit={submit} className="flex gap-2">
+          <form onSubmit={submit} className='flex gap-2'>
             <Input
               autoFocus
               value={text}
               onChange={(event) => setText(event.target.value.toUpperCase())}
-              placeholder="L:12:ABCD"
-              autoCapitalize="characters"
-              autoComplete="off"
-              className="font-mono"
+              placeholder='L:12:ABCD'
+              autoCapitalize='characters'
+              autoComplete='off'
+              className='font-mono'
             />
-            <Button type="submit">Potvrdit</Button>
+            <Button type='submit'>Potvrdit</Button>
           </form>
         ) : (
-          <div className="bg-muted relative aspect-square overflow-hidden rounded-lg">
-            <video ref={video} className="size-full object-cover" muted playsInline />
+          <div className='bg-muted relative aspect-square overflow-hidden rounded-lg'>
+            <video ref={video} className='size-full object-cover' muted playsInline />
             {cameraError !== undefined && (
-              <p className="bg-background/90 absolute inset-0 flex items-center p-6 text-center text-sm">{cameraError}</p>
+              <p className='bg-background/90 absolute inset-0 flex items-center p-6 text-center text-sm'>
+                {cameraError}
+              </p>
             )}
           </div>
         )}
-        <Button variant="ghost" size="sm" onClick={() => setManual(!manual)}>
+        <Button variant='ghost' size='sm' onClick={() => setManual(!manual)}>
           {manual ? <Camera /> : <Keyboard />}
           {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
         </Button>

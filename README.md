@@ -20,12 +20,12 @@ Lokálně se rozpracovaný příběh načte z [examples/demo.gamebook](examples/
 
 ## Struktura
 
-| Balíček | Obsah |
-|---|---|
-| `packages/core` | Čisté TS jádro bez I/O: parser formátu, výrazy, engine, Mermaid, QR kódy |
-| `packages/api` | Effect HttpApi: definice (sdílená s klientem) a server (`src/server`) s úložištěm v paměti nebo v Neon Postgres |
-| `apps/web` | Vite + React SPA (shadcn/ui, TanStack Router a Query), Storybook |
-| `scripts/build-vercel.ts` | Sestaví `.vercel/output` (statický web a jedna funkce pro `/api`) |
+| Balíček                   | Obsah                                                                                                           |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `packages/core`           | Čisté TS jádro bez I/O: parser formátu, výrazy, engine, Mermaid, QR kódy                                        |
+| `packages/api`            | Effect HttpApi: definice (sdílená s klientem) a server (`src/server`) s úložištěm v paměti nebo v Neon Postgres |
+| `apps/web`                | Vite + React SPA (shadcn/ui, TanStack Router a Query), Storybook                                                |
+| `scripts/build-vercel.ts` | Sestaví `.vercel/output` (statický web a jedna funkce pro `/api`)                                               |
 
 ## Formát příběhu
 

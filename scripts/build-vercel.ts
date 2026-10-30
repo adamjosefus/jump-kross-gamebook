@@ -32,7 +32,16 @@ await build({
 
 writeFileSync(
   path.join(fn, '.vc-config.json'),
-  JSON.stringify({ runtime: 'nodejs22.x', handler: 'index.mjs', launcherType: 'Nodejs', shouldAddHelpers: false }, null, 2),
+  JSON.stringify(
+    {
+      runtime: 'nodejs22.x',
+      handler: 'index.mjs',
+      launcherType: 'Nodejs',
+      shouldAddHelpers: false,
+    },
+    null,
+    2,
+  ),
 )
 
 mkdirSync(path.join(output, 'static'), { recursive: true })

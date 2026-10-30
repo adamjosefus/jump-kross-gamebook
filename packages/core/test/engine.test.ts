@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { applyChoice, applyScan, evaluate, parseDocument, parseExpr, renderNode, startPosition, toMermaid } from '../src/index.ts'
+import {
+  applyChoice,
+  applyScan,
+  evaluate,
+  parseDocument,
+  parseExpr,
+  renderNode,
+  startPosition,
+  toMermaid,
+} from '../src/index.ts'
 import { SAMPLE } from './fixtures.ts'
 
 const { graph } = parseDocument(SAMPLE)
@@ -62,12 +71,18 @@ describe('engine', () => {
     const poor = renderNode(graph, { node: 'B1', state: { hatColor: 'green', gold: 80 } })!
     expect(poor.markdown).toBe('Pohodlně si nosil svojí chudou pokrývku hlavy.')
     expect(poor.choices.map((c) => c.label)).toEqual(['Bojovat'])
-    expect(applyChoice(graph, { node: 'B1', state: { gold: 80 } }, 1)).toEqual({ ok: false, error: 'unavailable-choice' })
+    expect(applyChoice(graph, { node: 'B1', state: { gold: 80 } }, 1)).toEqual({
+      ok: false,
+      error: 'unavailable-choice',
+    })
   })
 
   it('stops at end nodes', () => {
     expect(renderNode(graph, { node: 'C1', state: {} })).toMatchObject({ type: 'end', choices: [] })
-    expect(applyChoice(graph, { node: 'C1', state: {} }, 0)).toEqual({ ok: false, error: 'finished' })
+    expect(applyChoice(graph, { node: 'C1', state: {} }, 0)).toEqual({
+      ok: false,
+      error: 'finished',
+    })
   })
 })
 

@@ -68,7 +68,8 @@ export const parseTemplate = (text: string, offset: number): TemplateParseResult
           message: `Chybná podmínka: ${condition.message}`,
         })
       } else {
-        for (const v of variablesOf(condition.expr)) variables.push({ name: v.name, offset: sourceAt + v.offset })
+        for (const v of variablesOf(condition.expr))
+          variables.push({ name: v.name, offset: sourceAt + v.offset })
       }
       stack.push({ from: offset + at, condition, then: [], else: [], inElse: false })
     } else if (tag.startsWith('<else')) {
@@ -78,14 +79,20 @@ export const parseTemplate = (text: string, offset: number): TemplateParseResult
           from: offset + at,
           to: offset + last,
           severity: 'error',
-          message: top === undefined ? '„<else>“ mimo „<if>“.' : 'Druhé „<else>“ ve stejném „<if>“.',
+          message:
+            top === undefined ? '„<else>“ mimo „<if>“.' : 'Druhé „<else>“ ve stejném „<if>“.',
         })
         pushText(tag)
       } else top.inElse = true
     } else {
       const top = stack.pop()
       if (top === undefined) {
-        diagnostics.push({ from: offset + at, to: offset + last, severity: 'error', message: '„</if>“ bez „<if>“.' })
+        diagnostics.push({
+          from: offset + at,
+          to: offset + last,
+          severity: 'error',
+          message: '„</if>“ bez „<if>“.',
+        })
         pushText(tag)
       } else close(top)
     }
@@ -93,7 +100,12 @@ export const parseTemplate = (text: string, offset: number): TemplateParseResult
   pushText(text.slice(last))
   while (stack.length > 0) {
     const open = stack.pop()!
-    diagnostics.push({ from: open.from, to: open.from + 3, severity: 'error', message: 'Neuzavřené „<if>“: chybí „</if>“.' })
+    diagnostics.push({
+      from: open.from,
+      to: open.from + 3,
+      severity: 'error',
+      message: 'Neuzavřené „<if>“: chybí „</if>“.',
+    })
     close(open)
   }
   return { segments: root, variables, diagnostics }

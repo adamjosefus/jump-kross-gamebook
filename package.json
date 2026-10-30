@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
-    "format": "prettier --write .",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "storybook": "pnpm --filter @gamebook/ui storybook",
     "build:vercel": "pnpm build && node scripts/build-vercel.ts"
   },
@@ -19,7 +20,7 @@
     "@types/node": "^26.6.6",
     "eslint": "^10.13.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "prettier": "^3.9.10",
+    "oxfmt": "0.75.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",

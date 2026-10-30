@@ -98,7 +98,8 @@ export const parseExpr = (source: string): ExprParseResult => {
   try {
     tokens = tokenize(source)
   } catch (error) {
-    if (error instanceof ExprError) return { ok: false, message: error.message, offset: error.offset }
+    if (error instanceof ExprError)
+      return { ok: false, message: error.message, offset: error.offset }
     throw error
   }
   let index = 0
@@ -117,7 +118,8 @@ export const parseExpr = (source: string): ExprParseResult => {
         if (token.op === '(') {
           const inner = parseBinary(0)
           const close = next()
-          if (close.type !== 'op' || close.op !== ')') throw new ExprError('Chybí „)“.', close.offset)
+          if (close.type !== 'op' || close.op !== ')')
+            throw new ExprError('Chybí „)“.', close.offset)
           return inner
         }
         throw new ExprError(`Neočekávaný operátor „${token.op}“.`, token.offset)
@@ -142,10 +144,12 @@ export const parseExpr = (source: string): ExprParseResult => {
     if (peek().type === 'eof') return { ok: false, message: 'Prázdná podmínka.', offset: 0 }
     const expr = parseBinary(0)
     const rest = peek()
-    if (rest.type !== 'eof') return { ok: false, message: 'Nadbytečný text ve výrazu.', offset: rest.offset }
+    if (rest.type !== 'eof')
+      return { ok: false, message: 'Nadbytečný text ve výrazu.', offset: rest.offset }
     return { ok: true, expr }
   } catch (error) {
-    if (error instanceof ExprError) return { ok: false, message: error.message, offset: error.offset }
+    if (error instanceof ExprError)
+      return { ok: false, message: error.message, offset: error.offset }
     throw error
   }
 }
@@ -153,10 +157,19 @@ export const parseExpr = (source: string): ExprParseResult => {
 type RuntimeValue = Value | undefined
 
 const truthy = (value: RuntimeValue): boolean =>
-  typeof value === 'number' ? value !== 0 : typeof value === 'string' ? value !== '' : value === true
+  typeof value === 'number'
+    ? value !== 0
+    : typeof value === 'string'
+      ? value !== ''
+      : value === true
 
 const compare = (op: '<' | '<=' | '>' | '>=', a: RuntimeValue, b: RuntimeValue): boolean => {
-  if (!((typeof a === 'number' && typeof b === 'number') || (typeof a === 'string' && typeof b === 'string'))) {
+  if (
+    !(
+      (typeof a === 'number' && typeof b === 'number') ||
+      (typeof a === 'string' && typeof b === 'string')
+    )
+  ) {
     return false
   }
   switch (op) {
@@ -180,8 +193,10 @@ const evaluateRaw = (expr: Expr, state: State): RuntimeValue => {
     case 'not':
       return !truthy(evaluateRaw(expr.operand, state))
     case 'binary': {
-      if (expr.op === '&&') return truthy(evaluateRaw(expr.left, state)) && truthy(evaluateRaw(expr.right, state))
-      if (expr.op === '||') return truthy(evaluateRaw(expr.left, state)) || truthy(evaluateRaw(expr.right, state))
+      if (expr.op === '&&')
+        return truthy(evaluateRaw(expr.left, state)) && truthy(evaluateRaw(expr.right, state))
+      if (expr.op === '||')
+        return truthy(evaluateRaw(expr.left, state)) || truthy(evaluateRaw(expr.right, state))
       const left = evaluateRaw(expr.left, state)
       const right = evaluateRaw(expr.right, state)
       if (expr.op === '==') return left === right

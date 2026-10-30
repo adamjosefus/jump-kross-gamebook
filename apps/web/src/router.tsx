@@ -1,4 +1,11 @@
-import { createRootRoute, createRoute, createRouter, lazyRouteComponent, Navigate, Outlet } from '@tanstack/react-router'
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  Navigate,
+  Outlet,
+} from '@tanstack/react-router'
 import { PlayerPage } from '@/features/player/player-page'
 
 const root = createRootRoute({ component: Outlet })
@@ -15,7 +22,7 @@ const admin = createRoute({
 const adminIndex = createRoute({
   getParentRoute: () => admin,
   path: '/',
-  component: () => <Navigate to="/admin/dashboard" />,
+  component: () => <Navigate to='/admin/dashboard' />,
 })
 const editor = createRoute({
   getParentRoute: () => admin,
@@ -39,7 +46,10 @@ const print = createRoute({
 })
 
 export const router = createRouter({
-  routeTree: root.addChildren([player, admin.addChildren([adminIndex, editor, game, dashboard, print])]),
+  routeTree: root.addChildren([
+    player,
+    admin.addChildren([adminIndex, editor, game, dashboard, print]),
+  ]),
 })
 
 declare module '@tanstack/react-router' {

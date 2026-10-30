@@ -65,7 +65,11 @@ describe('api', () => {
 
     const start = await phone('POST', '/api/player/login', { code: login })
     expect(start.status).toBe(200)
-    expect(start.body).toMatchObject({ team: { name: 'Vlci' }, status: 'playing', node: { id: 'A1', theme: 'intro' } })
+    expect(start.body).toMatchObject({
+      team: { name: 'Vlci' },
+      status: 'playing',
+      node: { id: 'A1', theme: 'intro' },
+    })
     await tablet('POST', '/api/player/login', { code: login })
 
     // Both devices see step 1; the tablet decides first, the phone gets a conflict.
@@ -77,27 +81,49 @@ describe('api', () => {
 
     const view = (await phone('GET', '/api/player/state')).body
     expect(view.node.id).toBe('A2')
-    expect((await phone('POST', '/api/player/choose', { index: 0, expectedStep: view.step })).body.reason).toBe(
-      'scan-required',
-    )
-    expect((await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status).toBe(400)
+    expect(
+      (await phone('POST', '/api/player/choose', { index: 0, expectedStep: view.step })).body
+        .reason,
+    ).toBe('scan-required')
+    expect(
+      (await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status,
+    ).toBe(400)
 
-    const scanned = await phone('POST', '/api/player/scan', { code: studna, expectedStep: view.step })
+    const scanned = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedStep: view.step,
+    })
     expect(scanned.body).toMatchObject({ status: 'playing', node: { id: 'B1' } })
     expect(scanned.body.node.markdown).toContain('chudou pokrývku hlavy')
     expect(scanned.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }])
 
-    const end = await phone('POST', '/api/player/choose', { index: 0, expectedStep: scanned.body.step })
+    const end = await phone('POST', '/api/player/choose', {
+      index: 0,
+      expectedStep: scanned.body.step,
+    })
     expect(end.body).toMatchObject({ status: 'finished', node: { id: 'C1', type: 'end' } })
 
     const overview = (await admin('GET', '/api/admin/overview')).body
-    expect(overview.teams[0]).toMatchObject({ node: 'C1', finished: true, devices: 2, state: { gold: 80 } })
-    expect(overview.log.map((e: { action: string }) => e.action)).toEqual(['choice:0', 'scan:32', 'choice:1', 'start'])
+    expect(overview.teams[0]).toMatchObject({
+      node: 'C1',
+      finished: true,
+      devices: 2,
+      state: { gold: 80 },
+    })
+    expect(overview.log.map((e: { action: string }) => e.action)).toEqual([
+      'choice:0',
+      'scan:32',
+      'choice:1',
+      'start',
+    ])
   })
 
   it('refuses to publish a document with errors', async () => {
     await admin('PUT', '/api/admin/draft', { source: '--- A --- { type: "start" }\n- Dál [X]\n' })
-    expect((await admin('POST', '/api/admin/publish')).body).toMatchObject({ _tag: 'DocumentHasErrors', count: 1 })
+    expect((await admin('POST', '/api/admin/publish')).body).toMatchObject({
+      _tag: 'DocumentHasErrors',
+      count: 1,
+    })
   })
 
   it('resets a team to its start', async () => {

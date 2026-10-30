@@ -3,7 +3,15 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['**/dist', '**/node_modules', '.vercel', 'storybook-static', 'apps/web/src/components/ui'] },
+  {
+    ignores: [
+      '**/dist',
+      '**/node_modules',
+      '.vercel',
+      'storybook-static',
+      'apps/web/src/components/ui',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

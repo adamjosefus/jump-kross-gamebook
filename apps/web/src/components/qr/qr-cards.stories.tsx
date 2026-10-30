@@ -33,18 +33,18 @@ export const WithoutLogo: StoryObj<typeof ProgressQr> = {
 /** Sheet as it comes out of the printer: cards flow into columns on A4. */
 export const PrintSheet: StoryObj = {
   render: () => (
-    <div className="flex w-[21cm] flex-wrap gap-4 bg-white p-[1cm]">
-      <TeamLoginQr value="T:1:4NQ2" teamName="Vlci" logo={logo} />
-      <TeamLoginQr value="T:2:Z81C" teamName="Sokoli" logo={logo} />
-      <ProgressQr value="L:32:9FZM" locationName="Studna" logo={logo} />
-      <EndQr value="E:1:3XW0" logo={logo} />
+    <div className='flex w-[21cm] flex-wrap gap-4 bg-white p-[1cm]'>
+      <TeamLoginQr value='T:1:4NQ2' teamName='Vlci' logo={logo} />
+      <TeamLoginQr value='T:2:Z81C' teamName='Sokoli' logo={logo} />
+      <ProgressQr value='L:32:9FZM' locationName='Studna' logo={logo} />
+      <EndQr value='E:1:3XW0' logo={logo} />
     </div>
   ),
 }
 
 export const CodeOnly: StoryObj<typeof QrCode> = {
   render: (args) => (
-    <div className="w-64">
+    <div className='w-64'>
       <QrCode {...args} />
     </div>
   ),

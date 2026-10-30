@@ -6,7 +6,7 @@ const preview: Preview = {
   decorators: [
     withThemeByClassName({ themes: { light: '', dark: 'dark' }, defaultTheme: 'light' }),
     (Story) => (
-      <div className="bg-background text-foreground min-h-screen p-8">
+      <div className='bg-background text-foreground min-h-screen p-8'>
         <Story />
       </div>
     ),

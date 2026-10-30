@@ -23,7 +23,11 @@ const STATE_KEY = ['player', 'state'] as const
 
 /** Polling keeps every device of a team on the same node; slower while the team walks to a location. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
-  view == null || view.status === 'finished' ? false : view.node?.scan !== undefined ? 30_000 : 10_000
+  view == null || view.status === 'finished'
+    ? false
+    : view.node?.scan !== undefined
+      ? 30_000
+      : 10_000
 
 export const PlayerPage = () => {
   const queryClient = useQueryClient()
@@ -84,30 +88,36 @@ export const PlayerPage = () => {
     if (view.node !== undefined && view.node.choices.length >= 2) {
       setConfirm(choice)
       setConfirmOpen(true)
-    }
-    else choose.mutate({ index: choice.index, step: view.step })
+    } else choose.mutate({ index: choice.index, step: view.step })
   }
 
   const busy = login.isPending || choose.isPending || scan.isPending
 
-  if (state.isPending) return <Centered><Loader2 className="size-6 animate-spin" /></Centered>
+  if (state.isPending)
+    return (
+      <Centered>
+        <Loader2 className='size-6 animate-spin' />
+      </Centered>
+    )
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <main className='mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]'>
       {view == null ? (
         <Welcome onScan={() => setScanning(true)} busy={busy} />
       ) : (
         <>
-          <header className="text-muted-foreground flex items-center justify-between text-sm">
+          <header className='text-muted-foreground flex items-center justify-between text-sm'>
             <span>
-              Tým <strong className="text-foreground">{view.team.name}</strong>
+              Tým <strong className='text-foreground'>{view.team.name}</strong>
             </span>
-            {busy && <Loader2 className="size-4 animate-spin" />}
+            {busy && <Loader2 className='size-4 animate-spin' />}
           </header>
 
           {view.status === 'not-ready' || view.node === undefined ? (
             <Centered>
-              <p className="text-muted-foreground text-center">Hra ještě nezačala. Vyčkejte na pokyn organizátorů.</p>
+              <p className='text-muted-foreground text-center'>
+                Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
+              </p>
             </Centered>
           ) : (
             <article
@@ -127,22 +137,27 @@ export const PlayerPage = () => {
                 <Markdown>{view.node.markdown}</Markdown>
               </div>
 
-              <div className="mt-auto flex flex-col gap-3">
+              <div className='mt-auto flex flex-col gap-3'>
                 {view.node.type === 'end' ? (
-                  <p className="text-muted-foreground flex items-center justify-center gap-2 text-sm">
-                    <Flag className="size-4" /> Konec hry
+                  <p className='text-muted-foreground flex items-center justify-center gap-2 text-sm'>
+                    <Flag className='size-4' /> Konec hry
                   </p>
                 ) : view.node.scan !== undefined ? (
-                  <Button size="lg" className="h-14 text-base" onClick={() => setScanning(true)} disabled={busy}>
+                  <Button
+                    size='lg'
+                    className='h-14 text-base'
+                    onClick={() => setScanning(true)}
+                    disabled={busy}
+                  >
                     <Camera /> Naskenovat QR kód
                   </Button>
                 ) : (
                   view.node.choices.map((choice) => (
                     <Button
                       key={choice.index}
-                      size="lg"
+                      size='lg'
                       variant={view.node!.choices.length === 1 ? 'default' : 'outline'}
-                      className="h-auto min-h-14 py-3 text-base whitespace-normal"
+                      className='h-auto min-h-14 py-3 text-base whitespace-normal'
                       onClick={() => pick(choice)}
                       disabled={busy}
                     >
@@ -170,7 +185,8 @@ export const PlayerPage = () => {
             <AlertDialogCancel>Zpět</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirm !== undefined && view != null) choose.mutate({ index: confirm.index, step: view.step })
+                if (confirm !== undefined && view != null)
+                  choose.mutate({ index: confirm.index, step: view.step })
               }}
             >
               Potvrdit volbu
@@ -183,19 +199,19 @@ export const PlayerPage = () => {
 }
 
 const Centered = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex min-h-[60dvh] flex-1 items-center justify-center">{children}</div>
+  <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
 )
 
 const Welcome = ({ onScan, busy }: { onScan: () => void; busy: boolean }) => (
   <Centered>
-    <div className="flex max-w-xs flex-col items-center gap-6 text-center">
-      <QrCode className="size-12" strokeWidth={1.5} />
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Vítejte ve hře</h1>
-        <p className="text-muted-foreground">Naskenujte přihlašovací QR kód svého týmu.</p>
+    <div className='flex max-w-xs flex-col items-center gap-6 text-center'>
+      <QrCode className='size-12' strokeWidth={1.5} />
+      <div className='flex flex-col gap-2'>
+        <h1 className='text-2xl font-semibold'>Vítejte ve hře</h1>
+        <p className='text-muted-foreground'>Naskenujte přihlašovací QR kód svého týmu.</p>
       </div>
-      <Button size="lg" className="h-14 w-full text-base" onClick={onScan} disabled={busy}>
-        {busy ? <Loader2 className="animate-spin" /> : <Camera />} Naskenovat QR kód
+      <Button size='lg' className='h-14 w-full text-base' onClick={onScan} disabled={busy}>
+        {busy ? <Loader2 className='animate-spin' /> : <Camera />} Naskenovat QR kód
       </Button>
     </div>
   </Centered>

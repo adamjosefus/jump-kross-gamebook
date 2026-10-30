@@ -47,7 +47,11 @@ const isIdentStart = (ch: string) => /[\p{L}_$]/u.test(ch)
 const isIdentPart = (ch: string) => /[\p{L}\p{N}_$]/u.test(ch)
 
 /** Parses the object literal starting with `{` at `start`; never reads past `limit`. */
-export const parseObject = (source: string, start: number, limit = source.length): ObjectParseResult => {
+export const parseObject = (
+  source: string,
+  start: number,
+  limit = source.length,
+): ObjectParseResult => {
   const close = findClosingBrace(source, start, limit)
   const end = close === -1 ? limit : close + 1
   if (close === -1) {
@@ -129,10 +133,7 @@ export const parseObject = (source: string, start: number, limit = source.length
       const word = readIdent()
       if (word === 'true') return true
       if (word === 'false') return false
-      throw new ObjectSyntaxError(
-        `Neznámá hodnota „${word}“. Text dej do uvozovek.`,
-        from,
-      )
+      throw new ObjectSyntaxError(`Neznámá hodnota „${word}“. Text dej do uvozovek.`, from)
     }
     throw new ObjectSyntaxError(`Neočekávaný znak „${ch}“.`, pos)
   }
@@ -154,7 +155,8 @@ export const parseObject = (source: string, start: number, limit = source.length
       skipSpaces(false)
       if (source[pos] !== ':') throw new ObjectSyntaxError(`Za „${key}“ chybí dvojtečka.`, pos)
       pos++
-      if (Object.hasOwn(result, key)) throw new ObjectSyntaxError(`Duplicitní vlastnost „${key}“.`, keyAt)
+      if (Object.hasOwn(result, key))
+        throw new ObjectSyntaxError(`Duplicitní vlastnost „${key}“.`, keyAt)
       result[key] = readValue()
       const separated = skipSeparators()
       skipSpaces(true)

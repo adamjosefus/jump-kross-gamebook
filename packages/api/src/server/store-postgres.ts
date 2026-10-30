@@ -39,8 +39,7 @@ export const makePostgresStore = (url: string) => {
   let ready: Promise<unknown> | undefined
   const migrate = () =>
     (ready ??= sql.transaction(
-      SCHEMA
-        .split(/;\s*$/m)
+      SCHEMA.split(/;\s*$/m)
         .map((statement) => statement.trim())
         .filter((statement) => statement !== '')
         .map((statement) => sql.query(statement)),
@@ -76,18 +75,29 @@ export const makePostgresStore = (url: string) => {
       }),
     publish: (source) =>
       query(async () => {
-        const [row] = await sql`insert into version (source) values (${source}) returning id, published_at`
-        return { id: Number(row!['id']), source, publishedAt: new Date(row!['published_at'] as string) }
+        const [row] =
+          await sql`insert into version (source) values (${source}) returning id, published_at`
+        return {
+          id: Number(row!['id']),
+          source,
+          publishedAt: new Date(row!['published_at'] as string),
+        }
       }),
     currentVersion: () =>
       query(async () => {
-        const [row] = await sql`select id, source, published_at from version order by id desc limit 1`
+        const [row] =
+          await sql`select id, source, published_at from version order by id desc limit 1`
         return row === undefined
           ? undefined
-          : { id: Number(row['id']), source: String(row['source']), publishedAt: new Date(row['published_at'] as string) }
+          : {
+              id: Number(row['id']),
+              source: String(row['source']),
+              publishedAt: new Date(row['published_at'] as string),
+            }
       }),
 
-    listLocations: () => query(async () => (await sql`select * from location order by id`).map(toLocation)),
+    listLocations: () =>
+      query(async () => (await sql`select * from location order by id`).map(toLocation)),
     getLocation: (id) =>
       query(async () => {
         const [row] = await sql`select * from location where id = ${id}`
@@ -100,7 +110,8 @@ export const makePostgresStore = (url: string) => {
           on conflict (id) do update set name = excluded.name, kind = excluded.kind`
         return location
       }),
-    deleteLocation: (id) => query(async () => void (await sql`delete from location where id = ${id}`)),
+    deleteLocation: (id) =>
+      query(async () => void (await sql`delete from location where id = ${id}`)),
 
     listTeams: () => query(async () => (await sql`select * from team order by id`).map(toTeam)),
     getTeam: (id) =>
@@ -109,13 +120,21 @@ export const makePostgresStore = (url: string) => {
         return row === undefined ? undefined : toTeam(row)
       }),
     createTeam: (name, startNode) =>
-      query(async () => toTeam((await sql`insert into team (name, start_node) values (${name}, ${startNode}) returning *`)[0]!)),
+      query(async () =>
+        toTeam(
+          (
+            await sql`insert into team (name, start_node) values (${name}, ${startNode}) returning *`
+          )[0]!,
+        ),
+      ),
     updateTeam: (id, name, startNode) =>
       query(async () => {
-        const [row] = await sql`update team set name = ${name}, start_node = ${startNode} where id = ${id} returning *`
+        const [row] =
+          await sql`update team set name = ${name}, start_node = ${startNode} where id = ${id} returning *`
         return row === undefined ? undefined : toTeam(row)
       }),
-    deleteTeam: (id) => query(async () => (await sql`delete from team where id = ${id} returning id`).length > 0),
+    deleteTeam: (id) =>
+      query(async () => (await sql`delete from team where id = ${id} returning id`).length > 0),
     moveTeam: (id, expectedStep, move) =>
       query(async () => {
         // CTEs see the table as it was before the update, so `previous` holds the old node.
@@ -139,7 +158,10 @@ export const makePostgresStore = (url: string) => {
         return row === undefined ? undefined : toTeam(row)
       }),
 
-    createSession: (id, teamId) => query(async () => void (await sql`insert into session (id, team_id) values (${id}, ${teamId})`)),
+    createSession: (id, teamId) =>
+      query(
+        async () => void (await sql`insert into session (id, team_id) values (${id}, ${teamId})`),
+      ),
     touchSession: (id) =>
       query(async () => {
         // Only write when the last touch is older than 30 s, so polling stays a read.
@@ -151,7 +173,8 @@ export const makePostgresStore = (url: string) => {
           select team_id from session where id = ${id}`
         return row === undefined ? undefined : Number(row['team_id'])
       }),
-    deleteSession: (id) => query(async () => void (await sql`delete from session where id = ${id}`)),
+    deleteSession: (id) =>
+      query(async () => void (await sql`delete from session where id = ${id}`)),
     activeDevices: (since) =>
       query(async () => {
         const rows = await sql`
@@ -161,7 +184,9 @@ export const makePostgresStore = (url: string) => {
       }),
 
     recentLog: (limit) =>
-      query(async () => (await sql`select * from step_log order by at desc, id desc limit ${limit}`).map(toLog)),
+      query(async () =>
+        (await sql`select * from step_log order by at desc, id desc limit ${limit}`).map(toLog),
+      ),
   })
 }
 

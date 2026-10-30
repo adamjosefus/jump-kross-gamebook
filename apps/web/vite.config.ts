@@ -13,9 +13,17 @@ type NodeHandler = ReturnType<typeof import('@gamebook/api/server').toNodeHandle
 const apiDevServer = (): Plugin => {
   let handler: Promise<NodeHandler> | undefined
   const load = async (server: ViteDevServer): Promise<NodeHandler> => {
-    const env = { ...process.env, ...loadEnv(server.config.mode, path.resolve(import.meta.dirname, '../..'), '') }
-    const demo = readFileSync(path.resolve(import.meta.dirname, '../../examples/demo.gamebook'), 'utf8')
-    const module = (await server.ssrLoadModule('@gamebook/api/server')) as typeof import('@gamebook/api/server')
+    const env = {
+      ...process.env,
+      ...loadEnv(server.config.mode, path.resolve(import.meta.dirname, '../..'), ''),
+    }
+    const demo = readFileSync(
+      path.resolve(import.meta.dirname, '../../examples/demo.gamebook'),
+      'utf8',
+    )
+    const module = (await server.ssrLoadModule(
+      '@gamebook/api/server',
+    )) as typeof import('@gamebook/api/server')
     return module.toNodeHandler(module.handlerFromEnv(env, demo).handler)
   }
 

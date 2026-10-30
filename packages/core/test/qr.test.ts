@@ -23,7 +23,8 @@ describe('qr', () => {
 
   it('gives different checks to different codes', async () => {
     const checks = new Set<string>()
-    for (let id = 1; id <= 200; id++) checks.add(parseQr(await encodeQr(SECRET, { kind: 'L', id }))!.check)
+    for (let id = 1; id <= 200; id++)
+      checks.add(parseQr(await encodeQr(SECRET, { kind: 'L', id }))!.check)
     expect(checks.size).toBeGreaterThan(195)
   })
 })

@@ -29,13 +29,18 @@ export const qrGeometry = (value: string, logoScale = DEFAULT_LOGO_SCALE): QrGeo
   return { size, path, logo: { at: (size - logoSize) / 2, size: logoSize, pad: LOGO_PAD } }
 }
 
-const escapeAttribute = (text: string) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+const escapeAttribute = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 
 /**
  * Self-contained SVG file of a code. The logo must be a data URL so the SVG still shows it after
  * being pasted into another application.
  */
-export const qrCodeSvg = (value: string, logoDataUrl?: string, logoScale = DEFAULT_LOGO_SCALE): string => {
+export const qrCodeSvg = (
+  value: string,
+  logoDataUrl?: string,
+  logoScale = DEFAULT_LOGO_SCALE,
+): string => {
   const { size, path, logo } = qrGeometry(value, logoScale)
   const logoMarkup =
     logoDataUrl === undefined

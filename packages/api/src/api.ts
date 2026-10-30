@@ -113,7 +113,9 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     }),
   )
   .add(
-    HttpApiEndpoint.get('state', '/state', { success: PlayerView, error: NotFound }).middleware(PlayerAuth),
+    HttpApiEndpoint.get('state', '/state', { success: PlayerView, error: NotFound }).middleware(
+      PlayerAuth,
+    ),
     HttpApiEndpoint.post('choose', '/choose', {
       payload: Schema.Struct({ index: Schema.Number, expectedStep: Schema.Number }),
       success: PlayerView,
@@ -133,7 +135,11 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 
 export const Draft = Schema.Struct({ source: Schema.String, updatedAt: Schema.String })
 
-export const Location = Schema.Struct({ id: Schema.Number, name: Schema.String, kind: LocationKind })
+export const Location = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  kind: LocationKind,
+})
 export type Location = typeof Location.Type
 
 export const TeamInput = Schema.Struct({ name: Schema.String, startNode: Schema.String })
@@ -211,14 +217,20 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       error: DocumentHasErrors,
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
-    HttpApiEndpoint.post('createTeam', '/teams', { payload: TeamInput, success: TeamStatus }).middleware(AdminAuth),
+    HttpApiEndpoint.post('createTeam', '/teams', {
+      payload: TeamInput,
+      success: TeamStatus,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.patch('updateTeam', '/teams/:id', {
       params: teamParams,
       payload: TeamInput,
       success: TeamStatus,
       error: NotFound,
     }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteTeam', '/teams/:id', { params: teamParams, error: NotFound }).middleware(AdminAuth),
+    HttpApiEndpoint.delete('deleteTeam', '/teams/:id', {
+      params: teamParams,
+      error: NotFound,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetTeam', '/teams/:id/reset', {
       params: teamParams,
       success: TeamStatus,
@@ -235,8 +247,12 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       payload: Schema.Struct({ name: Schema.String, kind: LocationKind }),
       success: Location,
     }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteLocation', '/locations/:id', { params: teamParams }).middleware(AdminAuth),
-    HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(AdminAuth),
+    HttpApiEndpoint.delete('deleteLocation', '/locations/:id', { params: teamParams }).middleware(
+      AdminAuth,
+    ),
+    HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(
+      AdminAuth,
+    ),
   )
   .prefix('/api/admin') {}
 

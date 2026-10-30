@@ -4,7 +4,11 @@ import type { GameGraph, GameNode } from './types.ts'
 export const mermaidId = (nodeId: string) => `n_${nodeId.replace(/[^A-Za-z0-9_]/g, '_')}`
 
 const escapeLabel = (text: string) =>
-  text.replace(/"/g, '#quot;').replace(/[<>]/g, (ch) => (ch === '<' ? '#lt;' : '#gt;')).replace(/\s+/g, ' ').trim()
+  text
+    .replace(/"/g, '#quot;')
+    .replace(/[<>]/g, (ch) => (ch === '<' ? '#lt;' : '#gt;'))
+    .replace(/\s+/g, ' ')
+    .trim()
 
 const shape = (node: GameNode) => {
   const label = `"${escapeLabel(node.id)}"`
@@ -18,7 +22,8 @@ const shape = (node: GameNode) => {
   }
 }
 
-const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
+const truncate = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 1)}…` : text
 
 /**
  * Mermaid `flowchart` of the story. Broken nodes and references to missing nodes are drawn,
@@ -42,7 +47,9 @@ export const toMermaid = (graph: GameGraph): string => {
         choice.condition === undefined ? '' : '(if)',
       ].filter((part) => part !== '')
       const arrow = node.scan === undefined ? '-->' : '-.->'
-      lines.push(`  ${mermaidId(id)} ${arrow}|"${escapeLabel(parts.join(' '))}"| ${mermaidId(choice.target)}`)
+      lines.push(
+        `  ${mermaidId(id)} ${arrow}|"${escapeLabel(parts.join(' '))}"| ${mermaidId(choice.target)}`,
+      )
     }
   }
 
@@ -52,7 +59,9 @@ export const toMermaid = (graph: GameGraph): string => {
   lines.push('  classDef missing stroke-dasharray:5 5,opacity:0.6')
   lines.push('  classDef intro font-style:italic')
   const broken = graph.order.filter((id) => graph.nodes[id]!.broken)
-  const intro = graph.order.filter((id) => graph.nodes[id]!.theme === 'intro' && !graph.nodes[id]!.broken)
+  const intro = graph.order.filter(
+    (id) => graph.nodes[id]!.theme === 'intro' && !graph.nodes[id]!.broken,
+  )
   if (broken.length > 0) lines.push(`  class ${broken.map(mermaidId).join(',')} broken`)
   if (missing.size > 0) lines.push(`  class ${[...missing].map(mermaidId).join(',')} missing`)
   if (intro.length > 0) lines.push(`  class ${intro.map(mermaidId).join(',')} intro`)

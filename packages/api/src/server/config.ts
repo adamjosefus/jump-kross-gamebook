@@ -10,9 +10,15 @@ export interface ServerConfigShape {
   readonly insecureCookies: boolean
 }
 
-export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShape>()('gamebook/ServerConfig') {}
+export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShape>()(
+  'gamebook/ServerConfig',
+) {}
 
-const DEV_FALLBACKS = { ADMIN_PASSWORD: 'admin', QR_SECRET: 'dev-qr-secret', SESSION_SECRET: 'dev-session-secret' }
+const DEV_FALLBACKS = {
+  ADMIN_PASSWORD: 'admin',
+  QR_SECRET: 'dev-qr-secret',
+  SESSION_SECRET: 'dev-session-secret',
+}
 
 /**
  * Reads the environment. Any deployment (production or preview) must set every secret; only local

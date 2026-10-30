@@ -19,11 +19,9 @@ const PLAYER_MAX_AGE = '7 days'
 
 /** Store failures are bugs or outages, not API errors: they surface as 500s. */
 const orDie = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(Effect.catchTag('StoreError' as never, (error) => Effect.die(error))) as Effect.Effect<
-    A,
-    Exclude<E, { readonly _tag: 'StoreError' }>,
-    R
-  >
+  effect.pipe(
+    Effect.catchTag('StoreError' as never, (error) => Effect.die(error)),
+  ) as Effect.Effect<A, Exclude<E, { readonly _tag: 'StoreError' }>, R>
 
 const cookieOptions = (config: ServerConfig['Service']) => ({
   path: '/',
@@ -40,7 +38,8 @@ const PlayerAuthLive = Layer.effect(
         const sessionId = Redacted.value(credential)
         if (sessionId === '') return yield* new Unauthorized({ message: 'Nejste přihlášeni.' })
         const teamId = yield* orDie(store.touchSession(sessionId))
-        if (teamId === undefined) return yield* new Unauthorized({ message: 'Přihlášení vypršelo.' })
+        if (teamId === undefined)
+          return yield* new Unauthorized({ message: 'Přihlášení vypršelo.' })
         return yield* Effect.provideService(httpEffect, CurrentTeam, { sessionId, teamId })
       }),
     })
@@ -53,7 +52,9 @@ const AdminAuthLive = Layer.effect(
     const config = yield* ServerConfig
     return AdminAuth.of({
       cookie: Effect.fn(function* (httpEffect, { credential }) {
-        const valid = yield* Effect.promise(() => verifyAdminToken(config.sessionSecret, Redacted.value(credential)))
+        const valid = yield* Effect.promise(() =>
+          verifyAdminToken(config.sessionSecret, Redacted.value(credential)),
+        )
         if (!valid) return yield* new Unauthorized({ message: 'Přihlaste se heslem tvůrce.' })
         return yield* httpEffect
       }),
@@ -137,15 +138,19 @@ const AdminHandlers = HttpApiBuilder.group(
         return yield* orDie(game.singleTeamStatus(team))
       }),
       updateTeam: Effect.fn(function* ({ params, payload }) {
-        const team = yield* orDie(store.updateTeam(params.id, payload.name.trim(), payload.startNode))
+        const team = yield* orDie(
+          store.updateTeam(params.id, payload.name.trim(), payload.startNode),
+        )
         if (team === undefined) return yield* new NotFound({ message: 'Tým neexistuje.' })
         return yield* orDie(game.singleTeamStatus(team))
       }),
       deleteTeam: Effect.fn(function* ({ params }) {
-        if (!(yield* orDie(store.deleteTeam(params.id)))) return yield* new NotFound({ message: 'Tým neexistuje.' })
+        if (!(yield* orDie(store.deleteTeam(params.id))))
+          return yield* new NotFound({ message: 'Tým neexistuje.' })
       }),
       resetTeam: ({ params }) => orDie(game.resetTeam(params.id)),
-      moveTeam: ({ params, payload }) => orDie(game.moveTeam(params.id, payload.node, payload.state)),
+      moveTeam: ({ params, payload }) =>
+        orDie(game.moveTeam(params.id, payload.node, payload.state)),
       saveLocation: ({ params, payload }) =>
         orDie(store.saveLocation({ id: params.id, name: payload.name.trim(), kind: payload.kind })),
       deleteLocation: ({ params }) => orDie(store.deleteLocation(params.id)),

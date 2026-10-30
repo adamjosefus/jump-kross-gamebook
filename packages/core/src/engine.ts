@@ -56,11 +56,16 @@ export const startPosition = (graph: GameGraph, startNode: string): Position | u
   return node === undefined ? undefined : { node: node.id, state: node.initialState }
 }
 
-export const availableChoices = (node: GameNode, state: State): { choice: Choice; index: number }[] =>
+export const availableChoices = (
+  node: GameNode,
+  state: State,
+): { choice: Choice; index: number }[] =>
   node.type === 'end'
     ? []
     : node.choices.flatMap((choice, index) =>
-        choice.condition === undefined || evaluate(choice.condition, state) ? [{ choice, index }] : [],
+        choice.condition === undefined || evaluate(choice.condition, state)
+          ? [{ choice, index }]
+          : [],
       )
 
 export const renderNode = (graph: GameGraph, position: Position): RenderedNode | undefined => {
@@ -73,7 +78,10 @@ export const renderNode = (graph: GameGraph, position: Position): RenderedNode |
     markdown: renderTemplate(node.body, position.state).trim(),
     choices:
       node.scan === undefined
-        ? availableChoices(node, position.state).map(({ choice, index }) => ({ index, label: choice.label }))
+        ? availableChoices(node, position.state).map(({ choice, index }) => ({
+            index,
+            label: choice.label,
+          }))
         : [],
     scan: node.type === 'end' ? undefined : node.scan,
   }
@@ -81,7 +89,11 @@ export const renderNode = (graph: GameGraph, position: Position): RenderedNode |
 
 const move = (graph: GameGraph, position: Position, choice: Choice): MoveResult =>
   Object.hasOwn(graph.nodes, choice.target)
-    ? { ok: true, choice, position: { node: choice.target, state: applyChanges(position.state, choice.changes) } }
+    ? {
+        ok: true,
+        choice,
+        position: { node: choice.target, state: applyChanges(position.state, choice.changes) },
+      }
     : { ok: false, error: 'missing-target' }
 
 export const applyChoice = (graph: GameGraph, position: Position, index: number): MoveResult => {
@@ -90,7 +102,9 @@ export const applyChoice = (graph: GameGraph, position: Position, index: number)
   if (node.type === 'end') return { ok: false, error: 'finished' }
   if (node.scan !== undefined) return { ok: false, error: 'scan-required' }
   const available = availableChoices(node, position.state).find((c) => c.index === index)
-  return available === undefined ? { ok: false, error: 'unavailable-choice' } : move(graph, position, available.choice)
+  return available === undefined
+    ? { ok: false, error: 'unavailable-choice' }
+    : move(graph, position, available.choice)
 }
 
 /** Leaves a `scan` node through its first available choice when the right location was scanned. */
@@ -101,5 +115,7 @@ export const applyScan = (graph: GameGraph, position: Position, location: number
   if (node.scan === undefined) return { ok: false, error: 'no-scan' }
   if (node.scan !== location) return { ok: false, error: 'wrong-location' }
   const first = availableChoices(node, position.state)[0]
-  return first === undefined ? { ok: false, error: 'unavailable-choice' } : move(graph, position, first.choice)
+  return first === undefined
+    ? { ok: false, error: 'unavailable-choice' }
+    : move(graph, position, first.choice)
 }

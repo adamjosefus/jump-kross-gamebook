@@ -20,7 +20,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <RouterProvider router={router} />
-          <Toaster position="top-center" />
+          <Toaster position='top-center' />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

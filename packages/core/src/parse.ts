@@ -66,7 +66,15 @@ const findHeaders = (source: string): Header[] =>
     const id = match[1]!
     const idFrom = line.from + line.text.indexOf(id, 3)
     const rest = match[2]!
-    return [{ line, id, idSpan: { from: idFrom, to: idFrom + id.length }, restFrom: line.to - rest.length, rest }]
+    return [
+      {
+        line,
+        id,
+        idSpan: { from: idFrom, to: idFrom + id.length },
+        restFrom: line.to - rest.length,
+        rest,
+      },
+    ]
   })
 
 class NodeParser {
@@ -106,7 +114,8 @@ class NodeParser {
         `Chybná podmínka: ${result.message}`,
       )
     } else {
-      for (const v of variablesOf(result.expr)) this.variables.push({ name: v.name, offset: at + v.offset })
+      for (const v of variablesOf(result.expr))
+        this.variables.push({ name: v.name, offset: at + v.offset })
     }
     return result
   }
@@ -139,8 +148,10 @@ class NodeParser {
           }
           const state: Record<string, Value> = {}
           for (const [name, initial] of Object.entries(value)) {
-            if (RESERVED_VARIABLES.has(name)) this.error(at, `„${name}“ je rezervované slovo, nemůže být proměnnou.`)
-            else if (isConfigObject(initial)) this.error(at, `Výchozí hodnota „${name}“ musí být text, číslo nebo true/false.`)
+            if (RESERVED_VARIABLES.has(name))
+              this.error(at, `„${name}“ je rezervované slovo, nemůže být proměnnou.`)
+            else if (isConfigObject(initial))
+              this.error(at, `Výchozí hodnota „${name}“ musí být text, číslo nebo true/false.`)
             else {
               state[name] = initial
               this.assigned.add(name)
@@ -162,13 +173,23 @@ class NodeParser {
       this.error(line, 'Volba musí mít tvar „- Popisek [CÍL] { … }“.')
       return undefined
     }
-    const [, bullet, label, target, rest] = match as unknown as [string, string, string, string, string]
+    const [, bullet, label, target, rest] = match as unknown as [
+      string,
+      string,
+      string,
+      string,
+      string,
+    ]
     const labelFrom = line.from + bullet.length
-    const targetFrom = line.from + line.text.indexOf(`[${target}]`, bullet.length + label.length) + 1
+    const targetFrom =
+      line.from + line.text.indexOf(`[${target}]`, bullet.length + label.length) + 1
     const span = { from: line.from, to: line.to }
     if (label === '') this.error({ from: labelFrom, to: targetFrom }, 'Volba nemá popisek.')
     if (!NODE_ID.test(target)) {
-      this.error({ from: targetFrom, to: targetFrom + target.length }, `Neplatné id cíle „${target}“.`)
+      this.error(
+        { from: targetFrom, to: targetFrom + target.length },
+        `Neplatné id cíle „${target}“.`,
+      )
     }
 
     let condition: Choice['condition']
@@ -219,10 +240,18 @@ interface ParsedNode {
 const parseNode = (source: string, header: Header, blockEnd: number): ParsedNode => {
   const parser = new NodeParser(source)
   if (!NODE_ID.test(header.id)) {
-    parser.error(header.idSpan, `Neplatné id uzlu „${header.id}“: povolená jsou písmena bez diakritiky, číslice a „_“.`)
+    parser.error(
+      header.idSpan,
+      `Neplatné id uzlu „${header.id}“: povolená jsou písmena bez diakritiky, číslice a „_“.`,
+    )
   }
 
-  let config = { type: 'passage' as NodeType, theme: undefined as string | undefined, initialState: {} as State, scan: undefined as number | undefined }
+  let config = {
+    type: 'passage' as NodeType,
+    theme: undefined as string | undefined,
+    initialState: {} as State,
+    scan: undefined as number | undefined,
+  }
   let bodyFrom = Math.min(header.line.to + 1, blockEnd)
   const restTrimmed = header.rest.trimStart()
   if (restTrimmed !== '') {
@@ -230,15 +259,24 @@ const parseNode = (source: string, header: Header, blockEnd: number): ParsedNode
     if (restTrimmed.startsWith('{')) {
       const parsed = parseObject(source, restFrom, blockEnd)
       for (const d of parsed.diagnostics) parser.error(d, d.message)
-      if (parsed.value !== undefined) config = parser.parseConfig(parsed.value, { from: restFrom, to: parsed.end })
+      if (parsed.value !== undefined)
+        config = parser.parseConfig(parsed.value, { from: restFrom, to: parsed.end })
       let lineEnd = source.indexOf('\n', parsed.end)
       if (lineEnd === -1 || lineEnd > blockEnd) lineEnd = blockEnd
       if (parsed.closed && source.slice(parsed.end, lineEnd).trim() !== '') {
-        parser.error({ from: parsed.end, to: lineEnd }, 'Za konfigurací uzlu nesmí být na stejném řádku další text.')
+        parser.error(
+          { from: parsed.end, to: lineEnd },
+          'Za konfigurací uzlu nesmí být na stejném řádku další text.',
+        )
       }
-      bodyFrom = parsed.closed ? Math.min(lineEnd + 1, blockEnd) : Math.min(header.line.to + 1, blockEnd)
+      bodyFrom = parsed.closed
+        ? Math.min(lineEnd + 1, blockEnd)
+        : Math.min(header.line.to + 1, blockEnd)
     } else {
-      parser.error({ from: restFrom, to: header.line.to }, 'Za hlavičkou „--- ID ---“ smí být jen konfigurace { … }.')
+      parser.error(
+        { from: restFrom, to: header.line.to },
+        'Za hlavičkou „--- ID ---“ smí být jen konfigurace { … }.',
+      )
     }
   }
 
@@ -300,7 +338,11 @@ export const parseDocument = (source: string, options: ParseOptions = {}): Parse
     const { node, parser } = parseNode(source, header, blockEnd)
     diagnostics.push(...parser.diagnostics)
     if (Object.hasOwn(nodes, node.id)) {
-      diagnostics.push({ ...header.idSpan, severity: 'error', message: `Uzel „${node.id}“ už existuje, tento se ignoruje.` })
+      diagnostics.push({
+        ...header.idSpan,
+        severity: 'error',
+        message: `Uzel „${node.id}“ už existuje, tento se ignoruje.`,
+      })
       return
     }
     nodes[node.id] = node
@@ -321,7 +363,10 @@ interface ValidationInput {
   readonly options: ParseOptions
 }
 
-const validate = (graph: GameGraph, { variables, assigned, options }: ValidationInput): Diagnostic[] => {
+const validate = (
+  graph: GameGraph,
+  { variables, assigned, options }: ValidationInput,
+): Diagnostic[] => {
   const diagnostics: Diagnostic[] = []
   const themes = new Set(options.themes ?? DEFAULT_THEMES)
   const locations = options.locations === undefined ? undefined : new Set(options.locations)
@@ -330,18 +375,34 @@ const validate = (graph: GameGraph, { variables, assigned, options }: Validation
   for (const node of nodes) {
     for (const choice of node.choices) {
       if (!Object.hasOwn(graph.nodes, choice.target)) {
-        diagnostics.push({ ...choice.span, severity: 'error', message: `Cílový uzel „${choice.target}“ neexistuje.` })
+        diagnostics.push({
+          ...choice.span,
+          severity: 'error',
+          message: `Cílový uzel „${choice.target}“ neexistuje.`,
+        })
       }
     }
     if (node.type === 'end' && node.choices.length > 0) {
-      diagnostics.push({ ...node.headerSpan, severity: 'warning', message: 'Koncový uzel má volby, ty se nezobrazí.' })
+      diagnostics.push({
+        ...node.headerSpan,
+        severity: 'warning',
+        message: 'Koncový uzel má volby, ty se nezobrazí.',
+      })
     }
     if (node.type !== 'end' && node.choices.length === 0 && !node.broken) {
-      diagnostics.push({ ...node.headerSpan, severity: 'warning', message: 'Uzel nemá žádnou volbu a není koncový (type: "end").' })
+      diagnostics.push({
+        ...node.headerSpan,
+        severity: 'warning',
+        message: 'Uzel nemá žádnou volbu a není koncový (type: "end").',
+      })
     }
     if (node.scan !== undefined) {
       if (node.choices.length === 0) {
-        diagnostics.push({ ...node.headerSpan, severity: 'error', message: 'Uzel se „scan“ potřebuje volbu, kam sken vede.' })
+        diagnostics.push({
+          ...node.headerSpan,
+          severity: 'error',
+          message: 'Uzel se „scan“ potřebuje volbu, kam sken vede.',
+        })
       } else if (node.choices.filter((c) => c.condition === undefined).length > 1) {
         diagnostics.push({
           ...node.headerSpan,
@@ -350,17 +411,30 @@ const validate = (graph: GameGraph, { variables, assigned, options }: Validation
         })
       }
       if (locations !== undefined && !locations.has(node.scan)) {
-        diagnostics.push({ ...node.headerSpan, severity: 'warning', message: `Místo ${node.scan} není mezi místy hry.` })
+        diagnostics.push({
+          ...node.headerSpan,
+          severity: 'warning',
+          message: `Místo ${node.scan} není mezi místy hry.`,
+        })
       }
     }
     if (node.theme !== undefined && !themes.has(node.theme)) {
-      diagnostics.push({ ...node.headerSpan, severity: 'warning', message: `Neznámé téma „${node.theme}“.` })
+      diagnostics.push({
+        ...node.headerSpan,
+        severity: 'warning',
+        message: `Neznámé téma „${node.theme}“.`,
+      })
     }
   }
 
   const starts = nodes.filter((node) => node.type === 'start')
   if (nodes.length > 0 && starts.length === 0) {
-    diagnostics.push({ from: 0, to: 0, severity: 'warning', message: 'Dokument nemá žádný startovní uzel (type: "start").' })
+    diagnostics.push({
+      from: 0,
+      to: 0,
+      severity: 'warning',
+      message: 'Dokument nemá žádný startovní uzel (type: "start").',
+    })
   }
 
   const reached = new Set(starts.map((node) => node.id))
@@ -376,7 +450,11 @@ const validate = (graph: GameGraph, { variables, assigned, options }: Validation
   if (starts.length > 0) {
     for (const node of nodes) {
       if (!reached.has(node.id)) {
-        diagnostics.push({ ...node.headerSpan, severity: 'warning', message: 'Uzel je nedosažitelný z žádného startu.' })
+        diagnostics.push({
+          ...node.headerSpan,
+          severity: 'warning',
+          message: 'Uzel je nedosažitelný z žádného startu.',
+        })
       }
     }
   }

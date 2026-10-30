@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { parseDocument } from '../src/index.ts'
 import { SAMPLE } from './fixtures.ts'
 
-const errors = (source: string) => parseDocument(source).diagnostics.filter((d) => d.severity === 'error')
+const errors = (source: string) =>
+  parseDocument(source).diagnostics.filter((d) => d.severity === 'error')
 
 describe('parseDocument', () => {
   it('parses the sample without diagnostics', () => {
@@ -11,7 +12,11 @@ describe('parseDocument', () => {
     expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2'])
 
     const a1 = graph.nodes['A1']!
-    expect(a1).toMatchObject({ type: 'start', theme: 'intro', initialState: { hatColor: 'red', gold: 100 } })
+    expect(a1).toMatchObject({
+      type: 'start',
+      theme: 'intro',
+      initialState: { hatColor: 'red', gold: 100 },
+    })
     expect(a1.choices.map((c) => [c.label, c.target])).toEqual([
       ['Možnost jedna', 'B1'],
       ['Možnost dvě', 'A2'],
@@ -28,7 +33,9 @@ describe('parseDocument', () => {
   it('keeps Markdown lists in the body that are not choices', () => {
     const { graph } = parseDocument('--- A ---\n\n- jablko\n- hruška\n\nText.\n\n- Dál [A]\n')
     expect(graph.nodes['A']!.choices).toHaveLength(1)
-    expect(graph.nodes['A']!.body).toEqual([{ kind: 'text', text: '\n- jablko\n- hruška\n\nText.\n\n' }])
+    expect(graph.nodes['A']!.body).toEqual([
+      { kind: 'text', text: '\n- jablko\n- hruška\n\nText.\n\n' },
+    ])
   })
 
   it('isolates a broken config to its node', () => {
@@ -41,7 +48,9 @@ describe('parseDocument', () => {
   })
 
   it('isolates an unclosed config brace', () => {
-    const { graph } = parseDocument('--- A --- { type: "start"\n\nText\n\n- Dál [B]\n--- B --- { type: "end" }\nKonec\n')
+    const { graph } = parseDocument(
+      '--- A --- { type: "start"\n\nText\n\n- Dál [B]\n--- B --- { type: "end" }\nKonec\n',
+    )
     expect(graph.nodes['A']!.broken).toBe(true)
     expect(graph.nodes['B']).toMatchObject({ type: 'end', broken: false })
   })
@@ -62,7 +71,9 @@ describe('parseDocument', () => {
   })
 
   it('reports missing targets, duplicates and invalid ids', () => {
-    const messages = errors('--- A --- { type: "start" }\n- Dál [X]\n--- A ---\n--- ž ---\n').map((d) => d.message)
+    const messages = errors('--- A --- { type: "start" }\n- Dál [X]\n--- A ---\n--- ž ---\n').map(
+      (d) => d.message,
+    )
     expect(messages).toEqual([
       expect.stringContaining('„X“ neexistuje'),
       expect.stringContaining('už existuje'),
@@ -71,7 +82,8 @@ describe('parseDocument', () => {
   })
 
   it('warns about dead ends, unreachable nodes, unknown variables and themes', () => {
-    const source = '--- A --- { type: "start", theme: "into" }\n- Dál [B] { if: \'klic\' }\n--- B ---\n--- C --- { type: "end" }\n'
+    const source =
+      '--- A --- { type: "start", theme: "into" }\n- Dál [B] { if: \'klic\' }\n--- B ---\n--- C --- { type: "end" }\n'
     const warnings = parseDocument(source).diagnostics.map((d) => d.message)
     expect(warnings).toEqual(
       expect.arrayContaining([
@@ -84,7 +96,9 @@ describe('parseDocument', () => {
   })
 
   it('rejects `if` as a variable name', () => {
-    expect(errors('--- A --- { type: "start", initialState: { if: 1 } }\n')[0]!.message).toContain('rezervované')
+    expect(errors('--- A --- { type: "start", initialState: { if: 1 } }\n')[0]!.message).toContain(
+      'rezervované',
+    )
   })
 
   it('warns about scan to an unknown location when locations are given', () => {
@@ -93,7 +107,15 @@ describe('parseDocument', () => {
   })
 
   it('never throws on arbitrary input', () => {
-    for (const source of ['', '---', '--- A ---{', '--- A --- {"', '--- A ---\n<if condition=\'(\'>', '- [', '<else></if>']) {
+    for (const source of [
+      '',
+      '---',
+      '--- A ---{',
+      '--- A --- {"',
+      "--- A ---\n<if condition='('>",
+      '- [',
+      '<else></if>',
+    ]) {
       expect(() => parseDocument(source)).not.toThrow()
     }
   })
