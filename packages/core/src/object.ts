@@ -35,11 +35,11 @@ export const findClosingBrace = (source: string, start: number, limit = source.l
 }
 
 class ObjectSyntaxError extends Error {
-  constructor(
-    message: string,
-    readonly at: number,
-  ) {
+  readonly at: number
+
+  constructor(message: string, at: number) {
     super(message)
+    this.at = at
   }
 }
 

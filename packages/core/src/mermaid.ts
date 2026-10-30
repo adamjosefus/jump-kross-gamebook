@@ -38,8 +38,8 @@ export const toMermaid = (graph: GameGraph): string => {
     for (const choice of node.choices) {
       if (!Object.hasOwn(graph.nodes, choice.target)) missing.add(choice.target)
       const parts = [
-        node.scan === undefined ? truncate(choice.label, 28) : `📷 ${node.scan}`,
-        choice.condition === undefined ? '' : '❓',
+        node.scan === undefined ? truncate(choice.label, 28) : `QR ${node.scan}`,
+        choice.condition === undefined ? '' : '(if)',
       ].filter((part) => part !== '')
       const arrow = node.scan === undefined ? '-->' : '-.->'
       lines.push(`  ${mermaidId(id)} ${arrow}|"${escapeLabel(parts.join(' '))}"| ${mermaidId(choice.target)}`)

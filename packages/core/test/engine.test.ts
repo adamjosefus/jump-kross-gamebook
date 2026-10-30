@@ -76,7 +76,7 @@ describe('toMermaid', () => {
     const { graph: broken } = parseDocument(SAMPLE.replace('- Bojovat [C1]', '- Bojovat [X9]'))
     const text = toMermaid(broken)
     expect(text).toContain('n_A1(["A1"])')
-    expect(text).toContain('n_A2 -.->|"📷 32"| n_B1')
+    expect(text).toContain('n_A2 -.->|"QR 32"| n_B1')
     expect(text).toContain('n_X9{{"X9 ?"}}')
     expect(text).toContain('class n_X9 missing')
   })

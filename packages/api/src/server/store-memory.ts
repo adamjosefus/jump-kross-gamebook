@@ -1,0 +1,96 @@
+import { Effect, Layer } from 'effect'
+import { Store, type DraftRow, type LocationRow, type LogRow, type TeamRow, type VersionRow } from './store.ts'
+
+/** In-process store for local development without a database and for tests. */
+export const makeMemoryStore = (initialDraft = '') => {
+  let draft: DraftRow = { source: initialDraft, updatedAt: new Date() }
+  const versions: VersionRow[] = []
+  const locations = new Map<number, LocationRow>()
+  const teams = new Map<number, TeamRow>()
+  const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>()
+  const log: LogRow[] = []
+  let nextTeamId = 1
+
+  return Store.of({
+    getDraft: () => Effect.sync(() => draft),
+    saveDraft: (source) => Effect.sync(() => (draft = { source, updatedAt: new Date() })),
+    publish: (source) =>
+      Effect.sync(() => {
+        const version = { id: versions.length + 1, source, publishedAt: new Date() }
+        versions.push(version)
+        return version
+      }),
+    currentVersion: () => Effect.sync(() => versions.at(-1)),
+
+    listLocations: () => Effect.sync(() => [...locations.values()].sort((a, b) => a.id - b.id)),
+    getLocation: (id) => Effect.sync(() => locations.get(id)),
+    saveLocation: (location) => Effect.sync(() => (locations.set(location.id, location), location)),
+    deleteLocation: (id) => Effect.sync(() => void locations.delete(id)),
+
+    listTeams: () => Effect.sync(() => [...teams.values()].sort((a, b) => a.id - b.id)),
+    getTeam: (id) => Effect.sync(() => teams.get(id)),
+    createTeam: (name, startNode) =>
+      Effect.sync(() => {
+        const team: TeamRow = {
+          id: nextTeamId++,
+          name,
+          startNode,
+          node: undefined,
+          state: {},
+          step: 0,
+          finishedAt: undefined,
+          updatedAt: new Date(),
+        }
+        teams.set(team.id, team)
+        return team
+      }),
+    updateTeam: (id, name, startNode) =>
+      Effect.sync(() => {
+        const team = teams.get(id)
+        if (team === undefined) return undefined
+        const updated = { ...team, name, startNode }
+        teams.set(id, updated)
+        return updated
+      }),
+    deleteTeam: (id) => Effect.sync(() => teams.delete(id)),
+    moveTeam: (id, expectedStep, move) =>
+      Effect.sync(() => {
+        const team = teams.get(id)
+        if (team === undefined || team.step !== expectedStep) return undefined
+        const now = new Date()
+        const updated: TeamRow = {
+          ...team,
+          node: move.node,
+          state: move.state,
+          step: team.step + 1,
+          finishedAt: move.finished ? (team.finishedAt ?? now) : undefined,
+          updatedAt: now,
+        }
+        teams.set(id, updated)
+        log.push({ teamId: id, at: now, action: move.action, fromNode: team.node, toNode: move.node, state: move.state })
+        return updated
+      }),
+
+    createSession: (id, teamId) => Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
+    touchSession: (id) =>
+      Effect.sync(() => {
+        const session = sessions.get(id)
+        if (session === undefined || !teams.has(session.teamId)) return undefined
+        session.lastSeenAt = new Date()
+        return session.teamId
+      }),
+    deleteSession: (id) => Effect.sync(() => void sessions.delete(id)),
+    activeDevices: (since) =>
+      Effect.sync(() => {
+        const counts = new Map<number, number>()
+        for (const { teamId, lastSeenAt } of sessions.values()) {
+          if (lastSeenAt >= since) counts.set(teamId, (counts.get(teamId) ?? 0) + 1)
+        }
+        return counts
+      }),
+
+    recentLog: (limit) => Effect.sync(() => log.slice(-limit).reverse()),
+  })
+}
+
+export const MemoryStoreLayer = (initialDraft?: string) => Layer.sync(Store, () => makeMemoryStore(initialDraft))

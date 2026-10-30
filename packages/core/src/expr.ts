@@ -24,11 +24,11 @@ type Token =
   | { readonly type: 'eof'; readonly offset: number }
 
 class ExprError extends Error {
-  constructor(
-    message: string,
-    readonly offset: number,
-  ) {
+  readonly offset: number
+
+  constructor(message: string, offset: number) {
     super(message)
+    this.offset = offset
   }
 }
 
