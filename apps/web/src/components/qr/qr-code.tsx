@@ -1,6 +1,6 @@
-import QRCode from 'qrcode'
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { DEFAULT_LOGO_SCALE, qrGeometry } from './qr-svg'
 
 export interface QrCodeProps {
   readonly value: string
@@ -11,28 +11,12 @@ export interface QrCodeProps {
   readonly className?: string
 }
 
-/** Quiet zone around the code, in modules (the spec asks for 4). */
-const MARGIN = 4
-
 /**
  * QR code drawn as one SVG path, always dark on white so it scans in dark mode and in print.
  * Error correction is level H, which tolerates the logo covering the centre.
  */
-export const QrCode = ({ value, logo, logoScale = 0.22, className }: QrCodeProps) => {
-  const { size, path } = useMemo(() => {
-    const { modules } = QRCode.create(value, { errorCorrectionLevel: 'H' })
-    let d = ''
-    for (let row = 0; row < modules.size; row++) {
-      for (let col = 0; col < modules.size; col++) {
-        if (modules.get(row, col)) d += `M${col + MARGIN} ${row + MARGIN}h1v1h-1z`
-      }
-    }
-    return { size: modules.size + MARGIN * 2, path: d }
-  }, [value])
-
-  const logoSize = (size - MARGIN * 2) * logoScale
-  const logoAt = (size - logoSize) / 2
-  const pad = 0.8
+export const QrCode = ({ value, logo, logoScale = DEFAULT_LOGO_SCALE, className }: QrCodeProps) => {
+  const { size, path, logo: box } = useMemo(() => qrGeometry(value, logoScale), [value, logoScale])
 
   return (
     <svg
@@ -47,14 +31,14 @@ export const QrCode = ({ value, logo, logoScale = 0.22, className }: QrCodeProps
       {logo !== undefined && (
         <>
           <rect
-            x={logoAt - pad}
-            y={logoAt - pad}
-            width={logoSize + pad * 2}
-            height={logoSize + pad * 2}
+            x={box.at - box.pad}
+            y={box.at - box.pad}
+            width={box.size + box.pad * 2}
+            height={box.size + box.pad * 2}
             rx={1}
             fill="#fff"
           />
-          <image href={logo} x={logoAt} y={logoAt} width={logoSize} height={logoSize} />
+          <image href={logo} x={box.at} y={box.at} width={box.size} height={box.size} />
         </>
       )}
     </svg>
