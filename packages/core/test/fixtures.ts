@@ -33,4 +33,4 @@ Prohráli jste.
 --- C2 --- { type: "end" }
 
 Vyhráli jste.
-`
+`;

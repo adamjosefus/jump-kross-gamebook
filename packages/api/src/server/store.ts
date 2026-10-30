@@ -1,54 +1,55 @@
-import type { State } from '@gamebook/core'
-import { Context, type Effect, Schema } from 'effect'
-import type { LocationKind } from '../api.ts'
+import type { State } from '@gamebook/core';
+import { Context, type Effect, Schema } from 'effect';
+
+import type { LocationKind } from '../api.ts';
 
 export class StoreError extends Schema.TaggedError<StoreError>()('StoreError', {
   message: Schema.String,
 }) {}
 
 export interface DraftRow {
-  readonly source: string
-  readonly updatedAt: Date
+  readonly source: string;
+  readonly updatedAt: Date;
 }
 
 export interface VersionRow {
-  readonly id: number
-  readonly source: string
-  readonly publishedAt: Date
+  readonly id: number;
+  readonly source: string;
+  readonly publishedAt: Date;
 }
 
 export interface LocationRow {
-  readonly id: number
-  readonly name: string
-  readonly kind: LocationKind
+  readonly id: number;
+  readonly name: string;
+  readonly kind: LocationKind;
 }
 
 export interface TeamRow {
-  readonly id: number
-  readonly name: string
-  readonly startNode: string
+  readonly id: number;
+  readonly name: string;
+  readonly startNode: string;
   /** Undefined until the team starts (or after a reset). */
-  readonly node: string | undefined
-  readonly state: State
-  readonly step: number
-  readonly finishedAt: Date | undefined
-  readonly updatedAt: Date
+  readonly node: string | undefined;
+  readonly state: State;
+  readonly step: number;
+  readonly finishedAt: Date | undefined;
+  readonly updatedAt: Date;
 }
 
 export interface LogRow {
-  readonly teamId: number
-  readonly at: Date
-  readonly action: string
-  readonly fromNode: string | undefined
-  readonly toNode: string | undefined
-  readonly state: State
+  readonly teamId: number;
+  readonly at: Date;
+  readonly action: string;
+  readonly fromNode: string | undefined;
+  readonly toNode: string | undefined;
+  readonly state: State;
 }
 
 export interface TeamMove {
-  readonly node: string | undefined
-  readonly state: State
-  readonly finished: boolean
-  readonly action: string
+  readonly node: string | undefined;
+  readonly state: State;
+  readonly finished: boolean;
+  readonly action: string;
 }
 
 /**
@@ -56,32 +57,40 @@ export interface TeamMove {
  * when the team is still at `expectedStep`, which is how concurrent devices of a team are resolved.
  */
 export interface StoreShape {
-  readonly getDraft: () => Effect.Effect<DraftRow, StoreError>
-  readonly saveDraft: (source: string) => Effect.Effect<DraftRow, StoreError>
-  readonly publish: (source: string) => Effect.Effect<VersionRow, StoreError>
-  readonly currentVersion: () => Effect.Effect<VersionRow | undefined, StoreError>
+  readonly getDraft: () => Effect.Effect<DraftRow, StoreError>;
+  readonly saveDraft: (source: string) => Effect.Effect<DraftRow, StoreError>;
+  readonly publish: (source: string) => Effect.Effect<VersionRow, StoreError>;
+  readonly currentVersion: () => Effect.Effect<VersionRow | undefined, StoreError>;
 
-  readonly listLocations: () => Effect.Effect<readonly LocationRow[], StoreError>
-  readonly getLocation: (id: number) => Effect.Effect<LocationRow | undefined, StoreError>
-  readonly saveLocation: (location: LocationRow) => Effect.Effect<LocationRow, StoreError>
-  readonly deleteLocation: (id: number) => Effect.Effect<void, StoreError>
+  readonly listLocations: () => Effect.Effect<readonly LocationRow[], StoreError>;
+  readonly getLocation: (id: number) => Effect.Effect<LocationRow | undefined, StoreError>;
+  readonly saveLocation: (location: LocationRow) => Effect.Effect<LocationRow, StoreError>;
+  readonly deleteLocation: (id: number) => Effect.Effect<void, StoreError>;
 
-  readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>
-  readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>
-  readonly createTeam: (name: string, startNode: string) => Effect.Effect<TeamRow, StoreError>
-  readonly updateTeam: (id: number, name: string, startNode: string) => Effect.Effect<TeamRow | undefined, StoreError>
-  readonly deleteTeam: (id: number) => Effect.Effect<boolean, StoreError>
+  readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>;
+  readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>;
+  readonly createTeam: (name: string, startNode: string) => Effect.Effect<TeamRow, StoreError>;
+  readonly updateTeam: (
+    id: number,
+    name: string,
+    startNode: string,
+  ) => Effect.Effect<TeamRow | undefined, StoreError>;
+  readonly deleteTeam: (id: number) => Effect.Effect<boolean, StoreError>;
   /** Returns the updated team, or undefined when the step did not match. */
-  readonly moveTeam: (id: number, expectedStep: number, move: TeamMove) => Effect.Effect<TeamRow | undefined, StoreError>
+  readonly moveTeam: (
+    id: number,
+    expectedStep: number,
+    move: TeamMove,
+  ) => Effect.Effect<TeamRow | undefined, StoreError>;
 
-  readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>
+  readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>;
   /** Resolves a session and records that the device is alive. */
-  readonly touchSession: (id: string) => Effect.Effect<number | undefined, StoreError>
-  readonly deleteSession: (id: string) => Effect.Effect<void, StoreError>
+  readonly touchSession: (id: string) => Effect.Effect<number | undefined, StoreError>;
+  readonly deleteSession: (id: string) => Effect.Effect<void, StoreError>;
   /** Devices seen since `since`, per team. */
-  readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>
+  readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;
 
-  readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>
+  readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
 }
 
 export class Store extends Context.Service<Store, StoreShape>()('gamebook/Store') {}
