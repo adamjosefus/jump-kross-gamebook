@@ -1,0 +1,118 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, Outlet } from '@tanstack/react-router'
+import { Loader2, LogOut, Monitor, Moon, Sun } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { api, errorMessage, isApiError } from '@/lib/api'
+import { useTheme, type ThemePreference } from '@/lib/theme'
+import { adminKeys } from './queries'
+
+const NAV = [
+  { to: '/admin/editor', label: 'Editor' },
+  { to: '/admin/game', label: 'Hra' },
+  { to: '/admin/dashboard', label: 'Průběh' },
+  { to: '/admin/print', label: 'QR kódy' },
+] as const
+
+const THEME_NEXT: Record<ThemePreference, ThemePreference> = { system: 'light', light: 'dark', dark: 'system' }
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon }
+
+/** Creator area: everything below it requires the admin cookie. */
+export const AdminLayout = () => {
+  const queryClient = useQueryClient()
+  const { preference, setPreference } = useTheme()
+  const ThemeIcon = THEME_ICON[preference]
+
+  const me = useQuery({
+    queryKey: adminKeys.me,
+    queryFn: ({ signal }) =>
+      api((client) => client.admin.me(), { signal }).then(
+        () => true,
+        (error: unknown) => {
+          if (isApiError(error, 'Unauthorized')) return false
+          throw error
+        },
+      ),
+  })
+  const logout = useMutation({
+    mutationFn: () => api((client) => client.admin.logout()),
+    onSettled: () => queryClient.clear(),
+  })
+
+  if (me.isPending) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <Loader2 className="size-6 animate-spin" />
+      </div>
+    )
+  }
+  if (me.data !== true) return <AdminLogin />
+
+  return (
+    <div className="flex h-dvh flex-col">
+      <header className="flex items-center gap-1 border-b px-4 py-2 print:hidden">
+        <span className="mr-4 font-semibold">Gamebook</span>
+        <nav className="flex gap-1">
+          {NAV.map((item) => (
+            <Button key={item.to} variant="ghost" size="sm" asChild>
+              <Link to={item.to} activeProps={{ className: 'bg-accent' }}>
+                {item.label}
+              </Link>
+            </Button>
+          ))}
+        </nav>
+        <span className="flex-1" />
+        <Button variant="ghost" size="icon" onClick={() => setPreference(THEME_NEXT[preference])} title="Vzhled">
+          <ThemeIcon />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => logout.mutate()} title="Odhlásit">
+          <LogOut />
+        </Button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <Outlet />
+      </div>
+    </div>
+  )
+}
+
+const AdminLogin = () => {
+  const queryClient = useQueryClient()
+  const [password, setPassword] = useState('')
+  const login = useMutation({
+    mutationFn: () => api((client) => client.admin.login({ payload: { password } })),
+    onSuccess: () => queryClient.setQueryData(adminKeys.me, true),
+  })
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    login.mutate()
+  }
+
+  return (
+    <div className="flex min-h-dvh items-center justify-center p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Část pro tvůrce</CardTitle>
+          <CardDescription>Zadejte heslo organizátorů.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="flex flex-col gap-3">
+            <Input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Heslo"
+            />
+            {login.isError && <p className="text-destructive text-sm">{errorMessage(login.error)}</p>}
+            <Button type="submit" disabled={login.isPending || password === ''}>
+              {login.isPending && <Loader2 className="animate-spin" />} Přihlásit
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

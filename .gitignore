@@ -1,1 +1,8 @@
+node_modules
+dist
+storybook-static
+.vercel
+.env
+.env.local
+*.tsbuildinfo
 .DS_Store
