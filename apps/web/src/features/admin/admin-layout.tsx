@@ -13,7 +13,7 @@ const NAV = [
   { to: '/admin/editor', label: 'Editor' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Průběh' },
-  { to: '/admin/print', label: 'Tisk QR' },
+  { to: '/admin/print', label: 'QR kódy' },
 ] as const
 
 const THEME_NEXT: Record<ThemePreference, ThemePreference> = { system: 'light', light: 'dark', dark: 'system' }

@@ -60,13 +60,16 @@ const gamebookStream = StreamLanguage.define<State>({
   },
 })
 
+// Colors are CSS variables (`--syntax-*` in index.css), so they follow light and dark mode.
 const highlight = HighlightStyle.define([
-  { tag: t.heading, fontWeight: '700', color: 'var(--foreground)', backgroundColor: 'var(--muted)' },
-  { tag: t.list, fontWeight: '700' },
-  { tag: t.link, color: 'var(--foreground)', fontWeight: '600', textDecoration: 'underline' },
-  { tag: t.keyword, color: 'var(--muted-foreground)', fontStyle: 'italic' },
-  { tag: [t.propertyName, t.brace, t.punctuation], color: 'var(--muted-foreground)' },
-  { tag: [t.string, t.number, t.bool], color: 'var(--foreground)', fontWeight: '500' },
+  { tag: t.heading, fontWeight: '700', color: 'var(--syntax-heading)', backgroundColor: 'var(--muted)' },
+  { tag: t.list, fontWeight: '700', color: 'var(--syntax-choice)' },
+  { tag: t.link, color: 'var(--syntax-target)', fontWeight: '600' },
+  { tag: t.keyword, color: 'var(--syntax-keyword)' },
+  { tag: t.propertyName, color: 'var(--syntax-property)' },
+  { tag: [t.brace, t.punctuation], color: 'var(--muted-foreground)' },
+  { tag: t.string, color: 'var(--syntax-string)' },
+  { tag: [t.number, t.bool], color: 'var(--syntax-number)' },
   { tag: t.strong, fontWeight: '700' },
   { tag: t.emphasis, fontStyle: 'italic' },
   { tag: t.monospace, fontFamily: 'var(--font-mono, monospace)' },
