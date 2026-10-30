@@ -6,15 +6,16 @@
  *   .vercel/output/functions/api.func  one bundled Node function serving /api/*
  *   .vercel/output/config.json      routes: /api/* to the function, everything else to the SPA
  */
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
-import { build } from 'vite'
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
-const root = path.resolve(import.meta.dirname, '..')
-const output = path.join(root, '.vercel/output')
-const fn = path.join(output, 'functions/api.func')
+import { build } from 'vite';
 
-rmSync(output, { recursive: true, force: true })
+const root = path.resolve(import.meta.dirname, '..');
+const output = path.join(root, '.vercel/output');
+const fn = path.join(output, 'functions/api.func');
+
+rmSync(output, { recursive: true, force: true });
 
 await build({
   configFile: false,
@@ -28,7 +29,7 @@ await build({
     rollupOptions: { output: { entryFileNames: 'index.mjs', format: 'es' } },
   },
   ssr: { noExternal: true, target: 'node' },
-})
+});
 
 writeFileSync(
   path.join(fn, '.vc-config.json'),
@@ -42,10 +43,10 @@ writeFileSync(
     null,
     2,
   ),
-)
+);
 
-mkdirSync(path.join(output, 'static'), { recursive: true })
-cpSync(path.join(root, 'apps/web/dist'), path.join(output, 'static'), { recursive: true })
+mkdirSync(path.join(output, 'static'), { recursive: true });
+cpSync(path.join(root, 'apps/web/dist'), path.join(output, 'static'), { recursive: true });
 
 writeFileSync(
   path.join(output, 'config.json'),
@@ -61,6 +62,6 @@ writeFileSync(
     null,
     2,
   ),
-)
+);
 
-console.log(`Vercel output written to ${path.relative(root, output)}`)
+console.log(`Vercel output written to ${path.relative(root, output)}`);

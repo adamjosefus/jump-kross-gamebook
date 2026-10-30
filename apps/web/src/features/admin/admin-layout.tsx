@@ -1,33 +1,35 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Outlet } from '@tanstack/react-router'
-import { Loader2, LogOut, Monitor, Moon, Sun } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { api, errorMessage, isApiError } from '@/lib/api'
-import { useTheme, type ThemePreference } from '@/lib/theme'
-import { adminKeys } from './queries'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, Outlet } from '@tanstack/react-router';
+import { Loader2, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { api, errorMessage, isApiError } from '@/lib/api';
+import { useTheme, type ThemePreference } from '@/lib/theme';
+
+import { adminKeys } from './queries';
 
 const NAV = [
   { to: '/admin/editor', label: 'Editor' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Průběh' },
   { to: '/admin/print', label: 'QR kódy' },
-] as const
+] as const;
 
 const THEME_NEXT: Record<ThemePreference, ThemePreference> = {
   system: 'light',
   light: 'dark',
   dark: 'system',
-}
-const THEME_ICON = { system: Monitor, light: Sun, dark: Moon }
+};
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
 
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {
-  const queryClient = useQueryClient()
-  const { preference, setPreference } = useTheme()
-  const ThemeIcon = THEME_ICON[preference]
+  const queryClient = useQueryClient();
+  const { preference, setPreference } = useTheme();
+  const ThemeIcon = THEME_ICON[preference];
 
   const me = useQuery({
     queryKey: adminKeys.me,
@@ -35,24 +37,24 @@ export const AdminLayout = () => {
       api((client) => client.admin.me(), { signal }).then(
         () => true,
         (error: unknown) => {
-          if (isApiError(error, 'Unauthorized')) return false
-          throw error
+          if (isApiError(error, 'Unauthorized')) return false;
+          throw error;
         },
       ),
-  })
+  });
   const logout = useMutation({
     mutationFn: () => api((client) => client.admin.logout()),
     onSettled: () => queryClient.clear(),
-  })
+  });
 
   if (me.isPending) {
     return (
       <div className='flex min-h-dvh items-center justify-center'>
         <Loader2 className='size-6 animate-spin' />
       </div>
-    )
+    );
   }
-  if (me.data !== true) return <AdminLogin />
+  if (me.data !== true) return <AdminLogin />;
 
   return (
     <div className='flex h-dvh flex-col'>
@@ -84,20 +86,20 @@ export const AdminLayout = () => {
         <Outlet />
       </div>
     </div>
-  )
-}
+  );
+};
 
 const AdminLogin = () => {
-  const queryClient = useQueryClient()
-  const [password, setPassword] = useState('')
+  const queryClient = useQueryClient();
+  const [password, setPassword] = useState('');
   const login = useMutation({
     mutationFn: () => api((client) => client.admin.login({ payload: { password } })),
     onSuccess: () => queryClient.setQueryData(adminKeys.me, true),
-  })
+  });
   const submit = (event: FormEvent) => {
-    event.preventDefault()
-    login.mutate()
-  }
+    event.preventDefault();
+    login.mutate();
+  };
 
   return (
     <div className='flex min-h-dvh items-center justify-center p-4'>
@@ -116,7 +118,7 @@ const AdminLogin = () => {
               placeholder='Heslo'
             />
             {login.isError && (
-              <p className='text-destructive text-sm'>{errorMessage(login.error)}</p>
+              <p className='text-sm text-destructive'>{errorMessage(login.error)}</p>
             )}
             <Button type='submit' disabled={login.isPending || password === ''}>
               {login.isPending && <Loader2 className='animate-spin' />} Přihlásit
@@ -125,5 +127,5 @@ const AdminLogin = () => {
         </CardContent>
       </Card>
     </div>
-  )
-}
+  );
+};

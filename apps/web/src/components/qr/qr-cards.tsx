@@ -1,12 +1,14 @@
-import { Flag, LogIn, MapPin } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
-import { QrCode } from './qr-code'
+import { Flag, LogIn, MapPin } from 'lucide-react';
+import type { ReactNode } from 'react';
+
+import { cn } from '@/lib/utils';
+
+import { QrCode } from './qr-code';
 
 interface QrCardProps {
-  readonly value: string
-  readonly logo?: string | undefined
-  readonly className?: string
+  readonly value: string;
+  readonly logo?: string | undefined;
+  readonly className?: string;
 }
 
 /**
@@ -41,7 +43,7 @@ const QrCard = ({
       <span className='font-mono text-[10px] opacity-60'>{value}</span>
     </div>
   </figure>
-)
+);
 
 /** Logs a team into the game. One per team; the team cannot rename itself. */
 export const TeamLoginQr = ({
@@ -55,7 +57,7 @@ export const TeamLoginQr = ({
     title={teamName}
     hint='Naskenujte v aplikaci pro přihlášení týmu.'
   />
-)
+);
 
 /** Moves any team on at a location. The name is for organisers placing the code. */
 export const ProgressQr = ({
@@ -69,7 +71,7 @@ export const ProgressQr = ({
     title={undefined}
     hint='Naskenujte v aplikaci a pokračujte v příběhu.'
   />
-)
+);
 
 /** Ends the game at a finish location. */
 export const EndQr = ({
@@ -83,4 +85,4 @@ export const EndQr = ({
     title='Cíl'
     hint='Naskenujte v aplikaci a dokončete hru.'
   />
-)
+);

@@ -1,19 +1,20 @@
-import type { LocationKind } from '@gamebook/api'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Effect } from 'effect'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import type { LocationKind } from '@gamebook/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Effect } from 'effect';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -21,27 +22,28 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { api, errorMessage, type Client } from '@/lib/api'
-import { adminKeys, startNodes, useOverview, usePublishedGraph } from './queries'
+} from '@/components/ui/table';
+import { api, errorMessage, type Client } from '@/lib/api';
+
+import { adminKeys, startNodes, useOverview, usePublishedGraph } from './queries';
 
 /** Setup of the running game: teams with their start node, and the physical locations. */
 export const GamePage = () => {
-  const queryClient = useQueryClient()
-  const overview = useOverview()
-  const graph = usePublishedGraph(overview.data?.version?.source)
-  const starts = startNodes(graph)
+  const queryClient = useQueryClient();
+  const overview = useOverview();
+  const graph = usePublishedGraph(overview.data?.version?.source);
+  const starts = startNodes(graph);
 
   const mutate = useMutation({
     mutationFn: (call: (client: Client) => Effect.Effect<unknown, unknown>) => api(call),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.overview }),
     onError: (error) => toast.error(errorMessage(error)),
-  })
+  });
 
-  if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />
+  if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
-    return <p className='text-destructive p-8'>{errorMessage(overview.error)}</p>
-  const { teams, locations, version } = overview.data
+    return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
+  const { teams, locations, version } = overview.data;
 
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
@@ -94,7 +96,7 @@ export const GamePage = () => {
                             `Smazat tým ${team.name}? Jeho přihlašovací QR kód přestane platit.`,
                           )
                         ) {
-                          mutate.mutate((c) => c.admin.deleteTeam({ params: { id: team.id } }))
+                          mutate.mutate((c) => c.admin.deleteTeam({ params: { id: team.id } }));
                         }
                       }}
                     >
@@ -167,17 +169,17 @@ export const GamePage = () => {
         </CardContent>
       </Card>
     </div>
-  )
-}
+  );
+};
 
 const NodeSelect = ({
   value,
   options,
   onChange,
 }: {
-  value: string
-  options: readonly string[]
-  onChange: (value: string) => void
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
 }) => (
   <Select value={value} onValueChange={onChange}>
     <SelectTrigger size='sm' className='w-32'>
@@ -194,24 +196,24 @@ const NodeSelect = ({
         ))}
     </SelectContent>
   </Select>
-)
+);
 
 const NewTeamForm = ({
   starts,
   onCreate,
 }: {
-  starts: readonly string[]
-  onCreate: (name: string, start: string) => void
+  starts: readonly string[];
+  onCreate: (name: string, start: string) => void;
 }) => {
-  const [name, setName] = useState('')
-  const [start, setStart] = useState('')
-  const startNode = start === '' ? (starts[0] ?? '') : start
+  const [name, setName] = useState('');
+  const [start, setStart] = useState('');
+  const startNode = start === '' ? (starts[0] ?? '') : start;
   const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (name.trim() === '' || startNode === '') return
-    onCreate(name, startNode)
-    setName('')
-  }
+    event.preventDefault();
+    if (name.trim() === '' || startNode === '') return;
+    onCreate(name, startNode);
+    setName('');
+  };
   return (
     <form onSubmit={submit} className='flex gap-2'>
       <Input
@@ -224,28 +226,31 @@ const NewTeamForm = ({
         <Plus /> Přidat
       </Button>
     </form>
-  )
-}
+  );
+};
+
+const isLocationKind = (value: string): value is LocationKind =>
+  value === 'progress' || value === 'end';
 
 const NewLocationForm = ({
   nextId,
   onSave,
 }: {
-  nextId: number
-  onSave: (id: number, name: string, kind: LocationKind) => void
+  nextId: number;
+  onSave: (id: number, name: string, kind: LocationKind) => void;
 }) => {
-  const [id, setId] = useState('')
-  const [name, setName] = useState('')
-  const [kind, setKind] = useState<LocationKind>('progress')
-  const number = id === '' ? nextId : Number(id)
-  const valid = Number.isInteger(number) && number > 0 && name.trim() !== ''
+  const [id, setId] = useState('');
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<LocationKind>('progress');
+  const number = id === '' ? nextId : Number(id);
+  const valid = Number.isInteger(number) && number > 0 && name.trim() !== '';
   const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!valid) return
-    onSave(number, name, kind)
-    setId('')
-    setName('')
-  }
+    event.preventDefault();
+    if (!valid) return;
+    onSave(number, name, kind);
+    setId('');
+    setName('');
+  };
   return (
     <form onSubmit={submit} className='flex gap-2'>
       <Input
@@ -260,7 +265,7 @@ const NewLocationForm = ({
         onChange={(event) => setName(event.target.value)}
         placeholder='Název místa'
       />
-      <Select value={kind} onValueChange={(value) => setKind(value as LocationKind)}>
+      <Select value={kind} onValueChange={(value) => isLocationKind(value) && setKind(value)}>
         <SelectTrigger className='w-28'>
           <SelectValue />
         </SelectTrigger>
@@ -273,5 +278,5 @@ const NewLocationForm = ({
         <Plus /> Přidat
       </Button>
     </form>
-  )
-}
+  );
+};

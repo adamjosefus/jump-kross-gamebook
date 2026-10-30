@@ -2,28 +2,26 @@
   "name": "gamebook",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.16.1",
   "scripts": {
     "dev": "pnpm --filter @gamebook/web dev",
     "build": "pnpm --filter @gamebook/web build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
-    "lint": "eslint .",
+    "lint": "oxlint --type-aware --deny-warnings",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "storybook": "pnpm --filter @gamebook/ui storybook",
     "build:vercel": "pnpm build && node scripts/build-vercel.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.6",
-    "eslint": "^10.13.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
     "oxfmt": "0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.72.1",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"
-  }
+  },
+  "packageManager": "pnpm@12.16.1"
 }

@@ -1,14 +1,16 @@
-import { useMemo } from 'react'
-import { cn } from '@/lib/utils'
-import { DEFAULT_LOGO_SCALE, qrGeometry } from './qr-svg'
+import { useMemo } from 'react';
+
+import { cn } from '@/lib/utils';
+
+import { DEFAULT_LOGO_SCALE, qrGeometry } from './qr-svg';
 
 export interface QrCodeProps {
-  readonly value: string
+  readonly value: string;
   /** Image placed in the middle of the code. Keep it simple and high-contrast. */
-  readonly logo?: string | undefined
+  readonly logo?: string | undefined;
   /** Share of the code width taken by the logo; ~0.22 keeps level-H codes readable. */
-  readonly logoScale?: number
-  readonly className?: string
+  readonly logoScale?: number;
+  readonly className?: string;
 }
 
 /**
@@ -16,7 +18,7 @@ export interface QrCodeProps {
  * Error correction is level H, which tolerates the logo covering the centre.
  */
 export const QrCode = ({ value, logo, logoScale = DEFAULT_LOGO_SCALE, className }: QrCodeProps) => {
-  const { size, path, logo: box } = useMemo(() => qrGeometry(value, logoScale), [value, logoScale])
+  const { size, path, logo: box } = useMemo(() => qrGeometry(value, logoScale), [value, logoScale]);
 
   return (
     <svg
@@ -42,5 +44,5 @@ export const QrCode = ({ value, logo, logoScale = DEFAULT_LOGO_SCALE, className 
         </>
       )}
     </svg>
-  )
-}
+  );
+};

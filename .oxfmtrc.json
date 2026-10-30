@@ -2,10 +2,18 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "useTabs": false,
   "tabWidth": 2,
-  "semi": false,
+  "printWidth": 100,
+  "semi": true,
   "singleQuote": true,
   "jsxSingleQuote": true,
-  "printWidth": 100,
-  "sortPackageJson": false,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "bracketSameLine": false,
+  "sortImports": true,
+  "sortTailwindcss": {
+    "stylesheet": "./apps/web/src/index.css",
+    "functions": ["cn", "cva"]
+  },
+  "sortPackageJson": true,
   "ignorePatterns": []
 }

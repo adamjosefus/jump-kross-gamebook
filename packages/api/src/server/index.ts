@@ -1,17 +1,18 @@
-import { Layer } from 'effect'
-import { HttpRouter, HttpServer } from 'effect/http'
-import { HttpApiBuilder } from 'effect/http-api'
-import { Api } from '../api.ts'
-import { configFromEnv, ServerConfig, type ServerConfigShape } from './config.ts'
-import { HandlersLayer } from './handlers.ts'
-import { MemoryStoreLayer } from './store-memory.ts'
-import { PostgresStoreLayer } from './store-postgres.ts'
-import type { Store } from './store.ts'
+import { Layer } from 'effect';
+import { HttpRouter, HttpServer } from 'effect/http';
+import { HttpApiBuilder } from 'effect/http-api';
 
-export { configFromEnv, type ServerConfigShape } from './config.ts'
-export { MemoryStoreLayer } from './store-memory.ts'
-export { PostgresStoreLayer } from './store-postgres.ts'
-export { toNodeHandler } from './node.ts'
+import { Api } from '../api.ts';
+import { configFromEnv, ServerConfig, type ServerConfigShape } from './config.ts';
+import { HandlersLayer } from './handlers.ts';
+import { MemoryStoreLayer } from './store-memory.ts';
+import { PostgresStoreLayer } from './store-postgres.ts';
+import type { Store } from './store.ts';
+
+export { configFromEnv, type ServerConfigShape } from './config.ts';
+export { MemoryStoreLayer } from './store-memory.ts';
+export { PostgresStoreLayer } from './store-postgres.ts';
+export { toNodeHandler } from './node.ts';
 
 /** Builds the whole API as a Web standard `Request => Response` handler. */
 export const makeHandler = (config: ServerConfigShape, store: Layer.Layer<Store>) =>
@@ -23,12 +24,12 @@ export const makeHandler = (config: ServerConfigShape, store: Layer.Layer<Store>
       Layer.provide(HttpServer.layerServices),
     ),
     { disableLogger: true },
-  )
+  );
 
 /** Handler configured from environment variables; without `DATABASE_URL` it keeps data in memory. */
 export const handlerFromEnv = (env: Record<string, string | undefined>, initialDraft?: string) => {
-  const url = env['DATABASE_URL']
+  const url = env['DATABASE_URL'];
   const store =
-    url === undefined || url === '' ? MemoryStoreLayer(initialDraft) : PostgresStoreLayer(url)
-  return makeHandler(configFromEnv(env), store)
-}
+    url === undefined || url === '' ? MemoryStoreLayer(initialDraft) : PostgresStoreLayer(url);
+  return makeHandler(configFromEnv(env), store);
+};
