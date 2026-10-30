@@ -47,4 +47,4 @@ create table if not exists session (
   last_seen_at timestamptz not null default now()
 );
 create index if not exists session_last_seen on session (last_seen_at);
-`
+`;

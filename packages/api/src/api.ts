@@ -1,20 +1,20 @@
-import { Context, Schema } from 'effect'
+import { Context, Schema } from 'effect';
 import {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiMiddleware,
   HttpApiSecurity,
-} from 'effect/http-api'
+} from 'effect/http-api';
 
 // ---------------------------------------------------------------------------------------------
 // Shared values
 
-export const Value = Schema.Union([Schema.String, Schema.Number, Schema.Boolean])
-export const GameState = Schema.Record(Schema.String, Value)
-export const NodeType = Schema.Literals(['start', 'passage', 'end'])
-export const LocationKind = Schema.Literals(['progress', 'end'])
-export type LocationKind = typeof LocationKind.Type
+export const Value = Schema.Union([Schema.String, Schema.Number, Schema.Boolean]);
+export const GameState = Schema.Record(Schema.String, Value);
+export const NodeType = Schema.Literals(['start', 'passage', 'end']);
+export const LocationKind = Schema.Literals(['progress', 'end']);
+export type LocationKind = typeof LocationKind.Type;
 
 // ---------------------------------------------------------------------------------------------
 // Errors
@@ -72,7 +72,7 @@ export class DocumentHasErrors extends Schema.TaggedError<DocumentHasErrors>()(
 // ---------------------------------------------------------------------------------------------
 // Player
 
-export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.String })
+export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.String });
 
 export const PlayerView = Schema.Struct({
   team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
@@ -89,10 +89,10 @@ export const PlayerView = Schema.Struct({
       scan: Schema.optionalKey(Schema.Number),
     }),
   ),
-})
-export type PlayerView = typeof PlayerView.Type
+});
+export type PlayerView = typeof PlayerView.Type;
 
-export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' })
+export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
 export class CurrentTeam extends Context.Service<
   CurrentTeam,
@@ -113,7 +113,9 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     }),
   )
   .add(
-    HttpApiEndpoint.get('state', '/state', { success: PlayerView, error: NotFound }).middleware(PlayerAuth),
+    HttpApiEndpoint.get('state', '/state', { success: PlayerView, error: NotFound }).middleware(
+      PlayerAuth,
+    ),
     HttpApiEndpoint.post('choose', '/choose', {
       payload: Schema.Struct({ index: Schema.Number, expectedStep: Schema.Number }),
       success: PlayerView,
@@ -131,12 +133,16 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // ---------------------------------------------------------------------------------------------
 // Admin
 
-export const Draft = Schema.Struct({ source: Schema.String, updatedAt: Schema.String })
+export const Draft = Schema.Struct({ source: Schema.String, updatedAt: Schema.String });
 
-export const Location = Schema.Struct({ id: Schema.Number, name: Schema.String, kind: LocationKind })
-export type Location = typeof Location.Type
+export const Location = Schema.Struct({
+  id: Schema.Number,
+  name: Schema.String,
+  kind: LocationKind,
+});
+export type Location = typeof Location.Type;
 
-export const TeamInput = Schema.Struct({ name: Schema.String, startNode: Schema.String })
+export const TeamInput = Schema.Struct({ name: Schema.String, startNode: Schema.String });
 
 export const TeamStatus = Schema.Struct({
   id: Schema.Number,
@@ -151,8 +157,8 @@ export const TeamStatus = Schema.Struct({
   updatedAt: Schema.String,
   /** Devices seen in the last two minutes. */
   devices: Schema.Number,
-})
-export type TeamStatus = typeof TeamStatus.Type
+});
+export type TeamStatus = typeof TeamStatus.Type;
 
 export const LogEntry = Schema.Struct({
   teamId: Schema.Number,
@@ -161,8 +167,8 @@ export const LogEntry = Schema.Struct({
   fromNode: Schema.optionalKey(Schema.String),
   toNode: Schema.optionalKey(Schema.String),
   state: GameState,
-})
-export type LogEntry = typeof LogEntry.Type
+});
+export type LogEntry = typeof LogEntry.Type;
 
 export const Overview = Schema.Struct({
   version: Schema.optionalKey(
@@ -171,25 +177,25 @@ export const Overview = Schema.Struct({
   teams: Schema.Array(TeamStatus),
   locations: Schema.Array(Location),
   log: Schema.Array(LogEntry),
-})
-export type Overview = typeof Overview.Type
+});
+export type Overview = typeof Overview.Type;
 
 export const PrintableCode = Schema.Struct({
   kind: Schema.Literals(['T', 'L', 'E']),
   id: Schema.Number,
   label: Schema.String,
   code: Schema.String,
-})
-export type PrintableCode = typeof PrintableCode.Type
+});
+export type PrintableCode = typeof PrintableCode.Type;
 
-export const AdminSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_admin', in: 'cookie' })
+export const AdminSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_admin', in: 'cookie' });
 
 export class AdminAuth extends HttpApiMiddleware.Service<AdminAuth>()('gamebook/AdminAuth', {
   security: { cookie: AdminSessionCookie },
   error: Unauthorized,
 }) {}
 
-const teamParams = { id: Schema.Number }
+const teamParams = { id: Schema.Number };
 
 export class AdminGroup extends HttpApiGroup.make('admin')
   .add(
@@ -211,14 +217,20 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       error: DocumentHasErrors,
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
-    HttpApiEndpoint.post('createTeam', '/teams', { payload: TeamInput, success: TeamStatus }).middleware(AdminAuth),
+    HttpApiEndpoint.post('createTeam', '/teams', {
+      payload: TeamInput,
+      success: TeamStatus,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.patch('updateTeam', '/teams/:id', {
       params: teamParams,
       payload: TeamInput,
       success: TeamStatus,
       error: NotFound,
     }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteTeam', '/teams/:id', { params: teamParams, error: NotFound }).middleware(AdminAuth),
+    HttpApiEndpoint.delete('deleteTeam', '/teams/:id', {
+      params: teamParams,
+      error: NotFound,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetTeam', '/teams/:id/reset', {
       params: teamParams,
       success: TeamStatus,
@@ -235,8 +247,12 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       payload: Schema.Struct({ name: Schema.String, kind: LocationKind }),
       success: Location,
     }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteLocation', '/locations/:id', { params: teamParams }).middleware(AdminAuth),
-    HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(AdminAuth),
+    HttpApiEndpoint.delete('deleteLocation', '/locations/:id', { params: teamParams }).middleware(
+      AdminAuth,
+    ),
+    HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(
+      AdminAuth,
+    ),
   )
   .prefix('/api/admin') {}
 
