@@ -74,8 +74,11 @@ class NodeParser {
   readonly variables: VariableRef[] = []
   readonly assigned = new Set<string>()
   broken = false
+  readonly source: string
 
-  constructor(readonly source: string) {}
+  constructor(source: string) {
+    this.source = source
+  }
 
   error(span: Span, message: string) {
     this.broken = true
