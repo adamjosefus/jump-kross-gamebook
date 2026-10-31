@@ -10,7 +10,7 @@ const config: ServerConfigShape = {
   sessionSecret: 'session-secret',
   insecureCookies: true,
 };
-const { handler, dispose } = makeHandler(config, MemoryStoreLayer(SAMPLE));
+const { handler, dispose } = makeHandler(config, MemoryStoreLayer(), SAMPLE);
 afterAll(() => dispose());
 
 /** Minimal client with its own cookie jar, like one phone. */
@@ -47,15 +47,24 @@ describe('api', () => {
     expect((await admin('GET', '/api/admin/overview')).status).toBe(200);
   });
 
+  it('serves the story graph to the admin', async () => {
+    const graph = (await admin('GET', '/api/admin/story')).body;
+    expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
+    expect(graph.nodes.A1).toMatchObject({ type: 'start', choices: [{ target: 'B1' }, {}] });
+  });
+
   it('plays a game end to end', async () => {
-    expect((await admin('POST', '/api/admin/publish')).body).toEqual({ versionId: 1 });
     await admin('PUT', '/api/admin/locations/32', { name: 'Studna', kind: 'progress' });
+    await admin('PUT', '/api/admin/locations/33', { name: 'Brána', kind: 'progress' });
     const team = (await admin('POST', '/api/admin/teams', { name: 'Vlci', startNode: 'A1' })).body;
     expect(team).toMatchObject({ id: 1, name: 'Vlci', step: 0 });
 
-    const codes: { kind: string; code: string }[] = (await admin('GET', '/api/admin/codes')).body;
+    const codes: { kind: string; id: number; code: string }[] = (
+      await admin('GET', '/api/admin/codes')
+    ).body;
     const login = codes.find((c) => c.kind === 'T')!.code;
-    const studna = codes.find((c) => c.kind === 'L')!.code;
+    const studna = codes.find((c) => c.kind === 'L' && c.id === 32)!.code;
+    const brana = codes.find((c) => c.kind === 'L' && c.id === 33)!.code;
     expect(studna).toBe(await encodeQr(config.qrSecret, { kind: 'L', id: 32 }));
 
     const phone = device();
@@ -69,14 +78,23 @@ describe('api', () => {
     expect(start.body).toMatchObject({
       team: { name: 'Vlci' },
       status: 'playing',
-      node: { id: 'A1', theme: 'intro' },
+      node: { id: 'A1', screens: [{ theme: 'intro' }] },
     });
     await tablet('POST', '/api/player/login', { code: login });
 
-    // Both devices see step 1; the tablet decides first, the phone gets a conflict.
+    // Both devices see the same step; the tablet decides first, the phone gets a conflict.
     const step = start.body.step;
     const moved = await tablet('POST', '/api/player/choose', { index: 1, expectedStep: step });
-    expect(moved.body).toMatchObject({ node: { id: 'A2', scan: 32, choices: [] } });
+    expect(moved.body).toMatchObject({ node: { id: 'A2', choices: [] } });
+    // Nothing behind the locked checkpoint reaches the client.
+    expect(moved.body.node.screens).toEqual([
+      { theme: 'default', content: 'Jděte ke studni na nádvoří.' },
+      {
+        theme: 'default',
+        content: 'Naskenujte QR kód u studny.',
+        checkpoint: { location: 32, unlocked: false },
+      },
+    ]);
     const late = await phone('POST', '/api/player/choose', { index: 0, expectedStep: step });
     expect(late).toMatchObject({ status: 409, body: { _tag: 'StepConflict' } });
 
@@ -89,19 +107,32 @@ describe('api', () => {
     expect(
       (await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status,
     ).toBe(400);
+    expect(
+      (await phone('POST', '/api/player/scan', { code: brana, expectedStep: view.step })).body
+        .reason,
+    ).toBe('wrong-location');
 
     const scanned = await phone('POST', '/api/player/scan', {
       code: studna,
       expectedStep: view.step,
     });
-    expect(scanned.body).toMatchObject({ status: 'playing', node: { id: 'B1' } });
-    expect(scanned.body.node.markdown).toContain('chudou pokrývku hlavy');
-    expect(scanned.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }]);
+    expect(scanned.body).toMatchObject({ status: 'playing', node: { id: 'A2', choices: [] } });
+    expect(scanned.body.node.screens).toHaveLength(4);
 
-    const end = await phone('POST', '/api/player/choose', {
-      index: 0,
+    const through = await phone('POST', '/api/player/scan', {
+      code: brana,
       expectedStep: scanned.body.step,
     });
+    expect(through.body.node.choices).toEqual([{ index: 0, label: 'Pokračovat' }]);
+
+    const b1 = await phone('POST', '/api/player/choose', {
+      index: 0,
+      expectedStep: through.body.step,
+    });
+    expect(b1.body.node.screens[0].content).toContain('chudou pokrývku hlavy');
+    expect(b1.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }]);
+
+    const end = await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
     expect(end.body).toMatchObject({ status: 'finished', node: { id: 'C1', type: 'end' } });
 
     const overview = (await admin('GET', '/api/admin/overview')).body;
@@ -113,22 +144,17 @@ describe('api', () => {
     });
     expect(overview.log.map((e: { action: string }) => e.action)).toEqual([
       'choice:0',
+      'choice:0',
+      'scan:33',
       'scan:32',
       'choice:1',
       'start',
     ]);
   });
 
-  it('refuses to publish a document with errors', async () => {
-    await admin('PUT', '/api/admin/draft', { source: '--- A --- { type: "start" }\n- Dál [X]\n' });
-    expect((await admin('POST', '/api/admin/publish')).body).toMatchObject({
-      _tag: 'DocumentHasErrors',
-      count: 1,
-    });
-  });
-
   it('resets a team to its start', async () => {
     const reset = (await admin('POST', '/api/admin/teams/1/reset')).body;
     expect(reset).toMatchObject({ node: 'A1', finished: false, state: { gold: 100 } });
+    expect((await admin('GET', '/api/admin/overview')).body.teams[0].node).toBe('A1');
   });
 });

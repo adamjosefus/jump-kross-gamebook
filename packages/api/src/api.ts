@@ -1,3 +1,4 @@
+import { THEMES } from '@gamebook/core';
 import { Context, Schema } from 'effect';
 import {
   HttpApi,
@@ -13,6 +14,7 @@ import {
 export const Value = Schema.Union([Schema.String, Schema.Number, Schema.Boolean]);
 export const GameState = Schema.Record(Schema.String, Value);
 export const NodeType = Schema.Literals(['start', 'passage', 'end']);
+export const Theme = Schema.Literals(THEMES);
 export const LocationKind = Schema.Literals(['progress', 'end']);
 export type LocationKind = typeof LocationKind.Type;
 
@@ -63,16 +65,19 @@ export class NotFound extends Schema.TaggedError<NotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
-export class DocumentHasErrors extends Schema.TaggedError<DocumentHasErrors>()(
-  'DocumentHasErrors',
-  { message: Schema.String, count: Schema.Number },
-  { httpApiStatus: 422 },
-) {}
-
 // ---------------------------------------------------------------------------------------------
 // Player
 
 export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.String });
+
+export const PlayerScreen = Schema.Struct({
+  theme: Theme,
+  content: Schema.String,
+  checkpoint: Schema.optionalKey(
+    Schema.Struct({ location: Schema.Number, unlocked: Schema.Boolean }),
+  ),
+});
+export type PlayerScreen = typeof PlayerScreen.Type;
 
 export const PlayerView = Schema.Struct({
   team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
@@ -83,10 +88,9 @@ export const PlayerView = Schema.Struct({
     Schema.Struct({
       id: Schema.String,
       type: NodeType,
-      theme: Schema.optionalKey(Schema.String),
-      markdown: Schema.String,
+      /** Ends with the locked checkpoint while the team has to scan. */
+      screens: Schema.Array(PlayerScreen),
       choices: Schema.Array(PlayerChoice),
-      scan: Schema.optionalKey(Schema.Number),
     }),
   ),
 });
@@ -133,7 +137,19 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // ---------------------------------------------------------------------------------------------
 // Admin
 
-export const Draft = Schema.Struct({ source: Schema.String, updatedAt: Schema.String });
+export const StoryGraph = Schema.Struct({
+  order: Schema.Array(Schema.String),
+  nodes: Schema.Record(
+    Schema.String,
+    Schema.Struct({
+      id: Schema.String,
+      type: NodeType,
+      choices: Schema.Array(
+        Schema.Struct({ label: Schema.String, target: Schema.String, conditional: Schema.Boolean }),
+      ),
+    }),
+  ),
+});
 
 export const Location = Schema.Struct({
   id: Schema.Number,
@@ -149,7 +165,7 @@ export const TeamStatus = Schema.Struct({
   name: Schema.String,
   startNode: Schema.String,
   node: Schema.optionalKey(Schema.String),
-  /** False when the team's node no longer exists in the published version. */
+  /** False when the team's node no longer exists in the story. */
   nodeExists: Schema.Boolean,
   state: GameState,
   step: Schema.Number,
@@ -171,9 +187,6 @@ export const LogEntry = Schema.Struct({
 export type LogEntry = typeof LogEntry.Type;
 
 export const Overview = Schema.Struct({
-  version: Schema.optionalKey(
-    Schema.Struct({ id: Schema.Number, publishedAt: Schema.String, source: Schema.String }),
-  ),
   teams: Schema.Array(TeamStatus),
   locations: Schema.Array(Location),
   log: Schema.Array(LogEntry),
@@ -207,15 +220,7 @@ export class AdminGroup extends HttpApiGroup.make('admin')
   .add(
     HttpApiEndpoint.get('me', '/me', {}).middleware(AdminAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(AdminAuth),
-    HttpApiEndpoint.get('draft', '/draft', { success: Draft }).middleware(AdminAuth),
-    HttpApiEndpoint.put('saveDraft', '/draft', {
-      payload: Schema.Struct({ source: Schema.String }),
-      success: Draft,
-    }).middleware(AdminAuth),
-    HttpApiEndpoint.post('publish', '/publish', {
-      success: Schema.Struct({ versionId: Schema.Number }),
-      error: DocumentHasErrors,
-    }).middleware(AdminAuth),
+    HttpApiEndpoint.get('story', '/story', { success: StoryGraph }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     HttpApiEndpoint.post('createTeam', '/teams', {
       payload: TeamInput,

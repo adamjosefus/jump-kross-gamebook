@@ -1,36 +1,57 @@
-/** The format example from the project brief, extended with scan, conditional choice and end. */
-export const SAMPLE = `--- A1 --- {
-  type: "start"
-  theme: "intro"
-  initialState: {
-    hatColor: "red"
-    gold: 100
-  }
-}
+import { checkpoint, defineStory } from '../src/index.ts';
 
-Adipisicing commodo veniam **aliqua** elit nisi aliquip tempor et officia ipsum fugiat.
+type State = { gold: number; hatColor: 'red' | 'blue' | 'green' };
 
-- Možnost jedna [B1] { hatColor: "blue" }
-- Možnost dvě [A2] { hatColor: "green", gold: { delta: -20 } }
+/** Small story covering checkpoints, conditional blocks and choices, and both kinds of end. */
+export const SAMPLE = defineStory<State>()({
+  A1: {
+    initialState: { gold: 100, hatColor: 'red' },
+    blocks: [
+      {
+        theme: 'intro',
+        content: `
+          # Začátek
 
---- A2 --- { scan: 32 }
-
-Jděte ke studni na nádvoří.
-
-- Pokračovat [B1]
-
---- B1 ---
-
-Pohodlně si nosil svojí <if condition='hatColor == "red" && gold >= 34'>červenou čepici<else>chudou pokrývku hlavy</if>.
-
-- Bojovat [C1]
-- Koupit meč [C2] { if: 'gold >= 90', gold: { delta: -90 } }
-
---- C1 --- { type: "end" }
-
-Prohráli jste.
-
---- C2 --- { type: "end" }
-
-Vyhráli jste.
-`;
+          Adipisicing commodo veniam **aliqua**.
+        `,
+      },
+    ],
+    choices: [
+      { label: 'Možnost jedna', goto: 'B1', nextState: () => ({ hatColor: 'blue' }) },
+      {
+        label: 'Možnost dvě',
+        goto: 'A2',
+        nextState: (s) => ({ hatColor: 'green', gold: s.gold - 20 }),
+      },
+    ],
+  },
+  A2: {
+    blocks: [
+      'Jděte ke studni na nádvoří.',
+      checkpoint(32, 'Naskenujte QR kód u studny.'),
+      { theme: 'night', content: 'Ve studni něco leží.' },
+      checkpoint(33, { theme: 'night', content: 'Teď ke bráně.' }),
+    ],
+    choices: [{ label: 'Pokračovat', goto: 'B1' }],
+  },
+  B1: {
+    blocks: (s) => {
+      const rich = s.hatColor === 'red' && s.gold >= 34;
+      return [
+        `Pohodlně si nosil svoji ${rich ? 'červenou čepici' : 'chudou pokrývku hlavy'}.`,
+        rich && { theme: 'letter', content: 'Drahý poutníku…' },
+      ];
+    },
+    choices: [
+      { label: 'Bojovat', goto: 'C1' },
+      {
+        label: 'Koupit meč',
+        goto: 'C2',
+        when: (s) => s.gold >= 90,
+        nextState: (s) => ({ gold: s.gold - 90 }),
+      },
+    ],
+  },
+  C1: { end: true, blocks: ['Prohráli jste.'] },
+  C2: { end: true, blocks: ['Vyhráli jste.'] },
+});

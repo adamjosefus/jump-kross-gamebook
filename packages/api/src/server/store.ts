@@ -7,17 +7,6 @@ export class StoreError extends Schema.TaggedError<StoreError>()('StoreError', {
   message: Schema.String,
 }) {}
 
-export interface DraftRow {
-  readonly source: string;
-  readonly updatedAt: Date;
-}
-
-export interface VersionRow {
-  readonly id: number;
-  readonly source: string;
-  readonly publishedAt: Date;
-}
-
 export interface LocationRow {
   readonly id: number;
   readonly name: string;
@@ -31,6 +20,8 @@ export interface TeamRow {
   /** Undefined until the team starts (or after a reset). */
   readonly node: string | undefined;
   readonly state: State;
+  /** Checkpoints of the current node already unlocked by scanning. */
+  readonly checkpoints: number;
   readonly step: number;
   readonly finishedAt: Date | undefined;
   readonly updatedAt: Date;
@@ -48,6 +39,7 @@ export interface LogRow {
 export interface TeamMove {
   readonly node: string | undefined;
   readonly state: State;
+  readonly checkpoints: number;
   readonly finished: boolean;
   readonly action: string;
 }
@@ -57,11 +49,6 @@ export interface TeamMove {
  * when the team is still at `expectedStep`, which is how concurrent devices of a team are resolved.
  */
 export interface StoreShape {
-  readonly getDraft: () => Effect.Effect<DraftRow, StoreError>;
-  readonly saveDraft: (source: string) => Effect.Effect<DraftRow, StoreError>;
-  readonly publish: (source: string) => Effect.Effect<VersionRow, StoreError>;
-  readonly currentVersion: () => Effect.Effect<VersionRow | undefined, StoreError>;
-
   readonly listLocations: () => Effect.Effect<readonly LocationRow[], StoreError>;
   readonly getLocation: (id: number) => Effect.Effect<LocationRow | undefined, StoreError>;
   readonly saveLocation: (location: LocationRow) => Effect.Effect<LocationRow, StoreError>;

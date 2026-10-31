@@ -112,11 +112,6 @@ const AdminHandlers = HttpApiBuilder.group(
     const config = yield* ServerConfig;
     const cookie = cookieOptions(config);
 
-    const draftDto = (row: { source: string; updatedAt: Date }) => ({
-      source: row.source,
-      updatedAt: row.updatedAt.toISOString(),
-    });
-
     return handlers.handleAll({
       login: Effect.fn(function* ({ payload }) {
         if (payload.password !== config.adminPassword) {
@@ -133,9 +128,7 @@ const AdminHandlers = HttpApiBuilder.group(
       logout: Effect.fn(function* () {
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, '', { ...cookie, maxAge: 0 });
       }),
-      draft: () => orDie(store.getDraft()).pipe(Effect.map(draftDto)),
-      saveDraft: ({ payload }) => orDie(store.saveDraft(payload.source)).pipe(Effect.map(draftDto)),
-      publish: () => orDie(game.publish()),
+      story: () => Effect.succeed(game.graph),
       overview: () => orDie(game.overview()),
       createTeam: Effect.fn(function* ({ payload }) {
         const team = yield* orDie(store.createTeam(payload.name.trim(), payload.startNode));
@@ -163,7 +156,7 @@ const AdminHandlers = HttpApiBuilder.group(
   }),
 );
 
-/** Every handler with its dependencies, except `Store` and `ServerConfig`. */
+/** Every handler with its dependencies, except `Store`, `ServerConfig` and `CurrentStory`. */
 export const HandlersLayer = Layer.mergeAll(PlayerHandlers, AdminHandlers).pipe(
   Layer.provide([PlayerAuthLive, AdminAuthLive]),
   Layer.provideMerge(Game.layer),

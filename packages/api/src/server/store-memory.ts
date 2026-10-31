@@ -1,18 +1,9 @@
 import { Effect, Layer } from 'effect';
 
-import {
-  Store,
-  type DraftRow,
-  type LocationRow,
-  type LogRow,
-  type TeamRow,
-  type VersionRow,
-} from './store.ts';
+import { Store, type LocationRow, type LogRow, type TeamRow } from './store.ts';
 
 /** In-process store for local development without a database and for tests. */
-export const makeMemoryStore = (initialDraft = '') => {
-  let draft: DraftRow = { source: initialDraft, updatedAt: new Date() };
-  const versions: VersionRow[] = [];
+export const makeMemoryStore = () => {
   const locations = new Map<number, LocationRow>();
   const teams = new Map<number, TeamRow>();
   const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>();
@@ -20,16 +11,6 @@ export const makeMemoryStore = (initialDraft = '') => {
   let nextTeamId = 1;
 
   return Store.of({
-    getDraft: () => Effect.sync(() => draft),
-    saveDraft: (source) => Effect.sync(() => (draft = { source, updatedAt: new Date() })),
-    publish: (source) =>
-      Effect.sync(() => {
-        const version = { id: versions.length + 1, source, publishedAt: new Date() };
-        versions.push(version);
-        return version;
-      }),
-    currentVersion: () => Effect.sync(() => versions.at(-1)),
-
     listLocations: () => Effect.sync(() => [...locations.values()].toSorted((a, b) => a.id - b.id)),
     getLocation: (id) => Effect.sync(() => locations.get(id)),
     saveLocation: (location) => Effect.sync(() => (locations.set(location.id, location), location)),
@@ -45,6 +26,7 @@ export const makeMemoryStore = (initialDraft = '') => {
           startNode,
           node: undefined,
           state: {},
+          checkpoints: 0,
           step: 0,
           finishedAt: undefined,
           updatedAt: new Date(),
@@ -70,6 +52,7 @@ export const makeMemoryStore = (initialDraft = '') => {
           ...team,
           node: move.node,
           state: move.state,
+          checkpoints: move.checkpoints,
           step: team.step + 1,
           finishedAt: move.finished ? (team.finishedAt ?? now) : undefined,
           updatedAt: now,
@@ -109,5 +92,4 @@ export const makeMemoryStore = (initialDraft = '') => {
   });
 };
 
-export const MemoryStoreLayer = (initialDraft?: string) =>
-  Layer.sync(Store, () => makeMemoryStore(initialDraft));
+export const MemoryStoreLayer = () => Layer.sync(Store, makeMemoryStore);

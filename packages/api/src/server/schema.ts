@@ -1,17 +1,5 @@
 /** Idempotent schema, applied on the first request of every server instance. */
 export const SCHEMA = `
-create table if not exists draft (
-  id int primary key default 1 check (id = 1),
-  source text not null,
-  updated_at timestamptz not null default now()
-);
-
-create table if not exists version (
-  id serial primary key,
-  source text not null,
-  published_at timestamptz not null default now()
-);
-
 create table if not exists location (
   id int primary key check (id > 0),
   name text not null,
@@ -28,6 +16,7 @@ create table if not exists team (
   finished_at timestamptz,
   updated_at timestamptz not null default now()
 );
+alter table team add column if not exists checkpoints int not null default 0;
 
 create table if not exists step_log (
   id bigserial primary key,

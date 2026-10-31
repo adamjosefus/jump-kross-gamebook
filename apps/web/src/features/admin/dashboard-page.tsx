@@ -32,10 +32,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { StoryGraph } from '@/features/editor/story-graph';
+import { StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
 
-import { adminKeys, useOverview, usePublishedGraph } from './queries';
+import { adminKeys, useOverview, useStoryGraph } from './queries';
 
 const isState = (value: unknown): value is Record<string, Value> =>
   typeof value === 'object' &&
@@ -73,13 +73,13 @@ const actionLabel = (action: string) =>
 /** Live view of every team, refreshed by polling. */
 export const DashboardPage = () => {
   const overview = useOverview(POLL_MS);
-  const graph = usePublishedGraph(overview.data?.version?.source);
+  const graph = useStoryGraph().data;
   const [moving, setMoving] = useState<TeamStatus>();
 
   if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { teams, log, version } = overview.data;
+  const { teams, log } = overview.data;
   const names = new Map(teams.map((team) => [team.id, team.name]));
 
   return (
@@ -87,12 +87,7 @@ export const DashboardPage = () => {
       <div className='flex min-w-0 flex-col gap-6'>
         <Card>
           <CardHeader>
-            <CardTitle>
-              Týmy{' '}
-              <span className='text-sm font-normal text-muted-foreground'>
-                {version === undefined ? 'nepublikováno' : `verze ${version.id}`}
-              </span>
-            </CardTitle>
+            <CardTitle>Týmy</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -116,7 +111,7 @@ export const DashboardPage = () => {
                         {!team.nodeExists && (
                           <AlertTriangle
                             className='size-4 text-destructive'
-                            aria-label='Uzel v publikované verzi chybí'
+                            aria-label='Uzel v příběhu chybí'
                           />
                         )}
                         {team.finished && <Badge variant='secondary'>cíl</Badge>}

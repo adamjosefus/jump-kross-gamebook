@@ -1,29 +1,42 @@
-import { evaluate } from './expr.ts';
-import { renderTemplate } from './template.ts';
-import type { Choice, GameGraph, GameNode, NodeType, State, StateChange, Value } from './types.ts';
+import {
+  dedent,
+  isCheckpoint,
+  type Block,
+  type Choice,
+  type Story,
+  type StoryNode,
+  type Theme,
+} from './story.ts';
+import type { NodeType, State, Value } from './types.ts';
 
 /** Where a team is in the story and what it has done so far. */
 export interface Position {
   readonly node: string;
   readonly state: State;
+  /** Checkpoints of the current node already unlocked by scanning. */
+  readonly checkpoints: number;
 }
 
 export interface RenderedChoice {
-  /** Index into `GameNode.choices`; sent back by the client when choosing. */
+  /** Index into the node's `choices`; sent back by the client when choosing. */
   readonly index: number;
   readonly label: string;
 }
 
-/** A node resolved for one team: conditions evaluated, hidden choices removed. */
+export interface RenderedScreen {
+  readonly theme: Theme;
+  readonly content: string;
+  readonly checkpoint?: { readonly location: number; readonly unlocked: boolean };
+}
+
+/** A node resolved for one team: blocks evaluated, locked screens and hidden choices removed. */
 export interface RenderedNode {
   readonly id: string;
   readonly type: NodeType;
-  readonly theme: string | undefined;
-  readonly markdown: string;
-  /** Empty for `end` nodes and for nodes left by scanning. */
+  /** Ends with the first locked checkpoint, if there is one. */
+  readonly screens: readonly RenderedScreen[];
+  /** Empty for `end` nodes and while a checkpoint is locked. */
   readonly choices: readonly RenderedChoice[];
-  /** Location to scan when the node is left by scanning. */
-  readonly scan: number | undefined;
 }
 
 export type MoveError =
@@ -36,86 +49,96 @@ export type MoveError =
   | 'missing-target';
 
 export type MoveResult =
-  | { readonly ok: true; readonly position: Position; readonly choice: Choice }
+  | { readonly ok: true; readonly position: Position }
   | { readonly ok: false; readonly error: MoveError };
 
-export const applyChanges = (state: State, changes: readonly StateChange[]): State => {
-  const next: Record<string, Value> = { ...state };
-  for (const change of changes) {
-    if (change.op === 'set') next[change.variable] = change.value;
-    else {
-      const current = next[change.variable];
-      next[change.variable] = (typeof current === 'number' ? current : 0) + Number(change.value);
-    }
-  }
-  return next;
-};
+type AnyNode = StoryNode<State, string>;
+type AnyChoice = Choice<State, string>;
 
-export const startPosition = (graph: GameGraph, startNode: string): Position | undefined => {
-  const node = graph.nodes[startNode];
-  return node === undefined ? undefined : { node: node.id, state: node.initialState };
+export const nodeType = (node: AnyNode): NodeType =>
+  node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
+
+export const blocksOf = (node: AnyNode, state: State): Block[] =>
+  (typeof node.blocks === 'function' ? node.blocks(state) : node.blocks).filter(
+    (block): block is Block => block !== false && block !== null && block !== undefined,
+  );
+
+const checkpointsOf = (node: AnyNode, state: State) => blocksOf(node, state).filter(isCheckpoint);
+
+const choicesOf = (node: AnyNode): readonly AnyChoice[] => node.choices ?? [];
+
+export const startPosition = (story: Story, startNode: string): Position | undefined => {
+  const node = story.nodes[startNode];
+  return node?.initialState === undefined
+    ? undefined
+    : { node: startNode, state: node.initialState, checkpoints: 0 };
 };
 
 export const availableChoices = (
-  node: GameNode,
+  node: AnyNode,
   state: State,
-): { choice: Choice; index: number }[] =>
-  node.type === 'end'
-    ? []
-    : node.choices.flatMap((choice, index) =>
-        choice.condition === undefined || evaluate(choice.condition, state)
-          ? [{ choice, index }]
-          : [],
-      );
+): { choice: AnyChoice; index: number }[] =>
+  choicesOf(node).flatMap((choice, index) =>
+    choice.when === undefined || choice.when(state) ? [{ choice, index }] : [],
+  );
 
-export const renderNode = (graph: GameGraph, position: Position): RenderedNode | undefined => {
-  const node = graph.nodes[position.node];
+export const renderNode = (story: Story, position: Position): RenderedNode | undefined => {
+  const node = story.nodes[position.node];
   if (node === undefined) return undefined;
+  const screens: RenderedScreen[] = [];
+  let seen = 0;
+  for (const block of blocksOf(node, position.state)) {
+    if (typeof block === 'string') {
+      screens.push({ theme: 'default', content: dedent(block) });
+      continue;
+    }
+    const screen = { theme: block.theme ?? 'default', content: dedent(block.content) };
+    if (!isCheckpoint(block)) {
+      screens.push(screen);
+      continue;
+    }
+    const unlocked = seen < position.checkpoints;
+    seen++;
+    screens.push({ ...screen, checkpoint: { location: block.location, unlocked } });
+    if (!unlocked) break;
+  }
+  const locked = screens.at(-1)?.checkpoint?.unlocked === false;
   return {
-    id: node.id,
-    type: node.type,
-    theme: node.theme,
-    markdown: renderTemplate(node.body, position.state).trim(),
-    choices:
-      node.scan === undefined
-        ? availableChoices(node, position.state).map(({ choice, index }) => ({
-            index,
-            label: choice.label,
-          }))
-        : [],
-    scan: node.type === 'end' ? undefined : node.scan,
+    id: position.node,
+    type: nodeType(node),
+    screens,
+    choices: locked
+      ? []
+      : availableChoices(node, position.state).map(({ choice, index }) => ({
+          index,
+          label: choice.label,
+        })),
   };
 };
 
-const move = (graph: GameGraph, position: Position, choice: Choice): MoveResult =>
-  Object.hasOwn(graph.nodes, choice.target)
-    ? {
-        ok: true,
-        choice,
-        position: { node: choice.target, state: applyChanges(position.state, choice.changes) },
-      }
-    : { ok: false, error: 'missing-target' };
-
-export const applyChoice = (graph: GameGraph, position: Position, index: number): MoveResult => {
-  const node = graph.nodes[position.node];
+export const applyChoice = (story: Story, position: Position, index: number): MoveResult => {
+  const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
-  if (node.type === 'end') return { ok: false, error: 'finished' };
-  if (node.scan !== undefined) return { ok: false, error: 'scan-required' };
+  if (node.end === true) return { ok: false, error: 'finished' };
+  if (checkpointsOf(node, position.state).length > position.checkpoints)
+    return { ok: false, error: 'scan-required' };
   const available = availableChoices(node, position.state).find((c) => c.index === index);
-  return available === undefined
-    ? { ok: false, error: 'unavailable-choice' }
-    : move(graph, position, available.choice);
+  if (available === undefined) return { ok: false, error: 'unavailable-choice' };
+  const { goto, nextState } = available.choice;
+  if (!Object.hasOwn(story.nodes, goto)) return { ok: false, error: 'missing-target' };
+  const state: Record<string, Value> = { ...position.state };
+  for (const [key, value] of Object.entries(nextState?.(position.state) ?? {}))
+    if (value !== undefined) state[key] = value;
+  return { ok: true, position: { node: goto, state, checkpoints: 0 } };
 };
 
-/** Leaves a `scan` node through its first available choice when the right location was scanned. */
-export const applyScan = (graph: GameGraph, position: Position, location: number): MoveResult => {
-  const node = graph.nodes[position.node];
+/** Unlocks the next checkpoint of the node when its location was scanned. */
+export const applyScan = (story: Story, position: Position, location: number): MoveResult => {
+  const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
-  if (node.type === 'end') return { ok: false, error: 'finished' };
-  if (node.scan === undefined) return { ok: false, error: 'no-scan' };
-  if (node.scan !== location) return { ok: false, error: 'wrong-location' };
-  const first = availableChoices(node, position.state)[0];
-  return first === undefined
-    ? { ok: false, error: 'unavailable-choice' }
-    : move(graph, position, first.choice);
+  if (node.end === true) return { ok: false, error: 'finished' };
+  const next = checkpointsOf(node, position.state)[position.checkpoints];
+  if (next === undefined) return { ok: false, error: 'no-scan' };
+  if (next.location !== location) return { ok: false, error: 'wrong-location' };
+  return { ok: true, position: { ...position, checkpoints: position.checkpoints + 1 } };
 };

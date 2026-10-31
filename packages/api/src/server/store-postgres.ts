@@ -23,6 +23,7 @@ const toTeam = (row: Row): TeamRow => ({
   startNode: text(row['start_node']),
   node: optionalText(row['node']),
   state: decodeState(row['state']),
+  checkpoints: Number(row['checkpoints']),
   step: Number(row['step']),
   finishedAt: row['finished_at'] === null ? undefined : timestamp(row['finished_at']),
   updatedAt: timestamp(row['updated_at']),
@@ -68,44 +69,6 @@ export const makePostgresStore = (url: string) => {
     });
 
   return Store.of({
-    getDraft: () =>
-      query(async () => {
-        const [row] = await sql`select source, updated_at from draft where id = 1`;
-        return row === undefined
-          ? { source: '', updatedAt: new Date(0) }
-          : { source: text(row['source']), updatedAt: timestamp(row['updated_at']) };
-      }),
-    saveDraft: (source) =>
-      query(async () => {
-        const [row] = await sql`
-          insert into draft (id, source) values (1, ${source})
-          on conflict (id) do update set source = excluded.source, updated_at = now()
-          returning updated_at`;
-        return { source, updatedAt: timestamp(row!['updated_at']) };
-      }),
-    publish: (source) =>
-      query(async () => {
-        const [row] =
-          await sql`insert into version (source) values (${source}) returning id, published_at`;
-        return {
-          id: Number(row!['id']),
-          source,
-          publishedAt: timestamp(row!['published_at']),
-        };
-      }),
-    currentVersion: () =>
-      query(async () => {
-        const [row] =
-          await sql`select id, source, published_at from version order by id desc limit 1`;
-        return row === undefined
-          ? undefined
-          : {
-              id: Number(row['id']),
-              source: text(row['source']),
-              publishedAt: timestamp(row['published_at']),
-            };
-      }),
-
     listLocations: () =>
       query(async () => (await sql`select * from location order by id`).map(toLocation)),
     getLocation: (id) =>
@@ -154,6 +117,7 @@ export const makePostgresStore = (url: string) => {
             update team set
               node = ${move.node ?? null},
               state = ${JSON.stringify(move.state)}::jsonb,
+              checkpoints = ${move.checkpoints},
               step = step + 1,
               finished_at = case when ${move.finished} then coalesce(finished_at, now()) else null end,
               updated_at = now()
