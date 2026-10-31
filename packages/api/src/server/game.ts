@@ -2,18 +2,17 @@ import {
   applyChoice,
   applyScan,
   encodeQr,
-  parseDocument,
   renderNode,
   startPosition,
+  toGraph,
   verifyQr,
-  type GameGraph,
   type MoveError,
   type MoveResult,
+  type Story,
 } from '@gamebook/core';
 import { Context, Effect, Layer } from 'effect';
 
 import {
-  DocumentHasErrors,
   InvalidCode,
   InvalidMove,
   NotFound,
@@ -24,7 +23,7 @@ import {
   type TeamStatus,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
-import { Store, type TeamMove, type TeamRow, type VersionRow } from './store.ts';
+import { Store, type TeamMove, type TeamRow } from './store.ts';
 
 const MOVE_MESSAGES: Record<MoveError | 'not-started', string> = {
   'wrong-location': 'Tady to není. Jste na špatném místě.',
@@ -44,68 +43,50 @@ const penalty = Effect.sleep('400 millis');
 
 const notFound = (what: string) => new NotFound({ message: `${what} neexistuje.` });
 
+/** The story teams play; part of the deployed code, so it changes only with a deploy. */
+export class CurrentStory extends Context.Service<CurrentStory, Story>()('gamebook/CurrentStory') {}
+
 export class Game extends Context.Service<Game>()('gamebook/Game', {
   make: Effect.gen(function* () {
     const store = yield* Store;
     const config = yield* ServerConfig;
+    const story = yield* CurrentStory;
+    const graph = toGraph(story);
 
-    // Versions are immutable, so their parsed graphs can be cached for the life of the instance.
-    const graphs = new Map<number, GameGraph>();
-    const graphOf = (version: VersionRow) => {
-      let graph = graphs.get(version.id);
-      if (graph === undefined) {
-        graph = parseDocument(version.source).graph;
-        graphs.set(version.id, graph);
-      }
-      return graph;
-    };
-    const currentGraph = Effect.map(store.currentVersion(), (version) =>
-      version === undefined ? undefined : graphOf(version),
-    );
+    const isEnd = (node: string | undefined) =>
+      node !== undefined && story.nodes[node]?.end === true;
 
-    const moveOf = (
-      graph: GameGraph,
-      result: Extract<MoveResult, { ok: true }>,
-      action: string,
-    ): TeamMove => ({
-      node: result.position.node,
-      state: result.position.state,
-      finished: graph.nodes[result.position.node]?.type === 'end',
+    const moveOf = (result: Extract<MoveResult, { ok: true }>, action: string): TeamMove => ({
+      ...result.position,
+      finished: isEnd(result.position.node),
       action,
     });
 
-    const view = (team: TeamRow, graph: GameGraph | undefined): PlayerView => {
+    const view = (team: TeamRow): PlayerView => {
       const base = { team: { id: team.id, name: team.name }, step: team.step };
       const node =
-        graph === undefined || team.node === undefined
+        team.node === undefined
           ? undefined
-          : renderNode(graph, { node: team.node, state: team.state });
+          : renderNode(story, {
+              node: team.node,
+              state: team.state,
+              checkpoints: team.checkpoints,
+            });
       if (node === undefined) return { ...base, status: 'not-ready' };
       return {
         ...base,
         status: node.type === 'end' ? 'finished' : 'playing',
-        node: {
-          id: node.id,
-          type: node.type,
-          markdown: node.markdown,
-          choices: node.choices,
-          ...(node.theme === undefined ? {} : { theme: node.theme }),
-          ...(node.scan === undefined ? {} : { scan: node.scan }),
-        },
+        node: { id: node.id, type: node.type, screens: node.screens, choices: node.choices },
       };
     };
 
     /** Puts a team that has not started yet on its start node. */
-    const ensureStarted = Effect.fn('Game.ensureStarted')(function* (
-      team: TeamRow,
-      graph: GameGraph | undefined,
-    ) {
-      if (team.node !== undefined || graph === undefined) return team;
-      const start = startPosition(graph, team.startNode);
+    const ensureStarted = Effect.fn('Game.ensureStarted')(function* (team: TeamRow) {
+      if (team.node !== undefined) return team;
+      const start = startPosition(story, team.startNode);
       if (start === undefined) return team;
       const moved = yield* store.moveTeam(team.id, team.step, {
-        node: start.node,
-        state: start.state,
+        ...start,
         finished: false,
         action: 'start',
       });
@@ -116,18 +97,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const loadTeam = Effect.fn('Game.loadTeam')(function* (teamId: number) {
       const team = yield* store.getTeam(teamId);
       if (team === undefined) return yield* notFound('Tým');
-      const graph = yield* currentGraph;
-      return { team: yield* ensureStarted(team, graph), graph };
+      return yield* ensureStarted(team);
     });
 
     const playerView = Effect.fn('Game.playerView')(function* (teamId: number) {
-      const { team, graph } = yield* loadTeam(teamId);
-      return view(team, graph);
+      return view(yield* loadTeam(teamId));
     });
 
     const commit = Effect.fn('Game.commit')(function* (
       team: TeamRow,
-      graph: GameGraph,
       result: MoveResult,
       action: string,
     ) {
@@ -136,26 +114,27 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           reason: result.error,
           message: MOVE_MESSAGES[result.error],
         });
-      const moved = yield* store.moveTeam(team.id, team.step, moveOf(graph, result, action));
+      const moved = yield* store.moveTeam(team.id, team.step, moveOf(result, action));
       if (moved === undefined)
         return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
-      return view(moved, graph);
+      return view(moved);
     });
 
     const prepareMove = Effect.fn('Game.prepareMove')(function* (
       teamId: number,
       expectedStep: number,
     ) {
-      const { team, graph } = yield* loadTeam(teamId);
+      const team = yield* loadTeam(teamId);
       if (team.step !== expectedStep)
         return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
-      if (graph === undefined || team.node === undefined) {
+      if (team.node === undefined) {
         return yield* new InvalidMove({
           reason: 'not-started',
           message: MOVE_MESSAGES['not-started'],
         });
       }
-      return { team, graph, position: { node: team.node, state: team.state } };
+      const position = { node: team.node, state: team.state, checkpoints: team.checkpoints };
+      return { team, position };
     });
 
     const choose = Effect.fn('Game.choose')(function* (
@@ -163,8 +142,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       index: number,
       expectedStep: number,
     ) {
-      const { team, graph, position } = yield* prepareMove(teamId, expectedStep);
-      return yield* commit(team, graph, applyChoice(graph, position, index), `choice:${index}`);
+      const { team, position } = yield* prepareMove(teamId, expectedStep);
+      return yield* commit(team, applyChoice(story, position, index), `choice:${index}`);
     });
 
     const scan = Effect.fn('Game.scan')(function* (
@@ -183,13 +162,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       if (location === undefined || (location.kind === 'end') !== (payload.kind === 'E')) {
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
       }
-      const { team, graph, position } = yield* prepareMove(teamId, expectedStep);
-      return yield* commit(
-        team,
-        graph,
-        applyScan(graph, position, location.id),
-        `scan:${location.id}`,
-      );
+      const { team, position } = yield* prepareMove(teamId, expectedStep);
+      return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
     });
 
     const login = Effect.fn('Game.login')(function* (code: string) {
@@ -214,34 +188,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     // -------------------------------------------------------------------------------------------
     // Admin
 
-    const publish = Effect.fn('Game.publish')(function* () {
-      const draft = yield* store.getDraft();
-      const locations = yield* store.listLocations();
-      const { diagnostics } = parseDocument(draft.source, {
-        locations: locations.map((l) => l.id),
-      });
-      const errors = diagnostics.filter((d) => d.severity === 'error').length;
-      if (errors > 0) {
-        return yield* new DocumentHasErrors({
-          message: `Dokument obsahuje ${errors} chyb.`,
-          count: errors,
-        });
-      }
-      const version = yield* store.publish(draft.source);
-      return { versionId: version.id };
-    });
-
-    const teamStatus = (
-      team: TeamRow,
-      graph: GameGraph | undefined,
-      devices: number,
-    ): TeamStatus => ({
+    const teamStatus = (team: TeamRow, devices: number): TeamStatus => ({
       id: team.id,
       name: team.name,
       startNode: team.startNode,
       ...(team.node === undefined ? {} : { node: team.node }),
-      nodeExists:
-        team.node === undefined || (graph !== undefined && Object.hasOwn(graph.nodes, team.node)),
+      nodeExists: team.node === undefined || Object.hasOwn(story.nodes, team.node),
       state: team.state,
       step: team.step,
       finished: team.finishedAt !== undefined,
@@ -251,13 +203,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
       const devices = yield* store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS));
-      return teamStatus(team, yield* currentGraph, devices.get(team.id) ?? 0);
+      return teamStatus(team, devices.get(team.id) ?? 0);
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [version, teams, locations, log, devices] = yield* Effect.all(
+      const [teams, locations, log, devices] = yield* Effect.all(
         [
-          store.currentVersion(),
           store.listTeams(),
           store.listLocations(),
           store.recentLog(50),
@@ -265,18 +216,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         ],
         { concurrency: 'unbounded' },
       );
-      const graph = version === undefined ? undefined : graphOf(version);
       const result: Overview = {
-        ...(version === undefined
-          ? {}
-          : {
-              version: {
-                id: version.id,
-                publishedAt: version.publishedAt.toISOString(),
-                source: version.source,
-              },
-            }),
-        teams: teams.map((team) => teamStatus(team, graph, devices.get(team.id) ?? 0)),
+        teams: teams.map((team) => teamStatus(team, devices.get(team.id) ?? 0)),
         locations,
         log: log.map((entry) => ({
           teamId: entry.teamId,
@@ -297,11 +238,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const resetTeam = Effect.fn('Game.resetTeam')(function* (id: number) {
       const team = yield* requireTeam(id);
-      const graph = yield* currentGraph;
-      const start = graph === undefined ? undefined : startPosition(graph, team.startNode);
+      const start = startPosition(story, team.startNode);
       const moved = yield* store.moveTeam(id, team.step, {
         node: start?.node,
         state: start?.state ?? {},
+        checkpoints: 0,
         finished: false,
         action: 'reset',
       });
@@ -314,11 +255,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       state: TeamRow['state'],
     ) {
       const team = yield* requireTeam(id);
-      const graph = yield* currentGraph;
       const moved = yield* store.moveTeam(id, team.step, {
         node,
         state,
-        finished: graph?.nodes[node]?.type === 'end',
+        checkpoints: 0,
+        finished: isEnd(node),
         action: 'admin',
       });
       return yield* singleTeamStatus(moved ?? (yield* requireTeam(id)));
@@ -349,7 +290,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       playerView,
       choose,
       scan,
-      publish,
+      graph,
       overview,
       singleTeamStatus,
       requireTeam,

@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
@@ -10,7 +9,7 @@ type NodeHandler = ReturnType<ApiServer['toNodeHandler']>;
 
 /**
  * Serves `/api/*` in development with the same Web handler the Vercel function uses. Without
- * `DATABASE_URL` the data lives in memory and the draft starts from `examples/demo.gamebook`.
+ * `DATABASE_URL` the data lives in memory.
  */
 const apiDevServer = (): Plugin => {
   let handler: Promise<NodeHandler> | undefined;
@@ -19,17 +18,13 @@ const apiDevServer = (): Plugin => {
       ...process.env,
       ...loadEnv(server.config.mode, path.resolve(import.meta.dirname, '../..'), ''),
     };
-    const demo = readFileSync(
-      path.resolve(import.meta.dirname, '../../examples/demo.gamebook'),
-      'utf8',
-    );
     // ssrLoadModule is untyped; the annotation pins the exports this plugin relies on.
     const loaded = await server.ssrLoadModule('@gamebook/api/server');
     const { toNodeHandler, handlerFromEnv }: ApiServer = {
       toNodeHandler: loaded['toNodeHandler'],
       handlerFromEnv: loaded['handlerFromEnv'],
     };
-    return toNodeHandler(handlerFromEnv(env, demo).handler);
+    return toNodeHandler(handlerFromEnv(env).handler);
   };
 
   return {

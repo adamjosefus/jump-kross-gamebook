@@ -13,7 +13,7 @@ const root = createRootRoute({ component: Outlet });
 
 const player = createRoute({ getParentRoute: () => root, path: '/', component: PlayerPage });
 
-// The creator area (editor, graph, QR printing) is loaded on demand, so phones only download the
+// The creator area (story graph, game setup, QR printing) is loaded on demand, so phones only download the
 // player part.
 const admin = createRoute({
   getParentRoute: () => root,
@@ -25,10 +25,10 @@ const adminIndex = createRoute({
   path: '/',
   component: () => <Navigate to='/admin/dashboard' />,
 });
-const editor = createRoute({
+const story = createRoute({
   getParentRoute: () => admin,
-  path: '/editor',
-  component: lazyRouteComponent(() => import('@/features/admin/editor-page'), 'EditorPage'),
+  path: '/story',
+  component: lazyRouteComponent(() => import('@/features/admin/story-page'), 'StoryPage'),
 });
 const game = createRoute({
   getParentRoute: () => admin,
@@ -49,7 +49,7 @@ const print = createRoute({
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
-    admin.addChildren([adminIndex, editor, game, dashboard, print]),
+    admin.addChildren([adminIndex, story, game, dashboard, print]),
   ]),
 });
 

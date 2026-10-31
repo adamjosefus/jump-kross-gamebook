@@ -1,6 +1,7 @@
-import type { PlayerView } from '@gamebook/api';
+import type { PlayerScreen, PlayerView } from '@gamebook/api';
+import type { Theme } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Flag, Loader2, QrCode } from 'lucide-react';
+import { Camera, ChevronLeft, ChevronRight, Flag, Loader2, QrCode } from 'lucide-react';
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import { toast } from 'sonner';
@@ -23,13 +24,36 @@ import { QrScannerDialog } from './qr-scanner-dialog';
 
 const STATE_KEY = ['player', 'state'] as const;
 
+type PlayerNode = NonNullable<PlayerView['node']>;
+
+/** The locked checkpoint the team has to scan, if any; it is always the last screen. */
+const lockedCheckpoint = (node: PlayerNode | undefined) => {
+  const last = node?.screens.at(-1)?.checkpoint;
+  return last?.unlocked === false ? last : undefined;
+};
+
 /** Polling keeps every device of a team on the same node; slower while the team walks to a location. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
   view == null || view.status === 'finished'
     ? false
-    : view.node?.scan !== undefined
+    : lockedCheckpoint(view.node) !== undefined
       ? 30_000
       : 10_000;
+
+const THEME_SCREEN: Record<Theme, string> = {
+  default: '',
+  intro: 'justify-center text-center',
+  letter: '',
+  night: '',
+};
+
+const THEME_TEXT: Record<Theme, string> = {
+  default: '',
+  intro: 'text-xl',
+  letter:
+    'rounded-lg border bg-amber-50 p-6 font-serif text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50',
+  night: 'rounded-lg bg-slate-950 p-6 text-slate-100 ring-1 ring-slate-800',
+};
 
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
@@ -122,53 +146,13 @@ export const PlayerPage = () => {
               </p>
             </Centered>
           ) : (
-            <article
-              key={`${view.node.id}-${view.step}`}
-              className={cn(
-                'flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2',
-                view.node.theme === 'intro' && 'justify-center text-center',
-              )}
-            >
-              <div
-                className={cn(
-                  'prose-gamebook text-lg leading-relaxed',
-                  view.node.theme === 'intro' && 'text-xl',
-                  view.node.type === 'end' && 'text-center',
-                )}
-              >
-                <Markdown>{view.node.markdown}</Markdown>
-              </div>
-
-              <div className='mt-auto flex flex-col gap-3'>
-                {view.node.type === 'end' ? (
-                  <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
-                    <Flag className='size-4' /> Konec hry
-                  </p>
-                ) : view.node.scan !== undefined ? (
-                  <Button
-                    size='lg'
-                    className='h-14 text-base'
-                    onClick={() => setScanning(true)}
-                    disabled={busy}
-                  >
-                    <Camera /> Naskenovat QR kód
-                  </Button>
-                ) : (
-                  view.node.choices.map((choice) => (
-                    <Button
-                      key={choice.index}
-                      size='lg'
-                      variant={view.node!.choices.length === 1 ? 'default' : 'outline'}
-                      className='h-auto min-h-14 py-3 text-base whitespace-normal'
-                      onClick={() => pick(choice)}
-                      disabled={busy}
-                    >
-                      {choice.label}
-                    </Button>
-                  ))
-                )}
-              </div>
-            </article>
+            <NodeScreens
+              node={view.node}
+              step={view.step}
+              busy={busy}
+              onScan={() => setScanning(true)}
+              onPick={pick}
+            />
           )}
         </>
       )}
@@ -197,6 +181,98 @@ export const PlayerPage = () => {
         </AlertDialogContent>
       </AlertDialog>
     </main>
+  );
+};
+
+/**
+ * One screen at a time, paged locally with „Další“. When a scan unlocks more screens, the device
+ * jumps to the first new one; a new node starts from its first screen.
+ */
+const NodeScreens = ({
+  node,
+  step,
+  busy,
+  onScan,
+  onPick,
+}: {
+  node: PlayerNode;
+  step: number;
+  busy: boolean;
+  onScan: () => void;
+  onPick: (choice: { index: number; label: string }) => void;
+}) => {
+  const count = node.screens.length;
+  const [paging, setPaging] = useState({ node: node.id, step, count, index: 0 });
+  if (paging.node !== node.id || paging.step !== step) {
+    const unlocked = paging.node === node.id && count > paging.count;
+    setPaging({ node: node.id, step, count, index: unlocked ? paging.count : 0 });
+  }
+  const index = Math.min(paging.index, count - 1);
+  const go = (to: number) => setPaging({ ...paging, index: to });
+  const screen: PlayerScreen | undefined = node.screens[index];
+  const theme = screen?.theme ?? 'default';
+  const last = index >= count - 1;
+  const locked = last ? lockedCheckpoint(node) : undefined;
+
+  return (
+    <article
+      key={`${node.id}-${step}-${index}`}
+      className={cn(
+        'flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2',
+        THEME_SCREEN[theme],
+      )}
+    >
+      {screen !== undefined && (
+        <div
+          className={cn(
+            'prose-gamebook text-lg leading-relaxed',
+            THEME_TEXT[theme],
+            node.type === 'end' && 'text-center',
+          )}
+        >
+          <Markdown>{screen.content}</Markdown>
+        </div>
+      )}
+
+      <div className='mt-auto flex flex-col gap-3'>
+        {!last ? (
+          <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
+            Další <ChevronRight />
+          </Button>
+        ) : locked !== undefined ? (
+          <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
+            <Camera /> Naskenovat QR kód
+          </Button>
+        ) : node.type === 'end' ? (
+          <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
+            <Flag className='size-4' /> Konec hry
+          </p>
+        ) : (
+          node.choices.map((choice) => (
+            <Button
+              key={choice.index}
+              size='lg'
+              variant={node.choices.length === 1 ? 'default' : 'outline'}
+              className='h-auto min-h-14 py-3 text-base whitespace-normal'
+              onClick={() => onPick(choice)}
+              disabled={busy}
+            >
+              {choice.label}
+            </Button>
+          ))
+        )}
+        {count > 1 && (
+          <div className='flex items-center justify-between text-sm text-muted-foreground'>
+            <Button variant='ghost' size='sm' onClick={() => go(index - 1)} disabled={index === 0}>
+              <ChevronLeft /> Zpět
+            </Button>
+            <span>
+              {index + 1} / {count}
+            </span>
+          </div>
+        )}
+      </div>
+    </article>
   );
 };
 

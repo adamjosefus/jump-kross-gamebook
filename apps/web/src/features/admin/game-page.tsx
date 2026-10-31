@@ -25,14 +25,13 @@ import {
 } from '@/components/ui/table';
 import { api, errorMessage, type Client } from '@/lib/api';
 
-import { adminKeys, startNodes, useOverview, usePublishedGraph } from './queries';
+import { adminKeys, startNodes, useOverview, useStoryGraph } from './queries';
 
 /** Setup of the running game: teams with their start node, and the physical locations. */
 export const GamePage = () => {
   const queryClient = useQueryClient();
   const overview = useOverview();
-  const graph = usePublishedGraph(overview.data?.version?.source);
-  const starts = startNodes(graph);
+  const starts = startNodes(useStoryGraph().data);
 
   const mutate = useMutation({
     mutationFn: (call: (client: Client) => Effect.Effect<unknown, unknown>) => api(call),
@@ -43,18 +42,14 @@ export const GamePage = () => {
   if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { teams, locations, version } = overview.data;
+  const { teams, locations } = overview.data;
 
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
       <Card>
         <CardHeader>
           <CardTitle>Týmy</CardTitle>
-          <CardDescription>
-            {version === undefined
-              ? 'Nejdřív publikujte gamebook, ať je z čeho vybrat start.'
-              : 'Každý tým začíná na zvoleném startovním uzlu.'}
-          </CardDescription>
+          <CardDescription>Každý tým začíná na zvoleném startovním uzlu.</CardDescription>
         </CardHeader>
         <CardContent className='flex flex-col gap-4'>
           <Table>
@@ -120,8 +115,8 @@ export const GamePage = () => {
         <CardHeader>
           <CardTitle>Místa</CardTitle>
           <CardDescription>
-            Číslo místa se píše do uzlu jako <code>{'{ scan: 32 }'}</code>. Na každé místo patří
-            jeden QR kód.
+            Číslo místa se píše do příběhu jako <code>{'checkpoint(32, …)'}</code>. Na každé místo
+            patří jeden QR kód.
           </CardDescription>
         </CardHeader>
         <CardContent className='flex flex-col gap-4'>
