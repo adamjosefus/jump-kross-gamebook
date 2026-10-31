@@ -1,72 +1,109 @@
 import { checkpoint, defineStory } from '@gamebook/core';
 
 type State = {
-  gold: number;
-  hatColor: 'red' | 'blue';
+  coins: number;
+  hasMap: boolean;
+  courage: number;
 };
 
 /**
  * The gamebook. Every node is one step of the story: `blocks` are its screens (markdown, one
  * screen each, optionally with a `theme`), `choices` lead to other nodes. A `checkpoint` stops the
  * team until it scans the QR code of that location.
+ *
+ * Demo: two starts, a letter, a night screen, two checkpoints (locations 1 and 2), a choice that
+ * appears only with enough coins, and two endings.
  */
 export const story = defineStory<State>()({
-  INTRO: {
-    initialState: { gold: 100, hatColor: 'red' },
+  START: {
+    initialState: { coins: 30, hasMap: false, courage: 0 },
     blocks: [
       {
         theme: 'intro',
         content: `
-          # Ztracený rukopis
+          # Poklad starého mlýna
 
-          Vítejte v klášteře. Před vámi je den plný rozhodnutí — a každé z nich si příběh zapamatuje.
+          Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
+        `,
+      },
+      {
+        theme: 'letter',
+        content: `
+          *Milí hledači,*
+
+          poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
+
+          — **Matěj**
         `,
       },
     ],
-    choices: [{ label: 'Začít', goto: 'A1' }],
+    choices: [{ label: 'Vyrazit na cestu', goto: 'MARKET' }],
   },
 
-  A1: {
-    blocks: (s) => [
-      `Stojíte před branou kláštera. Brána je zamčená, ale vedle ní sedí **stařec** a prodává klíče. Máte u sebe ${s.gold} zlaťáků.`,
-      { theme: 'letter', content: '„Klíč za dvacet. Levněji to nebude.“' },
-    ],
-    choices: [
-      {
-        label: 'Koupit klíč',
-        goto: 'B1',
-        nextState: (s) => ({ hatColor: 'blue', gold: s.gold - 20 }),
-      },
-      { label: 'Obejít zeď', goto: 'A2' },
-    ],
-  },
-
-  A2: {
+  // Second start for teams that should skip the market (e.g. to spread teams across locations).
+  START_FOREST: {
+    initialState: { coins: 10, hasMap: true, courage: 1 },
     blocks: [
-      'Zeď je vysoká, ale u studny na nádvoří prý bývá průchod.',
-      checkpoint(1, 'Vydejte se ke **studni na nádvoří**. Až tam budete, naskenujte QR kód.'),
-      { theme: 'night', content: 'Ve stínu studny objevíte úzká dvířka. Vedou dovnitř.' },
+      { theme: 'intro', content: '# Poklad starého mlýna\n\nZačínáte rovnou s mapou v ruce.' },
     ],
-    choices: [{ label: 'Pokračovat', goto: 'B1' }],
+    choices: [{ label: 'Do lesa', goto: 'FOREST' }],
   },
 
-  B1: {
+  MARKET: {
     blocks: (s) => [
-      `Pohodlně si nosil svoji ${s.hatColor === 'red' && s.gold >= 34 ? 'červenou čepici' : 'chudou pokrývku hlavy'}.`,
-      'Ale pak najednou… se stalo něco nečekaného.',
+      `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${s.coins} mincí**.`,
+      { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
     ],
     choices: [
-      { label: 'Bojovat', goto: 'C1' },
       {
-        label: 'Koupit meč',
-        goto: 'C2',
-        when: (s) => s.gold >= 90,
-        nextState: (s) => ({ gold: s.gold - 90 }),
+        label: 'Koupit mapu (20 mincí)',
+        goto: 'FOREST',
+        when: (s) => s.coins >= 20,
+        nextState: (s) => ({ coins: s.coins - 20, hasMap: true }),
       },
+      { label: 'Jít bez mapy', goto: 'FOREST' },
     ],
   },
 
-  C1: { end: true, blocks: ['Prohráli jste, ale příběh si vás pamatuje.'] },
+  FOREST: {
+    blocks: (s) => [
+      s.hasMap
+        ? 'Podle mapy najdete pěšinu k lesní studánce.'
+        : 'Bez mapy bloudíte, ale nakonec narazíte na lesní studánku.',
+      checkpoint(1, 'Dojděte ke **studánce** a naskenujte QR kód.'),
+      {
+        theme: 'night',
+        content: 'Setmělo se. Za studánkou slyšíte šumění vody. Mlýn musí být blízko.',
+      },
+    ],
+    choices: [
+      { label: 'Jít potmě dál', goto: 'MILL', nextState: (s) => ({ courage: s.courage + 1 }) },
+      { label: 'Počkat na ráno', goto: 'MILL' },
+    ],
+  },
 
-  C2: { end: true, blocks: ['Vyhráli jste!'] },
+  MILL: {
+    blocks: (s) => [
+      checkpoint(2, 'Najděte **starý mlýn** a naskenujte QR kód u kola.'),
+      'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
+      s.courage > 0 && {
+        theme: 'night',
+        content: 'Ve tmě si všimnete slabého světla pod deskou.',
+      },
+    ],
+    choices: [
+      { label: 'Zvednout desku', goto: 'TREASURE', when: (s) => s.courage > 0 || s.hasMap },
+      { label: 'Vrátit se domů', goto: 'HOME' },
+    ],
+  },
+
+  TREASURE: {
+    end: true,
+    blocks: [{ theme: 'intro', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' }],
+  },
+
+  HOME: {
+    end: true,
+    blocks: ['Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.'],
+  },
 });
