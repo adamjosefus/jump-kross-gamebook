@@ -1,0 +1,14 @@
+{
+  "name": "@gamebook/story",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/story.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@gamebook/core": "workspace:*"
+  }
+}

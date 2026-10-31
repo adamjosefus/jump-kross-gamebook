@@ -12,7 +12,7 @@ import { useTheme, type ThemePreference } from '@/lib/theme';
 import { adminKeys } from './queries';
 
 const NAV = [
-  { to: '/admin/editor', label: 'Editor' },
+  { to: '/admin/story', label: 'Příběh' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Průběh' },
   { to: '/admin/print', label: 'QR kódy' },
