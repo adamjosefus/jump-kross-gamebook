@@ -13,8 +13,8 @@ interface QrCardProps {
 }
 
 /**
- * Printable card: fixed physical width, black on white regardless of the app theme, so the
- * printed sheet looks the same as the preview.
+ * Card with a fixed physical width, black on white regardless of the app theme, so it looks the
+ * same as the downloaded PDF.
  */
 const QrCard = ({
   value,

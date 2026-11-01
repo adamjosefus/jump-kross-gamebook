@@ -1,6 +1,6 @@
 import type { PrintableCode } from '@gamebook/api';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Copy, Download, FileImage, FileText, Loader2, Printer } from 'lucide-react';
+import { Check, Copy, Download, FileImage, FileText, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -47,7 +47,7 @@ const CopySvgButton = ({ entry }: { entry: PrintableCode }) => {
     }
   };
   return (
-    <Button variant='outline' size='sm' onClick={() => void copy()} className='print:hidden'>
+    <Button variant='outline' size='sm' onClick={() => void copy()}>
       {copied ? <Check /> : <Copy />} {copied ? 'Zkopírováno' : 'Kopírovat SVG'}
     </Button>
   );
@@ -107,7 +107,7 @@ const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' size='sm' disabled={busy} className='print:hidden'>
+        <Button variant='outline' size='sm' disabled={busy}>
           {busy ? <Loader2 className='animate-spin' /> : <Download />} Stáhnout
         </Button>
       </DropdownMenuTrigger>
@@ -126,7 +126,7 @@ const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
   );
 };
 
-/** Every QR code of the game: copy or download each one (SVG, PDF on A4/A5), or print them all on A4. */
+/** Every QR code of the game: copy or download each one (SVG, PDF on A4/A5). */
 export const PrintPage = () => {
   const codes = useQuery({
     queryKey: adminKeys.codes,
@@ -137,20 +137,16 @@ export const PrintPage = () => {
   if (codes.isError) return <p className='p-8 text-destructive'>{errorMessage(codes.error)}</p>;
 
   return (
-    <div className='flex flex-col gap-4 p-6 print:p-0'>
-      <div className='flex items-center gap-4 print:hidden'>
+    <div className='flex flex-col gap-4 p-6'>
+      <div className='flex items-center gap-4'>
         <p className='text-sm text-muted-foreground'>
           {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, kód místa platí pro
           všechny týmy.
         </p>
-        <span className='flex-1' />
-        <Button variant='outline' onClick={() => window.print()} disabled={codes.data.length === 0}>
-          <Printer /> Tisknout na A4
-        </Button>
       </div>
-      <div className='flex flex-wrap gap-4 print:gap-[0.5cm]'>
+      <div className='flex flex-wrap gap-4'>
         {codes.data.map((entry) => (
-          <div key={entry.code} className='flex flex-col items-center gap-2 print:contents'>
+          <div key={entry.code} className='flex flex-col items-center gap-2'>
             {entry.kind === 'T' ? (
               <TeamLoginQr value={entry.code} teamName={entry.label} logo={logo} />
             ) : entry.kind === 'E' ? (
@@ -158,7 +154,7 @@ export const PrintPage = () => {
             ) : (
               <ProgressQr value={entry.code} locationName={entry.label} logo={logo} />
             )}
-            <div className='flex gap-2 print:hidden'>
+            <div className='flex gap-2'>
               <CopySvgButton entry={entry} />
               <DownloadButton entry={entry} />
             </div>
