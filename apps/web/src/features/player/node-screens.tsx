@@ -1,12 +1,14 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
-import { Camera, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+import { QrScannerView } from './qr-scanner';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
@@ -38,22 +40,24 @@ const freshPaging = (node: PlayerNode, step: number) => ({
 
 /**
  * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
- * last screen offers the choices, or the scan button when the node waits for a QR code.
+ * last screen offers the choices, or is the scanner when the node waits for a QR code.
  */
 export const NodeScreens = ({
   node,
   step,
   busy,
-  onScan,
+  onCode,
   onPick,
 }: {
   node: PlayerNode;
   step: number;
   busy: boolean;
-  onScan?: () => void;
+  /** A QR code read on the scan screen. */
+  onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
 }) => {
-  const count = node.screens.length;
+  // A node left by scanning has one more screen after its blocks: the scanner.
+  const count = node.screens.length + (node.scan ? 1 : 0);
   const [paging, setPaging] = useState(() => freshPaging(node, step));
   if (paging.node !== node.id || paging.step !== step) setPaging(freshPaging(node, step));
   const index = Math.min(paging.index, count - 1);
@@ -61,6 +65,7 @@ export const NodeScreens = ({
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
+  const scanning = node.scan && index === node.screens.length;
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );
@@ -83,6 +88,13 @@ export const NodeScreens = ({
           <ChevronLeft /> Zpět
         </Button>
       )}
+      {scanning && (
+        <div className='flex flex-col gap-2'>
+          <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
+          <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód na místě.</p>
+        </div>
+      )}
+      {scanning && <QrScannerView onCode={onCode} disabled={busy} />}
       {screen !== undefined && (
         <div
           className={cn(
@@ -100,11 +112,7 @@ export const NodeScreens = ({
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />
           </Button>
-        ) : node.scan ? (
-          <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
-            <Camera /> Naskenovat QR kód
-          </Button>
-        ) : node.type === 'end' ? (
+        ) : scanning ? null : node.type === 'end' ? (
           <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
             <Flag className='size-4' /> Konec hry
           </p>

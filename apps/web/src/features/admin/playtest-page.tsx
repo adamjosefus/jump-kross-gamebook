@@ -21,7 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { NodeScreens } from '@/features/player/node-screens';
-import { QrScannerDialog } from '@/features/player/qr-scanner-dialog';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -57,7 +56,6 @@ export const PlaytestPage = () => {
   const path: readonly Step[] = begin.data === undefined ? [] : [begin.data, ...moves];
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
-  const [scanning, setScanning] = useState(false);
 
   const play = useMutation({
     mutationFn: ({ from, move }: { from: Step; move: Move; via: string }) =>
@@ -114,7 +112,11 @@ export const PlaytestPage = () => {
                 node={current.view}
                 step={path.length}
                 busy={play.isPending}
-                onScan={() => setScanning(true)}
+                onCode={(code) => {
+                  const id = parseQr(code)?.id;
+                  const name = scans.find((location) => location.id === id)?.name;
+                  take({ code }, `QR ${name ?? code}`);
+                }}
                 onPick={(choice) => take({ choice: choice.index }, choice.label)}
               />
             )}
@@ -210,17 +212,6 @@ export const PlaytestPage = () => {
           </section>
         </div>
       </div>
-
-      <QrScannerDialog
-        open={scanning}
-        onOpenChange={setScanning}
-        onCode={(code) => {
-          setScanning(false);
-          const id = parseQr(code)?.id;
-          const name = scans.find((location) => location.id === id)?.name;
-          take({ code }, `QR ${name ?? code}`);
-        }}
-      />
     </div>
   );
 };

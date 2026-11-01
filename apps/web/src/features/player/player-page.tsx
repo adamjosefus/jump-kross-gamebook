@@ -124,7 +124,7 @@ export const PlayerPage = () => {
               node={view.node}
               step={view.step}
               busy={busy}
-              onScan={() => setScanning(true)}
+              onCode={onCode}
               onPick={pick}
             />
           )}
