@@ -1,4 +1,3 @@
-import type { LocationKind } from '@gamebook/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Effect } from 'effect';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
@@ -27,7 +26,7 @@ import { api, errorMessage, type Client } from '@/lib/api';
 
 import { adminKeys, startNodes, useOverview, useStoryGraph } from './queries';
 
-/** Setup of the running game: teams with their start node, and the physical locations. */
+/** Setup of the running game: teams with their start node; the places come from the story. */
 export const GamePage = () => {
   const queryClient = useQueryClient();
   const overview = useOverview();
@@ -115,19 +114,17 @@ export const GamePage = () => {
         <CardHeader>
           <CardTitle>Místa</CardTitle>
           <CardDescription>
-            Číslo místa se píše do příběhu jako QR volba{' '}
-            <code>{"scans: [{ location: 32, goto: 'UZEL' }]"}</code>. Na každé místo patří jeden QR
-            kód.
+            Místa s QR kódy jsou součástí příběhu (<code>locations</code> v{' '}
+            <code>packages/story/src/story.ts</code>) a mění se s deployem. Kódy k tisku jsou na
+            stránce QR kódy.
           </CardDescription>
         </CardHeader>
-        <CardContent className='flex flex-col gap-4'>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-16'>Číslo</TableHead>
                 <TableHead>Název</TableHead>
-                <TableHead>Druh</TableHead>
-                <TableHead className='w-10' />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -135,33 +132,10 @@ export const GamePage = () => {
                 <TableRow key={location.id}>
                   <TableCell className='font-mono'>{location.id}</TableCell>
                   <TableCell>{location.name}</TableCell>
-                  <TableCell>{location.kind === 'end' ? 'Cíl' : 'Postup'}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      title='Smazat místo'
-                      onClick={() =>
-                        mutate.mutate((c) =>
-                          c.admin.deleteLocation({ params: { id: location.id } }),
-                        )
-                      }
-                    >
-                      <Trash2 />
-                    </Button>
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <NewLocationForm
-            nextId={Math.max(0, ...locations.map((l) => l.id)) + 1}
-            onSave={(id, name, kind) =>
-              mutate.mutate((c) =>
-                c.admin.saveLocation({ params: { id }, payload: { name, kind } }),
-              )
-            }
-          />
         </CardContent>
       </Card>
     </div>
@@ -219,58 +193,6 @@ const NewTeamForm = ({
       />
       <NodeSelect value={startNode} options={starts} onChange={setStart} />
       <Button type='submit' disabled={name.trim() === '' || startNode === ''}>
-        <Plus /> Přidat
-      </Button>
-    </form>
-  );
-};
-
-const isLocationKind = (value: string): value is LocationKind =>
-  value === 'progress' || value === 'end';
-
-const NewLocationForm = ({
-  nextId,
-  onSave,
-}: {
-  nextId: number;
-  onSave: (id: number, name: string, kind: LocationKind) => void;
-}) => {
-  const [id, setId] = useState('');
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<LocationKind>('progress');
-  const number = id === '' ? nextId : Number(id);
-  const valid = Number.isInteger(number) && number > 0 && name.trim() !== '';
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!valid) return;
-    onSave(number, name, kind);
-    setId('');
-    setName('');
-  };
-  return (
-    <form onSubmit={submit} className='flex gap-2'>
-      <Input
-        value={id}
-        onChange={(event) => setId(event.target.value.replace(/\D/g, ''))}
-        placeholder={String(nextId)}
-        inputMode='numeric'
-        className='w-16 font-mono'
-      />
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder='Název místa'
-      />
-      <Select value={kind} onValueChange={(value) => isLocationKind(value) && setKind(value)}>
-        <SelectTrigger className='w-28'>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='progress'>Postup</SelectItem>
-          <SelectItem value='end'>Cíl</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button type='submit' disabled={!valid}>
         <Plus /> Přidat
       </Button>
     </form>

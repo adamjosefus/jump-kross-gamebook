@@ -148,9 +148,6 @@ const AdminHandlers = HttpApiBuilder.group(
       resetTeam: ({ params }) => orDie(game.resetTeam(params.id)),
       moveTeam: ({ params, payload }) =>
         orDie(game.moveTeam(params.id, payload.node, payload.state)),
-      saveLocation: ({ params, payload }) =>
-        orDie(store.saveLocation({ id: params.id, name: payload.name.trim(), kind: payload.kind })),
-      deleteLocation: ({ params }) => orDie(store.deleteLocation(params.id)),
       codes: () => orDie(game.codes()),
     });
   }),

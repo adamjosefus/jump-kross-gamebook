@@ -77,15 +77,18 @@ describe('engine', () => {
 
   it('offers only QR choices whose condition holds', () => {
     const gated = defineStory<{ key: boolean }>()({
-      A: {
-        initialState: { key: false },
-        blocks: ['A'],
-        scans: [
-          { location: 1, goto: 'B' },
-          { location: 2, goto: 'B', when: (s) => s.key },
-        ],
+      locations: { 1: 'Místo 1', 2: 'Místo 2' },
+      nodes: {
+        A: {
+          initialState: { key: false },
+          blocks: ['A'],
+          scans: [
+            { location: 1, goto: 'B' },
+            { location: 2, goto: 'B', when: (s) => s.key },
+          ],
+        },
+        B: { end: true, blocks: ['B'] },
       },
-      B: { end: true, blocks: ['B'] },
     });
     const locked = { node: 'A', state: { key: false } };
     expect(applyScan(gated, locked, 2)).toEqual({ ok: false, error: 'wrong-location' });
@@ -161,10 +164,13 @@ describe('graph', () => {
   it('previews from the chosen start and leaves unreached dynamic nodes without text', () => {
     const define = defineStory<{ n: number }>();
     const twoStarts = define({
-      A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
-      B: { initialState: { n: 2 }, blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
-      C: { end: true, blocks: (s) => [`n = ${s.n}`] },
-      D: { end: true, blocks: (s) => [`d = ${s.n}`] },
+      locations: {},
+      nodes: {
+        A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
+        B: { initialState: { n: 2 }, blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
+        C: { end: true, blocks: (s) => [`n = ${s.n}`] },
+        D: { end: true, blocks: (s) => [`d = ${s.n}`] },
+      },
     });
     const fromA = toGraph(twoStarts);
     expect(fromA.nodes['C']!.preview?.content).toBe('n = 1');
@@ -180,14 +186,17 @@ describe('graph', () => {
 
   it('reports a missing start and unreachable nodes', () => {
     const define = defineStory<{ n: number }>();
-    const noStart = define({ A: { end: true, blocks: ['A'] } });
+    const noStart = define({ locations: {}, nodes: { A: { end: true, blocks: ['A'] } } });
     expect(graphProblems(toGraph(noStart))).toEqual([
       'Příběh nemá žádný start (uzel s initialState).',
     ]);
     const orphan = define({
-      A: { initialState: { n: 0 }, blocks: [], choices: [{ label: 'Dál', goto: 'B' }] },
-      B: { end: true, blocks: ['B'] },
-      C: { end: true, blocks: ['C'] },
+      locations: {},
+      nodes: {
+        A: { initialState: { n: 0 }, blocks: [], choices: [{ label: 'Dál', goto: 'B' }] },
+        B: { end: true, blocks: ['B'] },
+        C: { end: true, blocks: ['C'] },
+      },
     });
     expect(graphProblems(toGraph(orphan))).toEqual(['Uzel C je nedosažitelný z žádného startu.']);
   });
@@ -198,28 +207,48 @@ const _typeErrors = () => {
   {
     const define = defineStory<{ gold: number }>();
     define({
-      A: {
-        initialState: { gold: 0 },
-        blocks: [],
-        choices: [
-          // @ts-expect-error: goto must name an existing node
-          { label: 'Překlep', goto: 'BB' },
-          // @ts-expect-error: nextState must match the state type
-          { label: 'Špatný typ', goto: 'B', nextState: () => ({ gold: 'hodně' }) },
-        ],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { gold: 0 },
+          blocks: [],
+          choices: [
+            // @ts-expect-error: goto must name an existing node
+            { label: 'Překlep', goto: 'BB' },
+            // @ts-expect-error: nextState must match the state type
+            { label: 'Špatný typ', goto: 'B', nextState: () => ({ gold: 'hodně' }) },
+          ],
+        },
+        // @ts-expect-error: unknown theme
+        B: { end: true, blocks: [{ theme: 'neon', content: 'B' }] },
       },
-      // @ts-expect-error: unknown theme
-      B: { end: true, blocks: [{ theme: 'neon', content: 'B' }] },
     });
     // @ts-expect-error: a node without end needs choices
-    define({ A: { initialState: { gold: 0 }, blocks: [] } });
+    define({ locations: {}, nodes: { A: { initialState: { gold: 0 }, blocks: [] } } });
     define({
-      // @ts-expect-error: a node offers buttons or QR choices, not both
-      A: {
-        initialState: { gold: 0 },
-        blocks: [],
-        choices: [{ label: 'Dál', goto: 'A' }],
-        scans: [{ location: 1, goto: 'A' }],
+      locations: { 1: 'Místo 1' },
+      nodes: {
+        // @ts-expect-error: a node offers buttons or QR choices, not both
+        A: {
+          initialState: { gold: 0 },
+          blocks: [],
+          choices: [{ label: 'Dál', goto: 'A' }],
+          scans: [{ location: 1, goto: 'A' }],
+        },
+      },
+    });
+    define({
+      locations: { 1: 'Studna' },
+      nodes: {
+        A: {
+          initialState: { gold: 0 },
+          blocks: [],
+          scans: [
+            { location: 1, goto: 'A' },
+            // @ts-expect-error: a QR choice must use a place from `locations`
+            { location: 2, goto: 'A' },
+          ],
+        },
       },
     });
   }

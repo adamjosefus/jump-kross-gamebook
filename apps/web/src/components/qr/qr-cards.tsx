@@ -1,4 +1,4 @@
-import { Flag, LogIn, MapPin } from 'lucide-react';
+import { LogIn, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -60,12 +60,4 @@ export const ProgressQr = ({
   ...props
 }: QrCardProps & { readonly locationName?: string }) => (
   <QrCard {...props} {...qrCardText('L', locationName)} icon={<MapPin className='size-3.5' />} />
-);
-
-/** Ends the game at a finish location. */
-export const EndQr = ({
-  locationName,
-  ...props
-}: QrCardProps & { readonly locationName?: string }) => (
-  <QrCard {...props} {...qrCardText('E', locationName)} icon={<Flag className='size-3.5' />} />
 );

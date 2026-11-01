@@ -1,21 +1,15 @@
 import { Effect, Layer } from 'effect';
 
-import { Store, type LocationRow, type LogRow, type TeamRow } from './store.ts';
+import { Store, type LogRow, type TeamRow } from './store.ts';
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = () => {
-  const locations = new Map<number, LocationRow>();
   const teams = new Map<number, TeamRow>();
   const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>();
   const log: LogRow[] = [];
   let nextTeamId = 1;
 
   return Store.of({
-    listLocations: () => Effect.sync(() => [...locations.values()].toSorted((a, b) => a.id - b.id)),
-    getLocation: (id) => Effect.sync(() => locations.get(id)),
-    saveLocation: (location) => Effect.sync(() => (locations.set(location.id, location), location)),
-    deleteLocation: (id) => Effect.sync(() => void locations.delete(id)),
-
     listTeams: () => Effect.sync(() => [...teams.values()].toSorted((a, b) => a.id - b.id)),
     getTeam: (id) => Effect.sync(() => teams.get(id)),
     createTeam: (name, startNode) =>

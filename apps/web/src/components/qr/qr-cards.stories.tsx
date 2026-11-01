@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import logo from '@/assets/qr-logo.svg';
 
-import { EndQr, ProgressQr, TeamLoginQr } from './qr-cards';
+import { ProgressQr, TeamLoginQr } from './qr-cards';
 import { QrCode } from './qr-code';
 
 const meta = {
@@ -20,11 +20,6 @@ export const TeamLogin: StoryObj<typeof TeamLoginQr> = {
 export const Progress: StoryObj<typeof ProgressQr> = {
   render: (args) => <ProgressQr {...args} />,
   args: { value: 'L:32:9FZM', locationName: 'Studna na nádvoří' },
-};
-
-export const End: StoryObj<typeof EndQr> = {
-  render: (args) => <EndQr {...args} />,
-  args: { value: 'E:1:3XW0' },
 };
 
 export const WithoutLogo: StoryObj<typeof ProgressQr> = {

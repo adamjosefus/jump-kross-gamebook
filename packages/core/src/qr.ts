@@ -1,12 +1,12 @@
 /**
  * QR code content: `KIND:ID:CHECK`, e.g. `T:12:K7QM`.
  *
- * - `T` logs a team in, `L` moves any team on at a location, `E` is an end location.
+ * - `T` logs a team in, `L` is a location: scanning it takes the QR choice of that place.
  * - `CHECK` is 4 Crockford base32 characters of HMAC-SHA256(`KIND:ID`) keyed by a server secret.
  *   It is readable but cannot be computed by hand, so codes cannot be forged in the field.
  */
 
-export type QrKind = 'T' | 'L' | 'E';
+export type QrKind = 'T' | 'L';
 
 export interface QrPayload {
   readonly kind: QrKind;
@@ -16,10 +16,9 @@ export interface QrPayload {
 /** Crockford base32: no I, L, O, U, so the check survives being read aloud or retyped. */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const CHECK_LENGTH = 4;
-const isQrKind = (value: string | undefined): value is QrKind =>
-  value === 'T' || value === 'L' || value === 'E';
+const isQrKind = (value: string | undefined): value is QrKind => value === 'T' || value === 'L';
 
-const FORMAT = /^([TLE]):([1-9]\d{0,5}):([0-9A-Z]{4})$/;
+const FORMAT = /^([TL]):([1-9]\d{0,5}):([0-9A-Z]{4})$/;
 
 const encoder = new TextEncoder();
 
