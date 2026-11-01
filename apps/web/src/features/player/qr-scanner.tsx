@@ -44,7 +44,7 @@ export const QrScannerView = ({
   /** Codes read meanwhile are ignored, e.g. while the last one is being sent. */
   disabled?: boolean;
 }) => {
-  const video = useRef<HTMLVideoElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
   const [manual, setManual] = useState(false);
   const [cameraError, setCameraError] = useState<string>();
   const [text, setText] = useState('');
@@ -58,9 +58,18 @@ export const QrScannerView = ({
   });
 
   useEffect(() => {
-    if (manual || video.current === null) return undefined;
+    const container = stage.current;
+    if (manual || container === null) return undefined;
     setCameraError(undefined);
-    const scanner = new QrScanner(video.current, (result) => emit(result.data), {
+    // Every scanner gets its own video: a destroyed scanner stops the stream in its video 300 ms
+    // later, which in a shared one would be the next scanner's camera (React runs effects twice
+    // in development, so that happens on every mount).
+    const video = document.createElement('video');
+    video.className = 'size-full object-cover';
+    video.muted = true;
+    video.playsInline = true;
+    container.append(video);
+    const scanner = new QrScanner(video, (result) => emit(result.data), {
       preferredCamera: 'environment',
       highlightScanRegion: true,
       maxScansPerSecond: 8,
@@ -74,6 +83,8 @@ export const QrScannerView = ({
     return () => {
       current = false;
       scanner.destroy();
+      // The scan region overlay sits next to the video.
+      container.replaceChildren();
     };
   }, [manual]);
 
@@ -103,7 +114,7 @@ export const QrScannerView = ({
         </form>
       ) : (
         <div className='relative aspect-square overflow-hidden rounded-lg bg-muted'>
-          <video ref={video} className='size-full object-cover' muted playsInline />
+          <div ref={stage} className='size-full' />
           {cameraError !== undefined && (
             <p className='absolute inset-0 flex items-center bg-background/90 p-6 text-center text-sm'>
               {cameraError}
