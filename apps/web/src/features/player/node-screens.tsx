@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 import { CameraGate } from './camera-access';
 import { ScanScreen } from './qr-scanner';
@@ -29,6 +30,8 @@ const freshPaging = (node: PlayerNode, step: number, index: number) => ({
   node: node.id,
   step,
   index,
+  /** Screens whose text has been shown in full; going back to one shows it at once. */
+  seen: [] as readonly number[],
   ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
 });
 
@@ -74,6 +77,7 @@ export const NodeScreens = ({
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
+  const shown = screen === undefined || paging.seen.includes(index);
   const scanScreen = (
     <ScanScreen
       onCode={onCode}
@@ -109,11 +113,22 @@ export const NodeScreens = ({
             theme={theme}
             align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
             className={THEME_BOX[theme]}
+            instant={shown}
+            onRevealed={() => {
+              if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+            }}
           />
         </div>
       )}
 
-      <div className='mt-auto flex flex-col gap-3'>
+      {/* Buttons wait for the whole text, so nobody goes on before reading it. They keep their
+          room meanwhile, so the text does not move when they appear. */}
+      <div
+        className={cn(
+          'mt-auto flex flex-col gap-3',
+          shown ? 'animate-in duration-500 fade-in' : 'invisible',
+        )}
+      >
         {!last ? (
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />

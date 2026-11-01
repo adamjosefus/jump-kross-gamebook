@@ -162,6 +162,7 @@
   }
 }
 .story-word {
+  /* The duration comes from StoryText, which also knows when the last word is shown. */
   animation: story-word-in 0.8s ease-out both;
 }
 .story-text-revealed .story-word {
