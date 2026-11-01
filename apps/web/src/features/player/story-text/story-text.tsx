@@ -14,10 +14,10 @@ import { paragraphsOf, type Paragraph } from './markdown';
 import { paragraphType, QUOTE_LINE, runType, type ParagraphType, type RunType } from './typography';
 
 /** Average time per word; long screens go faster so the whole reveal never takes too long. */
-const WORD_STEP_MS = 50;
-const MAX_REVEAL_MS = 3000;
+const WORD_STEP_MS = 70;
+const MAX_REVEAL_MS = 4000;
 /** Steepness of the reveal curve: the higher, the slower the start and the faster the end. */
-const REVEAL_EASING = 2.5;
+const REVEAL_EASING = 4;
 
 /**
  * When the word starts to fade in. One curve covers the whole screen: an ease-out over the words,
