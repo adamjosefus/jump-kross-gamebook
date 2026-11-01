@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import ELK from 'elkjs/lib/elk.bundled.js';
-import { Flag, QrCode } from 'lucide-react';
+import { Flag, GalleryHorizontal, QrCode } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
@@ -238,9 +238,13 @@ const StoryNodeCard = ({ data: { node, teams } }: NodeProps<StoryFlowNode>) => {
           ))}
           <span className='flex-1' />
           {preview !== undefined && preview.screens > 1 && (
-            <span className='text-xs text-muted-foreground' title='Počet obrazovek'>
-              {preview.screens}×
-            </span>
+            <Badge
+              variant='outline'
+              className='text-muted-foreground'
+              title={`${preview.screens} obrazovky, mezi nimi tlačítko „Další“`}
+            >
+              <GalleryHorizontal /> {preview.screens}
+            </Badge>
           )}
         </div>
         <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
@@ -252,7 +256,7 @@ const StoryNodeCard = ({ data: { node, teams } }: NodeProps<StoryFlowNode>) => {
         </div>
       </div>
       {teams.length > 0 && (
-        <div className='absolute -top-4 right-2 flex -space-x-2'>
+        <div className='absolute right-2 bottom-full mb-1.5 flex -space-x-2'>
           {teams.map((team) => (
             <TeamAvatar key={team.id} id={team.id} name={team.name} className='size-8 text-xs' />
           ))}
