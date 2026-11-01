@@ -16,20 +16,26 @@ import { paragraphType, QUOTE_LINE, runType, type ParagraphType, type RunType } 
 /** Average time per word; long screens go faster so the whole reveal never takes too long. */
 const WORD_STEP_MS = 70;
 const MAX_REVEAL_MS = 4000;
-/** Steepness of the reveal curve: the higher, the slower the start and the faster the end. */
-const REVEAL_EASING = 4;
-/** Shortest time between two words, so even the last ones come one by one. */
+/** Steepness of the S-curve: the higher, the slower the start and the end against the middle. */
+const REVEAL_EASING = 2.5;
+/** Shortest time between two words, so even in the middle they come one by one. */
 const MIN_WORD_GAP_MS = 30;
 
 /**
- * When the word starts to fade in. One curve covers the whole screen: an ease-out over the words,
- * so the first words come slowly and the rest faster and faster, but always one after another.
+ * When the word starts to fade in. One S-curve covers the whole screen: the share of words shown
+ * grows like an ease-in-out over time, so the first and the last words come slowly and the middle
+ * ones quickly, always one after another.
  */
 const revealDelay = (index: number, words: number) => {
   if (words <= 1) return 0;
   const curve = Math.min(words * WORD_STEP_MS, MAX_REVEAL_MS);
   const progress = index / (words - 1);
-  return Math.round(index * MIN_WORD_GAP_MS + curve * (1 - (1 - progress) ** REVEAL_EASING));
+  // The inverse of the ease-in-out: the time at which this share of the words is shown.
+  const time =
+    progress < 0.5
+      ? 0.5 * (2 * progress) ** (1 / REVEAL_EASING)
+      : 1 - 0.5 * (2 * (1 - progress)) ** (1 / REVEAL_EASING);
+  return Math.round(index * MIN_WORD_GAP_MS + curve * time);
 };
 
 // -----------------------------------------------------------------------------------------------
