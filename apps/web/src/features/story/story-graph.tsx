@@ -17,16 +17,19 @@ import {
 } from '@xyflow/react';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import ELK from 'elkjs/lib/elk.bundled.js';
-import { Flag, Play, QrCode } from 'lucide-react';
+import { Flag, Footprints, QrCode } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { Badge } from '@/components/ui/badge';
+import { TeamAvatar } from '@/features/teams/team-avatar';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 136;
+/** Filled dot with an arrow into every start node, like the initial state of a state machine. */
+const INITIAL_SIZE = 14;
 
 const elk = new ELK();
 
@@ -46,10 +49,16 @@ const layouts = new Map<string, Promise<Layout>>();
 
 const structureOf = (graph: GameGraph) =>
   graph.order
-    .map((id) => `${id}>${graph.nodes[id]!.choices.map((c) => `${c.target}:${c.label}`).join(',')}`)
+    .map((id) => {
+      const node = graph.nodes[id]!;
+      return `${id}:${node.type}>${node.choices.map((c) => `${c.target}:${c.label}`).join(',')}`;
+    })
     .join(';');
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
+const initialId = (start: string) => `initial:${start}`;
+const startsOf = (graph: GameGraph) =>
+  graph.order.filter((id) => graph.nodes[id]!.type === 'start');
 
 /** Rough label size; ELK only needs it to reserve space. */
 const labelSize = (text: string) => ({ width: Math.ceil(text.length * 6.5) + 14, height: 18 });
@@ -70,21 +79,35 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
       'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
       'elk.edgeLabels.inline': 'true',
     },
-    children: graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
-    edges: graph.order.flatMap((id) =>
-      graph.nodes[id]!.choices.flatMap((choice, index) =>
-        Object.hasOwn(graph.nodes, choice.target)
-          ? [
-              {
-                id: edgeId(id, index),
-                sources: [id],
-                targets: [choice.target],
-                labels: [{ text: choice.label, ...labelSize(choice.label) }],
-              },
-            ]
-          : [],
+    children: [
+      ...graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
+      ...startsOf(graph).map((id) => ({
+        id: initialId(id),
+        width: INITIAL_SIZE,
+        height: INITIAL_SIZE,
+      })),
+    ],
+    edges: [
+      ...graph.order.flatMap((id) =>
+        graph.nodes[id]!.choices.flatMap((choice, index) =>
+          Object.hasOwn(graph.nodes, choice.target)
+            ? [
+                {
+                  id: edgeId(id, index),
+                  sources: [id],
+                  targets: [choice.target],
+                  labels: [{ text: choice.label, ...labelSize(choice.label) }],
+                },
+              ]
+            : [],
+        ),
       ),
-    ),
+      ...startsOf(graph).map((id) => ({
+        id: initialId(id),
+        sources: [initialId(id)],
+        targets: [id],
+      })),
+    ],
   };
   const result = await elk.layout(input);
   return {
@@ -120,7 +143,7 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
 };
 
 type RouteEdge = Edge<
-  { points: readonly XYPosition[]; text: string; label?: Box; dimmed: boolean },
+  { points: readonly XYPosition[]; text?: string; label?: Box; dimmed: boolean },
   'route'
 >;
 
@@ -159,77 +182,117 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
 
 const edgeTypes = { route: RouteEdgeView };
 
-type StoryFlowNode = Node<{ node: GraphNode; highlighted: boolean }, 'story'>;
+/** A clan standing on a node, shown as a colored avatar on its card. */
+export interface GraphTeam {
+  readonly id: number;
+  readonly name: string;
+  readonly node?: string;
+}
+
+type StoryFlowNode = Node<
+  { node: GraphNode; teams: readonly GraphTeam[]; visits: number | undefined },
+  'story'
+>;
+type InitialFlowNode = Node<{ dimmed: boolean }, 'initial'>;
+
+const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
+  <div
+    title='Start'
+    className={cn('rounded-full bg-foreground', dimmed && 'opacity-40')}
+    style={{ width: INITIAL_SIZE, height: INITIAL_SIZE }}
+  >
+    <Handle type='source' position={Position.Bottom} className='opacity-0' />
+  </div>
+);
 
 /** Node card: id tag, kind, checkpoints and the first screen of its content. */
-const StoryNodeCard = ({ data: { node, highlighted } }: NodeProps<StoryFlowNode>) => {
+const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
-    <div
-      title={preview?.state === undefined ? undefined : JSON.stringify(preview.state, null, 1)}
-      className={cn(
-        'flex flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm',
-        node.type !== 'passage' && 'border-foreground/60',
-        !node.reached && 'opacity-40',
-        highlighted && 'ring-2 ring-foreground',
-      )}
-      style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}
-    >
+    <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
       <Handle type='target' position={Position.Top} className='opacity-0' />
-      <div className='flex items-center gap-1'>
-        <Badge variant='secondary' className='font-mono'>
-          {node.id}
-        </Badge>
-        {node.type === 'start' && (
-          <Badge variant='outline' title='Start'>
-            <Play />
-          </Badge>
+      <div
+        title={preview?.state === undefined ? undefined : JSON.stringify(preview.state, null, 1)}
+        className={cn(
+          'flex size-full flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm',
+          node.type !== 'passage' && 'border-foreground/60',
+          !node.reached && teams.length === 0 && 'opacity-40',
+          teams.length > 0 && 'ring-2 ring-foreground',
         )}
-        {node.type === 'end' && (
-          <Badge variant='outline' title='Konec'>
-            <Flag />
+      >
+        <div className='flex items-center gap-1'>
+          <Badge variant='secondary' className='font-mono'>
+            {node.id}
           </Badge>
-        )}
-        {preview?.checkpoints.map((location, i) => (
-          <Badge
-            key={i}
-            variant='outline'
-            className='font-mono'
-            title={`Checkpoint, místo ${location}`}
-          >
-            <QrCode /> {location}
-          </Badge>
-        ))}
-        <span className='flex-1' />
-        {preview !== undefined && preview.screens > 1 && (
-          <span className='text-xs text-muted-foreground' title='Počet obrazovek'>
-            {preview.screens}×
-          </span>
-        )}
+          {node.type === 'end' && (
+            <Badge variant='outline' title='Konec'>
+              <Flag />
+            </Badge>
+          )}
+          {preview?.checkpoints.map((location, i) => (
+            <Badge
+              key={i}
+              variant='outline'
+              className='font-mono'
+              title={`Checkpoint, místo ${location}`}
+            >
+              <QrCode /> {location}
+            </Badge>
+          ))}
+          <span className='flex-1' />
+          {visits !== undefined && (
+            <Badge
+              variant='outline'
+              className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
+              title={`Klany sem dorazily ${visits}×`}
+            >
+              <Footprints /> {visits}
+            </Badge>
+          )}
+        </div>
+        <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
+          {preview === undefined ? (
+            <em>Obsah závisí na stavu a tento start sem nevede.</em>
+          ) : (
+            <Markdown>{preview.content}</Markdown>
+          )}
+        </div>
       </div>
-      <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
-        {preview === undefined ? (
-          <em>Obsah závisí na stavu a tento start sem nevede.</em>
-        ) : (
-          <Markdown>{preview.content}</Markdown>
-        )}
-      </div>
+      {teams.length > 0 && (
+        <div className='absolute right-2 bottom-full mb-1.5 flex -space-x-2'>
+          {teams.map((team) => (
+            <TeamAvatar key={team.id} id={team.id} name={team.name} className='size-8 text-xs' />
+          ))}
+        </div>
+      )}
       <Handle type='source' position={Position.Bottom} className='opacity-0' />
     </div>
   );
 };
 
-const nodeTypes = { story: StoryNodeCard };
+const nodeTypes = { story: StoryNodeCard, initial: InitialDot };
 
 export interface StoryGraphProps {
   readonly graph: GameGraph;
-  /** Nodes to emphasise, e.g. where teams currently are. */
-  readonly highlight?: readonly string[];
+  /** Clans to show on the nodes they stand on. */
+  readonly teams?: readonly GraphTeam[];
+  /** Arrivals per node; shown on the cards when given. */
+  readonly visits?: Readonly<Record<string, number>>;
+  /** Click on the empty canvas, e.g. to close a floating panel. */
+  readonly onPaneClick?: () => void;
   readonly className?: string;
 }
 
+const NO_TEAMS: readonly GraphTeam[] = [];
+
 /** The story as a zoomable graph laid out by ELK. */
-export const StoryGraph = ({ graph, highlight = [], className }: StoryGraphProps) => {
+export const StoryGraph = ({
+  graph,
+  teams = NO_TEAMS,
+  visits,
+  onPaneClick,
+  className,
+}: StoryGraphProps) => {
   const { resolved } = useTheme();
   const [laidOut, setLaidOut] = useState<{ key: string; layout: Layout }>();
 
@@ -249,22 +312,35 @@ export const StoryGraph = ({ graph, highlight = [], className }: StoryGraphProps
     };
   }, [graph, structure]);
 
-  const nodes = useMemo<StoryFlowNode[]>(
-    () =>
-      graph.order.map((id) => ({
+  const nodes = useMemo<(StoryFlowNode | InitialFlowNode)[]>(() => {
+    const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
+    return [
+      ...graph.order.map((id): StoryFlowNode => ({
         id,
         type: 'story',
-        position: laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 },
-        data: { node: graph.nodes[id]!, highlighted: highlight.includes(id) },
+        position: position(id),
+        data: {
+          node: graph.nodes[id]!,
+          teams: teams.filter((team) => team.node === id),
+          visits: visits === undefined ? undefined : (visits[id] ?? 0),
+        },
         draggable: false,
       })),
-    [graph, laidOut, highlight],
-  );
+      ...startsOf(graph).map((id): InitialFlowNode => ({
+        id: initialId(id),
+        type: 'initial',
+        position: position(initialId(id)),
+        data: { dimmed: !graph.nodes[id]!.reached },
+        draggable: false,
+        selectable: false,
+      })),
+    ];
+  }, [graph, laidOut, teams, visits]);
 
   const edges = useMemo<RouteEdge[]>(
-    () =>
-      graph.order.flatMap((id) =>
-        graph.nodes[id]!.choices.map((choice, index) => {
+    () => [
+      ...graph.order.flatMap((id) =>
+        graph.nodes[id]!.choices.map((choice, index): RouteEdge => {
           const route = laidOut?.layout.edges.get(edgeId(id, index));
           return {
             id: edgeId(id, index),
@@ -283,6 +359,18 @@ export const StoryGraph = ({ graph, highlight = [], className }: StoryGraphProps
           };
         }),
       ),
+      ...startsOf(graph).map((id): RouteEdge => ({
+        id: initialId(id),
+        type: 'route',
+        source: initialId(id),
+        target: id,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        data: {
+          points: laidOut?.layout.edges.get(initialId(id))?.points ?? [],
+          dimmed: !graph.nodes[id]!.reached,
+        },
+      })),
+    ],
     [graph, laidOut],
   );
 
@@ -294,6 +382,7 @@ export const StoryGraph = ({ graph, highlight = [], className }: StoryGraphProps
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          {...(onPaneClick === undefined ? {} : { onPaneClick })}
           colorMode={resolved}
           fitView
           minZoom={0.1}

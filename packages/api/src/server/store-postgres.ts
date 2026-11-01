@@ -161,6 +161,13 @@ export const makePostgresStore = (url: string) => {
       query(async () =>
         (await sql`select * from step_log order by at desc, id desc limit ${limit}`).map(toLog),
       ),
+    visitCounts: () =>
+      query(async () => {
+        const rows = await sql`
+          select to_node, count(*)::int as visits from step_log
+          where to_node is not null and action not like 'scan:%' group by to_node`;
+        return new Map(rows.map((row) => [text(row['to_node']), Number(row['visits'])]));
+      }),
   });
 };
 

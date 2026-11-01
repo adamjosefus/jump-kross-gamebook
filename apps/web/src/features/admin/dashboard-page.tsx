@@ -1,13 +1,22 @@
 import type { TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Loader2, MoveRight, RotateCcw } from 'lucide-react';
+import {
+  AlertTriangle,
+  History,
+  Loader2,
+  MoveRight,
+  Pin,
+  PinOff,
+  RotateCcw,
+  Users,
+  X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -23,16 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { StoryGraph } from '@/features/story/story-graph';
+import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
 import { adminKeys, useOverview, useStoryGraph } from './queries';
@@ -70,114 +72,177 @@ const actionLabel = (action: string) =>
       ? 'volba'
       : action);
 
-/** Live view of every team, refreshed by polling. */
+type Panel = 'teams' | 'log';
+
+const PANEL_KEY = 'dashboard-panel';
+
+/** Which floating panel is open and whether it is pinned; remembered per browser. */
+const usePanel = () => {
+  const [value, setValue] = useState<{ panel: Panel | undefined; pinned: boolean }>(() => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(PANEL_KEY) ?? 'null');
+      if (typeof stored === 'object' && stored !== null && 'panel' in stored && 'pinned' in stored)
+        return {
+          panel: stored.panel === 'teams' || stored.panel === 'log' ? stored.panel : undefined,
+          pinned: stored.pinned === true,
+        };
+    } catch {
+      // Storage may be unavailable or hold something else; start with the graph alone.
+    }
+    return { panel: undefined, pinned: false };
+  });
+  const update = (next: { panel: Panel | undefined; pinned: boolean }) => {
+    setValue(next);
+    try {
+      localStorage.setItem(PANEL_KEY, JSON.stringify(next));
+    } catch {
+      // The choice then lasts for this visit only.
+    }
+  };
+  return [value, update] as const;
+};
+
+/** Live view: the story graph with every clan on its node, teams and steps in floating panels. */
 export const DashboardPage = () => {
   const overview = useOverview(POLL_MS);
   const graph = useStoryGraph().data;
   const [moving, setMoving] = useState<TeamStatus>();
+  const [{ panel, pinned }, setPanel] = usePanel();
 
   if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, log } = overview.data;
   const names = new Map(teams.map((team) => [team.id, team.name]));
+  const toggle = (next: Panel) => setPanel({ panel: panel === next ? undefined : next, pinned });
 
   return (
-    <div className='grid gap-6 p-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]'>
-      <div className='flex min-w-0 flex-col gap-6'>
-        <Card>
-          <CardHeader>
-            <CardTitle>Týmy</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tým</TableHead>
-                  <TableHead>Uzel</TableHead>
-                  <TableHead>Stav</TableHead>
-                  <TableHead>Zařízení</TableHead>
-                  <TableHead>Aktivita</TableHead>
-                  <TableHead className='w-20' />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+    <div className='relative h-full'>
+      {graph === undefined ? (
+        <Loader2 className='m-8 size-6 animate-spin' />
+      ) : (
+        <StoryGraph
+          graph={graph}
+          teams={teams}
+          visits={overview.data.visits}
+          onPaneClick={() => {
+            if (!pinned && panel !== undefined) setPanel({ panel: undefined, pinned });
+          }}
+        />
+      )}
+
+      <div className='absolute top-4 left-4 flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-md backdrop-blur'>
+        <Button
+          variant={panel === 'teams' ? 'secondary' : 'ghost'}
+          size='sm'
+          onClick={() => toggle('teams')}
+        >
+          <Users /> Klany <span className='text-muted-foreground'>{teams.length}</span>
+        </Button>
+        <Button
+          variant={panel === 'log' ? 'secondary' : 'ghost'}
+          size='sm'
+          onClick={() => toggle('log')}
+        >
+          <History /> Kroky
+        </Button>
+      </div>
+
+      {panel !== undefined && (
+        <aside className='absolute top-4 right-4 bottom-4 flex w-96 max-w-[calc(100%-2rem)] animate-in flex-col rounded-lg border bg-background/95 shadow-lg backdrop-blur fade-in slide-in-from-right-2'>
+          <header className='flex items-center gap-1 border-b py-2 pr-2 pl-4'>
+            <h2 className='flex-1 font-semibold'>
+              {panel === 'teams' ? 'Klany' : 'Poslední kroky'}
+            </h2>
+            <Button
+              variant={pinned ? 'secondary' : 'ghost'}
+              size='icon'
+              title={pinned ? 'Odepnout' : 'Připnout, aby panel zůstal otevřený'}
+              aria-pressed={pinned}
+              onClick={() => setPanel({ panel, pinned: !pinned })}
+            >
+              {pinned ? <PinOff /> : <Pin />}
+            </Button>
+            <Button
+              variant='ghost'
+              size='icon'
+              title='Zavřít'
+              onClick={() => setPanel({ panel: undefined, pinned })}
+            >
+              <X />
+            </Button>
+          </header>
+          <div className='min-h-0 flex-1 overflow-y-auto p-2'>
+            {panel === 'teams' ? (
+              <ul className='flex flex-col'>
                 {teams.map((team) => (
-                  <TableRow key={team.id}>
-                    <TableCell className='font-medium'>{team.name}</TableCell>
-                    <TableCell>
-                      <span className='flex items-center gap-1.5 font-mono'>
-                        {team.node ?? '—'}
+                  <li
+                    key={team.id}
+                    className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
+                  >
+                    <TeamAvatar id={team.id} name={team.name} />
+                    <div className='min-w-0 flex-1'>
+                      <div className='flex items-center gap-1.5'>
+                        <span className='truncate font-medium'>{team.name}</span>
+                        <span className='font-mono text-xs text-muted-foreground'>
+                          {team.node ?? '—'}
+                        </span>
                         {!team.nodeExists && (
                           <AlertTriangle
-                            className='size-4 text-destructive'
+                            className='size-3.5 text-destructive'
                             aria-label='Uzel v příběhu chybí'
                           />
                         )}
                         {team.finished && <Badge variant='secondary'>cíl</Badge>}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      className='max-w-56 truncate font-mono text-xs text-muted-foreground'
-                      title={formatState(team.state)}
-                    >
-                      {formatState(team.state)}
-                    </TableCell>
-                    <TableCell>{team.devices}</TableCell>
-                    <TableCell className='text-xs text-muted-foreground'>
-                      {timeAgo(team.updatedAt)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        title='Přesunout tým'
-                        onClick={() => setMoving(team)}
+                      </div>
+                      <div
+                        className='truncate font-mono text-xs text-muted-foreground'
+                        title={formatState(team.state)}
                       >
-                        <MoveRight />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                        {formatState(team.state)}
+                      </div>
+                      <div className='text-xs text-muted-foreground'>
+                        {team.devices} zař. · {timeAgo(team.updatedAt)}
+                      </div>
+                    </div>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      title='Přesunout tým'
+                      onClick={() => setMoving(team)}
+                    >
+                      <MoveRight />
+                    </Button>
+                  </li>
                 ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {graph !== undefined && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Kde jsou týmy</CardTitle>
-            </CardHeader>
-            <CardContent className='h-[60vh]'>
-              <StoryGraph graph={graph} highlight={teams.flatMap((team) => team.node ?? [])} />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <Card className='h-fit'>
-        <CardHeader>
-          <CardTitle>Poslední kroky</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ol className='flex flex-col gap-2 text-sm'>
-            {log.map((entry, i) => (
-              <li key={i} className='flex items-baseline gap-2'>
-                <span className='w-16 shrink-0 text-xs text-muted-foreground'>
-                  {timeAgo(entry.at)}
-                </span>
-                <span className='font-medium'>{names.get(entry.teamId) ?? `#${entry.teamId}`}</span>
-                <span className='font-mono'>
-                  {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
-                </span>
-                <span className='text-muted-foreground'>{actionLabel(entry.action)}</span>
-              </li>
-            ))}
-            {log.length === 0 && <li className='text-muted-foreground'>Zatím nic.</li>}
-          </ol>
-        </CardContent>
-      </Card>
+                {teams.length === 0 && (
+                  <li className='p-2 text-sm text-muted-foreground'>Zatím žádné klany.</li>
+                )}
+              </ul>
+            ) : (
+              <ol className='flex flex-col gap-1 text-sm'>
+                {log.map((entry, i) => (
+                  <li key={i} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
+                    <TeamAvatar
+                      id={entry.teamId}
+                      name={names.get(entry.teamId) ?? `#${entry.teamId}`}
+                    />
+                    <div className='min-w-0 flex-1'>
+                      <div className='font-mono text-xs'>
+                        {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
+                      </div>
+                      <div className='text-xs text-muted-foreground'>
+                        {actionLabel(entry.action)} · {timeAgo(entry.at)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+                {log.length === 0 && <li className='p-2 text-muted-foreground'>Zatím nic.</li>}
+              </ol>
+            )}
+          </div>
+        </aside>
+      )}
 
       {moving !== undefined && graph !== undefined && (
         <MoveDialog team={moving} graph={graph} onClose={() => setMoving(undefined)} />
