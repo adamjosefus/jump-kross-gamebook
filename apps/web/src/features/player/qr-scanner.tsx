@@ -70,7 +70,7 @@ const QrScannerView = ({
     // in development, so that happens on every mount).
     const video = document.createElement('video');
     // Black and white, by CSS only; the scanner reads the stream, not the painted picture.
-    video.className = 'size-full object-cover grayscale';
+    video.className = 'size-full object-cover grayscale contrast-125';
     video.muted = true;
     video.playsInline = true;
     container.append(video);
@@ -110,7 +110,7 @@ const QrScannerView = ({
       </div>
       <div className='flex flex-1 items-center justify-center py-6'>
         {/* Square and as wide as the screen; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-3xl bg-white/5'>
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-white/5'>
           {!manual && <div ref={stage} className='absolute inset-0' />}
           <div className={cn('relative w-full', sides)}>
             {disabled ? (
