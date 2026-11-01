@@ -1,16 +1,15 @@
 import { neon } from '@neondatabase/serverless';
 import { Effect, Layer, Schema } from 'effect';
 
-import { GameState, LocationKind } from '../api.ts';
+import { GameState } from '../api.ts';
 import { SCHEMA } from './schema.ts';
-import { Store, StoreError, type LocationRow, type LogRow, type TeamRow } from './store.ts';
+import { Store, StoreError, type LogRow, type TeamRow } from './store.ts';
 
 type Row = Record<string, unknown>;
 
 // Rows come back untyped, so every column is decoded; a mismatch throws and surfaces as StoreError.
 const decodeText = Schema.decodeUnknownSync(Schema.String);
 const decodeState = Schema.decodeUnknownSync(GameState);
-const decodeKind = Schema.decodeUnknownSync(LocationKind);
 const decodeTimestamp = Schema.decodeUnknownSync(Schema.Union([Schema.String, Schema.Date]));
 
 const text = (value: unknown) => decodeText(value);
@@ -26,12 +25,6 @@ const toTeam = (row: Row): TeamRow => ({
   step: Number(row['step']),
   finishedAt: row['finished_at'] === null ? undefined : timestamp(row['finished_at']),
   updatedAt: timestamp(row['updated_at']),
-});
-
-const toLocation = (row: Row): LocationRow => ({
-  id: Number(row['id']),
-  name: text(row['name']),
-  kind: decodeKind(row['kind']),
 });
 
 const toLog = (row: Row): LogRow => ({
@@ -68,23 +61,6 @@ export const makePostgresStore = (url: string) => {
     });
 
   return Store.of({
-    listLocations: () =>
-      query(async () => (await sql`select * from location order by id`).map(toLocation)),
-    getLocation: (id) =>
-      query(async () => {
-        const [row] = await sql`select * from location where id = ${id}`;
-        return row === undefined ? undefined : toLocation(row);
-      }),
-    saveLocation: (location) =>
-      query(async () => {
-        await sql`
-          insert into location (id, name, kind) values (${location.id}, ${location.name}, ${location.kind})
-          on conflict (id) do update set name = excluded.name, kind = excluded.kind`;
-        return location;
-      }),
-    deleteLocation: (id) =>
-      query(async () => void (await sql`delete from location where id = ${id}`)),
-
     listTeams: () => query(async () => (await sql`select * from team order by id`).map(toTeam)),
     getTeam: (id) =>
       query(async () => {

@@ -15,8 +15,6 @@ export const Value = Schema.Union([Schema.String, Schema.Number, Schema.Boolean]
 export const GameState = Schema.Record(Schema.String, Value);
 export const NodeType = Schema.Literals(['start', 'passage', 'end']);
 export const Theme = Schema.Literals(THEMES);
-export const LocationKind = Schema.Literals(['progress', 'end']);
-export type LocationKind = typeof LocationKind.Type;
 
 // ---------------------------------------------------------------------------------------------
 // Errors
@@ -170,7 +168,6 @@ export const StoryGraph = Schema.Struct({
 export const Location = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
-  kind: LocationKind,
 });
 export type Location = typeof Location.Type;
 
@@ -212,7 +209,7 @@ export const Overview = Schema.Struct({
 export type Overview = typeof Overview.Type;
 
 export const PrintableCode = Schema.Struct({
-  kind: Schema.Literals(['T', 'L', 'E']),
+  kind: Schema.Literals(['T', 'L']),
   id: Schema.Number,
   label: Schema.String,
   code: Schema.String,
@@ -268,14 +265,6 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       success: TeamStatus,
       error: NotFound,
     }).middleware(AdminAuth),
-    HttpApiEndpoint.put('saveLocation', '/locations/:id', {
-      params: teamParams,
-      payload: Schema.Struct({ name: Schema.String, kind: LocationKind }),
-      success: Location,
-    }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteLocation', '/locations/:id', { params: teamParams }).middleware(
-      AdminAuth,
-    ),
     HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(
       AdminAuth,
     ),

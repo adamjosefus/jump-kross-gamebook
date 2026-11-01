@@ -1,11 +1,5 @@
 /** Idempotent schema, applied on the first request of every server instance. */
 export const SCHEMA = `
-create table if not exists location (
-  id int primary key check (id > 0),
-  name text not null,
-  kind text not null check (kind in ('progress', 'end'))
-);
-
 create table if not exists team (
   id serial primary key,
   name text not null,
