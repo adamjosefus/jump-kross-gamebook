@@ -5,6 +5,29 @@ import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'rea
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+const MANUAL = 'Zadejte kód ručně.';
+
+/**
+ * Why the camera did not start, for the player. `qr-scanner` reports a denied permission as
+ * „Camera not found“, so the permission is asked separately.
+ */
+const cameraProblem = async (error: unknown) => {
+  if (!window.isSecureContext || navigator.mediaDevices === undefined)
+    return `Kamera funguje jen na zabezpečené adrese (https). ${MANUAL}`;
+  const permission = await navigator.permissions
+    ?.query({ name: 'camera' })
+    .then((status) => status.state)
+    .catch(() => undefined);
+  const name = error instanceof Error ? error.name : '';
+  if (permission === 'denied' || name === 'NotAllowedError')
+    return `Prohlížeč nepovolil přístup ke kameře. Povolte ho v nastavení stránky, nebo ${MANUAL.toLowerCase()}`;
+  if (name === 'NotReadableError')
+    return `Kameru právě používá jiná aplikace. Zavřete ji, nebo ${MANUAL.toLowerCase()}`;
+  if (name === 'NotFoundError' || error === 'Camera not found.')
+    return `Nenašla se žádná kamera. ${MANUAL}`;
+  return `Kameru se nepodařilo spustit. ${MANUAL}`;
+};
+
 /** The same code read again within this time is ignored, so one code is not sent twice. */
 const REPEAT_MS = 3000;
 
@@ -42,12 +65,16 @@ export const QrScannerView = ({
       highlightScanRegion: true,
       maxScansPerSecond: 8,
     });
-    scanner.start().catch(() => {
-      setCameraError(
-        'Kameru se nepodařilo spustit. Povolte přístup ke kameře, nebo zadejte kód ručně.',
-      );
+    // A scanner torn down meanwhile (React runs effects twice in development) must not report.
+    let current = true;
+    scanner.start().catch(async (error: unknown) => {
+      const message = await cameraProblem(error);
+      if (current) setCameraError(message);
     });
-    return () => scanner.destroy();
+    return () => {
+      current = false;
+      scanner.destroy();
+    };
   }, [manual]);
 
   const submit = (event: FormEvent) => {
