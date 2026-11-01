@@ -15,26 +15,37 @@ export interface QrGeometry {
   readonly logo: { readonly at: number; readonly size: number; readonly pad: number };
 }
 
-/** Level-H code geometry shared by the React component and the standalone SVG export. */
-export const qrGeometry = (value: string, logoScale = DEFAULT_LOGO_SCALE): QrGeometry => {
+export interface QrRuns {
+  /** Width and height in modules, quiet zone included. */
+  readonly size: number;
+  /** Horizontal runs of dark modules, in modules from the top left corner of the quiet zone. */
+  readonly runs: readonly { readonly x: number; readonly y: number; readonly length: number }[];
+}
+
+/** Level-H code as horizontal runs: fewer path segments and no seams between neighbours. */
+export const qrRuns = (value: string): QrRuns => {
   const { modules } = QRCode.create(value, { errorCorrectionLevel: 'H' });
-  // Horizontal runs of dark modules: fewer path segments and no seams between neighbours.
-  let path = '';
+  const runs: { x: number; y: number; length: number }[] = [];
   for (let row = 0; row < modules.size; row++) {
     for (let col = 0; col < modules.size; col++) {
       if (!modules.get(row, col)) continue;
       const start = col;
       while (col + 1 < modules.size && modules.get(row, col + 1)) col++;
-      const run = col - start + 1;
-      path += `M${start + MARGIN} ${row + MARGIN}h${run}v1h-${run}z`;
+      runs.push({ x: start + MARGIN, y: row + MARGIN, length: col - start + 1 });
     }
   }
-  const size = modules.size + MARGIN * 2;
-  const logoSize = modules.size * logoScale;
+  return { size: modules.size + MARGIN * 2, runs };
+};
+
+/** Level-H code geometry shared by the React component and the standalone SVG export. */
+export const qrGeometry = (value: string, logoScale = DEFAULT_LOGO_SCALE): QrGeometry => {
+  const { size, runs } = qrRuns(value);
+  const path = runs.map(({ x, y, length }) => `M${x} ${y}h${length}v1h-${length}z`).join('');
+  const logoSize = (size - MARGIN * 2) * logoScale;
   return { size, path, logo: { at: (size - logoSize) / 2, size: logoSize, pad: LOGO_PAD } };
 };
 
-const escapeAttribute = (text: string) =>
+export const escapeAttribute = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /**

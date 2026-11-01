@@ -7,6 +7,7 @@ import geistMonoUrl from '@/assets/fonts/GeistMono-Regular.ttf?url';
 
 import { type QrCardKind, qrCardText } from './qr-card-text';
 import { DEFAULT_LOGO_SCALE, qrGeometry } from './qr-svg';
+import { type Anamorphosis, viewerHint, warpedQr } from './qr-warp';
 
 export type PaperFormat = 'A4' | 'A5';
 
@@ -166,6 +167,83 @@ export const buildQrCardPdf = async ({
   return pdf.save();
 };
 
+export interface WarpedQrPdfInput extends Omit<QrPdfInput, 'logoPng'> {
+  readonly anamorphosis: Anamorphosis;
+}
+
+/**
+ * The stretched code as large as the page allows, with a short note below it for whoever puts it
+ * up: what the code is and where the viewer has to stand. The note itself is not stretched.
+ */
+export const buildWarpedQrPdf = async ({
+  kind,
+  value,
+  label,
+  format,
+  fonts,
+  anamorphosis,
+}: WarpedQrPdfInput): Promise<Uint8Array> => {
+  const text = qrCardText(kind, label);
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  pdf.setTitle(`${text.title ?? text.eyebrow} – QR ${value} se zkreslením`);
+  pdf.setCreator('JUMP Kross 2027');
+  const [regular, semiBold, mono] = await Promise.all([
+    pdf.embedFont(fonts.regular, { subset: true }),
+    pdf.embedFont(fonts.semiBold, { subset: true }),
+    pdf.embedFont(fonts.mono, { subset: true }),
+  ]);
+
+  const [width, height] = format === 'A4' ? PageSizes.A4 : PageSizes.A5;
+  const page = pdf.addPage([width, height]);
+  const s = width / PageSizes.A4[0];
+  const margin = 10 * MM * s;
+  const contentWidth = width - margin * 2;
+  const noteSize = 10 * s;
+  const lineHeight = noteSize * 1.35;
+  const warped = warpedQr(value, anamorphosis);
+
+  // Note from the bottom up. Its length depends on the code's printed width, which depends on
+  // how much room the note leaves, so lay it out for the longest wording first.
+  const title = [text.title, text.eyebrow].filter(Boolean).join(' · ');
+  const noteLines = (codeWidthCm: number) =>
+    wrap(viewerHint(anamorphosis, codeWidthCm), regular, noteSize, contentWidth);
+  const noteHeight = (lines: number) => lineHeight * (lines + 1) + 4 * MM * s;
+  const reserved = noteHeight(noteLines(999).length);
+  const box = { width: contentWidth, height: height - margin * 2 - reserved };
+  const scale = Math.min(box.width / warped.width, box.height / warped.height);
+  const codeWidthCm = (warped.codeWidth * scale) / MM / 10;
+  const lines = noteLines(codeWidthCm);
+
+  let y = margin;
+  const codeText = mono.widthOfTextAtSize(value, noteSize);
+  page.drawText(value, {
+    x: width - margin - codeText,
+    y,
+    size: noteSize,
+    font: mono,
+    color: grey,
+  });
+  for (const line of lines.toReversed()) {
+    page.drawText(line, { x: margin, y, size: noteSize, font: regular, color: black });
+    y += lineHeight;
+  }
+  page.drawText(title.toLocaleUpperCase('cs'), {
+    x: margin,
+    y,
+    size: noteSize,
+    font: semiBold,
+    color: black,
+  });
+
+  // The code centred in the space above the note.
+  const qrLeft = margin + (box.width - warped.width * scale) / 2;
+  const qrTop = height - margin - (box.height - warped.height * scale) / 2;
+  page.drawSvgPath(warped.path, { x: qrLeft, y: qrTop, scale, color: black });
+
+  return pdf.save();
+};
+
 const fetchBuffer = async (url: string) => (await fetch(url)).arrayBuffer();
 
 let fontsPromise: Promise<QrPdfFonts> | undefined;
@@ -200,6 +278,12 @@ const rasterize = async (url: string, pixels = 1024): Promise<Uint8Array> => {
     ),
   );
   return new Uint8Array(await blob.arrayBuffer());
+};
+
+/** Builds the stretched PDF in the browser, loading the fonts on first use. */
+export const warpedQrPdf = async (input: Omit<WarpedQrPdfInput, 'fonts'>): Promise<Blob> => {
+  const bytes = await buildWarpedQrPdf({ ...input, fonts: await loadFonts() });
+  return new Blob([bytes.slice()], { type: 'application/pdf' });
 };
 
 /** Builds the PDF in the browser, loading the fonts and the logo on first use. */

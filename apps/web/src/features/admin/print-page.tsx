@@ -1,6 +1,6 @@
 import type { PrintableCode } from '@gamebook/api';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Copy, Download, FileImage, FileText, Loader2 } from 'lucide-react';
+import { Check, Copy, Download, FileImage, FileText, Loader2, Rotate3d } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -17,7 +17,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { api, errorMessage } from '@/lib/api';
 
+import { fileName, saveBlob } from './download';
 import { adminKeys } from './queries';
+import { WarpDialog } from './warp-dialog';
 
 /**
  * Puts the SVG on the clipboard both as an image (pastes into design tools that accept it) and as
@@ -53,29 +55,9 @@ const CopySvgButton = ({ entry }: { entry: PrintableCode }) => {
   );
 };
 
-/** File name like `qr-tym-vlci-T-12.svg` or `qr-tym-vlci-T-12-a4.pdf`: readable, without diacritics, unique per code. */
-const fileName = (entry: PrintableCode, extension: string, suffix?: string) => {
-  const slug = entry.label
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const kind = { T: 'tym', L: 'misto', E: 'cil' }[entry.kind];
-  return `qr-${[kind, slug, entry.kind, entry.id, suffix].filter(Boolean).join('-')}.${extension}`;
-};
-
-const saveBlob = (blob: Blob, name: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-
 const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
   const [busy, setBusy] = useState(false);
+  const [warping, setWarping] = useState(false);
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -105,28 +87,34 @@ const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
       saveBlob(pdf, fileName(entry, 'pdf', format.toLowerCase()));
     });
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant='outline' size='sm' disabled={busy}>
-          {busy ? <Loader2 className='animate-spin' /> : <Download />} Stáhnout
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem onSelect={() => void downloadSvg()}>
-          <FileImage /> SVG
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void downloadPdf('A4')}>
-          <FileText /> PDF na A4
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void downloadPdf('A5')}>
-          <FileText /> PDF na A5
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant='outline' size='sm' disabled={busy}>
+            {busy ? <Loader2 className='animate-spin' /> : <Download />} Stáhnout
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onSelect={() => void downloadSvg()}>
+            <FileImage /> SVG
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void downloadPdf('A4')}>
+            <FileText /> PDF na A4
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void downloadPdf('A5')}>
+            <FileText /> PDF na A5
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setWarping(true)}>
+            <Rotate3d /> Se zkreslením…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <WarpDialog entry={entry} open={warping} onOpenChange={setWarping} />
+    </>
   );
 };
 
-/** Every QR code of the game: copy or download each one (SVG, PDF on A4/A5). */
+/** Every QR code of the game: copy or download each one (SVG, PDF on A4/A5, stretched for an angled view). */
 export const PrintPage = () => {
   const codes = useQuery({
     queryKey: adminKeys.codes,
