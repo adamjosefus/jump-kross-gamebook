@@ -13,6 +13,7 @@ import { adminKeys } from './queries';
 
 const NAV = [
   { to: '/admin/story', label: 'Příběh' },
+  { to: '/admin/playtest', label: 'Test' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Živě' },
   { to: '/admin/print', label: 'QR kódy' },

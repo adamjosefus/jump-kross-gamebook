@@ -55,6 +55,32 @@ describe('api', () => {
     expect((await admin('GET', '/api/admin/story?start=A1')).body).toEqual(graph);
   });
 
+  it('plays a test run without storing anything', async () => {
+    const play = (body: unknown) => admin('POST', '/api/admin/playtest', body);
+    const start = (await play({ node: 'A1' })).body;
+    expect(start).toMatchObject({ node: 'A1', state: { gold: 100 }, view: { choices: [{}, {}] } });
+
+    const a2 = (await play({ node: 'A1', state: start.state, move: { choice: 1 } })).body;
+    // The test run names the places, so the admin can skip the QR code.
+    expect(a2).toMatchObject({
+      node: 'A2',
+      state: { gold: 80, hatColor: 'green' },
+      view: { scan: true, scans: [{ id: 32, name: 'Místo 32' }, { id: 33 }] },
+    });
+    const b1 = (await play({ node: 'A2', state: a2.state, move: { scan: 33 } })).body;
+    expect(b1).toMatchObject({ node: 'B1', state: { gold: 130 } });
+    expect(b1.view.choices.map((c: { label: string }) => c.label)).toEqual([
+      'Bojovat',
+      'Koupit meč',
+    ]);
+
+    expect((await play({ node: 'B1', state: b1.state, move: { scan: 32 } })).body.reason).toBe(
+      'no-scan',
+    );
+    expect((await play({ node: 'B1' })).status).toBe(404);
+    expect((await admin('GET', '/api/admin/overview')).body.log).toEqual([]);
+  });
+
   it('plays a game end to end', async () => {
     const team = (await admin('POST', '/api/admin/teams', { name: 'Vlci', startNode: 'A1' })).body;
     expect(team).toMatchObject({ id: 1, name: 'Vlci', step: 0 });

@@ -1,6 +1,7 @@
 import {
   applyChoice,
   applyScan,
+  availableScans,
   encodeQr,
   renderNode,
   startPosition,
@@ -19,6 +20,7 @@ import {
   NotFound,
   StepConflict,
   type Overview,
+  type PlaytestView,
   type PlayerView,
   type PrintableCode,
   type TeamStatus,
@@ -276,6 +278,46 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* singleTeamStatus(moved ?? (yield* requireTeam(id)));
     });
 
+    /** A test run: the same rules as the game, but the position comes from the client. */
+    const playtest = Effect.fn('Game.playtest')(function* (input: {
+      readonly node: string;
+      readonly state?: TeamRow['state'];
+      readonly move?: { readonly choice: number } | { readonly scan: number };
+    }) {
+      const start =
+        input.state === undefined
+          ? startPosition(story, input.node)
+          : { node: input.node, state: input.state };
+      if (start === undefined) return yield* notFound(`Start ${input.node}`);
+      const result: MoveResult =
+        input.move === undefined
+          ? { ok: true, position: start }
+          : 'choice' in input.move
+            ? applyChoice(story, start, input.move.choice)
+            : applyScan(story, start, input.move.scan);
+      if (!result.ok)
+        return yield* new InvalidMove({
+          reason: result.error,
+          message: MOVE_MESSAGES[result.error],
+        });
+      const { position } = result;
+      const node = story.nodes[position.node];
+      const rendered = renderNode(story, position);
+      if (node === undefined || rendered === undefined)
+        return yield* notFound(`Uzel ${position.node}`);
+      const step: PlaytestView = {
+        node: position.node,
+        state: position.state,
+        view: {
+          ...rendered,
+          scans: availableScans(node, position.state).flatMap(
+            (option) => story.locations.find((l) => l.id === option.scan.location) ?? [],
+          ),
+        },
+      };
+      return step;
+    });
+
     const codes = Effect.fn('Game.codes')(function* () {
       const teams = yield* store.listTeams();
       const entries: { kind: PrintableCode['kind']; id: number; label: string }[] = [
@@ -308,6 +350,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       requireTeam,
       resetTeam,
       moveTeam,
+      playtest,
       codes,
     };
   }),

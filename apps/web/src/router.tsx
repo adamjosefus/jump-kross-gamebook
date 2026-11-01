@@ -30,6 +30,11 @@ const story = createRoute({
   path: '/story',
   component: lazyRouteComponent(() => import('@/features/admin/story-page'), 'StoryPage'),
 });
+const playtest = createRoute({
+  getParentRoute: () => admin,
+  path: '/playtest',
+  component: lazyRouteComponent(() => import('@/features/admin/playtest-page'), 'PlaytestPage'),
+});
 const game = createRoute({
   getParentRoute: () => admin,
   path: '/game',
@@ -49,7 +54,7 @@ const print = createRoute({
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
-    admin.addChildren([adminIndex, story, game, dashboard, print]),
+    admin.addChildren([adminIndex, story, playtest, game, dashboard, print]),
   ]),
 });
 
