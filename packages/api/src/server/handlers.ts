@@ -129,6 +129,7 @@ const AdminHandlers = HttpApiBuilder.group(
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, '', { ...cookie, maxAge: 0 });
       }),
       story: ({ query }) => Effect.succeed(game.graph(query.start)),
+      playtest: ({ payload }) => game.playtest(payload),
       overview: () => orDie(game.overview()),
       createTeam: Effect.fn(function* ({ payload }) {
         const team = yield* orDie(store.createTeam(payload.name.trim(), payload.startNode));

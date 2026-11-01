@@ -216,6 +216,37 @@ export const PrintableCode = Schema.Struct({
 });
 export type PrintableCode = typeof PrintableCode.Type;
 
+/**
+ * One step of a test run from the admin. Nothing is stored: the client keeps the position and
+ * sends it back with the move. `state` is left out on a start, which then uses its initial state.
+ */
+export const PlaytestInput = Schema.Struct({
+  node: Schema.String,
+  state: Schema.optionalKey(GameState),
+  move: Schema.optionalKey(
+    Schema.Union([
+      Schema.Struct({ choice: Schema.Number }),
+      /** Skips the QR code: moves as if the location's code was scanned. */
+      Schema.Struct({ scan: Schema.Number }),
+    ]),
+  ),
+});
+
+export const PlaytestView = Schema.Struct({
+  node: Schema.String,
+  state: GameState,
+  /** What the players see; unlike `PlayerView` it names the locations the node can be left by. */
+  view: Schema.Struct({
+    id: Schema.String,
+    type: NodeType,
+    screens: Schema.Array(PlayerScreen),
+    choices: Schema.Array(PlayerChoice),
+    scan: Schema.Boolean,
+    scans: Schema.Array(Location),
+  }),
+});
+export type PlaytestView = typeof PlaytestView.Type;
+
 export const AdminSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_admin', in: 'cookie' });
 
 export class AdminAuth extends HttpApiMiddleware.Service<AdminAuth>()('gamebook/AdminAuth', {
@@ -238,6 +269,11 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     HttpApiEndpoint.get('story', '/story', {
       query: { start: Schema.optionalKey(Schema.String) },
       success: StoryGraph,
+    }).middleware(AdminAuth),
+    HttpApiEndpoint.post('playtest', '/playtest', {
+      payload: PlaytestInput,
+      success: PlaytestView,
+      error: [InvalidMove, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     HttpApiEndpoint.post('createTeam', '/teams', {
