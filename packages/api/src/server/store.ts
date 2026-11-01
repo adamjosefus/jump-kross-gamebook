@@ -1,17 +1,9 @@
 import type { State } from '@gamebook/core';
 import { Context, type Effect, Schema } from 'effect';
 
-import type { LocationKind } from '../api.ts';
-
 export class StoreError extends Schema.TaggedError<StoreError>()('StoreError', {
   message: Schema.String,
 }) {}
-
-export interface LocationRow {
-  readonly id: number;
-  readonly name: string;
-  readonly kind: LocationKind;
-}
 
 export interface TeamRow {
   readonly id: number;
@@ -46,11 +38,6 @@ export interface TeamMove {
  * when the team is still at `expectedStep`, which is how concurrent devices of a team are resolved.
  */
 export interface StoreShape {
-  readonly listLocations: () => Effect.Effect<readonly LocationRow[], StoreError>;
-  readonly getLocation: (id: number) => Effect.Effect<LocationRow | undefined, StoreError>;
-  readonly saveLocation: (location: LocationRow) => Effect.Effect<LocationRow, StoreError>;
-  readonly deleteLocation: (id: number) => Effect.Effect<void, StoreError>;
-
   readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>;
   readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>;
   readonly createTeam: (name: string, startNode: string) => Effect.Effect<TeamRow, StoreError>;

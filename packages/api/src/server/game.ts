@@ -171,10 +171,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       }
       if (payload.kind === 'T')
         return yield* new InvalidCode({ message: 'Tohle je přihlašovací kód týmu.' });
-      const location = yield* store.getLocation(payload.id);
-      if (location === undefined || (location.kind === 'end') !== (payload.kind === 'E')) {
+      const location = story.locations.find((l) => l.id === payload.id);
+      if (location === undefined)
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
-      }
       const { team, position } = yield* prepareMove(teamId, expectedStep);
       return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
     });
@@ -220,10 +219,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, locations, log, devices, visits] = yield* Effect.all(
+      const [teams, log, devices, visits] = yield* Effect.all(
         [
           store.listTeams(),
-          store.listLocations(),
           store.recentLog(50),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
@@ -232,7 +230,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       );
       const result: Overview = {
         teams: teams.map((team) => teamStatus(team, devices.get(team.id) ?? 0)),
-        locations,
+        locations: story.locations,
         log: log.map((entry) => ({
           teamId: entry.teamId,
           at: entry.at.toISOString(),
@@ -279,11 +277,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const codes = Effect.fn('Game.codes')(function* () {
-      const [teams, locations] = yield* Effect.all([store.listTeams(), store.listLocations()]);
+      const teams = yield* store.listTeams();
       const entries: { kind: PrintableCode['kind']; id: number; label: string }[] = [
         ...teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
-        ...locations.map((location) => ({
-          kind: location.kind === 'end' ? ('E' as const) : ('L' as const),
+        // Places come from the story, so their codes change only with a deploy.
+        ...story.locations.map((location) => ({
+          kind: 'L' as const,
           id: location.id,
           label: location.name,
         })),
