@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
+import { type QrCardText, qrCardText } from './qr-card-text';
 import { QrCode } from './qr-code';
 
 interface QrCardProps {
@@ -23,7 +24,7 @@ const QrCard = ({
   eyebrow,
   title,
   hint,
-}: QrCardProps & { icon: ReactNode; eyebrow: string; title: string | undefined; hint: string }) => (
+}: QrCardProps & QrCardText & { icon: ReactNode }) => (
   <figure
     className={cn(
       'flex w-[8cm] break-inside-avoid flex-col gap-3 rounded-xl border-2 border-black bg-white p-5 text-black',
@@ -50,13 +51,7 @@ export const TeamLoginQr = ({
   teamName,
   ...props
 }: QrCardProps & { readonly teamName: string }) => (
-  <QrCard
-    {...props}
-    icon={<LogIn className='size-3.5' />}
-    eyebrow='Vstup do hry'
-    title={teamName}
-    hint='Naskenujte v aplikaci pro přihlášení týmu.'
-  />
+  <QrCard {...props} {...qrCardText('T', teamName)} icon={<LogIn className='size-3.5' />} />
 );
 
 /** Moves any team on at a location. The name is for organisers placing the code. */
@@ -64,13 +59,7 @@ export const ProgressQr = ({
   locationName,
   ...props
 }: QrCardProps & { readonly locationName?: string }) => (
-  <QrCard
-    {...props}
-    icon={<MapPin className='size-3.5' />}
-    eyebrow={locationName ?? 'Stanoviště'}
-    title={undefined}
-    hint='Naskenujte v aplikaci a pokračujte v příběhu.'
-  />
+  <QrCard {...props} {...qrCardText('L', locationName)} icon={<MapPin className='size-3.5' />} />
 );
 
 /** Ends the game at a finish location. */
@@ -78,11 +67,5 @@ export const EndQr = ({
   locationName,
   ...props
 }: QrCardProps & { readonly locationName?: string }) => (
-  <QrCard
-    {...props}
-    icon={<Flag className='size-3.5' />}
-    eyebrow={locationName ?? 'Cíl'}
-    title='Cíl'
-    hint='Naskenujte v aplikaci a dokončete hru.'
-  />
+  <QrCard {...props} {...qrCardText('E', locationName)} icon={<Flag className='size-3.5' />} />
 );
