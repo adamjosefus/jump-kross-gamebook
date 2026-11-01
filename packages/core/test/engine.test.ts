@@ -10,7 +10,6 @@ import {
   renderNode,
   startPosition,
   toGraph,
-  toMermaid,
 } from '../src/index.ts';
 import { SAMPLE } from './fixtures.ts';
 
@@ -120,18 +119,53 @@ describe('dedent', () => {
 });
 
 describe('graph', () => {
-  it('describes nodes and edges', () => {
+  it('describes nodes, edges and previews from the first start', () => {
     const graph = toGraph(story);
     expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
+    expect(graph.start).toBe('A1');
+    // B1 is first reached through „Možnost jedna“, which turns the hat blue.
     expect(graph.nodes['B1']).toEqual({
       id: 'B1',
       type: 'passage',
+      dynamic: true,
+      reached: true,
+      preview: {
+        state: { gold: 100, hatColor: 'blue' },
+        content: 'Pohodlně si nosil svoji chudou pokrývku hlavy.',
+        screens: 1,
+        checkpoints: [],
+      },
       choices: [
         { label: 'Bojovat', target: 'C1', conditional: false },
-        { label: 'Koupit meč', target: 'C2', conditional: true },
+        { label: 'Koupit meč', target: 'C2', conditional: true, available: true },
       ],
     });
+    expect(graph.nodes['A2']!.preview).toMatchObject({
+      state: { gold: 80, hatColor: 'green' },
+      screens: 4,
+      checkpoints: [32, 33],
+    });
     expect(graphProblems(graph)).toEqual([]);
+  });
+
+  it('previews from the chosen start and leaves unreached dynamic nodes without text', () => {
+    const define = defineStory<{ n: number }>();
+    const twoStarts = define({
+      A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
+      B: { initialState: { n: 2 }, blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
+      C: { end: true, blocks: (s) => [`n = ${s.n}`] },
+      D: { end: true, blocks: (s) => [`d = ${s.n}`] },
+    });
+    const fromA = toGraph(twoStarts);
+    expect(fromA.nodes['C']!.preview?.content).toBe('n = 1');
+    expect(fromA.nodes['D']).toMatchObject({ reached: false, dynamic: true });
+    expect(fromA.nodes['D']!.preview).toBeUndefined();
+    expect(fromA.nodes['B']).toMatchObject({ reached: false, preview: { content: 'B' } });
+
+    const fromB = toGraph(twoStarts, 'B');
+    expect(fromB.start).toBe('B');
+    expect(fromB.nodes['D']!.preview?.content).toBe('d = 2');
+    expect(toGraph(twoStarts, 'C').start).toBe('A');
   });
 
   it('reports a missing start and unreachable nodes', () => {
@@ -146,25 +180,6 @@ describe('graph', () => {
       C: { end: true, blocks: [checkpoint(1, 'C')] },
     });
     expect(graphProblems(toGraph(orphan))).toEqual(['Uzel C je nedosažitelný z žádného startu.']);
-  });
-
-  it('draws conditional edges dashed and missing targets as placeholders', () => {
-    const graph = toGraph(story);
-    const text = toMermaid({
-      ...graph,
-      nodes: {
-        ...graph.nodes,
-        C1: {
-          id: 'C1',
-          type: 'passage',
-          choices: [{ label: 'Dál', target: 'X9', conditional: false }],
-        },
-      },
-    });
-    expect(text).toContain('n_A1(["A1"])');
-    expect(text).toContain('n_B1 -.->|"Koupit meč (if)"| n_C2');
-    expect(text).toContain('n_X9{{"X9 ?"}}');
-    expect(text).toContain('class n_X9 missing');
   });
 });
 
