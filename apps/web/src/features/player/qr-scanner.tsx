@@ -1,6 +1,6 @@
-import { Camera, Keyboard } from 'lucide-react';
+import { Camera, ChevronLeft, Keyboard, Loader2 } from 'lucide-react';
 import QrScanner from 'qr-scanner';
-import { useEffect, useEffectEvent, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,13 +36,16 @@ const REPEAT_MS = 3000;
  * fallback: the code is printed under every QR, so it can be typed in when the camera fails. The
  * camera runs while the component is mounted, so a wrong code can be followed by another one.
  */
-export const QrScannerView = ({
+const QrScannerView = ({
   onCode,
   disabled = false,
+  header,
 }: {
   onCode: (code: string) => void;
   /** Codes read meanwhile are ignored, e.g. while the last one is being sent. */
   disabled?: boolean;
+  /** Shown over the top of the camera. */
+  header: ReactNode;
 }) => {
   const stage = useRef<HTMLDivElement>(null);
   const [manual, setManual] = useState(false);
@@ -96,50 +99,82 @@ export const QrScannerView = ({
   };
 
   return (
-    <div className='flex flex-col gap-3'>
-      {manual ? (
-        <form onSubmit={submit} className='flex gap-2'>
-          <Input
-            autoFocus
-            value={text}
-            onChange={(event) => setText(event.target.value.toUpperCase())}
-            placeholder='L-12-ABCD'
-            autoCapitalize='characters'
-            autoComplete='off'
-            className='font-mono'
-          />
-          <Button type='submit' disabled={disabled}>
-            Potvrdit
-          </Button>
-        </form>
-      ) : (
-        <div className='relative aspect-square overflow-hidden rounded-lg bg-muted'>
-          <div ref={stage} className='size-full' />
-          {cameraError !== undefined && (
-            <p className='absolute inset-0 flex items-center bg-background/90 p-6 text-center text-sm'>
-              {cameraError}
-            </p>
+    <div className='fixed inset-0 z-40 flex flex-col bg-black text-white'>
+      {!manual && <div ref={stage} className='absolute inset-0' />}
+      <div className='safe-area-padding relative flex flex-1 flex-col gap-6'>
+        {/* Darkened top and bottom keep the text readable over any picture. */}
+        <div className='pointer-events-none absolute inset-x-0 top-0 h-48 bg-linear-to-b from-black/70 to-transparent' />
+        <div className='pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-black/70 to-transparent' />
+        <div className='relative flex flex-col gap-2'>{header}</div>
+        <div className='relative flex flex-1 items-center justify-center'>
+          {disabled ? (
+            <Loader2 className='size-8 animate-spin' />
+          ) : manual ? (
+            <form onSubmit={submit} className='flex w-full gap-2'>
+              <Input
+                autoFocus
+                value={text}
+                onChange={(event) => setText(event.target.value.toUpperCase())}
+                placeholder='L-12-ABCD'
+                autoCapitalize='characters'
+                autoComplete='off'
+                className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
+              />
+              <Button type='submit' variant='secondary'>
+                Potvrdit
+              </Button>
+            </form>
+          ) : (
+            cameraError !== undefined && (
+              <p className='max-w-xs text-center text-sm text-white/80'>{cameraError}</p>
+            )
           )}
         </div>
-      )}
-      <Button variant='ghost' size='sm' onClick={() => setManual(!manual)}>
-        {manual ? <Camera /> : <Keyboard />}
-        {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
-      </Button>
+        <Button
+          variant='ghost'
+          className='relative self-center text-white hover:bg-white/10 hover:text-white'
+          onClick={() => setManual(!manual)}
+        >
+          {manual ? <Camera /> : <Keyboard />}
+          {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
+        </Button>
+      </div>
     </div>
   );
 };
 
 /**
- * Content of a scan screen. It looks the same for every code, so it never tells how many codes
- * would work or where they lead.
+ * The scan screen: the camera over the whole screen. It looks the same for every code, so it
+ * never tells how many codes would work or where they lead.
  */
-export const ScanPrompt = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => (
-  <>
-    <div className='flex flex-col gap-2'>
-      <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
-      <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód.</p>
-    </div>
-    <QrScannerView onCode={onCode} disabled={busy} />
-  </>
+export const ScanScreen = ({
+  onCode,
+  busy,
+  onBack,
+}: {
+  onCode: (code: string) => void;
+  busy: boolean;
+  /** Back to the last screen of text; missing when there is none. */
+  onBack?: () => void;
+}) => (
+  <QrScannerView
+    onCode={onCode}
+    disabled={busy}
+    header={
+      <>
+        {onBack !== undefined && (
+          <Button
+            variant='ghost'
+            size='sm'
+            className='-ml-3 self-start text-white/80 hover:bg-white/10 hover:text-white'
+            onClick={onBack}
+          >
+            <ChevronLeft /> Zpět
+          </Button>
+        )}
+        <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
+        <p className='text-white/70'>Namiřte fotoaparát na QR kód.</p>
+      </>
+    }
+  />
 );

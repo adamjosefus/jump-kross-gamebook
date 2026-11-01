@@ -117,8 +117,8 @@ export const PlaytestPage = () => {
                 />
               )}
             </div>
-            <div className='pointer-events-none absolute top-2.5 left-1/2 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
-            <div className='pointer-events-none absolute bottom-2 left-1/2 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
+            <div className='pointer-events-none absolute top-2.5 left-1/2 z-50 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
+            <div className='pointer-events-none absolute bottom-2 left-1/2 z-50 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
           </div>
           <div className='flex flex-wrap items-center gap-1 rounded-xl border bg-muted/40 p-1'>
             <Button

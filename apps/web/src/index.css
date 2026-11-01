@@ -151,6 +151,8 @@
 .phone-preview {
   --safe-area-inset-top: 2.75rem;
   --safe-area-inset-bottom: 1.25rem;
+  /* Full-screen (fixed) parts of the player, like the camera, fill the phone, not the window. */
+  contain: paint;
 }
 
 /* Story text laid out by Pretext: every word fades in after the one before. */
