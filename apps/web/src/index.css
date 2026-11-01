@@ -157,12 +157,9 @@
 @keyframes story-word-in {
   from {
     opacity: 0;
-    filter: blur(4px);
-    transform: translateY(0.25em);
   }
 }
 .story-word {
-  display: inline-block;
   animation: story-word-in 0.5s ease-out both;
 }
 .story-text-revealed .story-word {
