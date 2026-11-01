@@ -5,19 +5,11 @@ import { useState } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 import { ScanPrompt } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
-
-const THEME_SCREEN: Record<Theme, string> = {
-  default: '',
-  intro: 'justify-center text-center',
-  letter: '',
-  night: '',
-};
 
 /** Box around the text; its typography comes from `StoryText`. */
 const THEME_BOX: Record<Theme, string> = {
@@ -74,10 +66,7 @@ export const NodeScreens = ({
   return (
     <article
       key={`${node.id}-${step}-${index}`}
-      className={cn(
-        'flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2',
-        THEME_SCREEN[theme],
-      )}
+      className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2'
     >
       {index > 0 && (
         <Button
@@ -90,13 +79,16 @@ export const NodeScreens = ({
         </Button>
       )}
       {scanning && <ScanPrompt onCode={onCode} busy={busy} />}
+      {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
-        <StoryText
-          content={screen.content}
-          theme={theme}
-          align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
-          className={THEME_BOX[theme]}
-        />
+        <div className='flex flex-1 flex-col justify-center'>
+          <StoryText
+            content={screen.content}
+            theme={theme}
+            align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
+            className={THEME_BOX[theme]}
+          />
+        </div>
       )}
 
       <div className='mt-auto flex flex-col gap-3'>
