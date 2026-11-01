@@ -8,7 +8,6 @@ import { QrCode } from './qr-code';
 
 interface QrCardProps {
   readonly value: string;
-  readonly logo?: string | undefined;
   readonly className?: string;
 }
 
@@ -18,7 +17,6 @@ interface QrCardProps {
  */
 const QrCard = ({
   value,
-  logo,
   className,
   icon,
   eyebrow,
@@ -38,7 +36,7 @@ const QrCard = ({
       </span>
       {title !== undefined && <span className='text-2xl leading-tight font-semibold'>{title}</span>}
     </figcaption>
-    <QrCode value={value} logo={logo} />
+    <QrCode value={value} />
     <div className='flex items-end justify-between gap-2 text-xs'>
       <span>{hint}</span>
       <span className='font-mono text-[10px] opacity-60'>{value}</span>

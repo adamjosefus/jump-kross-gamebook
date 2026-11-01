@@ -6,7 +6,8 @@ import geistSemiBoldUrl from '@/assets/fonts/Geist-SemiBold.ttf?url';
 import geistMonoUrl from '@/assets/fonts/GeistMono-Regular.ttf?url';
 
 import { type QrCardKind, qrCardText } from './qr-card-text';
-import { DEFAULT_LOGO_SCALE, qrGeometry } from './qr-svg';
+import { type QrStyle, qrGeometry } from './qr-svg';
+import { type Anamorphosis, viewerHint, warpedQr } from './qr-warp';
 
 export type PaperFormat = 'A4' | 'A5';
 
@@ -22,8 +23,8 @@ export interface QrPdfInput {
   readonly label?: string | undefined;
   readonly format: PaperFormat;
   readonly fonts: QrPdfFonts;
-  /** PNG of the logo placed in the middle of the code. */
-  readonly logoPng?: Uint8Array | undefined;
+  /** Noise around the code and the width of its white margin. */
+  readonly style?: QrStyle | undefined;
 }
 
 const black = rgb(0, 0, 0);
@@ -58,7 +59,7 @@ const roundedRect = (width: number, height: number, r: number) =>
 
 /**
  * One card per page, laid out like the on-screen card: label on top, the code as large as the page
- * allows, hint and code text at the bottom. Everything is vector except the logo.
+ * allows, hint and code text at the bottom. Everything is vector.
  */
 export const buildQrCardPdf = async ({
   kind,
@@ -66,7 +67,7 @@ export const buildQrCardPdf = async ({
   label,
   format,
   fonts,
-  logoPng,
+  style,
 }: QrPdfInput): Promise<Uint8Array> => {
   const text = qrCardText(kind, label);
   const pdf = await PDFDocument.create();
@@ -139,29 +140,92 @@ export const buildQrCardPdf = async ({
   const footerTop = footer + 6 * MM * s - hintSize * 0.3;
 
   // The code fills the space between, centred. Its quiet zone is part of the geometry.
-  const geometry = qrGeometry(value, DEFAULT_LOGO_SCALE);
+  const geometry = qrGeometry(value, style);
   const qrSide = Math.min(contentWidth, headerBottom - footerTop);
   const module = qrSide / geometry.size;
   const qrLeft = left + (contentWidth - qrSide) / 2;
   const qrTop = footerTop + (headerBottom - footerTop + qrSide) / 2;
   page.drawSvgPath(geometry.path, { x: qrLeft, y: qrTop, scale: module, color: black });
 
-  if (logoPng !== undefined) {
-    const { at, size, pad } = geometry.logo;
-    const frame = (size + pad * 2) * module;
-    page.drawSvgPath(roundedRect(frame, frame, module), {
-      x: qrLeft + (at - pad) * module,
-      y: qrTop - (at - pad) * module,
-      color: white,
-    });
-    const image = await pdf.embedPng(logoPng);
-    page.drawImage(image, {
-      x: qrLeft + at * module,
-      y: qrTop - (at + size) * module,
-      width: size * module,
-      height: size * module,
-    });
+  return pdf.save();
+};
+
+export interface WarpedQrPdfInput extends QrPdfInput {
+  readonly anamorphosis: Anamorphosis;
+}
+
+/**
+ * The stretched code as large as the page allows, with a short note below it for whoever puts it
+ * up: what the code is and where the viewer has to stand. The note itself is not stretched.
+ */
+export const buildWarpedQrPdf = async ({
+  kind,
+  value,
+  label,
+  format,
+  fonts,
+  anamorphosis,
+  style,
+}: WarpedQrPdfInput): Promise<Uint8Array> => {
+  const text = qrCardText(kind, label);
+  const pdf = await PDFDocument.create();
+  pdf.registerFontkit(fontkit);
+  pdf.setTitle(`${text.title ?? text.eyebrow} – QR ${value} upravený pro tisk`);
+  pdf.setCreator('JUMP Kross 2027');
+  const [regular, semiBold, mono] = await Promise.all([
+    pdf.embedFont(fonts.regular, { subset: true }),
+    pdf.embedFont(fonts.semiBold, { subset: true }),
+    pdf.embedFont(fonts.mono, { subset: true }),
+  ]);
+
+  const [width, height] = format === 'A4' ? PageSizes.A4 : PageSizes.A5;
+  const page = pdf.addPage([width, height]);
+  const s = width / PageSizes.A4[0];
+  const margin = 10 * MM * s;
+  const contentWidth = width - margin * 2;
+  const noteSize = 10 * s;
+  const lineHeight = noteSize * 1.35;
+  const warped = warpedQr(value, anamorphosis, style);
+
+  // Note from the bottom up. Its length depends on the code's printed width, which depends on
+  // how much room the note leaves, so lay it out for the longest wording first.
+  const title = [text.title, text.eyebrow].filter(Boolean).join(' · ');
+  // The code value sits at the right of the note, so the note wraps before it.
+  const codeText = mono.widthOfTextAtSize(value, noteSize);
+  const noteWidth = contentWidth - codeText - 4 * MM * s;
+  const noteLines = (codeWidthCm: number) =>
+    wrap(viewerHint(anamorphosis, codeWidthCm), regular, noteSize, noteWidth);
+  const noteHeight = (lines: number) => lineHeight * (lines + 1) + 4 * MM * s;
+  const reserved = noteHeight(noteLines(999).length);
+  const box = { width: contentWidth, height: height - margin * 2 - reserved };
+  const scale = Math.min(box.width / warped.width, box.height / warped.height);
+  const codeWidthCm = (warped.codeWidth * scale) / MM / 10;
+  const lines = noteLines(codeWidthCm);
+
+  let y = margin;
+  page.drawText(value, {
+    x: width - margin - codeText,
+    y,
+    size: noteSize,
+    font: mono,
+    color: grey,
+  });
+  for (const line of lines.toReversed()) {
+    page.drawText(line, { x: margin, y, size: noteSize, font: regular, color: black });
+    y += lineHeight;
   }
+  page.drawText(title.toLocaleUpperCase('cs'), {
+    x: margin,
+    y,
+    size: noteSize,
+    font: semiBold,
+    color: black,
+  });
+
+  // The code centred in the space above the note.
+  const qrLeft = margin + (box.width - warped.width * scale) / 2;
+  const qrTop = height - margin - (box.height - warped.height * scale) / 2;
+  page.drawSvgPath(warped.path, { x: qrLeft, y: qrTop, scale, color: black });
 
   return pdf.save();
 };
@@ -182,34 +246,14 @@ const loadFonts = () =>
     },
   ));
 
-/** Rasterises an image URL (SVG included) into a square PNG for embedding. */
-const rasterize = async (url: string, pixels = 1024): Promise<Uint8Array> => {
-  const image = new Image();
-  image.src = url;
-  await image.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = pixels;
-  canvas.height = pixels;
-  const context = canvas.getContext('2d');
-  if (context === null) throw new Error('Prohlížeč nepodporuje canvas.');
-  context.drawImage(image, 0, 0, pixels, pixels);
-  const blob = await new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('Logo se nepodařilo převést.'))),
-      'image/png',
-    ),
-  );
-  return new Uint8Array(await blob.arrayBuffer());
+/** Builds the stretched PDF in the browser, loading the fonts on first use. */
+export const warpedQrPdf = async (input: Omit<WarpedQrPdfInput, 'fonts'>): Promise<Blob> => {
+  const bytes = await buildWarpedQrPdf({ ...input, fonts: await loadFonts() });
+  return new Blob([bytes.slice()], { type: 'application/pdf' });
 };
 
-/** Builds the PDF in the browser, loading the fonts and the logo on first use. */
-export const qrCardPdf = async (
-  input: Omit<QrPdfInput, 'fonts' | 'logoPng'> & { readonly logo?: string | undefined },
-): Promise<Blob> => {
-  const [fonts, logoPng] = await Promise.all([
-    loadFonts(),
-    input.logo === undefined ? undefined : rasterize(input.logo),
-  ]);
-  const bytes = await buildQrCardPdf({ ...input, fonts, logoPng });
+/** Builds the PDF in the browser, loading the fonts on first use. */
+export const qrCardPdf = async (input: Omit<QrPdfInput, 'fonts'>): Promise<Blob> => {
+  const bytes = await buildQrCardPdf({ ...input, fonts: await loadFonts() });
   return new Blob([bytes.slice()], { type: 'application/pdf' });
 };
