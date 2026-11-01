@@ -91,3 +91,22 @@ export const QrScannerView = ({
     </div>
   );
 };
+
+/** Content of a scan screen: what to scan, then the scanner. */
+export const ScanPrompt = ({
+  hint,
+  onCode,
+  busy,
+}: {
+  hint: string;
+  onCode: (code: string) => void;
+  busy: boolean;
+}) => (
+  <>
+    <div className='flex flex-col gap-2'>
+      <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
+      <p className='text-muted-foreground'>{hint}</p>
+    </div>
+    <QrScannerView onCode={onCode} disabled={busy} />
+  </>
+);

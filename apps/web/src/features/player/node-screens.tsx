@@ -8,7 +8,7 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { QrScannerView } from './qr-scanner';
+import { ScanPrompt } from './qr-scanner';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
@@ -89,12 +89,8 @@ export const NodeScreens = ({
         </Button>
       )}
       {scanning && (
-        <div className='flex flex-col gap-2'>
-          <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
-          <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód na místě.</p>
-        </div>
+        <ScanPrompt hint='Namiřte fotoaparát na QR kód na místě.' onCode={onCode} busy={busy} />
       )}
-      {scanning && <QrScannerView onCode={onCode} disabled={busy} />}
       {screen !== undefined && (
         <div
           className={cn(
