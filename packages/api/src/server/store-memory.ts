@@ -26,7 +26,6 @@ export const makeMemoryStore = () => {
           startNode,
           node: undefined,
           state: {},
-          checkpoints: 0,
           step: 0,
           finishedAt: undefined,
           updatedAt: new Date(),
@@ -52,7 +51,6 @@ export const makeMemoryStore = () => {
           ...team,
           node: move.node,
           state: move.state,
-          checkpoints: move.checkpoints,
           step: team.step + 1,
           finishedAt: move.finished ? (team.finishedAt ?? now) : undefined,
           updatedAt: now,
@@ -92,9 +90,8 @@ export const makeMemoryStore = () => {
     visitCounts: () =>
       Effect.sync(() => {
         const counts = new Map<string, number>();
-        for (const { toNode, action } of log) {
-          if (toNode !== undefined && !action.startsWith('scan:'))
-            counts.set(toNode, (counts.get(toNode) ?? 0) + 1);
+        for (const { toNode } of log) {
+          if (toNode !== undefined) counts.set(toNode, (counts.get(toNode) ?? 0) + 1);
         }
         return counts;
       }),

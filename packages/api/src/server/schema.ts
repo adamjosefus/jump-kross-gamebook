@@ -16,7 +16,6 @@ create table if not exists team (
   finished_at timestamptz,
   updated_at timestamptz not null default now()
 );
-alter table team add column if not exists checkpoints int not null default 0;
 
 create table if not exists step_log (
   id bigserial primary key,

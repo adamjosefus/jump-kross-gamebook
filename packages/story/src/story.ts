@@ -1,4 +1,4 @@
-import { checkpoint, defineStory } from '@gamebook/core';
+import { defineStory } from '@gamebook/core';
 
 type State = {
   coins: number;
@@ -8,11 +8,12 @@ type State = {
 
 /**
  * The gamebook. Every node is one step of the story: `blocks` are its screens (markdown, one
- * screen each, optionally with a `theme`), `choices` lead to other nodes. A `checkpoint` stops the
- * team until it scans the QR code of that location.
+ * screen each, optionally with a `theme`). A node leads on either by `choices` (buttons) or by
+ * `scans`: the team scans the QR code of a location and goes where that location leads. The team
+ * does not see which locations a node accepts, so the screens have to say where to go.
  *
- * Demo: two starts, a letter, a night screen, two checkpoints (locations 1 and 2), a choice that
- * appears only with enough coins, and two endings.
+ * Demo: two starts, a letter, a night screen, a fork decided by which place the team walks to
+ * (locations 1 and 2), a choice that appears only with enough coins, and two endings.
  */
 export const story = defineStory<State>()({
   START: {
@@ -65,26 +66,40 @@ export const story = defineStory<State>()({
     ],
   },
 
+  // The team picks the path by walking: the code it scans decides the next node.
   FOREST: {
     blocks: (s) => [
       s.hasMap
-        ? 'Podle mapy najdete pěšinu k lesní studánce.'
-        : 'Bez mapy bloudíte, ale nakonec narazíte na lesní studánku.',
-      checkpoint(1, 'Dojděte ke **studánce** a naskenujte QR kód.'),
+        ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
+        : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
+      'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
+    ],
+    scans: [
+      { location: 1, goto: 'WELL' },
+      { location: 2, goto: 'MILL' },
+    ],
+  },
+
+  WELL: {
+    blocks: [
       {
         theme: 'night',
-        content: 'Setmělo se. Za studánkou slyšíte šumění vody. Mlýn musí být blízko.',
+        content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
       },
     ],
     choices: [
-      { label: 'Jít potmě dál', goto: 'MILL', nextState: (s) => ({ courage: s.courage + 1 }) },
-      { label: 'Počkat na ráno', goto: 'MILL' },
+      { label: 'Jít potmě dál', goto: 'TO_MILL', nextState: (s) => ({ courage: s.courage + 1 }) },
+      { label: 'Počkat na ráno', goto: 'TO_MILL' },
     ],
+  },
+
+  TO_MILL: {
+    blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
+    scans: [{ location: 2, goto: 'MILL' }],
   },
 
   MILL: {
     blocks: (s) => [
-      checkpoint(2, 'Najděte **starý mlýn** a naskenujte QR kód u kola.'),
       'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
       s.courage > 0 && {
         theme: 'night',

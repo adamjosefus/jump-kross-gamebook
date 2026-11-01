@@ -61,7 +61,10 @@ const startsOf = (graph: GameGraph) =>
   graph.order.filter((id) => graph.nodes[id]!.type === 'start');
 
 /** Rough label size; ELK only needs it to reserve space. */
-const labelSize = (text: string) => ({ width: Math.ceil(text.length * 6.5) + 14, height: 18 });
+const labelSize = (text: string, icon = false) => ({
+  width: Math.ceil(text.length * 6.5) + 14 + (icon ? 14 : 0),
+  height: 18,
+});
 
 /** Layered top-down layout; depends only on the nodes and edges, not on the previews. */
 const layout = async (graph: GameGraph): Promise<Layout> => {
@@ -96,7 +99,12 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
                   id: edgeId(id, index),
                   sources: [id],
                   targets: [choice.target],
-                  labels: [{ text: choice.label, ...labelSize(choice.label) }],
+                  labels: [
+                    {
+                      text: choice.label,
+                      ...labelSize(choice.label, choice.location !== undefined),
+                    },
+                  ],
                 },
               ]
             : [],
@@ -143,7 +151,14 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
 };
 
 type RouteEdge = Edge<
-  { points: readonly XYPosition[]; text?: string; label?: Box; dimmed: boolean },
+  {
+    points: readonly XYPosition[];
+    text?: string;
+    /** The edge is a QR choice. */
+    qr?: boolean;
+    label?: Box;
+    dimmed: boolean;
+  },
   'route'
 >;
 
@@ -172,6 +187,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
               height: label.height,
             }}
           >
+            {data.qr === true && <QrCode className='mr-0.5 inline size-3 align-[-2px]' />}
             {data.text}
           </div>
         </EdgeLabelRenderer>
@@ -205,7 +221,7 @@ const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
   </div>
 );
 
-/** Node card: id tag, kind, checkpoints and the first screen of its content. */
+/** Node card: id tag, kind and the first screen of its content. */
 const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
@@ -229,16 +245,6 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
               <Flag />
             </Badge>
           )}
-          {preview?.checkpoints.map((location, i) => (
-            <Badge
-              key={i}
-              variant='outline'
-              className='font-mono'
-              title={`Checkpoint, místo ${location}`}
-            >
-              <QrCode /> {location}
-            </Badge>
-          ))}
           <span className='flex-1' />
           {visits !== undefined && (
             <Badge
@@ -351,6 +357,7 @@ export const StoryGraph = ({
             data: {
               points: route?.points ?? [],
               text: choice.label,
+              qr: choice.location !== undefined,
               ...(route?.label === undefined ? {} : { label: route.label }),
               // Paths the chosen start never takes are dimmed.
               dimmed: choice.available === false || !graph.nodes[id]!.reached,

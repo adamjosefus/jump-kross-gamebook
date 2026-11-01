@@ -1,8 +1,8 @@
 import {
   dedent,
-  isCheckpoint,
   type Block,
   type Choice,
+  type ScanChoice,
   type Story,
   type StoryNode,
   type Theme,
@@ -13,8 +13,6 @@ import type { NodeType, State, Value } from './types.ts';
 export interface Position {
   readonly node: string;
   readonly state: State;
-  /** Checkpoints of the current node already unlocked by scanning. */
-  readonly checkpoints: number;
 }
 
 export interface RenderedChoice {
@@ -26,17 +24,17 @@ export interface RenderedChoice {
 export interface RenderedScreen {
   readonly theme: Theme;
   readonly content: string;
-  readonly checkpoint?: { readonly location: number; readonly unlocked: boolean };
 }
 
-/** A node resolved for one team: blocks evaluated, locked screens and hidden choices removed. */
+/** A node resolved for one team: blocks evaluated, hidden choices removed. */
 export interface RenderedNode {
   readonly id: string;
   readonly type: NodeType;
-  /** Ends with the first locked checkpoint, if there is one. */
   readonly screens: readonly RenderedScreen[];
-  /** Empty for `end` nodes and while a checkpoint is locked. */
+  /** Buttons; empty for `end` nodes and nodes that wait for a scan. */
   readonly choices: readonly RenderedChoice[];
+  /** The team moves on by scanning a QR code; where the codes lead stays hidden. */
+  readonly scan: boolean;
 }
 
 export type MoveError =
@@ -54,6 +52,7 @@ export type MoveResult =
 
 type AnyNode = StoryNode<State, string>;
 type AnyChoice = Choice<State, string>;
+type AnyScan = ScanChoice<State, string>;
 
 export const nodeType = (node: AnyNode): NodeType =>
   node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
@@ -63,10 +62,6 @@ export const blocksOf = (node: AnyNode, state: State): Block[] =>
     (block): block is Block => block !== false && block !== null && block !== undefined,
   );
 
-const checkpointsOf = (node: AnyNode, state: State) => blocksOf(node, state).filter(isCheckpoint);
-
-const choicesOf = (node: AnyNode): readonly AnyChoice[] => node.choices ?? [];
-
 export const mergeState = (state: State, changes: Partial<State> | undefined): State => {
   const next: Record<string, Value> = { ...state };
   for (const [key, value] of Object.entries(changes ?? {}))
@@ -74,90 +69,86 @@ export const mergeState = (state: State, changes: Partial<State> | undefined): S
   return next;
 };
 
-/** Every screen of the node, checkpoints included and none of them locked. */
-export const screensOf = (node: AnyNode, state: State): ScreenOf[] =>
+/** Every screen of the node with its content dedented. */
+export const screensOf = (node: AnyNode, state: State): RenderedScreen[] =>
   blocksOf(node, state).map((block) =>
     typeof block === 'string'
       ? { theme: 'default', content: dedent(block) }
-      : {
-          theme: block.theme ?? 'default',
-          content: dedent(block.content),
-          ...(isCheckpoint(block) ? { location: block.location } : {}),
-        },
+      : { theme: block.theme ?? 'default', content: dedent(block.content) },
   );
-
-interface ScreenOf {
-  readonly theme: Theme;
-  readonly content: string;
-  /** Set on checkpoints. */
-  readonly location?: number;
-}
 
 export const startPosition = (story: Story, startNode: string): Position | undefined => {
   const node = story.nodes[startNode];
   return node?.initialState === undefined
     ? undefined
-    : { node: startNode, state: node.initialState, checkpoints: 0 };
+    : { node: startNode, state: node.initialState };
 };
 
+const offered = <T extends AnyChoice | AnyScan>(transitions: readonly T[], state: State) =>
+  transitions.flatMap((transition, index) =>
+    transition.when === undefined || transition.when(state) ? [{ transition, index }] : [],
+  );
+
+/** Buttons offered in `state`, with their index in `choices`. */
 export const availableChoices = (
   node: AnyNode,
   state: State,
 ): { choice: AnyChoice; index: number }[] =>
-  choicesOf(node).flatMap((choice, index) =>
-    choice.when === undefined || choice.when(state) ? [{ choice, index }] : [],
-  );
+  offered(node.choices ?? [], state).map(({ transition, index }) => ({
+    choice: transition,
+    index,
+  }));
+
+/** QR choices offered in `state`, with their index in `scans`. */
+export const availableScans = (node: AnyNode, state: State): { scan: AnyScan; index: number }[] =>
+  offered(node.scans ?? [], state).map(({ transition, index }) => ({ scan: transition, index }));
 
 export const renderNode = (story: Story, position: Position): RenderedNode | undefined => {
   const node = story.nodes[position.node];
   if (node === undefined) return undefined;
-  const screens: RenderedScreen[] = [];
-  let seen = 0;
-  for (const { theme, content, location } of screensOf(node, position.state)) {
-    if (location === undefined) {
-      screens.push({ theme, content });
-      continue;
-    }
-    const unlocked = seen < position.checkpoints;
-    seen++;
-    screens.push({ theme, content, checkpoint: { location, unlocked } });
-    if (!unlocked) break;
-  }
-  const locked = screens.at(-1)?.checkpoint?.unlocked === false;
   return {
     id: position.node,
     type: nodeType(node),
-    screens,
-    choices: locked
-      ? []
-      : availableChoices(node, position.state).map(({ choice, index }) => ({
-          index,
-          label: choice.label,
-        })),
+    screens: screensOf(node, position.state),
+    choices: availableChoices(node, position.state).map(({ choice, index }) => ({
+      index,
+      label: choice.label,
+    })),
+    scan: node.scans !== undefined,
   };
 };
+
+const take = (
+  story: Story,
+  position: Position,
+  { goto, nextState }: AnyChoice | AnyScan,
+): MoveResult =>
+  Object.hasOwn(story.nodes, goto)
+    ? {
+        ok: true,
+        position: { node: goto, state: mergeState(position.state, nextState?.(position.state)) },
+      }
+    : { ok: false, error: 'missing-target' };
 
 export const applyChoice = (story: Story, position: Position, index: number): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (node.end === true) return { ok: false, error: 'finished' };
-  if (checkpointsOf(node, position.state).length > position.checkpoints)
-    return { ok: false, error: 'scan-required' };
+  if (node.scans !== undefined) return { ok: false, error: 'scan-required' };
   const available = availableChoices(node, position.state).find((c) => c.index === index);
   if (available === undefined) return { ok: false, error: 'unavailable-choice' };
-  const { goto, nextState } = available.choice;
-  if (!Object.hasOwn(story.nodes, goto)) return { ok: false, error: 'missing-target' };
-  const state = mergeState(position.state, nextState?.(position.state));
-  return { ok: true, position: { node: goto, state, checkpoints: 0 } };
+  return take(story, position, available.choice);
 };
 
-/** Unlocks the next checkpoint of the node when its location was scanned. */
+/** Takes the QR choice of the scanned location, if the node offers one. */
 export const applyScan = (story: Story, position: Position, location: number): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (node.end === true) return { ok: false, error: 'finished' };
-  const next = checkpointsOf(node, position.state)[position.checkpoints];
-  if (next === undefined) return { ok: false, error: 'no-scan' };
-  if (next.location !== location) return { ok: false, error: 'wrong-location' };
-  return { ok: true, position: { ...position, checkpoints: position.checkpoints + 1 } };
+  if (node.scans === undefined) return { ok: false, error: 'no-scan' };
+  const available = availableScans(node, position.state).find(
+    ({ scan }) => scan.location === location,
+  );
+  if (available === undefined) return { ok: false, error: 'wrong-location' };
+  return take(story, position, available.scan);
 };

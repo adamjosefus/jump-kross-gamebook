@@ -10,14 +10,8 @@ export interface Screen {
   readonly content: string;
 }
 
-/** A screen the team gets past only by scanning the QR code of `location`. */
-export interface Checkpoint extends Screen {
-  readonly kind: 'checkpoint';
-  readonly location: number;
-}
-
 /** A plain string is a markdown screen in the default theme. */
-export type Block = string | Screen | Checkpoint;
+export type Block = string | Screen;
 
 /** Falsy entries are skipped, so blocks can be written as `condition && block`. */
 export type MaybeBlock = Block | false | null | undefined;
@@ -28,13 +22,25 @@ export type MaybeBlock = Block | false | null | undefined;
  */
 type StateFn<S, R> = { fn(state: S): R }['fn'];
 
-export interface Choice<S, K extends string> {
-  readonly label: string;
+interface Transition<S, K extends string> {
   readonly goto: K;
-  /** The choice is offered only when this returns true. */
+  /** Offered only when this returns true. */
   readonly when?: StateFn<S, boolean>;
-  /** Merged into the state when the choice is taken. */
+  /** Merged into the state when taken. */
   readonly nextState?: StateFn<S, Partial<S>>;
+}
+
+/** A button the team taps. */
+export interface Choice<S, K extends string> extends Transition<S, K> {
+  readonly label: string;
+}
+
+/**
+ * Taken by scanning the QR code of `location` there. The team sees only a scan button, not
+ * where the codes are or where they lead.
+ */
+export interface ScanChoice<S, K extends string> extends Transition<S, K> {
+  readonly location: number;
 }
 
 interface NodeBase<S> {
@@ -44,11 +50,18 @@ interface NodeBase<S> {
   readonly blocks: readonly MaybeBlock[] | StateFn<S, readonly MaybeBlock[]>;
 }
 
+/** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */
 export type StoryNode<S, K extends string> =
-  | (NodeBase<S> & { readonly end: true; readonly choices?: never })
+  | (NodeBase<S> & { readonly end: true; readonly choices?: never; readonly scans?: never })
   | (NodeBase<S> & {
       readonly end?: false;
       readonly choices: readonly [Choice<S, K>, ...Choice<S, K>[]];
+      readonly scans?: never;
+    })
+  | (NodeBase<S> & {
+      readonly end?: false;
+      readonly choices?: never;
+      readonly scans: readonly [ScanChoice<S, K>, ...ScanChoice<S, K>[]];
     });
 
 export interface Story {
@@ -59,7 +72,8 @@ export interface Story {
 
 /**
  * Defines the story. The first call fixes the state type, the second infers the node ids, so a
- * `goto` to a missing node is a type error.
+ * `goto` to a missing node is a type error. `choices` are buttons, `scans` are QR codes of
+ * locations: `{ location: 1, goto: 'WELL' }` moves the team on when it scans the code of place 1.
  *
  * ```ts
  * defineStory<{ gold: number }>()({ A: { initialState: { gold: 0 }, blocks: ['…'], choices: [{ label: 'Dál', goto: 'B' }] }, B: { end: true, blocks: ['Konec'] } })
@@ -71,14 +85,6 @@ export const defineStory =
     order: Object.keys(nodes),
     nodes,
   });
-
-export const checkpoint = (location: number, screen: string | Screen): Checkpoint =>
-  typeof screen === 'string'
-    ? { kind: 'checkpoint', location, content: screen }
-    : { ...screen, kind: 'checkpoint', location };
-
-export const isCheckpoint = (block: Block): block is Checkpoint =>
-  typeof block !== 'string' && 'kind' in block;
 
 /** Strips the indentation common to all lines, so content can be indented with the code. */
 export const dedent = (text: string): string => {
