@@ -144,6 +144,8 @@ describe('api', () => {
       devices: 2,
       state: { gold: 80 },
     });
+    // Scans keep the team on A2, so they are not visits.
+    expect(overview.visits).toEqual({ A1: 1, A2: 1, B1: 1, C1: 1 });
     expect(overview.log.map((e: { action: string }) => e.action)).toEqual([
       'choice:0',
       'choice:0',

@@ -78,6 +78,8 @@ export interface StoreShape {
   readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
+  /** Arrivals per node over the whole game; scans keep a team on its node and do not count. */
+  readonly visitCounts: () => Effect.Effect<ReadonlyMap<string, number>, StoreError>;
 }
 
 export class Store extends Context.Service<Store, StoreShape>()('gamebook/Store') {}
