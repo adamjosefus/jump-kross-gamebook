@@ -18,16 +18,18 @@ const WORD_STEP_MS = 70;
 const MAX_REVEAL_MS = 4000;
 /** Steepness of the reveal curve: the higher, the slower the start and the faster the end. */
 const REVEAL_EASING = 4;
+/** Shortest time between two words, so even the last ones come one by one. */
+const MIN_WORD_GAP_MS = 30;
 
 /**
  * When the word starts to fade in. One curve covers the whole screen: an ease-out over the words,
- * so the first words come slowly, one by one, and the rest follows faster and faster.
+ * so the first words come slowly and the rest faster and faster, but always one after another.
  */
 const revealDelay = (index: number, words: number) => {
   if (words <= 1) return 0;
-  const total = Math.min(words * WORD_STEP_MS, MAX_REVEAL_MS);
+  const curve = Math.min(words * WORD_STEP_MS, MAX_REVEAL_MS);
   const progress = index / (words - 1);
-  return Math.round(total * (1 - (1 - progress) ** REVEAL_EASING));
+  return Math.round(index * MIN_WORD_GAP_MS + curve * (1 - (1 - progress) ** REVEAL_EASING));
 };
 
 // -----------------------------------------------------------------------------------------------
