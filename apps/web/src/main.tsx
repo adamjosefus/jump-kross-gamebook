@@ -17,13 +17,20 @@ const queryClient = new QueryClient({
   },
 });
 
+// Toasts stay below the notch and clear of rounded corners.
+const TOAST_OFFSET = {
+  top: 'calc(var(--safe-area-inset-top) + 1rem)',
+  left: 'calc(var(--safe-area-inset-left) + 1rem)',
+  right: 'calc(var(--safe-area-inset-right) + 1rem)',
+};
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <RouterProvider router={router} />
-          <Toaster position='top-center' />
+          <Toaster position='top-center' offset={TOAST_OFFSET} mobileOffset={TOAST_OFFSET} />
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>

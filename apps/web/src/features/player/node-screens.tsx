@@ -2,28 +2,21 @@ import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
 import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 import { useState } from 'react';
-import Markdown from 'react-markdown';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 
 import { ScanPrompt } from './qr-scanner';
+import { StoryText } from './story-text/story-text';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
-const THEME_SCREEN: Record<Theme, string> = {
+/** Box around the text; its typography comes from `StoryText`. */
+const THEME_BOX: Record<Theme, string> = {
   default: '',
-  intro: 'justify-center text-center',
-  letter: '',
-  night: '',
-};
-
-const THEME_TEXT: Record<Theme, string> = {
-  default: '',
-  intro: 'text-xl',
+  intro: '',
   letter:
-    'rounded-lg border bg-amber-50 p-6 font-serif text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50',
+    'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50',
   night: 'rounded-lg bg-slate-950 p-6 text-slate-100 ring-1 ring-slate-800',
 };
 
@@ -73,10 +66,7 @@ export const NodeScreens = ({
   return (
     <article
       key={`${node.id}-${step}-${index}`}
-      className={cn(
-        'flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2',
-        THEME_SCREEN[theme],
-      )}
+      className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2'
     >
       {index > 0 && (
         <Button
@@ -89,15 +79,15 @@ export const NodeScreens = ({
         </Button>
       )}
       {scanning && <ScanPrompt onCode={onCode} busy={busy} />}
+      {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
-        <div
-          className={cn(
-            'prose-gamebook text-lg leading-relaxed',
-            THEME_TEXT[theme],
-            node.type === 'end' && 'text-center',
-          )}
-        >
-          <Markdown>{screen.content}</Markdown>
+        <div className='flex flex-1 flex-col justify-center'>
+          <StoryText
+            content={screen.content}
+            theme={theme}
+            align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
+            className={THEME_BOX[theme]}
+          />
         </div>
       )}
 

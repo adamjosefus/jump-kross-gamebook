@@ -49,6 +49,12 @@
 }
 
 :root {
+  /* Areas under a notch, a home indicator or rounded corners (needs viewport-fit=cover). A page
+     can override them, as the phone preview in the admin does. */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -130,47 +136,38 @@
   }
   html {
     @apply font-sans;
+    /* iPhone Safari would enlarge text, and Pretext lays out the size it is given. */
+    -webkit-text-size-adjust: 100%;
   }
 }
-/* Story text rendered from Markdown. */
-.prose-gamebook {
-  & > * + * {
-    margin-top: 1em;
+/* Content kept clear of the notch, the home indicator and rounded corners. */
+.safe-area-padding {
+  padding: calc(var(--safe-area-inset-top) + 1rem) calc(var(--safe-area-inset-right) + 1.25rem)
+    calc(var(--safe-area-inset-bottom) + 1rem) calc(var(--safe-area-inset-left) + 1.25rem);
+}
+
+/* The admin's phone preview: insets of a phone with a Dynamic Island and a home indicator, as the
+   player gets them from env() on a real device. */
+.phone-preview {
+  --safe-area-inset-top: 2.75rem;
+  --safe-area-inset-bottom: 1.25rem;
+}
+
+/* Story text laid out by Pretext: every word fades in after the one before. */
+@keyframes story-word-in {
+  from {
+    opacity: 0;
   }
-  & h1 {
-    font-size: 1.6em;
-    font-weight: 600;
-    line-height: 1.2;
-  }
-  & h2 {
-    font-size: 1.3em;
-    font-weight: 600;
-  }
-  & strong {
-    font-weight: 650;
-  }
-  & em {
-    font-style: italic;
-  }
-  & code {
-    font-family: ui-monospace, monospace;
-    font-size: 0.9em;
-    padding: 0.1em 0.3em;
-    border-radius: 0.25rem;
-    background: var(--muted);
-  }
-  & ul {
-    list-style: disc;
-    padding-left: 1.25em;
-  }
-  & ol {
-    list-style: decimal;
-    padding-left: 1.25em;
-  }
-  & blockquote {
-    border-left: 2px solid var(--border);
-    padding-left: 1em;
-    color: var(--muted-foreground);
+}
+.story-word {
+  animation: story-word-in 0.8s ease-out both;
+}
+.story-text-revealed .story-word {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-word {
+    animation: none;
   }
 }
 
