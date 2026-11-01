@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type React
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 const MANUAL = 'Zadejte kód ručně.';
 
@@ -98,41 +99,50 @@ const QrScannerView = ({
     setText('');
   };
 
+  // The square sits edge to edge; only the text above and below keeps clear of the screen's edges.
+  const sides =
+    'pr-[calc(var(--safe-area-inset-right)+1.25rem)] pl-[calc(var(--safe-area-inset-left)+1.25rem)]';
   return (
     <div className='fixed inset-0 z-40 flex flex-col bg-black text-white'>
-      {!manual && <div ref={stage} className='absolute inset-0' />}
-      <div className='safe-area-padding relative flex flex-1 flex-col gap-6'>
-        {/* Darkened top and bottom keep the text readable over any picture. */}
-        <div className='pointer-events-none absolute inset-x-0 top-0 h-48 bg-linear-to-b from-black/70 to-transparent' />
-        <div className='pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-black/70 to-transparent' />
-        <div className='relative flex flex-col gap-2'>{header}</div>
-        <div className='relative flex flex-1 items-center justify-center'>
-          {disabled ? (
-            <Loader2 className='size-8 animate-spin' />
-          ) : manual ? (
-            <form onSubmit={submit} className='flex w-full gap-2'>
-              <Input
-                autoFocus
-                value={text}
-                onChange={(event) => setText(event.target.value.toUpperCase())}
-                placeholder='L-12-ABCD'
-                autoCapitalize='characters'
-                autoComplete='off'
-                className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
-              />
-              <Button type='submit' variant='secondary'>
-                Potvrdit
-              </Button>
-            </form>
-          ) : (
-            cameraError !== undefined && (
-              <p className='max-w-xs text-center text-sm text-white/80'>{cameraError}</p>
-            )
-          )}
+      <div className={cn('flex flex-col gap-2 pt-[calc(var(--safe-area-inset-top)+1rem)]', sides)}>
+        {header}
+      </div>
+      <div className='flex flex-1 items-center justify-center py-6'>
+        {/* Square and as wide as the screen; capped by the height when the screen lies. */}
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden bg-white/5'>
+          {!manual && <div ref={stage} className='absolute inset-0' />}
+          <div className={cn('relative w-full', sides)}>
+            {disabled ? (
+              <Loader2 className='mx-auto size-8 animate-spin' />
+            ) : manual ? (
+              <form onSubmit={submit} className='flex w-full gap-2'>
+                <Input
+                  autoFocus
+                  value={text}
+                  onChange={(event) => setText(event.target.value.toUpperCase())}
+                  placeholder='L-12-ABCD'
+                  autoCapitalize='characters'
+                  autoComplete='off'
+                  className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
+                />
+                <Button type='submit' variant='secondary'>
+                  Potvrdit
+                </Button>
+              </form>
+            ) : (
+              cameraError !== undefined && (
+                <p className='mx-auto max-w-xs text-center text-sm text-white/80'>{cameraError}</p>
+              )
+            )}
+          </div>
         </div>
+      </div>
+      <div
+        className={cn('flex justify-center pb-[calc(var(--safe-area-inset-bottom)+1rem)]', sides)}
+      >
         <Button
           variant='ghost'
-          className='relative self-center text-white hover:bg-white/10 hover:text-white'
+          className='text-white hover:bg-white/10 hover:text-white'
           onClick={() => setManual(!manual)}
         >
           {manual ? <Camera /> : <Keyboard />}
@@ -144,7 +154,7 @@ const QrScannerView = ({
 };
 
 /**
- * The scan screen: the camera over the whole screen. It looks the same for every code, so it
+ * The scan screen: the camera as a square across the whole width. It looks the same for every code, so it
  * never tells how many codes would work or where they lead.
  */
 export const ScanScreen = ({
