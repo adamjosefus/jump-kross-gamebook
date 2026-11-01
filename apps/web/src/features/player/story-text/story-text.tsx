@@ -68,16 +68,30 @@ const useWidth = () => {
 // -----------------------------------------------------------------------------------------------
 // Layout
 
+/**
+ * One item Pretext lays out: a word with the spaces after it, or a whole piece of inline code.
+ * Words are separate items so the space after each can be wider (`gap`): CSS `word-spacing`
+ * would paint wider spaces than Pretext measured, so the extra width goes into the layout as the
+ * word's `extraWidth` and is painted as its right padding.
+ */
+interface Item {
+  readonly text: string;
+  readonly run: RunType;
+  readonly gap: number;
+}
+
 interface Prepared {
   readonly paragraph: Paragraph;
   readonly type: ParagraphType;
-  readonly runs: readonly RunType[];
+  readonly items: readonly Item[];
   readonly inline: PreparedRichInline;
 }
 
 interface Word {
   readonly text: string;
   readonly run: RunType;
+  /** Extra space painted after the word. */
+  readonly gap: number;
   /** Inline code: one box with its padding and background. */
   readonly code: boolean;
   /** Position among all words of the screen, for the reveal. */
@@ -96,19 +110,33 @@ interface LaidOut {
   readonly lines: readonly Line[];
 }
 
+const itemsOf = (paragraph: Paragraph, type: ParagraphType): Item[] => {
+  const tokens = paragraph.runs.flatMap((run) => {
+    const looks = runType(type, run.marks);
+    return looks.padding > 0
+      ? [{ text: run.text, run: looks }]
+      : (run.text.match(/\S+\s*|\s+/g) ?? []).map((text) => ({ text, run: looks }));
+  });
+  // A word gets the wider space when a space follows it, in its own text or the next run's.
+  return tokens.map((token, index) => {
+    const word = /\S/.test(token.text) && token.run.padding === 0;
+    const spaceAfter = /\s$/.test(token.text) || /^\s/.test(tokens[index + 1]?.text ?? '');
+    return { ...token, gap: word && spaceAfter ? type.wordGap : 0 };
+  });
+};
+
 const prepare = (paragraphs: readonly Paragraph[], theme: Theme): Prepared[] =>
   paragraphs.map((paragraph) => {
     const type = paragraphType(theme, paragraph.kind);
-    const runs = paragraph.runs.map((run) => runType(type, run.marks));
+    const items = itemsOf(paragraph, type);
     const inline = prepareRichInline(
-      paragraph.runs.map((run, index) => {
-        const { font, padding } = runs[index]!;
-        return padding === 0
-          ? { text: run.text, font }
-          : { text: run.text, font, break: 'never' as const, extraWidth: padding * 2 };
-      }),
+      items.map(({ text, run, gap }) =>
+        run.padding > 0
+          ? { text, font: run.font, break: 'never' as const, extraWidth: run.padding * 2 }
+          : { text, font: run.font, ...(gap === 0 ? {} : { extraWidth: gap }) },
+      ),
     );
-    return { paragraph, type, runs, inline };
+    return { paragraph, type, items, inline };
   });
 
 const piecesOf = (
@@ -116,19 +144,12 @@ const piecesOf = (
   prepared: Prepared,
   next: () => number,
 ): Piece[] => {
-  const run = prepared.runs[fragment.itemIndex]!;
+  const { run, gap } = prepared.items[fragment.itemIndex]!;
   const pieces: Piece[] = [];
   if (fragment.gapBefore > 0)
-    pieces.push({ space: ' ', run: prepared.runs[fragment.gapItemIndex] ?? run });
-  if (run.padding > 0) return [...pieces, { text: fragment.text, run, code: true, index: next() }];
-  for (const token of fragment.text.split(/(\s+)/)) {
-    if (token === '') continue;
-    pieces.push(
-      /^\s+$/.test(token)
-        ? { space: token, run }
-        : { text: token, run, code: false, index: next() },
-    );
-  }
+    pieces.push({ space: ' ', run: prepared.items[fragment.gapItemIndex]?.run ?? run });
+  const text = run.padding > 0 ? fragment.text : fragment.text.trim();
+  if (text !== '') pieces.push({ text, run, gap, code: run.padding > 0, index: next() });
   return pieces;
 };
 
@@ -257,6 +278,7 @@ export const StoryText = ({
                     style={{
                       ...fontStyle(piece.run),
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
+                      ...(piece.gap === 0 ? {} : { paddingRight: piece.gap }),
                       animationDelay: `${Math.round(piece.index * step)}ms`,
                     }}
                   >

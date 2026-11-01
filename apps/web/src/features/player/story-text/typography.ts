@@ -45,6 +45,8 @@ export interface ParagraphType {
   readonly indent: number;
   /** Indent of a quote's text, its line included. */
   readonly quoteIndent: number;
+  /** Added to every space between words, which is too tight in the default spacing. */
+  readonly wordGap: number;
 }
 
 /** Width of the line beside a quote. */
@@ -63,6 +65,7 @@ export const paragraphType = (theme: Theme, kind: ParagraphKind): ParagraphType 
     listGap: quarter(base.size * 0.4),
     indent: quarter(base.size * 1.25),
     quoteIndent: quarter(base.size + QUOTE_LINE),
+    wordGap: quarter(size * 0.15),
   };
 };
 
