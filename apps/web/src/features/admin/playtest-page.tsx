@@ -98,23 +98,27 @@ export const PlaytestPage = () => {
       <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-4 md:flex-row md:items-start'>
         <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
           {/* Exactly what the players see; test tools are in the toolbar under it. */}
-          <div className='flex h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] flex-col overflow-auto rounded-[2rem] border-4 bg-background p-5 shadow-sm'>
-            {current !== undefined && (
-              <NodeScreens
-                node={current.view}
-                step={path.length}
-                busy={play.isPending}
-                onCode={(code) => {
-                  const id = parseQr(code)?.id;
-                  const name = scans.find((location) => location.id === id)?.name;
-                  take(
-                    { code },
-                    current.intro === true ? `Kód týmu ${code}` : `QR ${name ?? code}`,
-                  );
-                }}
-                onPick={(choice) => take({ choice: choice.index }, choice.label)}
-              />
-            )}
+          <div className='phone-preview relative h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-sm'>
+            <div className='safe-area-padding flex size-full flex-col overflow-auto'>
+              {current !== undefined && (
+                <NodeScreens
+                  node={current.view}
+                  step={path.length}
+                  busy={play.isPending}
+                  onCode={(code) => {
+                    const id = parseQr(code)?.id;
+                    const name = scans.find((location) => location.id === id)?.name;
+                    take(
+                      { code },
+                      current.intro === true ? `Kód týmu ${code}` : `QR ${name ?? code}`,
+                    );
+                  }}
+                  onPick={(choice) => take({ choice: choice.index }, choice.label)}
+                />
+              )}
+            </div>
+            <div className='pointer-events-none absolute top-2.5 left-1/2 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
+            <div className='pointer-events-none absolute bottom-2 left-1/2 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
           </div>
           <div className='flex flex-wrap items-center gap-1 rounded-xl border bg-muted/40 p-1'>
             <Button
