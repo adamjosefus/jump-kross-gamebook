@@ -4,8 +4,10 @@ import { escapeAttribute, qrRuns } from './qr-svg';
 export type ViewerSide = 'bottom' | 'top' | 'left' | 'right';
 
 /**
- * Where the code is seen from. The print is stretched so that from this spot it looks like an
- * ordinary square code (anamorphosis), e.g. a code on the floor read by someone standing.
+ * Where the code is seen from, and whether the print is mirrored. The print is stretched so that
+ * from this spot it looks like an ordinary square code (anamorphosis), e.g. a code on the floor
+ * read by someone standing. Mirroring is applied last, to the finished print, e.g. for glass or
+ * film read from the back.
  */
 export interface Anamorphosis {
   readonly side: ViewerSide;
@@ -13,9 +15,19 @@ export interface Anamorphosis {
   readonly angle: number;
   /** From the eye to the centre of the code, in multiples of the code's printed width there. */
   readonly distance: number;
+  /** Left and right swapped. */
+  readonly mirrorX: boolean;
+  /** Top and bottom swapped. */
+  readonly mirrorY: boolean;
 }
 
-export const DEFAULT_ANAMORPHOSIS: Anamorphosis = { side: 'bottom', angle: 60, distance: 6 };
+export const DEFAULT_ANAMORPHOSIS: Anamorphosis = {
+  side: 'bottom',
+  angle: 60,
+  distance: 6,
+  mirrorX: false,
+  mirrorY: false,
+};
 
 export const MAX_ANGLE = 80;
 
@@ -74,8 +86,14 @@ export interface WarpedQr {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-/** The code stretched so that it looks square from the given spot. Without the logo, which could not be warped. */
-export const warpedQr = (value: string, { side, angle, distance }: Anamorphosis): WarpedQr => {
+/**
+ * The code stretched so that it looks square from the given spot, then mirrored. Without the
+ * logo, which could not be warped.
+ */
+export const warpedQr = (
+  value: string,
+  { side, angle, distance, mirrorX, mirrorY }: Anamorphosis,
+): WarpedQr => {
   const { size, runs } = qrRuns(value);
   const frame = FRAMES[side];
   const project = fromBottom(Math.min(Math.max(angle, 0), MAX_ANGLE), distance);
@@ -89,20 +107,26 @@ export const warpedQr = (value: string, { side, angle, distance }: Anamorphosis)
   const top = Math.min(...corners.map(([, y]) => y));
   const right = Math.max(...corners.map(([x]) => x));
   const bottom = Math.max(...corners.map(([, y]) => y));
-  const point = ([x, y]: Point) => `${round(x - left)} ${round(y - top)}`;
+  const place = ([x, y]: Point): Point => [
+    mirrorX ? right - x : x - left,
+    mirrorY ? bottom - y : y - top,
+  ];
+  const point = (p: Point) => {
+    const [x, y] = place(p);
+    return `${round(x)} ${round(y)}`;
+  };
   const path = runs
     .map(
       ({ x, y, length }) =>
         `M${point(map(x, y))}L${point(map(x + length, y))}L${point(map(x + length, y + 1))}L${point(map(x, y + 1))}Z`,
     )
     .join('');
-  const [cx, cy] = map(size / 2, size / 2);
   return {
     width: right - left,
     height: bottom - top,
     path,
     codeWidth: size,
-    centre: [cx - left, cy - top],
+    centre: place(map(size / 2, size / 2)),
   };
 };
 
@@ -116,14 +140,27 @@ const SIDE_TEXT: Record<ViewerSide, string> = {
 const length = (cm: number) =>
   cm < 100 ? `${Math.round(cm)} cm` : `${(cm / 100).toFixed(1).replace('.', ',')} m`;
 
-/** Where the viewer has to be, for the organisers placing the print. */
-export const viewerHint = ({ side, angle, distance }: Anamorphosis, codeWidthCm?: number) =>
-  `Divák stojí u ${SIDE_TEXT[side]} okraje a dívá se pod úhlem ${angle}° od kolmice` +
-  (codeWidthCm === undefined
-    ? `, oko má ${String(distance).replace('.', ',')}× šířku kódu od jeho středu.`
-    : `, oko má asi ${length(distance * codeWidthCm)} od středu kódu.`);
+const mirrorHint = (mirrorX: boolean, mirrorY: boolean) =>
+  mirrorX && mirrorY
+    ? ' Tisk je převrácený v obou osách, tedy otočený o 180°; čte se normálně zepředu.'
+    : mirrorX || mirrorY
+      ? ` Tisk je zrcadlově převrácený ${mirrorX ? 'vodorovně' : 'svisle'}: čte se zezadu přes průhledný materiál nebo v zrcadle.`
+      : '';
 
-/** Self-contained SVG file of the stretched code. */
+/** Where the viewer has to be and how the print is mirrored, for the organisers placing it. */
+export const viewerHint = (
+  { side, angle, distance, mirrorX, mirrorY }: Anamorphosis,
+  codeWidthCm?: number,
+) =>
+  (angle === 0
+    ? 'Kód není zkreslený, čte se zpředu.'
+    : `Divák stojí u ${SIDE_TEXT[side]} okraje a dívá se pod úhlem ${angle}° od kolmice` +
+      (codeWidthCm === undefined
+        ? `, oko má ${String(distance).replace('.', ',')}× šířku kódu od jeho středu.`
+        : `, oko má asi ${length(distance * codeWidthCm)} od středu kódu.`)) +
+  mirrorHint(mirrorX, mirrorY);
+
+/** Self-contained SVG file of the stretched and mirrored code. */
 export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis): string => {
   const { width, height, path } = warpedQr(value, anamorphosis);
   const w = round(width);

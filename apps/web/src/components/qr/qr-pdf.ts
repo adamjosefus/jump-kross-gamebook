@@ -186,7 +186,7 @@ export const buildWarpedQrPdf = async ({
   const text = qrCardText(kind, label);
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  pdf.setTitle(`${text.title ?? text.eyebrow} – QR ${value} se zkreslením`);
+  pdf.setTitle(`${text.title ?? text.eyebrow} – QR ${value} upravený pro tisk`);
   pdf.setCreator('JUMP Kross 2027');
   const [regular, semiBold, mono] = await Promise.all([
     pdf.embedFont(fonts.regular, { subset: true }),
@@ -206,8 +206,11 @@ export const buildWarpedQrPdf = async ({
   // Note from the bottom up. Its length depends on the code's printed width, which depends on
   // how much room the note leaves, so lay it out for the longest wording first.
   const title = [text.title, text.eyebrow].filter(Boolean).join(' · ');
+  // The code value sits at the right of the note, so the note wraps before it.
+  const codeText = mono.widthOfTextAtSize(value, noteSize);
+  const noteWidth = contentWidth - codeText - 4 * MM * s;
   const noteLines = (codeWidthCm: number) =>
-    wrap(viewerHint(anamorphosis, codeWidthCm), regular, noteSize, contentWidth);
+    wrap(viewerHint(anamorphosis, codeWidthCm), regular, noteSize, noteWidth);
   const noteHeight = (lines: number) => lineHeight * (lines + 1) + 4 * MM * s;
   const reserved = noteHeight(noteLines(999).length);
   const box = { width: contentWidth, height: height - margin * 2 - reserved };
@@ -216,7 +219,6 @@ export const buildWarpedQrPdf = async ({
   const lines = noteLines(codeWidthCm);
 
   let y = margin;
-  const codeText = mono.widthOfTextAtSize(value, noteSize);
   page.drawText(value, {
     x: width - margin - codeText,
     y,

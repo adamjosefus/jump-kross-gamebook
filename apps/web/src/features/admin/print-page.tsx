@@ -105,7 +105,7 @@ const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
             <FileText /> PDF na A5
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setWarping(true)}>
-            <Rotate3d /> Se zkreslením…
+            <Rotate3d /> Zkreslení a zrcadlení…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

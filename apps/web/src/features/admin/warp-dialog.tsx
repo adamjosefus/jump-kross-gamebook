@@ -69,7 +69,14 @@ export const WarpDialog = ({
   const [busy, setBusy] = useState(false);
   const preview = useMemo(() => warpedQr(entry.code, view), [entry.code, view]);
   const minDistance = safeDistance(view.angle);
-  const suffix = `zkresleni-${view.angle}`;
+  const suffix =
+    [
+      view.angle > 0 && `zkresleni-${view.angle}`,
+      view.mirrorX && 'zrcadlo-vodorovne',
+      view.mirrorY && 'zrcadlo-svisle',
+    ]
+      .filter(Boolean)
+      .join('-') || 'bez-loga';
 
   const downloadSvg = () =>
     saveBlob(
@@ -99,10 +106,11 @@ export const WarpDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
-          <DialogTitle>QR kód se zkreslením</DialogTitle>
+          <DialogTitle>Zkreslení a zrcadlení</DialogTitle>
           <DialogDescription>
-            Pro kód, na který se kouká šikmo, třeba na zemi nebo vysoko na zdi. Vytištěný vypadá
-            natažený, z místa diváka jako obyčejný čtverec. Logo se do zkresleného kódu nevejde.
+            Zkreslení je pro kód, na který se kouká šikmo, třeba na zemi nebo vysoko na zdi.
+            Vytištěný vypadá natažený, z místa diváka jako obyčejný čtverec. Zrcadlení je pro tisk
+            na sklo nebo fólii čtenou zezadu. Logo se do upraveného kódu nevejde.
           </DialogDescription>
         </DialogHeader>
 
@@ -175,6 +183,30 @@ export const WarpDialog = ({
                 Měří se od oka ke středu kódu. Šířka kódu je jeho šířka středem.
               </p>
             </div>
+            <fieldset className='flex flex-col gap-2'>
+              <legend className='mb-2 text-sm leading-none font-medium'>Zrcadlit</legend>
+              <label className='flex items-center gap-2 text-sm'>
+                <input
+                  type='checkbox'
+                  checked={view.mirrorX}
+                  onChange={(event) => setView({ ...view, mirrorX: event.target.checked })}
+                  className='size-4 accent-foreground'
+                />
+                Vodorovně (levá ↔ pravá)
+              </label>
+              <label className='flex items-center gap-2 text-sm'>
+                <input
+                  type='checkbox'
+                  checked={view.mirrorY}
+                  onChange={(event) => setView({ ...view, mirrorY: event.target.checked })}
+                  className='size-4 accent-foreground'
+                />
+                Svisle (horní ↔ dolní)
+              </label>
+              <p className='text-xs text-muted-foreground'>
+                Obě osy zároveň znamenají otočení o 180°, kód se pak čte normálně.
+              </p>
+            </fieldset>
           </div>
         </div>
 
