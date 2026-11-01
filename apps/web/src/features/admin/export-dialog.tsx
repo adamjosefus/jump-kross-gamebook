@@ -110,7 +110,7 @@ const Checkbox = ({
 
 /**
  * Every way to get a QR code out, in one place: format (SVG, PDF on A4 or A5), copy or download,
- * and optionally stretched for an angled view (anamorphosis) and mirrored. The PDF of an unmodified
+ * and optionally mirrored and stretched for an angled view (anamorphosis). The PDF of an unmodified
  * code is the full card; a modified one is the bare code with a note for the organisers.
  */
 export const ExportDialog = ({
