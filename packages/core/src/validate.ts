@@ -32,11 +32,23 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
   const starts = story.order.filter((id) => story.nodes[id]!.initialState !== undefined);
   if (starts.length === 0) return ['Příběh nemá žádný start (uzel s initialState).'];
 
+  const known = new Set(story.locations.map((location) => location.id));
+  for (const { id, name } of story.locations) {
+    if (!Number.isInteger(id) || id <= 0) report(`Místo „${name}“ má neplatné číslo ${id}.`);
+    if (name.trim() === '') report(`Místo ${id} nemá název.`);
+  }
+  const scanned = new Set(
+    story.order.flatMap((id) => story.nodes[id]!.scans ?? []).map((s) => s.location),
+  );
+  for (const { id, name } of story.locations) {
+    if (!scanned.has(id)) report(`Místo ${id} („${name}“) nepoužívá žádná QR volba.`);
+  }
+
   for (const id of story.order) {
     const labels = new Set<string>();
     for (const { location, goto } of story.nodes[id]!.scans ?? []) {
-      if (!Number.isInteger(location) || location <= 0)
-        report(`QR volba v uzlu ${id} má neplatné číslo místa ${location}.`);
+      if (!known.has(location))
+        report(`QR volba v uzlu ${id} vede přes neznámé místo ${location}.`);
       if (!Object.hasOwn(story.nodes, goto))
         report(`QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`);
     }

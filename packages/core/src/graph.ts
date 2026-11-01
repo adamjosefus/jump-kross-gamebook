@@ -46,11 +46,12 @@ export interface GameGraph {
 type AnyNode = StoryNode<State, string>;
 
 /** Buttons and QR choices of a node, in definition order, as one list of edges. */
-const transitionsOf = (node: AnyNode) => [
+const transitionsOf = (story: Story, node: AnyNode) => [
   ...(node.choices ?? []).map((choice) => ({ ...choice, location: undefined })),
   ...(node.scans ?? []).map((scan) => ({
     ...scan,
-    label: `Místo ${scan.location}`,
+    // QR edges are labelled with the place, the team never sees a label for them.
+    label: story.locations.find((l) => l.id === scan.location)?.name ?? `Místo ${scan.location}`,
     location: scan.location,
   })),
 ];
@@ -64,7 +65,7 @@ const arrivalStates = (story: Story, start: string): Map<string, State> => {
   const queue = [start];
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     const state = states.get(id)!;
-    for (const choice of transitionsOf(story.nodes[id]!)) {
+    for (const choice of transitionsOf(story, story.nodes[id]!)) {
       if (states.has(choice.goto) || !Object.hasOwn(story.nodes, choice.goto)) continue;
       states.set(choice.goto, mergeState(state, choice.nextState?.(state)));
       queue.push(choice.goto);
@@ -108,7 +109,7 @@ export const toGraph = (story: Story, start?: string): GameGraph => {
           dynamic: typeof node.blocks === 'function',
           reached: state !== undefined,
           ...(preview === undefined ? {} : { preview }),
-          choices: transitionsOf(node).map((choice) => ({
+          choices: transitionsOf(story, node).map((choice) => ({
             label: choice.label,
             ...(choice.location === undefined ? {} : { location: choice.location }),
             target: choice.goto,

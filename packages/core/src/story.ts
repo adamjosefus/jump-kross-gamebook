@@ -39,8 +39,11 @@ export interface Choice<S, K extends string> extends Transition<S, K> {
  * Taken by scanning the QR code of `location` there. The team sees only a scan button, not
  * where the codes are or where they lead.
  */
-export interface ScanChoice<S, K extends string> extends Transition<S, K> {
-  readonly location: number;
+export interface ScanChoice<S, K extends string, L extends number = number> extends Transition<
+  S,
+  K
+> {
+  readonly location: L;
 }
 
 interface NodeBase<S> {
@@ -51,7 +54,7 @@ interface NodeBase<S> {
 }
 
 /** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */
-export type StoryNode<S, K extends string> =
+export type StoryNode<S, K extends string, L extends number = number> =
   | (NodeBase<S> & { readonly end: true; readonly choices?: never; readonly scans?: never })
   | (NodeBase<S> & {
       readonly end?: false;
@@ -61,27 +64,54 @@ export type StoryNode<S, K extends string> =
   | (NodeBase<S> & {
       readonly end?: false;
       readonly choices?: never;
-      readonly scans: readonly [ScanChoice<S, K>, ...ScanChoice<S, K>[]];
+      readonly scans: readonly [ScanChoice<S, K, L>, ...ScanChoice<S, K, L>[]];
     });
 
+/** A physical place with a QR code; teams scan it to take a QR choice. */
+export interface Location {
+  readonly id: number;
+  readonly name: string;
+}
+
 export interface Story {
+  /** Places with QR codes, by id. */
+  readonly locations: readonly Location[];
   /** Node ids in definition order. */
   readonly order: readonly string[];
   readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
 }
 
+export interface StoryDefinition<S, K extends string, L extends number> {
+  /** Places with QR codes: number → name. Only these numbers can appear in `scans`. */
+  readonly locations: Readonly<Record<L, string>>;
+  readonly nodes: Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>;
+}
+
 /**
- * Defines the story. The first call fixes the state type, the second infers the node ids, so a
- * `goto` to a missing node is a type error. `choices` are buttons, `scans` are QR codes of
- * locations: `{ location: 1, goto: 'WELL' }` moves the team on when it scans the code of place 1.
+ * Defines the story. The first call fixes the state type, the second infers the node ids and the
+ * location numbers, so a `goto` to a missing node or a scan of an unknown place is a type error.
+ * `choices` are buttons, `scans` are QR codes of `locations`: `{ location: 1, goto: 'WELL' }`
+ * moves the team on when it scans the code of place 1.
  *
  * ```ts
- * defineStory<{ gold: number }>()({ A: { initialState: { gold: 0 }, blocks: ['…'], choices: [{ label: 'Dál', goto: 'B' }] }, B: { end: true, blocks: ['Konec'] } })
+ * defineStory<{ gold: number }>()({
+ *   locations: { 1: 'Studna' },
+ *   nodes: {
+ *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'B' }] },
+ *     B: { end: true, blocks: ['Konec'] },
+ *   },
+ * })
  * ```
  */
 export const defineStory =
   <S extends State>() =>
-  <K extends string>(nodes: Record<K, StoryNode<S, NoInfer<K>>>): Story => ({
+  <K extends string, L extends number = never>({
+    locations,
+    nodes,
+  }: StoryDefinition<S, K, L>): Story => ({
+    locations: Object.entries<string>(locations)
+      .map(([id, name]) => ({ id: Number(id), name }))
+      .toSorted((a, b) => a.id - b.id),
     order: Object.keys(nodes),
     nodes,
   });

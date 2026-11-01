@@ -56,9 +56,6 @@ describe('api', () => {
   });
 
   it('plays a game end to end', async () => {
-    await admin('PUT', '/api/admin/locations/32', { name: 'Studna', kind: 'progress' });
-    await admin('PUT', '/api/admin/locations/33', { name: 'Brána', kind: 'progress' });
-    await admin('PUT', '/api/admin/locations/34', { name: 'Sklep', kind: 'progress' });
     const team = (await admin('POST', '/api/admin/teams', { name: 'Vlci', startNode: 'A1' })).body;
     expect(team).toMatchObject({ id: 1, name: 'Vlci', step: 0 });
 
@@ -67,7 +64,9 @@ describe('api', () => {
     ).body;
     const login = codes.find((c) => c.kind === 'T')!.code;
     const studna = codes.find((c) => c.kind === 'L' && c.id === 32)!.code;
-    const sklep = codes.find((c) => c.kind === 'L' && c.id === 34)!.code;
+    // Places come from the story; a valid code of a place it does not have is refused.
+    expect(codes.filter((c) => c.kind === 'L').map((c) => c.id)).toEqual([32, 33]);
+    const sklep = await encodeQr(config.qrSecret, { kind: 'L', id: 34 });
     expect(studna).toBe(await encodeQr(config.qrSecret, { kind: 'L', id: 32 }));
 
     const phone = device();
@@ -112,9 +111,8 @@ describe('api', () => {
       (await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status,
     ).toBe(400);
     expect(
-      (await phone('POST', '/api/player/scan', { code: sklep, expectedStep: view.step })).body
-        .reason,
-    ).toBe('wrong-location');
+      (await phone('POST', '/api/player/scan', { code: sklep, expectedStep: view.step })).body,
+    ).toMatchObject({ _tag: 'InvalidCode', message: 'Tento QR kód už neplatí.' });
 
     const b1 = await phone('POST', '/api/player/scan', { code: studna, expectedStep: view.step });
     expect(b1.body).toMatchObject({ status: 'playing', node: { id: 'B1', scan: false } });

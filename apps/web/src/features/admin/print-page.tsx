@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import logo from '@/assets/qr-logo.svg';
-import { EndQr, ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
+import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
 import type { PaperFormat } from '@/components/qr/qr-pdf';
 import { qrCodeSvg, toDataUrl } from '@/components/qr/qr-svg';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,7 @@ const fileName = (entry: PrintableCode, extension: string, suffix?: string) => {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-  const kind = { T: 'tym', L: 'misto', E: 'cil' }[entry.kind];
+  const kind = { T: 'tym', L: 'misto' }[entry.kind];
   return `qr-${[kind, slug, entry.kind, entry.id, suffix].filter(Boolean).join('-')}.${extension}`;
 };
 
@@ -141,7 +141,7 @@ export const PrintPage = () => {
       <div className='flex items-center gap-4'>
         <p className='text-sm text-muted-foreground'>
           {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, kód místa platí pro
-          všechny týmy.
+          všechny týmy. Týmy se zakládají na stránce Hra, místa jsou součástí příběhu.
         </p>
       </div>
       <div className='flex flex-wrap gap-4'>
@@ -149,8 +149,6 @@ export const PrintPage = () => {
           <div key={entry.code} className='flex flex-col items-center gap-2'>
             {entry.kind === 'T' ? (
               <TeamLoginQr value={entry.code} teamName={entry.label} logo={logo} />
-            ) : entry.kind === 'E' ? (
-              <EndQr value={entry.code} locationName={entry.label} logo={logo} />
             ) : (
               <ProgressQr value={entry.code} locationName={entry.label} logo={logo} />
             )}

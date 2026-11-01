@@ -30,43 +30,47 @@ Data v paměti zmizí s restartem dev serveru. Pro práci s databází nastavte 
 
 ## Příběh
 
-Příběh je kód v [packages/story/src/story.ts](packages/story/src/story.ts) a mění se s deployem. Překlep v `goto`, špatný typ stavu nebo neznámé `theme` jsou chyby kompilace.
+Příběh je kód v [packages/story/src/story.ts](packages/story/src/story.ts) a mění se s deployem. Patří k němu i místa s QR kódy, admin z nich tiskne kódy. Překlep v `goto`, neznámé místo ve `scans`, špatný typ stavu nebo neznámé `theme` jsou chyby kompilace. Co typy nevidí (nedosažitelné uzly, nepoužité volby a místa, prázdný obsah), hlídá test `validateStory`.
 
 ```ts
 type State = { gold: number; hatColor: 'red' | 'blue' };
 
 export const story = defineStory<State>()({
-  INTRO: {
-    initialState: { gold: 100, hatColor: 'red' }, // uzel s initialState je startovní
-    blocks: [{ theme: 'intro', content: '# Ztracený rukopis' }],
-    choices: [{ label: 'Začít', goto: 'A1' }],
+  // Místa s QR kódy: číslo → název. Ve `scans` smí být jen tato čísla.
+  locations: { 32: 'Studna na nádvoří', 33: 'Brána' },
+  nodes: {
+    INTRO: {
+      initialState: { gold: 100, hatColor: 'red' }, // uzel s initialState je startovní
+      blocks: [{ theme: 'intro', content: '# Ztracený rukopis' }],
+      choices: [{ label: 'Začít', goto: 'A1' }],
+    },
+    A1: {
+      // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko „Další“.
+      blocks: (s) => [
+        `Máte ${s.gold} zlaťáků.`,
+        s.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
+        'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
+      ],
+      // QR volby: kam tým pokračuje, rozhodne naskenované místo. Hráč vidí jen tlačítko Naskenovat.
+      scans: [
+        { location: 32, goto: 'A2' },
+        { location: 33, goto: 'END', when: (s) => s.gold >= 90 },
+      ],
+    },
+    A2: {
+      blocks: ['Ve studni něco leží.'],
+      // Tlačítka. Uzel má buď choices, nebo scans, nikdy obojí.
+      choices: [
+        {
+          label: 'Koupit meč',
+          goto: 'END',
+          when: (s) => s.gold >= 90,
+          nextState: (s) => ({ gold: s.gold - 90 }),
+        },
+        { label: 'Odejít', goto: 'END' },
+      ],
+    },
+    END: { end: true, blocks: ['Konec.'] },
   },
-  A1: {
-    // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko „Další“.
-    blocks: (s) => [
-      `Máte ${s.gold} zlaťáků.`,
-      s.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
-      'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
-    ],
-    // QR volby: kam tým pokračuje, rozhodne naskenované místo. Hráč vidí jen tlačítko Naskenovat.
-    scans: [
-      { location: 32, goto: 'A2' },
-      { location: 33, goto: 'END', when: (s) => s.gold >= 90 },
-    ],
-  },
-  A2: {
-    blocks: ['Ve studni něco leží.'],
-    // Tlačítka. Uzel má buď choices, nebo scans, nikdy obojí.
-    choices: [
-      {
-        label: 'Koupit meč',
-        goto: 'END',
-        when: (s) => s.gold >= 90,
-        nextState: (s) => ({ gold: s.gold - 90 }),
-      },
-      { label: 'Odejít', goto: 'END' },
-    ],
-  },
-  END: { end: true, blocks: ['Konec.'] },
 });
 ```

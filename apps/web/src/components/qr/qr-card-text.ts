@@ -1,5 +1,5 @@
-/** Kind of printed code: team login, progress at a location, or the finish. */
-export type QrCardKind = 'T' | 'L' | 'E';
+/** Kind of printed code: team login or a location. */
+export type QrCardKind = 'T' | 'L';
 
 export interface QrCardText {
   readonly eyebrow: string;
@@ -20,5 +20,4 @@ export const qrCardText = (kind: QrCardKind, label?: string): QrCardText =>
       title: undefined,
       hint: 'Naskenujte v aplikaci a pokračujte v příběhu.',
     },
-    E: { eyebrow: label ?? 'Cíl', title: 'Cíl', hint: 'Naskenujte v aplikaci a dokončete hru.' },
   })[kind];
