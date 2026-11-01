@@ -13,9 +13,22 @@ import { cn } from '@/lib/utils';
 import { paragraphsOf, type Paragraph } from './markdown';
 import { paragraphType, QUOTE_LINE, runType, type ParagraphType, type RunType } from './typography';
 
-/** Words fade in one after another; long screens go faster so they never take too long. */
-const WORD_STEP_MS = 45;
+/** Average time per word; long screens go faster so the whole reveal never takes too long. */
+const WORD_STEP_MS = 50;
 const MAX_REVEAL_MS = 3000;
+/** Steepness of the reveal curve: the higher, the slower the start and the faster the end. */
+const REVEAL_EASING = 2.5;
+
+/**
+ * When the word starts to fade in. One curve covers the whole screen: an ease-out over the words,
+ * so the first words come slowly, one by one, and the rest follows faster and faster.
+ */
+const revealDelay = (index: number, words: number) => {
+  if (words <= 1) return 0;
+  const total = Math.min(words * WORD_STEP_MS, MAX_REVEAL_MS);
+  const progress = index / (words - 1);
+  return Math.round(total * (1 - (1 - progress) ** REVEAL_EASING));
+};
 
 // -----------------------------------------------------------------------------------------------
 // Fonts
@@ -224,7 +237,6 @@ export const StoryText = ({
     () => (prepared === undefined || width === undefined ? undefined : layOut(prepared, width)),
     [prepared, width],
   );
-  const step = layout === undefined ? 0 : Math.min(WORD_STEP_MS, MAX_REVEAL_MS / layout.words);
 
   return (
     <div
@@ -279,7 +291,7 @@ export const StoryText = ({
                       ...fontStyle(piece.run),
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
                       ...(piece.gap === 0 ? {} : { paddingRight: piece.gap }),
-                      animationDelay: `${Math.round(piece.index * step)}ms`,
+                      animationDelay: `${revealDelay(piece.index, layout.words)}ms`,
                     }}
                   >
                     {piece.text}
