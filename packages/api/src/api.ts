@@ -139,13 +139,30 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 
 export const StoryGraph = Schema.Struct({
   order: Schema.Array(Schema.String),
+  /** The start the previews were computed from. */
+  start: Schema.optionalKey(Schema.String),
   nodes: Schema.Record(
     Schema.String,
     Schema.Struct({
       id: Schema.String,
       type: NodeType,
+      dynamic: Schema.Boolean,
+      reached: Schema.Boolean,
+      preview: Schema.optionalKey(
+        Schema.Struct({
+          state: Schema.optionalKey(GameState),
+          content: Schema.String,
+          screens: Schema.Number,
+          checkpoints: Schema.Array(Schema.Number),
+        }),
+      ),
       choices: Schema.Array(
-        Schema.Struct({ label: Schema.String, target: Schema.String, conditional: Schema.Boolean }),
+        Schema.Struct({
+          label: Schema.String,
+          target: Schema.String,
+          conditional: Schema.Boolean,
+          available: Schema.optionalKey(Schema.Boolean),
+        }),
       ),
     }),
   ),
@@ -220,7 +237,10 @@ export class AdminGroup extends HttpApiGroup.make('admin')
   .add(
     HttpApiEndpoint.get('me', '/me', {}).middleware(AdminAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(AdminAuth),
-    HttpApiEndpoint.get('story', '/story', { success: StoryGraph }).middleware(AdminAuth),
+    HttpApiEndpoint.get('story', '/story', {
+      query: { start: Schema.optionalKey(Schema.String) },
+      success: StoryGraph,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     HttpApiEndpoint.post('createTeam', '/teams', {
       payload: TeamInput,

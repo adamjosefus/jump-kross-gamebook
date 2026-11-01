@@ -6,6 +6,7 @@ import {
   startPosition,
   toGraph,
   verifyQr,
+  type GameGraph,
   type MoveError,
   type MoveResult,
   type Story,
@@ -51,7 +52,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const store = yield* Store;
     const config = yield* ServerConfig;
     const story = yield* CurrentStory;
-    const graph = toGraph(story);
+    // Previews depend only on the story and the start, so each start's graph is computed once.
+    const graphs = new Map<string, GameGraph>();
+    const graph = (start?: string) => {
+      const key = start ?? '';
+      let result = graphs.get(key);
+      if (result === undefined) {
+        result = toGraph(story, start);
+        graphs.set(key, result);
+      }
+      return result;
+    };
 
     const isEnd = (node: string | undefined) =>
       node !== undefined && story.nodes[node]?.end === true;

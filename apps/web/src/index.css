@@ -184,36 +184,32 @@
   }
 }
 
-/* pele graph in the app's black and white palette. */
-.story-graph {
-  --pele-bg: transparent;
-  --pele-fg: var(--foreground);
-  --pele-muted: var(--muted-foreground);
-  --pele-line: var(--muted-foreground);
-  --pele-surface: var(--background);
-  --pele-surface-alt: var(--muted);
-  --pele-border: var(--foreground);
-  --pele-accent: var(--foreground);
-  --pele-font: var(--font-sans);
-  --pele-radius: 6px;
+/* React Flow in the app's black and white palette. */
+.story-graph .react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: var(--muted-foreground);
+  --xy-edge-label-color: var(--foreground);
+  --xy-edge-label-background-color: var(--background);
+  --xy-controls-button-background-color: var(--background);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-node-background-color: transparent;
+  --xy-node-border: none;
+  --xy-node-boxshadow-selected: none;
+  font-family: var(--font-sans);
 }
 
-/* Editor syntax colors: muted in light mode, brighter in dark mode. */
-:root {
-  --syntax-heading: oklch(0.5 0.2 285);
-  --syntax-choice: oklch(0.5 0.15 250);
-  --syntax-target: oklch(0.55 0.17 160);
-  --syntax-keyword: oklch(0.55 0.2 330);
-  --syntax-property: oklch(0.55 0.13 230);
-  --syntax-string: oklch(0.55 0.15 145);
-  --syntax-number: oklch(0.6 0.16 55);
-}
-.dark {
-  --syntax-heading: oklch(0.78 0.14 285);
-  --syntax-choice: oklch(0.78 0.11 250);
-  --syntax-target: oklch(0.8 0.13 160);
-  --syntax-keyword: oklch(0.78 0.15 330);
-  --syntax-property: oklch(0.8 0.1 230);
-  --syntax-string: oklch(0.8 0.13 145);
-  --syntax-number: oklch(0.82 0.13 70);
+/* Markdown preview inside a graph node: headings at text size. */
+.graph-preview {
+  & > * + * {
+    margin-top: 0.4em;
+  }
+  & :is(h1, h2, h3, h4) {
+    font-size: inherit;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+  & strong {
+    font-weight: 650;
+  }
 }

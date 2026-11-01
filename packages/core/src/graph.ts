@@ -1,47 +1,117 @@
-import { nodeType } from './engine.ts';
-import type { Story } from './story.ts';
-import type { NodeType } from './types.ts';
+import { mergeState, nodeType, screensOf } from './engine.ts';
+import type { Story, StoryNode } from './story.ts';
+import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
   readonly label: string;
   readonly target: string;
   /** The choice has a `when` and may be hidden. */
   readonly conditional: boolean;
+  /** Whether the choice is offered in the node's preview state; unknown without one. */
+  readonly available?: boolean;
+}
+
+export interface NodePreview {
+  /** State the team has on arrival, along the first path from the chosen start. */
+  readonly state?: State;
+  /** First screen, markdown. */
+  readonly content: string;
+  readonly screens: number;
+  /** Locations of the node's checkpoints, in order. */
+  readonly checkpoints: readonly number[];
 }
 
 export interface GraphNode {
   readonly id: string;
   readonly type: NodeType;
+  /** `blocks` is a function of the state. */
+  readonly dynamic: boolean;
+  /** Reachable from the chosen start. */
+  readonly reached: boolean;
+  /** Missing for dynamic nodes the chosen start never reaches, or when the blocks throw. */
+  readonly preview?: NodePreview;
   readonly choices: readonly GraphChoice[];
 }
 
-/** The static shape of a story: serializable, so the admin gets it without the story's text. */
+/** The shape of a story seen from one start: serializable, for the admin. */
 export interface GameGraph {
   /** Node ids in definition order. */
   readonly order: readonly string[];
+  /** The start the previews were computed from. */
+  readonly start?: string;
   readonly nodes: Readonly<Record<string, GraphNode>>;
 }
 
-export const toGraph = (story: Story): GameGraph => ({
-  order: story.order,
-  nodes: Object.fromEntries(
-    story.order.map((id) => {
-      const node = story.nodes[id]!;
-      return [
-        id,
-        {
+type AnyNode = StoryNode<State, string>;
+
+/** State on arrival at every node reachable from `start`, along the shortest path. */
+const arrivalStates = (story: Story, start: string): Map<string, State> => {
+  const states = new Map<string, State>();
+  const initial = story.nodes[start]?.initialState;
+  if (initial === undefined) return states;
+  states.set(start, initial);
+  const queue = [start];
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+    const state = states.get(id)!;
+    for (const choice of story.nodes[id]?.choices ?? []) {
+      if (states.has(choice.goto) || !Object.hasOwn(story.nodes, choice.goto)) continue;
+      states.set(choice.goto, mergeState(state, choice.nextState?.(state)));
+      queue.push(choice.goto);
+    }
+  }
+  return states;
+};
+
+const previewOf = (node: AnyNode, state: State | undefined): NodePreview | undefined => {
+  if (typeof node.blocks === 'function' && state === undefined) return undefined;
+  try {
+    const screens = screensOf(node, state ?? {});
+    return {
+      ...(state === undefined ? {} : { state }),
+      content: screens[0]?.content ?? '',
+      screens: screens.length,
+      checkpoints: screens.flatMap((screen) => screen.location ?? []),
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+/** Graph with previews computed from `start` (the first start when omitted). */
+export const toGraph = (story: Story, start?: string): GameGraph => {
+  const from =
+    start !== undefined && story.nodes[start]?.initialState !== undefined
+      ? start
+      : story.order.find((id) => story.nodes[id]!.initialState !== undefined);
+  const states = from === undefined ? new Map<string, State>() : arrivalStates(story, from);
+  return {
+    order: story.order,
+    ...(from === undefined ? {} : { start: from }),
+    nodes: Object.fromEntries(
+      story.order.map((id) => {
+        const node = story.nodes[id]!;
+        const state = states.get(id);
+        const preview = previewOf(node, state);
+        const graphNode: GraphNode = {
           id,
           type: nodeType(node),
+          dynamic: typeof node.blocks === 'function',
+          reached: state !== undefined,
+          ...(preview === undefined ? {} : { preview }),
           choices: (node.choices ?? []).map((choice) => ({
             label: choice.label,
             target: choice.goto,
             conditional: choice.when !== undefined,
+            ...(state === undefined || choice.when === undefined
+              ? {}
+              : { available: choice.when(state) }),
           })),
-        },
-      ];
-    }),
-  ),
-});
+        };
+        return [id, graphNode];
+      }),
+    ),
+  };
+};
 
 /** Structural mistakes the type checker cannot see. */
 export const graphProblems = (graph: GameGraph): string[] => {
