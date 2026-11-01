@@ -104,8 +104,12 @@ export class PlayerAuth extends HttpApiMiddleware.Service<PlayerAuth, { provides
   { security: { session: PlayerSessionCookie }, error: Unauthorized },
 ) {}
 
+/** What anyone sees before scanning a team's login code. */
+export const PlayerIntro = Schema.Struct({ screens: Schema.Array(PlayerScreen) });
+
 export class PlayerGroup extends HttpApiGroup.make('player')
   .add(
+    HttpApiEndpoint.get('intro', '/intro', { success: PlayerIntro }),
     HttpApiEndpoint.post('login', '/login', {
       payload: Schema.Struct({ code: Schema.String }),
       success: PlayerView,
@@ -135,7 +139,7 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 
 export const StoryGraph = Schema.Struct({
   order: Schema.Array(Schema.String),
-  /** The start the previews were computed from. */
+  /** The node every team starts at; the previews are computed from it. */
   start: Schema.optionalKey(Schema.String),
   nodes: Schema.Record(
     Schema.String,
@@ -171,12 +175,10 @@ export const Location = Schema.Struct({
 });
 export type Location = typeof Location.Type;
 
-export const TeamInput = Schema.Struct({ name: Schema.String, startNode: Schema.String });
-
 export const TeamStatus = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
-  startNode: Schema.String,
+  /** Missing until the team logs in for the first time, and after a reset. */
   node: Schema.optionalKey(Schema.String),
   /** False when the team's node no longer exists in the story. */
   nodeExists: Schema.Boolean,
@@ -218,11 +220,11 @@ export type PrintableCode = typeof PrintableCode.Type;
 
 /**
  * One step of a test run from the admin. Nothing is stored: the client keeps the position and
- * sends it back with the move. `state` is left out on a start, which then uses its initial state.
+ * sends it back with the move. Without a position the run is at the intro: a team's login code
+ * (or no move, which skips it) leads to the start.
  */
 export const PlaytestInput = Schema.Struct({
-  node: Schema.String,
-  state: Schema.optionalKey(GameState),
+  position: Schema.optionalKey(Schema.Struct({ node: Schema.String, state: GameState })),
   move: Schema.optionalKey(
     Schema.Union([
       Schema.Struct({ choice: Schema.Number }),
@@ -268,29 +270,15 @@ export class AdminGroup extends HttpApiGroup.make('admin')
   .add(
     HttpApiEndpoint.get('me', '/me', {}).middleware(AdminAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(AdminAuth),
-    HttpApiEndpoint.get('story', '/story', {
-      query: { start: Schema.optionalKey(Schema.String) },
-      success: StoryGraph,
-    }).middleware(AdminAuth),
+    HttpApiEndpoint.get('story', '/story', { success: StoryGraph }).middleware(AdminAuth),
     HttpApiEndpoint.post('playtest', '/playtest', {
       payload: PlaytestInput,
       success: PlaytestView,
       error: [InvalidCode, InvalidMove, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
-    HttpApiEndpoint.post('createTeam', '/teams', {
-      payload: TeamInput,
-      success: TeamStatus,
-    }).middleware(AdminAuth),
-    HttpApiEndpoint.patch('updateTeam', '/teams/:id', {
-      params: teamParams,
-      payload: TeamInput,
-      success: TeamStatus,
-      error: NotFound,
-    }).middleware(AdminAuth),
-    HttpApiEndpoint.delete('deleteTeam', '/teams/:id', {
-      params: teamParams,
-      error: NotFound,
+    HttpApiEndpoint.post('resetAll', '/teams/reset', {
+      success: Schema.Array(TeamStatus),
     }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetTeam', '/teams/:id/reset', {
       params: teamParams,

@@ -12,12 +12,38 @@ type State = {
  * `scans`: the team scans the QR code of a location and goes where that location leads. The team
  * does not see which locations a node accepts, so the screens have to say where to go.
  *
- * `locations` are the places with QR codes; the admin prints their codes from here.
+ * `teams` are the teams of the game and `locations` the places with QR codes; the admin prints
+ * their codes from here. `intro` is what anyone sees before scanning a team's code; then the team
+ * continues where it is, or at START when it has not started yet.
  *
- * Demo: two starts, a letter, a night screen, a fork decided by which place the team walks to
+ * Demo: an intro, a letter, a night screen, a fork decided by which place the team walks to
  * (locations 1 and 2), a choice that appears only with enough coins, and two endings.
  */
 export const story = defineStory<State>()({
+  teams: {
+    1: 'Vlci',
+    2: 'Lišky',
+    3: 'Sovy',
+  },
+  intro: [
+    {
+      theme: 'intro',
+      content: `
+      # Poklad starého mlýna
+
+      Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
+    `,
+    },
+    `
+    ## Pravidla
+
+    Hrajete jako tým. Příběh vás povede po okolí: někdy vybíráte v aplikaci, jindy musíte dojít na
+    místo a naskenovat tam QR kód.
+
+    Na začátku naskenujte přihlašovací kód svého týmu. Stejný kód může naskenovat každý telefon
+    v týmu, všechny pak ukazují totéž.
+    `,
+  ],
   locations: {
     1: 'Lesní studánka',
     2: 'Starý mlýn',
@@ -26,14 +52,6 @@ export const story = defineStory<State>()({
     START: {
       initialState: { coins: 30, hasMap: false, courage: 0 },
       blocks: [
-        {
-          theme: 'intro',
-          content: `
-          # Poklad starého mlýna
-
-          Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
-        `,
-        },
         {
           theme: 'letter',
           content: `
@@ -46,15 +64,6 @@ export const story = defineStory<State>()({
         },
       ],
       choices: [{ label: 'Vyrazit na cestu', goto: 'MARKET' }],
-    },
-
-    // Second start for teams that should skip the market (e.g. to spread teams across locations).
-    START_FOREST: {
-      initialState: { coins: 10, hasMap: true, courage: 1 },
-      blocks: [
-        { theme: 'intro', content: '# Poklad starého mlýna\n\nZačínáte rovnou s mapou v ruce.' },
-      ],
-      choices: [{ label: 'Do lesa', goto: 'FOREST' }],
     },
 
     MARKET: {

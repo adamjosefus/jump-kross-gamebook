@@ -3,6 +3,7 @@ import {
   applyScan,
   availableScans,
   encodeQr,
+  introScreens,
   renderNode,
   startPosition,
   toGraph,
@@ -54,17 +55,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const store = yield* Store;
     const config = yield* ServerConfig;
     const story = yield* CurrentStory;
-    // Previews depend only on the story and the start, so each start's graph is computed once.
-    const graphs = new Map<string, GameGraph>();
-    const graph = (start?: string) => {
-      const key = start ?? '';
-      let result = graphs.get(key);
-      if (result === undefined) {
-        result = toGraph(story, start);
-        graphs.set(key, result);
-      }
-      return result;
-    };
+    // Previews depend only on the story, so the graph is computed once.
+    let cachedGraph: GameGraph | undefined;
+    const graph = () => (cachedGraph ??= toGraph(story));
+    const intro = { screens: introScreens(story) };
+
+    const teamName = (id: number) =>
+      story.teams.find((team) => team.id === id)?.name ?? `Tým ${id}`;
 
     const isEnd = (node: string | undefined) =>
       node !== undefined && story.nodes[node]?.end === true;
@@ -76,7 +73,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const view = (team: TeamRow): PlayerView => {
-      const base = { team: { id: team.id, name: team.name }, step: team.step };
+      const base = { team: { id: team.id, name: teamName(team.id) }, step: team.step };
       const node =
         team.node === undefined
           ? undefined
@@ -95,10 +92,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       };
     };
 
-    /** Puts a team that has not started yet on its start node. */
+    /** Puts a team that has not started yet on the start node. */
     const ensureStarted = Effect.fn('Game.ensureStarted')(function* (team: TeamRow) {
       if (team.node !== undefined) return team;
-      const start = startPosition(story, team.startNode);
+      const start = startPosition(story);
       if (start === undefined) return team;
       const moved = yield* store.moveTeam(team.id, team.step, {
         ...start,
@@ -161,6 +158,24 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* commit(team, applyChoice(story, position, index), `choice:${index}`);
     });
 
+    /** The story's team whose login code was scanned. */
+    const teamOf = Effect.fn('Game.teamOf')(function* (code: string) {
+      const payload = yield* Effect.promise(() => verifyQr(config.qrSecret, code));
+      if (payload?.kind !== 'T') {
+        yield* penalty;
+        return yield* new InvalidCode({
+          message:
+            payload === undefined
+              ? 'Tento QR kód nepatří ke hře.'
+              : 'Nejdřív naskenujte přihlašovací kód týmu.',
+        });
+      }
+      const team = story.teams.find((t) => t.id === payload.id);
+      if (team === undefined)
+        return yield* new InvalidCode({ message: 'Tento tým už ve hře není.' });
+      return team;
+    });
+
     /** The story's location a scanned code belongs to. */
     const locationOf = Effect.fn('Game.locationOf')(function* (code: string) {
       const payload = yield* Effect.promise(() => verifyQr(config.qrSecret, code));
@@ -186,20 +201,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
     });
 
+    /** Any device joins a team by its code and continues where the team is. */
     const login = Effect.fn('Game.login')(function* (code: string) {
-      const payload = yield* Effect.promise(() => verifyQr(config.qrSecret, code));
-      if (payload?.kind !== 'T') {
-        yield* penalty;
-        return yield* new InvalidCode({
-          message:
-            payload === undefined
-              ? 'Tento QR kód nepatří ke hře.'
-              : 'Nejdřív naskenujte přihlašovací kód týmu.',
-        });
-      }
-      const team = yield* store.getTeam(payload.id);
-      if (team === undefined)
-        return yield* new InvalidCode({ message: 'Tento tým už ve hře není.' });
+      const { id } = yield* teamOf(code);
+      const team = yield* store.ensureTeam(id);
       const sessionId = crypto.randomUUID();
       yield* store.createSession(sessionId, team.id);
       return { sessionId, view: yield* playerView(team.id) };
@@ -210,8 +215,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const teamStatus = (team: TeamRow, devices: number): TeamStatus => ({
       id: team.id,
-      name: team.name,
-      startNode: team.startNode,
+      name: teamName(team.id),
       ...(team.node === undefined ? {} : { node: team.node }),
       nodeExists: team.node === undefined || Object.hasOwn(story.nodes, team.node),
       state: team.state,
@@ -237,7 +241,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         { concurrency: 'unbounded' },
       );
       const result: Overview = {
-        teams: teams.map((team) => teamStatus(team, devices.get(team.id) ?? 0)),
+        // Every team of the story; one that never logged in has no row yet.
+        teams: story.teams.map(({ id }) =>
+          teamStatus(teams.find((team) => team.id === id) ?? notStarted(id), devices.get(id) ?? 0),
+        ),
         locations: story.locations,
         log: log.map((entry) => ({
           teamId: entry.teamId,
@@ -252,14 +259,24 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return result;
     });
 
-    const requireTeam = Effect.fn('Game.requireTeam')(function* (id: number) {
-      const team = yield* store.getTeam(id);
-      return team === undefined ? yield* notFound('Tým') : team;
+    const notStarted = (id: number): TeamRow => ({
+      id,
+      node: undefined,
+      state: {},
+      step: 0,
+      finishedAt: undefined,
+      updatedAt: new Date(0),
     });
 
+    const requireTeam = Effect.fn('Game.requireTeam')(function* (id: number) {
+      if (!story.teams.some((team) => team.id === id)) return yield* notFound('Tým');
+      return yield* store.ensureTeam(id);
+    });
+
+    /** Puts the team back on the start with the initial state, on every device. */
     const resetTeam = Effect.fn('Game.resetTeam')(function* (id: number) {
       const team = yield* requireTeam(id);
-      const start = startPosition(story, team.startNode);
+      const start = startPosition(story);
       const moved = yield* store.moveTeam(id, team.step, {
         node: start?.node,
         state: start?.state ?? {},
@@ -267,6 +284,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         action: 'reset',
       });
       return yield* singleTeamStatus(moved ?? (yield* requireTeam(id)));
+    });
+
+    /** A new game: every team back on the start. */
+    const resetAll = Effect.fn('Game.resetAll')(function* () {
+      // Every id comes from the story, so none is missing.
+      return yield* Effect.forEach(story.teams, ({ id }) => resetTeam(id)).pipe(
+        Effect.catchTag('NotFound', (error) => Effect.die(error)),
+      );
     });
 
     const moveTeam = Effect.fn('Game.moveTeam')(function* (
@@ -286,20 +311,19 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     /** A test run: the same rules as the game, but the position comes from the client. */
     const playtest = Effect.fn('Game.playtest')(function* (input: {
-      readonly node: string;
-      readonly state?: TeamRow['state'];
+      readonly position?: { readonly node: string; readonly state: TeamRow['state'] };
       readonly move?:
         | { readonly choice: number }
         | { readonly scan: number }
         | { readonly code: string };
     }) {
-      const start =
-        input.state === undefined
-          ? startPosition(story, input.node)
-          : { node: input.node, state: input.state };
-      if (start === undefined) return yield* notFound(`Start ${input.node}`);
+      // At the intro only a team's login code (or no move, which skips it) goes on, to the start.
+      if (input.position === undefined && input.move !== undefined && 'code' in input.move)
+        yield* teamOf(input.move.code);
+      const start = input.position ?? startPosition(story);
+      if (start === undefined) return yield* notFound('Start');
       const result: MoveResult =
-        input.move === undefined
+        input.move === undefined || input.position === undefined
           ? { ok: true, position: start }
           : 'choice' in input.move
             ? applyChoice(story, start, input.move.choice)
@@ -332,10 +356,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const codes = Effect.fn('Game.codes')(function* () {
-      const teams = yield* store.listTeams();
+      // Teams and places come from the story, so their codes change only with a deploy.
       const entries: { kind: PrintableCode['kind']; id: number; label: string }[] = [
-        ...teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
-        // Places come from the story, so their codes change only with a deploy.
+        ...story.teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
         ...story.locations.map((location) => ({
           kind: 'L' as const,
           id: location.id,
@@ -358,10 +381,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       choose,
       scan,
       graph,
+      intro,
       overview,
       singleTeamStatus,
       requireTeam,
       resetTeam,
+      resetAll,
       moveTeam,
       playtest,
       codes,

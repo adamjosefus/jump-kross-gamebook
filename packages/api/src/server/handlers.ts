@@ -6,7 +6,6 @@ import {
   AdminSessionCookie,
   Api,
   CurrentTeam,
-  NotFound,
   PlayerAuth,
   PlayerSessionCookie,
   Unauthorized,
@@ -74,6 +73,7 @@ const PlayerHandlers = HttpApiBuilder.group(
     const store = yield* Store;
     const cookie = cookieOptions(yield* ServerConfig);
     return handlers.handleAll({
+      intro: () => Effect.succeed(game.intro),
       login: Effect.fn(function* ({ payload }) {
         const { sessionId, view } = yield* orDie(game.login(payload.code));
         yield* HttpApiBuilder.securitySetCookie(PlayerSessionCookie, sessionId, {
@@ -108,7 +108,6 @@ const AdminHandlers = HttpApiBuilder.group(
   'admin',
   Effect.fn(function* (handlers) {
     const game = yield* Game;
-    const store = yield* Store;
     const config = yield* ServerConfig;
     const cookie = cookieOptions(config);
 
@@ -128,24 +127,10 @@ const AdminHandlers = HttpApiBuilder.group(
       logout: Effect.fn(function* () {
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, '', { ...cookie, maxAge: 0 });
       }),
-      story: ({ query }) => Effect.succeed(game.graph(query.start)),
+      story: () => Effect.succeed(game.graph()),
       playtest: ({ payload }) => game.playtest(payload),
       overview: () => orDie(game.overview()),
-      createTeam: Effect.fn(function* ({ payload }) {
-        const team = yield* orDie(store.createTeam(payload.name.trim(), payload.startNode));
-        return yield* orDie(game.singleTeamStatus(team));
-      }),
-      updateTeam: Effect.fn(function* ({ params, payload }) {
-        const team = yield* orDie(
-          store.updateTeam(params.id, payload.name.trim(), payload.startNode),
-        );
-        if (team === undefined) return yield* new NotFound({ message: 'Tým neexistuje.' });
-        return yield* orDie(game.singleTeamStatus(team));
-      }),
-      deleteTeam: Effect.fn(function* ({ params }) {
-        if (!(yield* orDie(store.deleteTeam(params.id))))
-          yield* new NotFound({ message: 'Tým neexistuje.' });
-      }),
+      resetAll: () => orDie(game.resetAll()),
       resetTeam: ({ params }) => orDie(game.resetTeam(params.id)),
       moveTeam: ({ params, payload }) =>
         orDie(game.moveTeam(params.id, payload.node, payload.state)),

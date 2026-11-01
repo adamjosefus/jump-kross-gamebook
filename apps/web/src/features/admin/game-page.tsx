@@ -1,19 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Effect } from 'effect';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
-import { toast } from 'sonner';
+import type { TeamStatus } from '@gamebook/api';
+import { Loader2, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -22,21 +13,24 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { api, errorMessage, type Client } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
 
-import { adminKeys, startNodes, useOverview, useStoryGraph } from './queries';
+import { useOverview } from './queries';
+import { ResetDialog } from './reset-dialog';
 
-/** Setup of the running game: teams with their start node; the places come from the story. */
+/**
+ * The game's teams and places, both from the story. The admin only puts teams back on the start:
+ * one team, or every team for a new game.
+ */
 export const GamePage = () => {
-  const queryClient = useQueryClient();
   const overview = useOverview();
-  const starts = startNodes(useStoryGraph().data);
-
-  const mutate = useMutation({
-    mutationFn: (call: (client: Client) => Effect.Effect<unknown, unknown>) => api(call),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.overview }),
-    onError: (error) => toast.error(errorMessage(error)),
-  });
+  // The team stays set while the dialog animates out; `null` means every team.
+  const [reset, setReset] = useState<TeamStatus | null>();
+  const [resetOpen, setResetOpen] = useState(false);
+  const openReset = (team: TeamStatus | null) => {
+    setReset(team);
+    setResetOpen(true);
+  };
 
   if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
@@ -46,67 +40,61 @@ export const GamePage = () => {
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
       <Card>
-        <CardHeader>
-          <CardTitle>Týmy</CardTitle>
-          <CardDescription>Každý tým začíná na zvoleném startovním uzlu.</CardDescription>
+        <CardHeader className='flex flex-row items-start justify-between gap-4'>
+          <div className='flex flex-col gap-1.5'>
+            <CardTitle>Týmy</CardTitle>
+            <CardDescription>
+              Týmy jsou součástí příběhu (<code>teams</code> v{' '}
+              <code>packages/story/src/story.ts</code>). Tým začne na startu, když se poprvé
+              přihlásí svým kódem.
+            </CardDescription>
+          </div>
+          <Button variant='destructive' size='sm' onClick={() => openReset(null)}>
+            <RotateCcw /> Nová hra
+          </Button>
         </CardHeader>
-        <CardContent className='flex flex-col gap-4'>
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-12'>#</TableHead>
                 <TableHead>Název</TableHead>
-                <TableHead>Start</TableHead>
+                <TableHead>Kde je</TableHead>
                 <TableHead className='w-10' />
               </TableRow>
             </TableHeader>
             <TableBody>
               {teams.map((team) => (
                 <TableRow key={team.id}>
-                  <TableCell className='text-muted-foreground'>{team.id}</TableCell>
+                  <TableCell className='font-mono text-muted-foreground'>{team.id}</TableCell>
                   <TableCell>{team.name}</TableCell>
                   <TableCell>
-                    <NodeSelect
-                      value={team.startNode}
-                      options={starts}
-                      onChange={(startNode) =>
-                        mutate.mutate((c) =>
-                          c.admin.updateTeam({
-                            params: { id: team.id },
-                            payload: { name: team.name, startNode },
-                          }),
-                        )
-                      }
-                    />
+                    {team.node === undefined ? (
+                      <span className='text-muted-foreground'>Nezačal</span>
+                    ) : (
+                      <Badge
+                        variant={team.finished ? 'default' : 'secondary'}
+                        className='font-mono'
+                      >
+                        {team.node}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Button
                       variant='ghost'
                       size='icon'
-                      title='Smazat tým'
-                      onClick={() => {
-                        if (
-                          confirm(
-                            `Smazat tým ${team.name}? Jeho přihlašovací QR kód přestane platit.`,
-                          )
-                        ) {
-                          mutate.mutate((c) => c.admin.deleteTeam({ params: { id: team.id } }));
-                        }
-                      }}
+                      title='Vrátit na start'
+                      disabled={team.node === undefined}
+                      onClick={() => openReset(team)}
                     >
-                      <Trash2 />
+                      <RotateCcw />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <NewTeamForm
-            starts={starts}
-            onCreate={(name, startNode) =>
-              mutate.mutate((c) => c.admin.createTeam({ payload: { name, startNode } }))
-            }
-          />
         </CardContent>
       </Card>
 
@@ -138,63 +126,12 @@ export const GamePage = () => {
           </Table>
         </CardContent>
       </Card>
-    </div>
-  );
-};
 
-const NodeSelect = ({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: readonly string[];
-  onChange: (value: string) => void;
-}) => (
-  <Select value={value} onValueChange={onChange}>
-    <SelectTrigger size='sm' className='w-32'>
-      <SelectValue placeholder='Start' />
-    </SelectTrigger>
-    <SelectContent>
-      {[...new Set([value, ...options])]
-        .filter((id) => id !== '')
-        .map((id) => (
-          <SelectItem key={id} value={id}>
-            {id}
-            {!options.includes(id) && ' (chybí)'}
-          </SelectItem>
-        ))}
-    </SelectContent>
-  </Select>
-);
-
-const NewTeamForm = ({
-  starts,
-  onCreate,
-}: {
-  starts: readonly string[];
-  onCreate: (name: string, start: string) => void;
-}) => {
-  const [name, setName] = useState('');
-  const [start, setStart] = useState('');
-  const startNode = start === '' ? (starts[0] ?? '') : start;
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (name.trim() === '' || startNode === '') return;
-    onCreate(name, startNode);
-    setName('');
-  };
-  return (
-    <form onSubmit={submit} className='flex gap-2'>
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder='Název týmu'
+      <ResetDialog
+        {...(reset == null ? {} : { team: reset })}
+        open={resetOpen}
+        onOpenChange={setResetOpen}
       />
-      <NodeSelect value={startNode} options={starts} onChange={setStart} />
-      <Button type='submit' disabled={name.trim() === '' || startNode === ''}>
-        <Plus /> Přidat
-      </Button>
-    </form>
+    </div>
   );
 };

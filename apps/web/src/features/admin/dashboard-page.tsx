@@ -38,6 +38,7 @@ import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
 import { adminKeys, useOverview, useStoryGraph } from './queries';
+import { ResetDialog } from './reset-dialog';
 
 const isState = (value: unknown): value is Record<string, Value> =>
   typeof value === 'object' &&
@@ -261,7 +262,8 @@ const MoveDialog = ({
   onClose: () => void;
 }) => {
   const queryClient = useQueryClient();
-  const [node, setNode] = useState(team.node ?? team.startNode);
+  const [node, setNode] = useState(team.node ?? graph.start ?? graph.order[0] ?? '');
+  const [resetting, setResetting] = useState(false);
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2));
 
   const parsedState = (() => {
@@ -285,11 +287,6 @@ const MoveDialog = ({
           payload: { node, state: parsedState ?? {} },
         }),
       ),
-    onSuccess: done,
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-  const reset = useMutation({
-    mutationFn: () => api((client) => client.admin.resetTeam({ params: { id: team.id } })),
     onSuccess: done,
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -322,13 +319,7 @@ const MoveDialog = ({
           aria-invalid={parsedState === undefined}
         />
         <DialogFooter className='sm:justify-between'>
-          <Button
-            variant='outline'
-            onClick={() => {
-              if (confirm(`Vrátit tým ${team.name} na start ${team.startNode}?`)) reset.mutate();
-            }}
-            disabled={reset.isPending}
-          >
+          <Button variant='outline' onClick={() => setResetting(true)}>
             <RotateCcw /> Na start
           </Button>
           <Button
@@ -338,6 +329,7 @@ const MoveDialog = ({
             Uložit
           </Button>
         </DialogFooter>
+        <ResetDialog team={team} open={resetting} onOpenChange={setResetting} onDone={onClose} />
       </DialogContent>
     </Dialog>
   );

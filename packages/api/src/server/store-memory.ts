@@ -7,35 +7,25 @@ export const makeMemoryStore = () => {
   const teams = new Map<number, TeamRow>();
   const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>();
   const log: LogRow[] = [];
-  let nextTeamId = 1;
 
   return Store.of({
     listTeams: () => Effect.sync(() => [...teams.values()].toSorted((a, b) => a.id - b.id)),
     getTeam: (id) => Effect.sync(() => teams.get(id)),
-    createTeam: (name, startNode) =>
+    ensureTeam: (id) =>
       Effect.sync(() => {
+        const existing = teams.get(id);
+        if (existing !== undefined) return existing;
         const team: TeamRow = {
-          id: nextTeamId++,
-          name,
-          startNode,
+          id,
           node: undefined,
           state: {},
           step: 0,
           finishedAt: undefined,
           updatedAt: new Date(),
         };
-        teams.set(team.id, team);
+        teams.set(id, team);
         return team;
       }),
-    updateTeam: (id, name, startNode) =>
-      Effect.sync(() => {
-        const team = teams.get(id);
-        if (team === undefined) return undefined;
-        const updated = { ...team, name, startNode };
-        teams.set(id, updated);
-        return updated;
-      }),
-    deleteTeam: (id) => Effect.sync(() => teams.delete(id)),
     moveTeam: (id, expectedStep, move) =>
       Effect.sync(() => {
         const team = teams.get(id);

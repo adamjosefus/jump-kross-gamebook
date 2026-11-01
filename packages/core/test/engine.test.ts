@@ -6,6 +6,7 @@ import {
   dedent,
   defineStory,
   graphProblems,
+  introScreens,
   renderNode,
   startPosition,
   toGraph,
@@ -15,11 +16,16 @@ import { SAMPLE } from './fixtures.ts';
 const story = SAMPLE;
 
 describe('engine', () => {
-  const start = startPosition(story, 'A1')!;
+  const start = startPosition(story)!;
 
-  it('starts only on nodes with an initial state', () => {
+  it('starts every team on the node with an initial state', () => {
     expect(start).toEqual({ node: 'A1', state: { gold: 100, hatColor: 'red' } });
-    expect(startPosition(story, 'B1')).toBeUndefined();
+  });
+
+  it('renders the intro', () => {
+    expect(introScreens(story)).toEqual([
+      { theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' },
+    ]);
   });
 
   it('renders screens with themes and dedented markdown', () => {
@@ -77,6 +83,8 @@ describe('engine', () => {
 
   it('offers only QR choices whose condition holds', () => {
     const gated = defineStory<{ key: boolean }>()({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: { 1: 'Místo 1', 2: 'Místo 2' },
       nodes: {
         A: {
@@ -161,36 +169,40 @@ describe('graph', () => {
     expect(graphProblems(graph)).toEqual([]);
   });
 
-  it('previews from the chosen start and leaves unreached dynamic nodes without text', () => {
+  it('leaves unreached dynamic nodes without text', () => {
     const define = defineStory<{ n: number }>();
-    const twoStarts = define({
-      locations: {},
-      nodes: {
-        A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
-        B: { initialState: { n: 2 }, blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
-        C: { end: true, blocks: (s) => [`n = ${s.n}`] },
-        D: { end: true, blocks: (s) => [`d = ${s.n}`] },
-      },
-    });
-    const fromA = toGraph(twoStarts);
-    expect(fromA.nodes['C']!.preview?.content).toBe('n = 1');
-    expect(fromA.nodes['D']).toMatchObject({ reached: false, dynamic: true });
-    expect(fromA.nodes['D']!.preview).toBeUndefined();
-    expect(fromA.nodes['B']).toMatchObject({ reached: false, preview: { content: 'B' } });
-
-    const fromB = toGraph(twoStarts, 'B');
-    expect(fromB.start).toBe('B');
-    expect(fromB.nodes['D']!.preview?.content).toBe('d = 2');
-    expect(toGraph(twoStarts, 'C').start).toBe('A');
+    const graph = toGraph(
+      define({
+        teams: { 1: 'Tým' },
+        intro: ['Úvod'],
+        locations: {},
+        nodes: {
+          A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
+          B: { blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
+          C: { end: true, blocks: (s) => [`n = ${s.n}`] },
+          D: { end: true, blocks: (s) => [`d = ${s.n}`] },
+        },
+      }),
+    );
+    expect(graph.start).toBe('A');
+    expect(graph.nodes['C']!.preview?.content).toBe('n = 1');
+    expect(graph.nodes['D']).toMatchObject({ reached: false, dynamic: true });
+    expect(graph.nodes['D']!.preview).toBeUndefined();
+    expect(graph.nodes['B']).toMatchObject({ reached: false, preview: { content: 'B' } });
   });
 
   it('reports a missing start and unreachable nodes', () => {
     const define = defineStory<{ n: number }>();
-    const noStart = define({ locations: {}, nodes: { A: { end: true, blocks: ['A'] } } });
-    expect(graphProblems(toGraph(noStart))).toEqual([
-      'Příběh nemá žádný start (uzel s initialState).',
-    ]);
+    const noStart = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: { A: { end: true, blocks: ['A'] } },
+    });
+    expect(graphProblems(toGraph(noStart))).toEqual(['Příběh nemá start (uzel s initialState).']);
     const orphan = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: { initialState: { n: 0 }, blocks: [], choices: [{ label: 'Dál', goto: 'B' }] },
@@ -198,7 +210,7 @@ describe('graph', () => {
         C: { end: true, blocks: ['C'] },
       },
     });
-    expect(graphProblems(toGraph(orphan))).toEqual(['Uzel C je nedosažitelný z žádného startu.']);
+    expect(graphProblems(toGraph(orphan))).toEqual(['Uzel C je nedosažitelný ze startu.']);
   });
 });
 
@@ -207,6 +219,8 @@ const _typeErrors = () => {
   {
     const define = defineStory<{ gold: number }>();
     define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
@@ -223,9 +237,16 @@ const _typeErrors = () => {
         B: { end: true, blocks: [{ theme: 'neon', content: 'B' }] },
       },
     });
-    // @ts-expect-error: a node without end needs choices
-    define({ locations: {}, nodes: { A: { initialState: { gold: 0 }, blocks: [] } } });
     define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
+      locations: {},
+      // @ts-expect-error: a node without end needs choices
+      nodes: { A: { initialState: { gold: 0 }, blocks: [] } },
+    });
+    define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: { 1: 'Místo 1' },
       nodes: {
         // @ts-expect-error: a node offers buttons or QR choices, not both
@@ -238,6 +259,8 @@ const _typeErrors = () => {
       },
     });
     define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: { 1: 'Studna' },
       nodes: {
         A: {

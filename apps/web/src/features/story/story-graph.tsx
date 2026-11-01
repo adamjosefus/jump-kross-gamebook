@@ -57,6 +57,9 @@ const structureOf = (graph: GameGraph) =>
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
 const initialId = (start: string) => `initial:${start}`;
+
+/** Teams reach the start by scanning their login code after the intro. */
+const LOGIN_LABEL = 'Kód týmu';
 const startsOf = (graph: GameGraph) =>
   graph.order.filter((id) => graph.nodes[id]!.type === 'start');
 
@@ -114,6 +117,7 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
         id: initialId(id),
         sources: [initialId(id)],
         targets: [id],
+        labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL, true) }],
       })),
     ],
   };
@@ -359,24 +363,30 @@ export const StoryGraph = ({
               text: choice.label,
               qr: choice.location !== undefined,
               ...(route?.label === undefined ? {} : { label: route.label }),
-              // Paths the chosen start never takes are dimmed.
+              // Paths the start never takes are dimmed.
               dimmed: choice.available === false || !graph.nodes[id]!.reached,
             },
             ...(choice.conditional ? { style: { strokeDasharray: '6 4' } } : {}),
           };
         }),
       ),
-      ...startsOf(graph).map((id): RouteEdge => ({
-        id: initialId(id),
-        type: 'route',
-        source: initialId(id),
-        target: id,
-        markerEnd: { type: MarkerType.ArrowClosed },
-        data: {
-          points: laidOut?.layout.edges.get(initialId(id))?.points ?? [],
-          dimmed: !graph.nodes[id]!.reached,
-        },
-      })),
+      ...startsOf(graph).map((id): RouteEdge => {
+        const route = laidOut?.layout.edges.get(initialId(id));
+        return {
+          id: initialId(id),
+          type: 'route',
+          source: initialId(id),
+          target: id,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          data: {
+            points: route?.points ?? [],
+            text: LOGIN_LABEL,
+            qr: true,
+            ...(route?.label === undefined ? {} : { label: route.label }),
+            dimmed: !graph.nodes[id]!.reached,
+          },
+        };
+      }),
     ],
     [graph, laidOut],
   );

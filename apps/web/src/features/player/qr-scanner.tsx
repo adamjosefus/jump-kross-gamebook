@@ -92,20 +92,15 @@ export const QrScannerView = ({
   );
 };
 
-/** Content of a scan screen: what to scan, then the scanner. */
-export const ScanPrompt = ({
-  hint,
-  onCode,
-  busy,
-}: {
-  hint: string;
-  onCode: (code: string) => void;
-  busy: boolean;
-}) => (
+/**
+ * Content of a scan screen. It looks the same for every code, so it never tells how many codes
+ * would work or where they lead.
+ */
+export const ScanPrompt = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => (
   <>
     <div className='flex flex-col gap-2'>
       <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
-      <p className='text-muted-foreground'>{hint}</p>
+      <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód.</p>
     </div>
     <QrScannerView onCode={onCode} disabled={busy} />
   </>
