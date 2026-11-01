@@ -207,6 +207,8 @@ export const Overview = Schema.Struct({
   teams: Schema.Array(TeamStatus),
   locations: Schema.Array(Location),
   log: Schema.Array(LogEntry),
+  /** How many times teams arrived at each node; scans do not count. */
+  visits: Schema.Record(Schema.String, Schema.Number),
 });
 export type Overview = typeof Overview.Type;
 

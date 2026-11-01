@@ -89,6 +89,15 @@ export const makeMemoryStore = () => {
       }),
 
     recentLog: (limit) => Effect.sync(() => log.slice(-limit).toReversed()),
+    visitCounts: () =>
+      Effect.sync(() => {
+        const counts = new Map<string, number>();
+        for (const { toNode, action } of log) {
+          if (toNode !== undefined && !action.startsWith('scan:'))
+            counts.set(toNode, (counts.get(toNode) ?? 0) + 1);
+        }
+        return counts;
+      }),
   });
 };
 

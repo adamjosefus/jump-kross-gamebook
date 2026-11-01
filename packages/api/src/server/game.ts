@@ -218,12 +218,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, locations, log, devices] = yield* Effect.all(
+      const [teams, locations, log, devices, visits] = yield* Effect.all(
         [
           store.listTeams(),
           store.listLocations(),
           store.recentLog(50),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
+          store.visitCounts(),
         ],
         { concurrency: 'unbounded' },
       );
@@ -238,6 +239,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ...(entry.fromNode === undefined ? {} : { fromNode: entry.fromNode }),
           ...(entry.toNode === undefined ? {} : { toNode: entry.toNode }),
         })),
+        visits: Object.fromEntries(visits),
       };
       return result;
     });

@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import ELK from 'elkjs/lib/elk.bundled.js';
-import { Flag, GalleryHorizontal, QrCode } from 'lucide-react';
+import { Flag, Footprints, QrCode } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
@@ -189,7 +189,10 @@ export interface GraphTeam {
   readonly node?: string;
 }
 
-type StoryFlowNode = Node<{ node: GraphNode; teams: readonly GraphTeam[] }, 'story'>;
+type StoryFlowNode = Node<
+  { node: GraphNode; teams: readonly GraphTeam[]; visits: number | undefined },
+  'story'
+>;
 type InitialFlowNode = Node<{ dimmed: boolean }, 'initial'>;
 
 const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
@@ -203,7 +206,7 @@ const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
 );
 
 /** Node card: id tag, kind, checkpoints and the first screen of its content. */
-const StoryNodeCard = ({ data: { node, teams } }: NodeProps<StoryFlowNode>) => {
+const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
     <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
@@ -237,13 +240,13 @@ const StoryNodeCard = ({ data: { node, teams } }: NodeProps<StoryFlowNode>) => {
             </Badge>
           ))}
           <span className='flex-1' />
-          {preview !== undefined && preview.screens > 1 && (
+          {visits !== undefined && (
             <Badge
               variant='outline'
-              className='text-muted-foreground'
-              title={`${preview.screens} obrazovky, mezi nimi tlačítko „Další“`}
+              className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
+              title={`Klany sem dorazily ${visits}×`}
             >
-              <GalleryHorizontal /> {preview.screens}
+              <Footprints /> {visits}
             </Badge>
           )}
         </div>
@@ -273,6 +276,8 @@ export interface StoryGraphProps {
   readonly graph: GameGraph;
   /** Clans to show on the nodes they stand on. */
   readonly teams?: readonly GraphTeam[];
+  /** Arrivals per node; shown on the cards when given. */
+  readonly visits?: Readonly<Record<string, number>>;
   /** Click on the empty canvas, e.g. to close a floating panel. */
   readonly onPaneClick?: () => void;
   readonly className?: string;
@@ -284,6 +289,7 @@ const NO_TEAMS: readonly GraphTeam[] = [];
 export const StoryGraph = ({
   graph,
   teams = NO_TEAMS,
+  visits,
   onPaneClick,
   className,
 }: StoryGraphProps) => {
@@ -313,7 +319,11 @@ export const StoryGraph = ({
         id,
         type: 'story',
         position: position(id),
-        data: { node: graph.nodes[id]!, teams: teams.filter((team) => team.node === id) },
+        data: {
+          node: graph.nodes[id]!,
+          teams: teams.filter((team) => team.node === id),
+          visits: visits === undefined ? undefined : (visits[id] ?? 0),
+        },
         draggable: false,
       })),
       ...startsOf(graph).map((id): InitialFlowNode => ({
@@ -325,7 +335,7 @@ export const StoryGraph = ({
         selectable: false,
       })),
     ];
-  }, [graph, laidOut, teams]);
+  }, [graph, laidOut, teams, visits]);
 
   const edges = useMemo<RouteEdge[]>(
     () => [

@@ -124,6 +124,7 @@ export const DashboardPage = () => {
         <StoryGraph
           graph={graph}
           teams={teams}
+          visits={overview.data.visits}
           onPaneClick={() => {
             if (!pinned && panel !== undefined) setPanel({ panel: undefined, pinned });
           }}
