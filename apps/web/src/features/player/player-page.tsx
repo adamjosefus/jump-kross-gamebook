@@ -30,9 +30,6 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
   const [scanning, setScanning] = useState(false);
-  // The choice stays set while the dialog animates out, so its label does not blink.
-  const [confirm, setConfirm] = useState<{ index: number; label: string }>();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   // Login code of another team scanned mid-game; kept while the dialog animates out.
   const [switchCode, setSwitchCode] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -89,12 +86,9 @@ export const PlayerPage = () => {
     setSwitchOpen(true);
   };
 
-  const pick = (choice: { index: number; label: string }) => {
-    if (view == null) return;
-    if (view.node !== undefined && view.node.choices.length >= 2) {
-      setConfirm(choice);
-      setConfirmOpen(true);
-    } else choose.mutate({ index: choice.index, step: view.step });
+  // The slide button is the confirmation, so a choice is sent right away.
+  const pick = (choice: { index: number }) => {
+    if (view != null) choose.mutate({ index: choice.index, step: view.step });
   };
 
   const busy = login.isPending || choose.isPending || scan.isPending;
@@ -138,28 +132,6 @@ export const PlayerPage = () => {
       )}
 
       <QrScannerDialog open={scanning} onOpenChange={setScanning} onCode={onCode} />
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Opravdu?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vybíráte „{confirm?.label}“. Rozhodnutí platí pro celý tým a nejde vrátit.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Zpět</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirm !== undefined && view != null)
-                  choose.mutate({ index: confirm.index, step: view.step });
-              }}
-            >
-              Potvrdit volbu
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
         <AlertDialogContent>
