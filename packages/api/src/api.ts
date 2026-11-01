@@ -73,9 +73,6 @@ export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.
 export const PlayerScreen = Schema.Struct({
   theme: Theme,
   content: Schema.String,
-  checkpoint: Schema.optionalKey(
-    Schema.Struct({ location: Schema.Number, unlocked: Schema.Boolean }),
-  ),
 });
 export type PlayerScreen = typeof PlayerScreen.Type;
 
@@ -88,9 +85,10 @@ export const PlayerView = Schema.Struct({
     Schema.Struct({
       id: Schema.String,
       type: NodeType,
-      /** Ends with the locked checkpoint while the team has to scan. */
       screens: Schema.Array(PlayerScreen),
       choices: Schema.Array(PlayerChoice),
+      /** The team moves on by scanning a QR code instead of choosing. */
+      scan: Schema.Boolean,
     }),
   ),
 });
@@ -153,12 +151,13 @@ export const StoryGraph = Schema.Struct({
           state: Schema.optionalKey(GameState),
           content: Schema.String,
           screens: Schema.Number,
-          checkpoints: Schema.Array(Schema.Number),
         }),
       ),
       choices: Schema.Array(
         Schema.Struct({
           label: Schema.String,
+          /** Set on QR choices. */
+          location: Schema.optionalKey(Schema.Number),
           target: Schema.String,
           conditional: Schema.Boolean,
           available: Schema.optionalKey(Schema.Boolean),

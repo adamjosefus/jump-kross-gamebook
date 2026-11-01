@@ -1,8 +1,8 @@
-import { checkpoint, defineStory } from '../src/index.ts';
+import { defineStory } from '../src/index.ts';
 
 type State = { gold: number; hatColor: 'red' | 'blue' | 'green' };
 
-/** Small story covering checkpoints, conditional blocks and choices, and both kinds of end. */
+/** Small story covering QR choices, conditional blocks and choices, and both kinds of end. */
 export const SAMPLE = defineStory<State>()({
   A1: {
     initialState: { gold: 100, hatColor: 'red' },
@@ -27,12 +27,13 @@ export const SAMPLE = defineStory<State>()({
   },
   A2: {
     blocks: [
-      'Jděte ke studni na nádvoří.',
-      checkpoint(32, 'Naskenujte QR kód u studny.'),
-      { theme: 'night', content: 'Ve studni něco leží.' },
-      checkpoint(33, { theme: 'night', content: 'Teď ke bráně.' }),
+      'Jděte ke studni na nádvoří, nebo k bráně.',
+      { theme: 'night', content: 'Setmělo se.' },
     ],
-    choices: [{ label: 'Pokračovat', goto: 'B1' }],
+    scans: [
+      { location: 32, goto: 'B1' },
+      { location: 33, goto: 'B1', nextState: (s) => ({ gold: s.gold + 50 }) },
+    ],
   },
   B1: {
     blocks: (s) => {

@@ -23,7 +23,6 @@ const toTeam = (row: Row): TeamRow => ({
   startNode: text(row['start_node']),
   node: optionalText(row['node']),
   state: decodeState(row['state']),
-  checkpoints: Number(row['checkpoints']),
   step: Number(row['step']),
   finishedAt: row['finished_at'] === null ? undefined : timestamp(row['finished_at']),
   updatedAt: timestamp(row['updated_at']),
@@ -117,7 +116,6 @@ export const makePostgresStore = (url: string) => {
             update team set
               node = ${move.node ?? null},
               state = ${JSON.stringify(move.state)}::jsonb,
-              checkpoints = ${move.checkpoints},
               step = step + 1,
               finished_at = case when ${move.finished} then coalesce(finished_at, now()) else null end,
               updated_at = now()
@@ -165,7 +163,7 @@ export const makePostgresStore = (url: string) => {
       query(async () => {
         const rows = await sql`
           select to_node, count(*)::int as visits from step_log
-          where to_node is not null and action not like 'scan:%' group by to_node`;
+          where to_node is not null group by to_node`;
         return new Map(rows.map((row) => [text(row['to_node']), Number(row['visits'])]));
       }),
   });

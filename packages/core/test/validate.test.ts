@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkpoint, defineStory, validateStory, type Story } from '../src/index.ts';
+import { defineStory, validateStory, type Story } from '../src/index.ts';
 import { SAMPLE } from './fixtures.ts';
 
 const define = defineStory<{ n: number }>();
@@ -83,7 +83,7 @@ describe('validateStory', () => {
     const story = define({
       A: {
         initialState: { n: 0 },
-        blocks: ['A', { theme: 'letter', content: '   ' }, checkpoint(1, '')],
+        blocks: ['A', { theme: 'letter', content: '   ' }, ''],
         choices: [
           { label: ' ', goto: 'B' },
           { label: 'Dál', goto: 'B' },
@@ -102,12 +102,16 @@ describe('validateStory', () => {
     ]);
   });
 
-  it('reports checkpoints in endings, bad locations and blocks that throw', () => {
+  it('reports bad locations, two QR choices for one location and blocks that throw', () => {
     const story = define({
       A: {
         initialState: { n: 0 },
-        blocks: [checkpoint(0, 'Sken')],
-        choices: [{ label: 'Dál', goto: 'B' }],
+        blocks: ['Sken'],
+        scans: [
+          { location: 0, goto: 'B' },
+          { location: 3, goto: 'B' },
+          { location: 3, goto: 'C' },
+        ],
       },
       B: {
         blocks: () => {
@@ -115,12 +119,12 @@ describe('validateStory', () => {
         },
         choices: [{ label: 'Dál', goto: 'C' }],
       },
-      C: { end: true, blocks: ['C', checkpoint(2, 'Sken na konci')] },
+      C: { end: true, blocks: ['C'] },
     });
     expect(validateStory(story)).toEqual([
-      'Checkpoint v uzlu A má neplatné číslo místa 0.',
+      'QR volba v uzlu A má neplatné číslo místa 0.',
+      'Uzel A má ve stavu {"n":0} dvě QR volby pro místo 3.',
       'Obsah uzlu B ve stavu {"n":0} spadl: chyba',
-      'Konec C obsahuje checkpoint, přes který by se tým nedostal.',
     ]);
   });
 

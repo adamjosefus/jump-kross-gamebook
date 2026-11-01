@@ -3,7 +3,10 @@ import type { Story, StoryNode } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
+  /** Button text, or `Místo N` for a QR choice. */
   readonly label: string;
+  /** Set on QR choices: the location whose code takes the choice. */
+  readonly location?: number;
   readonly target: string;
   /** The choice has a `when` and may be hidden. */
   readonly conditional: boolean;
@@ -17,8 +20,6 @@ export interface NodePreview {
   /** First screen, markdown. */
   readonly content: string;
   readonly screens: number;
-  /** Locations of the node's checkpoints, in order. */
-  readonly checkpoints: readonly number[];
 }
 
 export interface GraphNode {
@@ -44,6 +45,16 @@ export interface GameGraph {
 
 type AnyNode = StoryNode<State, string>;
 
+/** Buttons and QR choices of a node, in definition order, as one list of edges. */
+const transitionsOf = (node: AnyNode) => [
+  ...(node.choices ?? []).map((choice) => ({ ...choice, location: undefined })),
+  ...(node.scans ?? []).map((scan) => ({
+    ...scan,
+    label: `Místo ${scan.location}`,
+    location: scan.location,
+  })),
+];
+
 /** State on arrival at every node reachable from `start`, along the shortest path. */
 const arrivalStates = (story: Story, start: string): Map<string, State> => {
   const states = new Map<string, State>();
@@ -53,7 +64,7 @@ const arrivalStates = (story: Story, start: string): Map<string, State> => {
   const queue = [start];
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     const state = states.get(id)!;
-    for (const choice of story.nodes[id]?.choices ?? []) {
+    for (const choice of transitionsOf(story.nodes[id]!)) {
       if (states.has(choice.goto) || !Object.hasOwn(story.nodes, choice.goto)) continue;
       states.set(choice.goto, mergeState(state, choice.nextState?.(state)));
       queue.push(choice.goto);
@@ -70,7 +81,6 @@ const previewOf = (node: AnyNode, state: State | undefined): NodePreview | undef
       ...(state === undefined ? {} : { state }),
       content: screens[0]?.content ?? '',
       screens: screens.length,
-      checkpoints: screens.flatMap((screen) => screen.location ?? []),
     };
   } catch {
     return undefined;
@@ -98,8 +108,9 @@ export const toGraph = (story: Story, start?: string): GameGraph => {
           dynamic: typeof node.blocks === 'function',
           reached: state !== undefined,
           ...(preview === undefined ? {} : { preview }),
-          choices: (node.choices ?? []).map((choice) => ({
+          choices: transitionsOf(node).map((choice) => ({
             label: choice.label,
+            ...(choice.location === undefined ? {} : { location: choice.location }),
             target: choice.goto,
             conditional: choice.when !== undefined,
             ...(state === undefined || choice.when === undefined

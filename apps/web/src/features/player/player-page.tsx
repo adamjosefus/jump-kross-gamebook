@@ -1,5 +1,5 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import type { Theme } from '@gamebook/core';
+import { parseQr, type Theme } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, ChevronLeft, ChevronRight, Flag, Loader2, QrCode } from 'lucide-react';
 import { useState } from 'react';
@@ -26,19 +26,9 @@ const STATE_KEY = ['player', 'state'] as const;
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
-/** The locked checkpoint the team has to scan, if any; it is always the last screen. */
-const lockedCheckpoint = (node: PlayerNode | undefined) => {
-  const last = node?.screens.at(-1)?.checkpoint;
-  return last?.unlocked === false ? last : undefined;
-};
-
 /** Polling keeps every device of a team on the same node; slower while the team walks to a location. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
-  view == null || view.status === 'finished'
-    ? false
-    : lockedCheckpoint(view.node) !== undefined
-      ? 30_000
-      : 10_000;
+  view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 
 const THEME_SCREEN: Record<Theme, string> = {
   default: '',
@@ -61,6 +51,9 @@ export const PlayerPage = () => {
   // The choice stays set while the dialog animates out, so its label does not blink.
   const [confirm, setConfirm] = useState<{ index: number; label: string }>();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Login code of another team scanned mid-game; kept while the dialog animates out.
+  const [switchCode, setSwitchCode] = useState<string>();
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   const state = useQuery({
     queryKey: STATE_KEY,
@@ -104,9 +97,14 @@ export const PlayerPage = () => {
 
   const onCode = (code: string) => {
     setScanning(false);
-    // A team code always logs in, so a device can switch teams by scanning another login code.
-    if (code.trim().toUpperCase().startsWith('T:') || view == null) login.mutate(code);
-    else scan.mutate({ code, step: view.step });
+    if (view == null) return login.mutate(code);
+    const parsed = parseQr(code);
+    if (parsed?.kind !== 'T') return scan.mutate({ code, step: view.step });
+    // A login code switches the device to that team, but only after asking: a stray card of
+    // another team must not move a player over by accident.
+    if (parsed.id === view.team.id) return toast.info(`Už hrajete za tým ${view.team.name}.`);
+    setSwitchCode(code);
+    setSwitchOpen(true);
   };
 
   const pick = (choice: { index: number; label: string }) => {
@@ -180,13 +178,35 @@ export const PlayerPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Přepnout na jiný tým?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát
+              za něj místo za tým {view?.team.name}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Zůstat v týmu {view?.team.name}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (switchCode !== undefined) login.mutate(switchCode);
+              }}
+            >
+              Přepnout tým
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 };
 
 /**
- * One screen at a time, paged locally with „Další“. When a scan unlocks more screens, the device
- * jumps to the first new one; a new node starts from its first screen.
+ * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
+ * last screen offers the choices, or the scan button when the node waits for a QR code.
  */
 const NodeScreens = ({
   node,
@@ -202,17 +222,13 @@ const NodeScreens = ({
   onPick: (choice: { index: number; label: string }) => void;
 }) => {
   const count = node.screens.length;
-  const [paging, setPaging] = useState({ node: node.id, step, count, index: 0 });
-  if (paging.node !== node.id || paging.step !== step) {
-    const unlocked = paging.node === node.id && count > paging.count;
-    setPaging({ node: node.id, step, count, index: unlocked ? paging.count : 0 });
-  }
+  const [paging, setPaging] = useState({ node: node.id, step, index: 0 });
+  if (paging.node !== node.id || paging.step !== step) setPaging({ node: node.id, step, index: 0 });
   const index = Math.min(paging.index, count - 1);
   const go = (to: number) => setPaging({ ...paging, index: to });
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
-  const locked = last ? lockedCheckpoint(node) : undefined;
 
   return (
     <article
@@ -239,7 +255,7 @@ const NodeScreens = ({
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />
           </Button>
-        ) : locked !== undefined ? (
+        ) : node.scan ? (
           <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
             <Camera /> Naskenovat QR kód
           </Button>
