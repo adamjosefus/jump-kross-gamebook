@@ -69,7 +69,8 @@ const QrScannerView = ({
     // later, which in a shared one would be the next scanner's camera (React runs effects twice
     // in development, so that happens on every mount).
     const video = document.createElement('video');
-    video.className = 'size-full object-cover';
+    // Black and white, by CSS only; the scanner reads the stream, not the painted picture.
+    video.className = 'size-full object-cover grayscale';
     video.muted = true;
     video.playsInline = true;
     container.append(video);
