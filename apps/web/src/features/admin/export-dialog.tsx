@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import { QrCode } from '@/components/qr/qr-code';
 import type { PaperFormat } from '@/components/qr/qr-pdf';
-import { type NoiseShape, type QrNoise, qrCodeSvg } from '@/components/qr/qr-svg';
+import { type NoiseShape, type QrStyle, QUIET_ZONE, qrCodeSvg } from '@/components/qr/qr-svg';
 import {
   type Anamorphosis,
   DEFAULT_ANAMORPHOSIS,
@@ -62,6 +62,12 @@ const NOISE_SHAPES: { value: NoiseShape; label: string }[] = [
 ];
 
 const MAX_NOISE = 24;
+
+/**
+ * Narrowest white margin offered. Measured with the browser's QR reader on blurred, tiny, rotated
+ * and angled shots: with noise, a margin of 1 module read as well as 4, while 0 failed clearly more.
+ */
+const MIN_QUIET_ZONE = 1;
 
 /** Segmented control: one of a few options as a row of buttons. */
 const Segmented = <T extends string>({
@@ -129,15 +135,18 @@ export const ExportDialog = ({
   const [noiseOn, setNoiseOn] = useState(false);
   const [noiseShape, setNoiseShape] = useState<NoiseShape>('square');
   const [noiseWidth, setNoiseWidth] = useState(8);
+  const [quietZone, setQuietZone] = useState(QUIET_ZONE);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const noise = useMemo<QrNoise | undefined>(
-    () => (noiseOn ? { shape: noiseShape, width: noiseWidth } : undefined),
-    [noiseOn, noiseShape, noiseWidth],
+  // The margin can only be narrowed together with noise; a plain code keeps the standard one.
+  const style = useMemo<QrStyle | undefined>(
+    () => (noiseOn ? { noise: { shape: noiseShape, width: noiseWidth }, quietZone } : undefined),
+    [noiseOn, noiseShape, noiseWidth, quietZone],
   );
+  const noise = style?.noise;
   // The noise reaches further from the eye than the code, so it sets how close the eye may be.
-  const extent = useMemo(() => qrExtent(entry.code, noise), [entry.code, noise]);
+  const extent = useMemo(() => qrExtent(entry.code, style), [entry.code, style]);
   const closest = safeDistance(view.angle, extent);
   const effective = useMemo<Anamorphosis>(
     () => ({
@@ -149,12 +158,13 @@ export const ExportDialog = ({
   );
   const modified = effective.angle > 0 || view.mirrorX || view.mirrorY;
   const preview = useMemo(
-    () => (modified ? warpedQr(entry.code, effective, noise) : undefined),
-    [entry.code, effective, modified, noise],
+    () => (modified ? warpedQr(entry.code, effective, style) : undefined),
+    [entry.code, effective, modified, style],
   );
 
   const suffix = [
     noise !== undefined && `sum-${noise.shape === 'circle' ? 'kruh' : 'ctverec'}-${noise.width}`,
+    style !== undefined && quietZone !== QUIET_ZONE && `okraj-${quietZone}`,
     effective.angle > 0 && `zkresleni-${effective.angle}`,
     view.mirrorX && 'zrcadlo-vodorovne',
     view.mirrorY && 'zrcadlo-svisle',
@@ -163,7 +173,7 @@ export const ExportDialog = ({
     .join('-');
 
   const svg = async () =>
-    modified ? warpedQrSvg(entry.code, effective, noise) : qrCodeSvg(entry.code, noise);
+    modified ? warpedQrSvg(entry.code, effective, style) : qrCodeSvg(entry.code, style);
 
   const pdf = async (paper: PaperFormat) => {
     // pdf-lib and the fonts are loaded only when someone actually asks for a PDF.
@@ -173,7 +183,7 @@ export const ExportDialog = ({
       value: entry.code,
       label: entry.label,
       format: paper,
-      noise,
+      style,
     };
     return modified ? warpedQrPdf({ ...common, anamorphosis: effective }) : qrCardPdf(common);
   };
@@ -224,7 +234,7 @@ export const ExportDialog = ({
         <div className='grid gap-6 sm:grid-cols-[1fr_16rem]'>
           <div className='flex h-72 items-center justify-center rounded-lg border bg-white p-4'>
             {preview === undefined ? (
-              <QrCode value={entry.code} noise={noise} className='max-h-full w-auto' />
+              <QrCode value={entry.code} style={style} className='max-h-full w-auto' />
             ) : (
               <svg
                 viewBox={`0 0 ${preview.width} ${preview.height}`}
@@ -272,8 +282,27 @@ export const ExportDialog = ({
                       className='accent-foreground'
                     />
                     <p className='text-xs text-muted-foreground'>
-                      Náhodné čtverečky ztíží čtení okem, čtečka je ignoruje. Bílý okraj kolem kódu
-                      zůstává.
+                      Náhodné čtverečky ztíží čtení okem, čtečka je ignoruje.
+                    </p>
+                  </div>
+                  <div className='flex flex-col gap-1.5'>
+                    <Label htmlFor='export-quiet-zone'>
+                      Bílý okraj: {quietZone} {quietZone === 1 ? 'modul' : 'moduly'}
+                    </Label>
+                    <input
+                      id='export-quiet-zone'
+                      type='range'
+                      min={MIN_QUIET_ZONE}
+                      max={QUIET_ZONE}
+                      step={1}
+                      value={quietZone}
+                      onChange={(event) => setQuietZone(Number(event.target.value))}
+                      className='accent-foreground'
+                    />
+                    <p className='text-xs text-muted-foreground'>
+                      Odděluje kód od šumu. Norma chce 4 moduly. Čtečce Apple (jako ve fotoaparátu
+                      iPhonu) stačil v testu i 1 modul; jiné čtečky ověřené nejsou a pod 2 moduly s
+                      nimi může být problém.
                     </p>
                   </div>
                 </div>

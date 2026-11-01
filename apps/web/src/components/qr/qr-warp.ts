@@ -1,4 +1,4 @@
-import { escapeAttribute, type QrNoise, QUIET_ZONE, qrRuns } from './qr-svg';
+import { escapeAttribute, type QrStyle, QUIET_ZONE, qrRuns } from './qr-svg';
 
 /** Edge of the printed sheet the viewer stands at. */
 export type ViewerSide = 'bottom' | 'top' | 'left' | 'right';
@@ -46,10 +46,17 @@ export const minDistance = (angle: number, extent = 1) => (Math.tan(radians(angl
 export const safeDistance = (angle: number, extent = 1) =>
   Math.max(1, Math.ceil(minDistance(angle, extent) * 1.5 * 2) / 2);
 
+/**
+ * The code width every distance is measured in: the modules with the standard quiet zone, so a
+ * narrower margin does not change the geometry of the code itself.
+ */
+const codeUnit = (code: { readonly size: number; readonly quietZone: number }) =>
+  code.size - code.quietZone * 2 + QUIET_ZONE * 2;
+
 /** Printed width with noise in code widths, for `safeDistance`. */
-export const qrExtent = (value: string, noise?: QrNoise) => {
-  const { size, code } = qrRuns(value, noise);
-  return size / code.size;
+export const qrExtent = (value: string, style?: QrStyle) => {
+  const { size, code } = qrRuns(value, style);
+  return size / codeUnit(code);
 };
 
 export type Point = readonly [number, number];
@@ -102,11 +109,11 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 export const warpedQr = (
   value: string,
   { side, angle, distance, mirrorX, mirrorY }: Anamorphosis,
-  noise?: QrNoise,
+  style?: QrStyle,
 ): WarpedQr => {
-  const { size, runs, code: codeArea } = qrRuns(value, noise);
-  // Distances are in code widths, so noise around the code does not change how the code is seen.
-  const unit = codeArea.size;
+  const { size, runs, code: codeArea } = qrRuns(value, style);
+  // Distances are in code widths, so noise and margin around the code do not change how it is seen.
+  const unit = codeUnit(codeArea);
   const frame = FRAMES[side];
   const project = fromBottom(Math.min(Math.max(angle, 0), MAX_ANGLE), distance);
   // Module coordinates (y down, origin top left) to the sheet, in modules (y down), mirrored first.
@@ -131,7 +138,10 @@ export const warpedQr = (
   // off centre. The quiet zone is widened on the short sides until the modules are centred; it never
   // gets narrower than the projected one.
   const zone = box(0, size);
-  const code = box(codeArea.at + QUIET_ZONE, codeArea.at + codeArea.size - QUIET_ZONE);
+  const code = box(
+    codeArea.at + codeArea.quietZone,
+    codeArea.at + codeArea.size - codeArea.quietZone,
+  );
   const cx = (code.left + code.right) / 2;
   const cy = (code.top + code.bottom) / 2;
   const halfWidth = Math.max(cx - zone.left, zone.right - cx);
@@ -191,8 +201,8 @@ export const viewerHint = (
   mirrorHint(mirrorX, mirrorY);
 
 /** Self-contained SVG file of the mirrored and stretched code. */
-export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis, noise?: QrNoise): string => {
-  const { width, height, path } = warpedQr(value, anamorphosis, noise);
+export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis, style?: QrStyle): string => {
+  const { width, height, path } = warpedQr(value, anamorphosis, style);
   const w = round(width);
   const h = round(height);
   return (
