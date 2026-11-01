@@ -95,7 +95,7 @@ export const QrScannerDialog = ({
               autoFocus
               value={text}
               onChange={(event) => setText(event.target.value.toUpperCase())}
-              placeholder='L:12:ABCD'
+              placeholder='L-12-ABCD'
               autoCapitalize='characters'
               autoComplete='off'
               className='font-mono'

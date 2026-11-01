@@ -1,8 +1,11 @@
 /**
- * QR code content: `KIND:ID:CHECK`, e.g. `T:12:K7QM`.
+ * QR code content: `KIND-ID-CHECK`, e.g. `T-12-K7QM`. No colons: phone cameras read `L:2:…` as a
+ * link with an unknown scheme and refuse it, while plain text they show. The old `KIND:ID:CHECK`
+ * spelling is still accepted when reading.
  *
  * - `T` logs a team in, `L` is a location: scanning it takes the QR choice of that place.
  * - `CHECK` is 4 Crockford base32 characters of HMAC-SHA256(`KIND:ID`) keyed by a server secret.
+ *   The signed message keeps the colon, so the check is the same in both spellings.
  *   It is readable but cannot be computed by hand, so codes cannot be forged in the field.
  */
 
@@ -18,7 +21,7 @@ const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const CHECK_LENGTH = 4;
 const isQrKind = (value: string | undefined): value is QrKind => value === 'T' || value === 'L';
 
-const FORMAT = /^([TL]):([1-9]\d{0,5}):([0-9A-Z]{4})$/;
+const FORMAT = /^([TL])[-:]([1-9]\d{0,5})[-:]([0-9A-Z]{4})$/;
 
 const encoder = new TextEncoder();
 
@@ -46,7 +49,7 @@ const checkOf = async (secret: string, { kind, id }: QrPayload): Promise<string>
 };
 
 export const encodeQr = async (secret: string, payload: QrPayload): Promise<string> =>
-  `${payload.kind}:${payload.id}:${await checkOf(secret, payload)}`;
+  `${payload.kind}-${payload.id}-${await checkOf(secret, payload)}`;
 
 /** Parses the format without verifying the check (e.g. to show what was scanned). */
 export const parseQr = (text: string): (QrPayload & { readonly check: string }) | undefined => {
