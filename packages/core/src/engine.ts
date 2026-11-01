@@ -67,6 +67,32 @@ const checkpointsOf = (node: AnyNode, state: State) => blocksOf(node, state).fil
 
 const choicesOf = (node: AnyNode): readonly AnyChoice[] => node.choices ?? [];
 
+export const mergeState = (state: State, changes: Partial<State> | undefined): State => {
+  const next: Record<string, Value> = { ...state };
+  for (const [key, value] of Object.entries(changes ?? {}))
+    if (value !== undefined) next[key] = value;
+  return next;
+};
+
+/** Every screen of the node, checkpoints included and none of them locked. */
+export const screensOf = (node: AnyNode, state: State): ScreenOf[] =>
+  blocksOf(node, state).map((block) =>
+    typeof block === 'string'
+      ? { theme: 'default', content: dedent(block) }
+      : {
+          theme: block.theme ?? 'default',
+          content: dedent(block.content),
+          ...(isCheckpoint(block) ? { location: block.location } : {}),
+        },
+  );
+
+interface ScreenOf {
+  readonly theme: Theme;
+  readonly content: string;
+  /** Set on checkpoints. */
+  readonly location?: number;
+}
+
 export const startPosition = (story: Story, startNode: string): Position | undefined => {
   const node = story.nodes[startNode];
   return node?.initialState === undefined
@@ -87,19 +113,14 @@ export const renderNode = (story: Story, position: Position): RenderedNode | und
   if (node === undefined) return undefined;
   const screens: RenderedScreen[] = [];
   let seen = 0;
-  for (const block of blocksOf(node, position.state)) {
-    if (typeof block === 'string') {
-      screens.push({ theme: 'default', content: dedent(block) });
-      continue;
-    }
-    const screen = { theme: block.theme ?? 'default', content: dedent(block.content) };
-    if (!isCheckpoint(block)) {
-      screens.push(screen);
+  for (const { theme, content, location } of screensOf(node, position.state)) {
+    if (location === undefined) {
+      screens.push({ theme, content });
       continue;
     }
     const unlocked = seen < position.checkpoints;
     seen++;
-    screens.push({ ...screen, checkpoint: { location: block.location, unlocked } });
+    screens.push({ theme, content, checkpoint: { location, unlocked } });
     if (!unlocked) break;
   }
   const locked = screens.at(-1)?.checkpoint?.unlocked === false;
@@ -126,9 +147,7 @@ export const applyChoice = (story: Story, position: Position, index: number): Mo
   if (available === undefined) return { ok: false, error: 'unavailable-choice' };
   const { goto, nextState } = available.choice;
   if (!Object.hasOwn(story.nodes, goto)) return { ok: false, error: 'missing-target' };
-  const state: Record<string, Value> = { ...position.state };
-  for (const [key, value] of Object.entries(nextState?.(position.state) ?? {}))
-    if (value !== undefined) state[key] = value;
+  const state = mergeState(position.state, nextState?.(position.state));
   return { ok: true, position: { node: goto, state, checkpoints: 0 } };
 };
 

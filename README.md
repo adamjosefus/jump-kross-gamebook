@@ -22,7 +22,7 @@ Data v paměti zmizí s restartem dev serveru. Pro práci s databází nastavte 
 
 | Balíček                   | Obsah                                                                                                           |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `packages/core`           | Čisté TS jádro bez I/O: `defineStory`, engine, graf a Mermaid, QR kódy                                          |
+| `packages/core`           | Čisté TS jádro bez I/O: `defineStory`, engine, graf s náhledy, QR kódy                                          |
 | `packages/story`          | Samotný příběh v TypeScriptu (jen pro server, do webu se nebundluje)                                            |
 | `packages/api`            | Effect HttpApi: definice (sdílená s klientem) a server (`src/server`) s úložištěm v paměti nebo v Neon Postgres |
 | `apps/web`                | Vite + React SPA (shadcn/ui, TanStack Router a Query), Storybook                                                |

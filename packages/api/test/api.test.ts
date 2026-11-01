@@ -50,7 +50,9 @@ describe('api', () => {
   it('serves the story graph to the admin', async () => {
     const graph = (await admin('GET', '/api/admin/story')).body;
     expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
-    expect(graph.nodes.A1).toMatchObject({ type: 'start', choices: [{ target: 'B1' }, {}] });
+    expect(graph).toMatchObject({ start: 'A1', nodes: { A1: { type: 'start', reached: true } } });
+    expect(graph.nodes.B1.preview.content).toContain('chudou pokrývku hlavy');
+    expect((await admin('GET', '/api/admin/story?start=A1')).body).toEqual(graph);
   });
 
   it('plays a game end to end', async () => {
