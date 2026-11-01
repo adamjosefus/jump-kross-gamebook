@@ -210,6 +210,7 @@ const Intro = ({
       onPick={() => {}}
       initialIndex={initialIndex}
       onIndexChange={onIndexChange}
+      requireCamera
     />
   );
 };

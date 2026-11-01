@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 
+import { CameraGate } from './camera-access';
 import { ScanScreen } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
 
@@ -44,6 +45,7 @@ export const NodeScreens = ({
   onPick,
   initialIndex = 0,
   onIndexChange,
+  requireCamera = false,
 }: {
   node: PlayerNode;
   step: number;
@@ -52,6 +54,8 @@ export const NodeScreens = ({
   initialIndex?: number;
   /** Called when the player pages, to keep the screen in the URL. */
   onIndexChange?: (index: number) => void;
+  /** The scan screen waits for camera access and offers no way around it (the login scan). */
+  requireCamera?: boolean;
   /** A QR code read on the scan screen. */
   onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
@@ -70,6 +74,13 @@ export const NodeScreens = ({
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
+  const scanScreen = (
+    <ScanScreen
+      onCode={onCode}
+      busy={busy}
+      {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
+    />
+  );
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );
@@ -89,13 +100,7 @@ export const NodeScreens = ({
           <ChevronLeft /> Zpět
         </Button>
       )}
-      {scanning && (
-        <ScanScreen
-          onCode={onCode}
-          busy={busy}
-          {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
-        />
-      )}
+      {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
       {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
         <div className='flex flex-1 flex-col justify-center'>

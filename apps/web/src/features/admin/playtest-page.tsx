@@ -177,6 +177,7 @@ export const PlaytestPage = () => {
                   step={path.length}
                   busy={play.isPending}
                   onCode={(code) => take({ code })}
+                  requireCamera={current.intro === true}
                   onPick={(choice) => take({ choice: choice.index })}
                   // The screen in the URL belongs to the path in it; after a move it starts over.
                   initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
