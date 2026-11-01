@@ -3,7 +3,7 @@
 Webová aplikace pro větvený gamebook, který hraje několik týmů naráz a postupuje se v něm skenováním QR kódů na fyzických místech.
 
 - `/`: hráčská část. Tým se přihlásí QR kódem, čte uzly příběhu, volí a skenuje kódy na místech.
-- `/admin`: část pro tvůrce (heslo). Graf příběhu, nastavení týmů a míst, průběh hry a tisk QR kódů.
+- `/admin`: část pro tvůrce (heslo). Graf příběhu, nastavení týmů a míst, průběh hry a QR kódy ke stažení (SVG, PDF na A4 a A5).
 
 ## Vývoj
 

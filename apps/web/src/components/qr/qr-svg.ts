@@ -18,10 +18,15 @@ export interface QrGeometry {
 /** Level-H code geometry shared by the React component and the standalone SVG export. */
 export const qrGeometry = (value: string, logoScale = DEFAULT_LOGO_SCALE): QrGeometry => {
   const { modules } = QRCode.create(value, { errorCorrectionLevel: 'H' });
+  // Horizontal runs of dark modules: fewer path segments and no seams between neighbours.
   let path = '';
   for (let row = 0; row < modules.size; row++) {
     for (let col = 0; col < modules.size; col++) {
-      if (modules.get(row, col)) path += `M${col + MARGIN} ${row + MARGIN}h1v1h-1z`;
+      if (!modules.get(row, col)) continue;
+      const start = col;
+      while (col + 1 < modules.size && modules.get(row, col + 1)) col++;
+      const run = col - start + 1;
+      path += `M${start + MARGIN} ${row + MARGIN}h${run}v1h-${run}z`;
     }
   }
   const size = modules.size + MARGIN * 2;

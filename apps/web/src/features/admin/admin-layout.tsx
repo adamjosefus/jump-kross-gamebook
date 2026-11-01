@@ -58,7 +58,7 @@ export const AdminLayout = () => {
 
   return (
     <div className='flex h-dvh flex-col'>
-      <header className='flex items-center gap-1 border-b px-4 py-2 print:hidden'>
+      <header className='flex items-center gap-1 border-b px-4 py-2'>
         <span className='mr-4 font-semibold'>Gamebook</span>
         <nav className='flex gap-1'>
           {NAV.map((item) => (
