@@ -4,6 +4,17 @@ type State = { gold: number; hatColor: 'red' | 'blue' | 'green' };
 
 /** Small story covering QR choices, conditional blocks and choices, and both kinds of end. */
 export const SAMPLE = defineStory<State>()({
+  teams: { 1: 'Vlci', 2: 'Lišky' },
+  intro: [
+    {
+      theme: 'intro',
+      content: `
+      # Hra
+
+      Naskenujte kód svého týmu.
+    `,
+    },
+  ],
   locations: { 32: 'Místo 32', 33: 'Místo 33' },
   nodes: {
     A1: {

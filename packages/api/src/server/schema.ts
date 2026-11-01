@@ -1,15 +1,18 @@
 /** Idempotent schema, applied on the first request of every server instance. */
 export const SCHEMA = `
 create table if not exists team (
-  id serial primary key,
-  name text not null,
-  start_node text not null,
+  id int primary key,
   node text,
   state jsonb not null default '{}',
   step int not null default 0,
   finished_at timestamptz,
   updated_at timestamptz not null default now()
 );
+
+-- Teams used to be created in the admin with a name and a start; now both come from the story.
+alter table team drop column if exists name;
+alter table team drop column if exists start_node;
+alter table team alter column id drop default;
 
 create table if not exists step_log (
   id bigserial primary key,

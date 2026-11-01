@@ -1,4 +1,4 @@
-import { availableChoices, availableScans, mergeState, screensOf } from './engine.ts';
+import { availableChoices, availableScans, introScreens, mergeState, screensOf } from './engine.ts';
 import type { Story } from './story.ts';
 import type { State } from './types.ts';
 
@@ -19,9 +19,9 @@ const show = (state: State) => JSON.stringify(state);
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
- * Mistakes the type checker cannot see. Plays every reachable (node, state) pair from every start
+ * Mistakes the type checker cannot see. Plays every reachable (node, state) pair from the start
  * and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
- * blocks that throw, bad location numbers and two QR choices for one location.
+ * blocks that throw, bad team and location numbers and two QR choices for one location.
  */
 export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOptions = {}) => {
   const problems: string[] = [];
@@ -30,7 +30,19 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
   };
 
   const starts = story.order.filter((id) => story.nodes[id]!.initialState !== undefined);
-  if (starts.length === 0) return ['Příběh nemá žádný start (uzel s initialState).'];
+  if (starts.length === 0) return ['Příběh nemá start (uzel s initialState).'];
+  if (starts.length > 1) report(`Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`);
+
+  if (story.intro.length === 0) report('Příběh nemá úvod (intro).');
+  introScreens(story).forEach((screen, index) => {
+    if (screen.content.trim() === '') report(`Úvod má prázdnou obrazovku č. ${index + 1}.`);
+  });
+
+  if (story.teams.length === 0) report('Příběh nemá žádný tým.');
+  for (const { id, name } of story.teams) {
+    if (!Number.isInteger(id) || id <= 0) report(`Tým „${name}“ má neplatné číslo ${id}.`);
+    if (name.trim() === '') report(`Tým ${id} nemá název.`);
+  }
 
   const known = new Set(story.locations.map((location) => location.id));
   for (const { id, name } of story.locations) {
@@ -73,7 +85,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
     keys.add(key);
     queue.push({ node, state });
   };
-  for (const id of starts) enqueue(id, story.nodes[id]!.initialState!);
+  enqueue(starts[0]!, story.nodes[starts[0]!]!.initialState!);
 
   for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
     if (++explored > maxStates) {
@@ -137,7 +149,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
 
   for (const id of story.order) {
     if (!visited.has(id)) {
-      report(`Uzel ${id} je nedosažitelný z žádného startu.`);
+      report(`Uzel ${id} je nedosažitelný ze startu.`);
       continue;
     }
     (story.nodes[id]!.choices ?? []).forEach((choice, index) => {

@@ -69,19 +69,26 @@ export const mergeState = (state: State, changes: Partial<State> | undefined): S
   return next;
 };
 
+const screenOf = (block: Block): RenderedScreen =>
+  typeof block === 'string'
+    ? { theme: 'default', content: dedent(block) }
+    : { theme: block.theme ?? 'default', content: dedent(block.content) };
+
 /** Every screen of the node with its content dedented. */
 export const screensOf = (node: AnyNode, state: State): RenderedScreen[] =>
-  blocksOf(node, state).map((block) =>
-    typeof block === 'string'
-      ? { theme: 'default', content: dedent(block) }
-      : { theme: block.theme ?? 'default', content: dedent(block.content) },
-  );
+  blocksOf(node, state).map(screenOf);
 
-export const startPosition = (story: Story, startNode: string): Position | undefined => {
-  const node = story.nodes[startNode];
-  return node?.initialState === undefined
-    ? undefined
-    : { node: startNode, state: node.initialState };
+/** Screens shown before login. */
+export const introScreens = (story: Story): RenderedScreen[] => story.intro.map(screenOf);
+
+/** The node every team starts at: the first one with `initialState`. */
+export const startNode = (story: Story): string | undefined =>
+  story.order.find((id) => story.nodes[id]!.initialState !== undefined);
+
+export const startPosition = (story: Story): Position | undefined => {
+  const id = startNode(story);
+  const state = id === undefined ? undefined : story.nodes[id]!.initialState;
+  return id === undefined || state === undefined ? undefined : { node: id, state };
 };
 
 const offered = <T extends AnyChoice | AnyScan>(transitions: readonly T[], state: State) =>

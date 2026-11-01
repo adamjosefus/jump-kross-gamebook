@@ -13,92 +13,85 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { NodeScreens } from '@/features/player/node-screens';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
-
-import { startNodes, useStoryGraph } from './queries';
 
 type Move = { readonly choice: number } | { readonly scan: number } | { readonly code: string };
 
 /** One visited node and how the run got there; the first step has no `via`. */
 interface Step extends PlaytestView {
   readonly via?: string;
+  /** The intro before login; it has no position yet. */
+  readonly intro?: true;
 }
 
 /**
- * Plays the story from a chosen start as a team would, without a team: nothing is stored, the
- * page keeps the path and sends the position with every move. QR codes are scanned like in the
- * game, or skipped from the toolbar by picking the place the team would scan.
+ * Plays the story as a team would, without a team: nothing is stored, the page keeps the path and
+ * sends the position with every move. It begins with the intro and the login scan; QR codes are
+ * scanned like in the game, or skipped from the toolbar.
  */
 export const PlaytestPage = () => {
-  const graph = useStoryGraph();
-  const starts = startNodes(graph.data);
-  const [chosen, setChosen] = useState<string>();
-  const start = chosen ?? starts[0];
-  // Steps after the start; the start itself is a query, so it loads with the page.
-  const [moves, setMoves] = useState<readonly Step[]>([]);
-
-  const begin = useQuery({
-    queryKey: ['admin', 'playtest', start],
-    queryFn: () => api((client) => client.admin.playtest({ payload: { node: start! } })),
-    enabled: start !== undefined,
+  const intro = useQuery({
+    queryKey: ['player', 'intro'],
+    queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
     // The story changes only with a deploy.
     staleTime: Infinity,
   });
-  const path: readonly Step[] = begin.data === undefined ? [] : [begin.data, ...moves];
+  // Steps after the intro.
+  const [moves, setMoves] = useState<readonly Step[]>([]);
+
+  const path: readonly Step[] =
+    intro.data === undefined
+      ? []
+      : [
+          {
+            intro: true,
+            node: 'Úvod',
+            state: {},
+            view: {
+              id: 'intro',
+              type: 'passage',
+              screens: intro.data.screens,
+              choices: [],
+              scan: true,
+              scans: [],
+            },
+          },
+          ...moves,
+        ];
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
 
   const play = useMutation({
-    mutationFn: ({ from, move }: { from: Step; move: Move; via: string }) =>
+    mutationFn: ({ from, move }: { from: Step; move?: Move; via: string }) =>
       api((client) =>
-        client.admin.playtest({ payload: { node: from.node, state: from.state, move } }),
+        client.admin.playtest({
+          payload: {
+            ...(from.intro === true ? {} : { position: { node: from.node, state: from.state } }),
+            ...(move === undefined ? {} : { move }),
+          },
+        }),
       ),
     onSuccess: (next, { via }) => setMoves((steps) => [...steps, { ...next, via }]),
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const restart = (node: string) => {
-    setChosen(node);
-    setMoves([]);
-  };
   /** Keeps the path up to and including the step with this index. */
   const backTo = (index: number) => setMoves((steps) => steps.slice(0, index));
 
-  const take = (move: Move, via: string) => {
-    if (current !== undefined) play.mutate({ from: current, move, via });
+  const take = (move: Move | undefined, via: string) => {
+    if (current !== undefined)
+      play.mutate({ from: current, ...(move === undefined ? {} : { move }), via });
   };
 
-  if (graph.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
-  if (graph.isError) return <p className='p-8 text-destructive'>{errorMessage(graph.error)}</p>;
+  if (intro.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
+  if (intro.isError) return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
 
   return (
     <div className='flex h-full flex-col'>
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
-        <span className='flex items-center gap-2'>
-          Start
-          <Select value={start ?? ''} onValueChange={restart}>
-            <SelectTrigger size='sm' className='font-mono'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {starts.map((id) => (
-                <SelectItem key={id} value={id} className='font-mono'>
-                  {id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </span>
-        {(play.isPending || begin.isFetching) && <Loader2 className='size-4 animate-spin' />}
+        {play.isPending && <Loader2 className='size-4 animate-spin' />}
         <span>Test se nikam neukládá.</span>
       </div>
 
@@ -106,7 +99,6 @@ export const PlaytestPage = () => {
         <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
           {/* Exactly what the players see; test tools are in the toolbar under it. */}
           <div className='flex h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] flex-col overflow-auto rounded-[2rem] border-4 bg-background p-5 shadow-sm'>
-            {begin.isError && <p className='text-destructive'>{errorMessage(begin.error)}</p>}
             {current !== undefined && (
               <NodeScreens
                 node={current.view}
@@ -115,7 +107,10 @@ export const PlaytestPage = () => {
                 onCode={(code) => {
                   const id = parseQr(code)?.id;
                   const name = scans.find((location) => location.id === id)?.name;
-                  take({ code }, `QR ${name ?? code}`);
+                  take(
+                    { code },
+                    current.intro === true ? `Kód týmu ${code}` : `QR ${name ?? code}`,
+                  );
                 }}
                 onPick={(choice) => take({ choice: choice.index }, choice.label)}
               />
@@ -133,44 +128,55 @@ export const PlaytestPage = () => {
             <Button
               variant='ghost'
               size='sm'
-              disabled={start === undefined || play.isPending}
-              onClick={() => start !== undefined && restart(start)}
+              disabled={moves.length === 0 || play.isPending}
+              onClick={() => setMoves([])}
             >
               <RotateCcw /> Znovu
             </Button>
             <span className='flex-1' />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
-                  title={
-                    current?.view.scan === true && scans.length === 0
-                      ? 'V tomto stavu nevede žádný QR kód dál.'
-                      : undefined
-                  }
-                >
-                  <SkipForward /> Přeskočit sken <ChevronDown />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
-                {scans.map((location) => (
-                  <DropdownMenuItem
-                    key={location.id}
-                    onSelect={() => take({ scan: location.id }, `${location.name} (přeskočeno)`)}
+            {current?.intro === true ? (
+              <Button
+                variant='ghost'
+                size='sm'
+                disabled={play.isPending}
+                onClick={() => take(undefined, 'Přihlášení přeskočeno')}
+              >
+                <SkipForward /> Přeskočit přihlášení
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
+                    title={
+                      current?.view.scan === true && scans.length === 0
+                        ? 'V tomto stavu nevede žádný QR kód dál.'
+                        : undefined
+                    }
                   >
-                    <QrCode /> {location.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <SkipForward /> Přeskočit sken <ChevronDown />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
+                  {scans.map((location) => (
+                    <DropdownMenuItem
+                      key={location.id}
+                      onSelect={() => take({ scan: location.id }, `${location.name} (přeskočeno)`)}
+                    >
+                      <QrCode /> {location.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
         <div className='flex min-w-0 flex-1 flex-col gap-6 text-sm'>
-          {current !== undefined && (
+          {current !== undefined && current.intro !== true && (
             <section className='flex flex-col gap-2'>
               <h2 className='font-medium'>Stav</h2>
               <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>

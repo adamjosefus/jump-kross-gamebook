@@ -47,7 +47,7 @@ export interface ScanChoice<S, K extends string, L extends number = number> exte
 }
 
 interface NodeBase<S> {
-  /** Makes the node a start; teams starting here begin with this state. */
+  /** Makes the node the start, where every team begins with this state; a story has one. */
   readonly initialState?: S;
   /** Evaluated once per render; the state does not change while a node is shown. */
   readonly blocks: readonly MaybeBlock[] | StateFn<S, readonly MaybeBlock[]>;
@@ -73,17 +73,34 @@ export interface Location {
   readonly name: string;
 }
 
+/** A team playing the game; its login QR code carries the id. */
+export interface Team {
+  readonly id: number;
+  readonly name: string;
+}
+
 export interface Story {
+  /** Teams, by id; the list is fixed for the game. */
+  readonly teams: readonly Team[];
   /** Places with QR codes, by id. */
   readonly locations: readonly Location[];
+  /** Screens anyone sees before scanning a team's login code; the same for every team. */
+  readonly intro: readonly Block[];
   /** Node ids in definition order. */
   readonly order: readonly string[];
   readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
 }
 
 export interface StoryDefinition<S, K extends string, L extends number> {
+  /** Teams: number → name. Each team gets a login QR code with its number. */
+  readonly teams: Readonly<Record<number, string>>;
   /** Places with QR codes: number → name. Only these numbers can appear in `scans`. */
   readonly locations: Readonly<Record<L, string>>;
+  /**
+   * Screens shown before login, without any team or state: the story and the rules. After them
+   * the player scans the team's code; a team that has not started yet begins at the start node.
+   */
+  readonly intro: readonly Block[];
   readonly nodes: Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>;
 }
 
@@ -95,7 +112,9 @@ export interface StoryDefinition<S, K extends string, L extends number> {
  *
  * ```ts
  * defineStory<{ gold: number }>()({
+ *   teams: { 1: 'Vlci', 2: 'Lišky' },
  *   locations: { 1: 'Studna' },
+ *   intro: ['# Hra\n\nNaskenujte kód svého týmu.'],
  *   nodes: {
  *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'B' }] },
  *     B: { end: true, blocks: ['Konec'] },
@@ -106,15 +125,22 @@ export interface StoryDefinition<S, K extends string, L extends number> {
 export const defineStory =
   <S extends State>() =>
   <K extends string, L extends number = never>({
+    teams,
     locations,
+    intro,
     nodes,
   }: StoryDefinition<S, K, L>): Story => ({
-    locations: Object.entries<string>(locations)
-      .map(([id, name]) => ({ id: Number(id), name }))
-      .toSorted((a, b) => a.id - b.id),
+    teams: byId(teams),
+    locations: byId(locations),
+    intro,
     order: Object.keys(nodes),
     nodes,
   });
+
+const byId = (names: Readonly<Record<number, string>>) =>
+  Object.entries<string>(names)
+    .map(([id, name]) => ({ id: Number(id), name }))
+    .toSorted((a, b) => a.id - b.id);
 
 /** Strips the indentation common to all lines, so content can be indented with the code. */
 export const dedent = (text: string): string => {

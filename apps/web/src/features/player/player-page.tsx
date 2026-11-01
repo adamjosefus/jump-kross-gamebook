@@ -1,7 +1,7 @@
 import type { PlayerView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Loader2, QrCode } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -15,11 +15,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { api, errorMessage, isApiError } from '@/lib/api';
 
 import { NodeScreens } from './node-screens';
-import { ScanPrompt } from './qr-scanner';
 
 const STATE_KEY = ['player', 'state'] as const;
 
@@ -101,7 +99,7 @@ export const PlayerPage = () => {
   return (
     <main className='mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]'>
       {view == null ? (
-        <Welcome onCode={onCode} busy={busy} />
+        <Intro onCode={onCode} busy={busy} />
       ) : (
         <>
           <header className='flex items-center justify-between text-sm text-muted-foreground'>
@@ -159,39 +157,34 @@ const Centered = ({ children }: { children: React.ReactNode }) => (
 );
 
 /**
- * Before login: a greeting, then — like the next block of a node — the screen that scans the
- * team's login code.
+ * Before login: the story's intro, the same for every team, and after it the scanner like at the
+ * end of any node. Scanning a team's code logs the device in.
  */
-const Welcome = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => {
-  const [scanning, setScanning] = useState(false);
-  return scanning ? (
-    <article className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2'>
-      <Button
-        variant='ghost'
-        size='sm'
-        className='-mt-2 -ml-3 self-start text-muted-foreground'
-        onClick={() => setScanning(false)}
-      >
-        <ChevronLeft /> Zpět
-      </Button>
-      <ScanPrompt
-        hint='Namiřte fotoaparát na přihlašovací QR kód svého týmu.'
-        onCode={onCode}
-        busy={busy}
-      />
-    </article>
-  ) : (
-    <Centered>
-      <div className='flex max-w-xs flex-col items-center gap-6 text-center'>
-        <QrCode className='size-12' strokeWidth={1.5} />
-        <div className='flex flex-col gap-2'>
-          <h1 className='text-2xl font-semibold'>Vítejte ve hře</h1>
-          <p className='text-muted-foreground'>Naskenujte přihlašovací QR kód svého týmu.</p>
-        </div>
-        <Button size='lg' className='h-14 w-full text-base' onClick={() => setScanning(true)}>
-          Další <ChevronRight />
-        </Button>
-      </div>
-    </Centered>
+const Intro = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => {
+  const intro = useQuery({
+    queryKey: ['player', 'intro'],
+    queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
+    staleTime: Infinity,
+  });
+  if (intro.isPending)
+    return (
+      <Centered>
+        <Loader2 className='size-6 animate-spin' />
+      </Centered>
+    );
+  if (intro.isError)
+    return (
+      <Centered>
+        <p className='text-center text-destructive'>{errorMessage(intro.error)}</p>
+      </Centered>
+    );
+  return (
+    <NodeScreens
+      node={{ id: 'intro', type: 'passage', screens: intro.data.screens, choices: [], scan: true }}
+      step={0}
+      busy={busy}
+      onCode={onCode}
+      onPick={() => {}}
+    />
   );
 };

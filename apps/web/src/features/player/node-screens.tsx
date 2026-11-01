@@ -88,9 +88,7 @@ export const NodeScreens = ({
           <ChevronLeft /> Zpět
         </Button>
       )}
-      {scanning && (
-        <ScanPrompt hint='Namiřte fotoaparát na QR kód na místě.' onCode={onCode} busy={busy} />
-      )}
+      {scanning && <ScanPrompt onCode={onCode} busy={busy} />}
       {screen !== undefined && (
         <div
           className={cn(

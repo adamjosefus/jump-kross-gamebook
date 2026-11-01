@@ -1,5 +1,5 @@
 import type { GameGraph } from '@gamebook/core';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
 
@@ -17,18 +17,11 @@ export const useOverview = (refetchInterval: number | false = false) =>
     refetchInterval,
   });
 
-/** Shape of the story, with previews seen from `start` (the first start when omitted). */
-export const useStoryGraph = (start?: string) =>
+/** Shape of the story, with previews seen from the start. */
+export const useStoryGraph = () =>
   useQuery({
-    queryKey: [...adminKeys.story, start ?? ''],
-    queryFn: ({ signal }): Promise<GameGraph> =>
-      api((client) => client.admin.story({ query: start === undefined ? {} : { start } }), {
-        signal,
-      }),
+    queryKey: adminKeys.story,
+    queryFn: ({ signal }): Promise<GameGraph> => api((client) => client.admin.story(), { signal }),
     // The story changes only with a deploy.
     staleTime: Infinity,
-    placeholderData: keepPreviousData,
   });
-
-export const startNodes = (graph: GameGraph | undefined): string[] =>
-  graph === undefined ? [] : graph.order.filter((id) => graph.nodes[id]!.type === 'start');

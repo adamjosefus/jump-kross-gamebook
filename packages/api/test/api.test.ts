@@ -52,15 +52,26 @@ describe('api', () => {
     expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
     expect(graph).toMatchObject({ start: 'A1', nodes: { A1: { type: 'start', reached: true } } });
     expect(graph.nodes.B1.preview.content).toContain('chudou pokrývku hlavy');
-    expect((await admin('GET', '/api/admin/story?start=A1')).body).toEqual(graph);
+  });
+
+  it('shows the intro to anyone', async () => {
+    expect((await device()('GET', '/api/player/intro')).body).toEqual({
+      screens: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
+    });
   });
 
   it('plays a test run without storing anything', async () => {
     const play = (body: unknown) => admin('POST', '/api/admin/playtest', body);
-    const start = (await play({ node: 'A1' })).body;
+    const at = (step: { node: string; state: unknown }) => ({ node: step.node, state: step.state });
+    // From the intro a team's login code (or skipping it) leads to the start.
+    const start = (await play({})).body;
     expect(start).toMatchObject({ node: 'A1', state: { gold: 100 }, view: { choices: [{}, {}] } });
+    const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    expect((await play({ move: { code: lisky } })).body).toEqual(start);
+    const place = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    expect((await play({ move: { code: place } })).body._tag).toBe('InvalidCode');
 
-    const a2 = (await play({ node: 'A1', state: start.state, move: { choice: 1 } })).body;
+    const a2 = (await play({ position: at(start), move: { choice: 1 } })).body;
     // The test run names the places, so the admin can skip the QR code.
     expect(a2).toMatchObject({
       node: 'A2',
@@ -68,28 +79,29 @@ describe('api', () => {
       view: { scan: true, scans: [{ id: 32, name: 'Místo 32' }, { id: 33 }] },
     });
     // A real code works too and is checked like in the game.
-    const code = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
-    expect((await play({ node: 'A2', state: a2.state, move: { code } })).body.node).toBe('B1');
-    expect(
-      (await play({ node: 'A2', state: a2.state, move: { code: 'L-32-AAAA' } })).body._tag,
-    ).toBe('InvalidCode');
-    const b1 = (await play({ node: 'A2', state: a2.state, move: { scan: 33 } })).body;
+    expect((await play({ position: at(a2), move: { code: place } })).body.node).toBe('B1');
+    expect((await play({ position: at(a2), move: { code: 'L-32-AAAA' } })).body._tag).toBe(
+      'InvalidCode',
+    );
+    const b1 = (await play({ position: at(a2), move: { scan: 33 } })).body;
     expect(b1).toMatchObject({ node: 'B1', state: { gold: 130 } });
     expect(b1.view.choices.map((c: { label: string }) => c.label)).toEqual([
       'Bojovat',
       'Koupit meč',
     ]);
 
-    expect((await play({ node: 'B1', state: b1.state, move: { scan: 32 } })).body.reason).toBe(
-      'no-scan',
-    );
-    expect((await play({ node: 'B1' })).status).toBe(404);
+    expect((await play({ position: at(b1), move: { scan: 32 } })).body.reason).toBe('no-scan');
     expect((await admin('GET', '/api/admin/overview')).body.log).toEqual([]);
   });
 
   it('plays a game end to end', async () => {
-    const team = (await admin('POST', '/api/admin/teams', { name: 'Vlci', startNode: 'A1' })).body;
-    expect(team).toMatchObject({ id: 1, name: 'Vlci', step: 0 });
+    // Teams come from the story; one that never logged in has not started.
+    const before = (await admin('GET', '/api/admin/overview')).body.teams;
+    expect(before).toMatchObject([
+      { id: 1, name: 'Vlci', step: 0 },
+      { id: 2, name: 'Lišky', step: 0 },
+    ]);
+    expect(before[0].node).toBeUndefined();
 
     const codes: { kind: string; id: number; code: string }[] = (
       await admin('GET', '/api/admin/codes')
@@ -98,6 +110,8 @@ describe('api', () => {
     const studna = codes.find((c) => c.kind === 'L' && c.id === 32)!.code;
     // Places come from the story; a valid code of a place it does not have is refused.
     expect(codes.filter((c) => c.kind === 'L').map((c) => c.id)).toEqual([32, 33]);
+    expect(codes.filter((c) => c.kind === 'T').map((c) => c.id)).toEqual([1, 2]);
+    const gone = await encodeQr(config.qrSecret, { kind: 'T', id: 3 });
     const sklep = await encodeQr(config.qrSecret, { kind: 'L', id: 34 });
     expect(studna).toBe(await encodeQr(config.qrSecret, { kind: 'L', id: 32 }));
 
@@ -106,6 +120,9 @@ describe('api', () => {
     expect((await phone('GET', '/api/player/state')).status).toBe(401);
     expect((await phone('POST', '/api/player/login', { code: studna })).status).toBe(400);
     expect((await phone('POST', '/api/player/login', { code: 'T-1-AAAA' })).status).toBe(400);
+    expect((await phone('POST', '/api/player/login', { code: gone })).body.message).toBe(
+      'Tento tým už ve hře není.',
+    );
 
     const start = await phone('POST', '/api/player/login', { code: login });
     expect(start.status).toBe(200);
@@ -174,9 +191,18 @@ describe('api', () => {
     ]);
   });
 
-  it('resets a team to its start', async () => {
+  it('resets a team to the start', async () => {
     const reset = (await admin('POST', '/api/admin/teams/1/reset')).body;
     expect(reset).toMatchObject({ node: 'A1', finished: false, state: { gold: 100 } });
     expect((await admin('GET', '/api/admin/overview')).body.teams[0].node).toBe('A1');
+    expect((await admin('POST', '/api/admin/teams/3/reset')).status).toBe(404);
+  });
+
+  it('resets every team for a new game', async () => {
+    const teams = (await admin('POST', '/api/admin/teams/reset')).body;
+    expect(teams).toMatchObject([
+      { id: 1, node: 'A1', state: { gold: 100 } },
+      { id: 2, node: 'A1', state: { gold: 100 } },
+    ]);
   });
 });

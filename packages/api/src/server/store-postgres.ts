@@ -18,8 +18,6 @@ const timestamp = (value: unknown) => new Date(decodeTimestamp(value));
 
 const toTeam = (row: Row): TeamRow => ({
   id: Number(row['id']),
-  name: text(row['name']),
-  startNode: text(row['start_node']),
   node: optionalText(row['node']),
   state: decodeState(row['state']),
   step: Number(row['step']),
@@ -67,22 +65,15 @@ export const makePostgresStore = (url: string) => {
         const [row] = await sql`select * from team where id = ${id}`;
         return row === undefined ? undefined : toTeam(row);
       }),
-    createTeam: (name, startNode) =>
-      query(async () =>
-        toTeam(
-          (
-            await sql`insert into team (name, start_node) values (${name}, ${startNode}) returning *`
-          )[0]!,
-        ),
-      ),
-    updateTeam: (id, name, startNode) =>
+    ensureTeam: (id) =>
       query(async () => {
-        const [row] =
-          await sql`update team set name = ${name}, start_node = ${startNode} where id = ${id} returning *`;
-        return row === undefined ? undefined : toTeam(row);
+        // The no-op update makes `returning` yield the row when it already exists.
+        const [row] = await sql`
+          insert into team (id) values (${id})
+          on conflict (id) do update set id = excluded.id
+          returning *`;
+        return toTeam(row!);
       }),
-    deleteTeam: (id) =>
-      query(async () => (await sql`delete from team where id = ${id} returning id`).length > 0),
     moveTeam: (id, expectedStep, move) =>
       query(async () => {
         // CTEs see the table as it was before the update, so `previous` holds the old node.

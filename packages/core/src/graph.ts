@@ -1,4 +1,4 @@
-import { mergeState, nodeType, screensOf } from './engine.ts';
+import { mergeState, nodeType, screensOf, startNode } from './engine.ts';
 import type { Story, StoryNode } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
@@ -15,7 +15,7 @@ export interface GraphChoice {
 }
 
 export interface NodePreview {
-  /** State the team has on arrival, along the first path from the chosen start. */
+  /** State the team has on arrival, along the first path from the start. */
   readonly state?: State;
   /** First screen, markdown. */
   readonly content: string;
@@ -27,18 +27,18 @@ export interface GraphNode {
   readonly type: NodeType;
   /** `blocks` is a function of the state. */
   readonly dynamic: boolean;
-  /** Reachable from the chosen start. */
+  /** Reachable from the start. */
   readonly reached: boolean;
-  /** Missing for dynamic nodes the chosen start never reaches, or when the blocks throw. */
+  /** Missing for dynamic nodes the start never reaches, or when the blocks throw. */
   readonly preview?: NodePreview;
   readonly choices: readonly GraphChoice[];
 }
 
-/** The shape of a story seen from one start: serializable, for the admin. */
+/** The shape of a story: serializable, for the admin. */
 export interface GameGraph {
   /** Node ids in definition order. */
   readonly order: readonly string[];
-  /** The start the previews were computed from. */
+  /** The node every team starts at; the previews are computed from it. */
   readonly start?: string;
   readonly nodes: Readonly<Record<string, GraphNode>>;
 }
@@ -88,12 +88,9 @@ const previewOf = (node: AnyNode, state: State | undefined): NodePreview | undef
   }
 };
 
-/** Graph with previews computed from `start` (the first start when omitted). */
-export const toGraph = (story: Story, start?: string): GameGraph => {
-  const from =
-    start !== undefined && story.nodes[start]?.initialState !== undefined
-      ? start
-      : story.order.find((id) => story.nodes[id]!.initialState !== undefined);
+/** Graph with previews computed from the start. */
+export const toGraph = (story: Story): GameGraph => {
+  const from = startNode(story);
   const states = from === undefined ? new Map<string, State>() : arrivalStates(story, from);
   return {
     order: story.order,
@@ -128,7 +125,7 @@ export const toGraph = (story: Story, start?: string): GameGraph => {
 /** Structural mistakes the type checker cannot see. */
 export const graphProblems = (graph: GameGraph): string[] => {
   const starts = graph.order.filter((id) => graph.nodes[id]!.type === 'start');
-  if (starts.length === 0) return ['Příběh nemá žádný start (uzel s initialState).'];
+  if (starts.length === 0) return ['Příběh nemá start (uzel s initialState).'];
   const reached = new Set(starts);
   const queue = [...starts];
   for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
@@ -139,13 +136,16 @@ export const graphProblems = (graph: GameGraph): string[] => {
     }
   }
   return [
+    ...(starts.length > 1
+      ? [`Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`]
+      : []),
     ...graph.order.flatMap((id) =>
       graph.nodes[id]!.choices.flatMap(({ target }) =>
         Object.hasOwn(graph.nodes, target) ? [] : [`Uzel ${id} vede na neexistující ${target}.`],
       ),
     ),
     ...graph.order.flatMap((id) =>
-      reached.has(id) ? [] : [`Uzel ${id} je nedosažitelný z žádného startu.`],
+      reached.has(id) ? [] : [`Uzel ${id} je nedosažitelný ze startu.`],
     ),
   ];
 };

@@ -5,10 +5,9 @@ export class StoreError extends Schema.TaggedError<StoreError>()('StoreError', {
   message: Schema.String,
 }) {}
 
+/** Progress of a team; its name comes from the story. */
 export interface TeamRow {
   readonly id: number;
-  readonly name: string;
-  readonly startNode: string;
   /** Undefined until the team starts (or after a reset). */
   readonly node: string | undefined;
   readonly state: State;
@@ -40,13 +39,8 @@ export interface TeamMove {
 export interface StoreShape {
   readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>;
   readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>;
-  readonly createTeam: (name: string, startNode: string) => Effect.Effect<TeamRow, StoreError>;
-  readonly updateTeam: (
-    id: number,
-    name: string,
-    startNode: string,
-  ) => Effect.Effect<TeamRow | undefined, StoreError>;
-  readonly deleteTeam: (id: number) => Effect.Effect<boolean, StoreError>;
+  /** The team's row, created (not started) the first time the team is needed. */
+  readonly ensureTeam: (id: number) => Effect.Effect<TeamRow, StoreError>;
   /** Returns the updated team, or undefined when the step did not match. */
   readonly moveTeam: (
     id: number,

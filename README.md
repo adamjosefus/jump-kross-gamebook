@@ -30,18 +30,24 @@ Data v paměti zmizí s restartem dev serveru. Pro práci s databází nastavte 
 
 ## Příběh
 
-Příběh je kód v [packages/story/src/story.ts](packages/story/src/story.ts) a mění se s deployem. Patří k němu i místa s QR kódy, admin z nich tiskne kódy. Překlep v `goto`, neznámé místo ve `scans`, špatný typ stavu nebo neznámé `theme` jsou chyby kompilace. Co typy nevidí (nedosažitelné uzly, nepoužité volby a místa, prázdný obsah), hlídá test `validateStory`.
+Příběh je kód v [packages/story/src/story.ts](packages/story/src/story.ts) a mění se s deployem. Patří k němu i týmy a místa s QR kódy, admin z nich tiskne kódy. Překlep v `goto`, neznámé místo ve `scans`, špatný typ stavu nebo neznámé `theme` jsou chyby kompilace. Co typy nevidí (nedosažitelné uzly, víc startů, nepoužité volby a místa, prázdný obsah), hlídá test `validateStory`.
+
+Hra začíná úvodem (`intro`), který vidí kdokoli bez přihlášení. Na jeho konci hráč naskenuje kód svého týmu. Tým, kterému hra ještě nezačala, začne na startu (jediný uzel s `initialState`) s výchozím stavem. Jinak se telefon přenese tam, kde tým právě je, takže všechny telefony týmu ukazují totéž.
 
 ```ts
 type State = { gold: number; hatColor: 'red' | 'blue' };
 
 export const story = defineStory<State>()({
+  // Týmy: číslo → název. Každý tým má přihlašovací QR kód se svým číslem.
+  teams: { 1: 'Vlci', 2: 'Lišky' },
   // Místa s QR kódy: číslo → název. Ve `scans` smí být jen tato čísla.
   locations: { 32: 'Studna na nádvoří', 33: 'Brána' },
+  // Úvod před přihlášením, pro všechny stejný. Po něm se skenuje kód týmu.
+  intro: [{ theme: 'intro', content: '# Ztracený rukopis' }, 'Pravidla hry…'],
   nodes: {
-    INTRO: {
-      initialState: { gold: 100, hatColor: 'red' }, // uzel s initialState je startovní
-      blocks: [{ theme: 'intro', content: '# Ztracený rukopis' }],
+    START: {
+      initialState: { gold: 100, hatColor: 'red' }, // jediný start, tady začíná každý tým
+      blocks: ['Stojíte před branou kláštera.'],
       choices: [{ label: 'Začít', goto: 'A1' }],
     },
     A1: {

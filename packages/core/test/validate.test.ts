@@ -12,12 +12,44 @@ describe('validateStory', () => {
 
   it('requires a start', () => {
     expect(
-      validateStory(define({ locations: {}, nodes: { A: { end: true, blocks: ['A'] } } })),
-    ).toEqual(['Příběh nemá žádný start (uzel s initialState).']);
+      validateStory(
+        define({
+          teams: { 1: 'Tým' },
+          intro: ['Úvod'],
+          locations: {},
+          nodes: { A: { end: true, blocks: ['A'] } },
+        }),
+      ),
+    ).toEqual(['Příběh nemá start (uzel s initialState).']);
+  });
+
+  it('requires one start, an intro and teams', () => {
+    const story = define({
+      teams: { 0: ' ' },
+      intro: ['Vítejte', '  '],
+      locations: {},
+      nodes: {
+        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
+        B: { initialState: { n: 1 }, blocks: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { end: true, blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Příběh má víc startů (A, B), smí mít jen jeden.',
+      'Úvod má prázdnou obrazovku č. 2.',
+      'Tým „ “ má neplatné číslo 0.',
+      'Tým 0 nemá název.',
+      'Uzel B je nedosažitelný ze startu.',
+    ]);
+    expect(validateStory({ ...story, intro: [], teams: [] })).toEqual(
+      expect.arrayContaining(['Příběh nemá úvod (intro).', 'Příběh nemá žádný tým.']),
+    );
   });
 
   it('reports unreachable nodes and choices nobody can take', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
@@ -35,13 +67,15 @@ describe('validateStory', () => {
     });
     expect(validateStory(story)).toEqual([
       'Volba „Nikdy“ v uzlu A není dostupná v žádném dosažitelném stavu.',
-      'Uzel C je nedosažitelný z žádného startu.',
-      'Uzel D je nedosažitelný z žádného startu.',
+      'Uzel C je nedosažitelný ze startu.',
+      'Uzel D je nedosažitelný ze startu.',
     ]);
   });
 
   it('follows the state, so a choice used on one path is not unused', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
@@ -67,6 +101,8 @@ describe('validateStory', () => {
 
   it('reports dead ends in a reachable state', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
@@ -84,12 +120,14 @@ describe('validateStory', () => {
       'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná.',
       'Volba „Jen s jedničkou“ v uzlu A není dostupná v žádném dosažitelném stavu.',
       'Volba „Jindy“ v uzlu A není dostupná v žádném dosažitelném stavu.',
-      'Uzel B je nedosažitelný z žádného startu.',
+      'Uzel B je nedosažitelný ze startu.',
     ]);
   });
 
   it('reports empty content, labels and duplicate choices', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
@@ -116,6 +154,8 @@ describe('validateStory', () => {
 
   it('reports bad locations, two QR choices for one location and blocks that throw', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: { 0: 'Místo 0', 3: 'Místo 3' },
       nodes: {
         A: {
@@ -145,7 +185,9 @@ describe('validateStory', () => {
 
   it('reports a goto to a missing node in an untyped story', () => {
     const story: Story = {
+      teams: [{ id: 1, name: 'Tým' }],
       locations: [{ id: 1, name: 'Studna' }],
+      intro: ['Úvod'],
       order: ['A'],
       nodes: {
         A: { initialState: {}, blocks: ['A'], scans: [{ location: 2, goto: 'A' }] },
@@ -163,6 +205,8 @@ describe('validateStory', () => {
 
   it('stops exploring endless state spaces', () => {
     const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
       locations: {},
       nodes: {
         A: {
