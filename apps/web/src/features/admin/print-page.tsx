@@ -1,120 +1,42 @@
 import type { PrintableCode } from '@gamebook/api';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Copy, Download, FileImage, FileText, Loader2, Rotate3d } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import logo from '@/assets/qr-logo.svg';
 import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
-import type { PaperFormat } from '@/components/qr/qr-pdf';
-import { qrCodeSvg, toDataUrl } from '@/components/qr/qr-svg';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { api, errorMessage } from '@/lib/api';
 
-import { fileName, saveBlob } from './download';
+import { ExportDialog } from './export-dialog';
 import { adminKeys } from './queries';
-import { WarpDialog } from './warp-dialog';
 
-/**
- * Puts the SVG on the clipboard both as an image (pastes into design tools that accept it) and as
- * text (pastes into Figma, Illustrator or a code editor).
- */
-const copySvg = async (svg: string) => {
-  const text = new Blob([svg], { type: 'text/plain' });
-  const image = new Blob([svg], { type: 'image/svg+xml' });
-  if (typeof ClipboardItem !== 'undefined' && ClipboardItem.supports?.('image/svg+xml')) {
-    await navigator.clipboard.write([
-      new ClipboardItem({ 'text/plain': text, 'image/svg+xml': image }),
-    ]);
-  } else {
-    await navigator.clipboard.writeText(svg);
-  }
-};
-
-const CopySvgButton = ({ entry }: { entry: PrintableCode }) => {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await copySvg(qrCodeSvg(entry.code, await toDataUrl(logo)));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      toast.error('Kopírování se nepovedlo. Povolte prohlížeči přístup ke schránce.');
-    }
-  };
+/** A card with a download button in its top right corner, opening every export option. */
+const CodeCard = ({ entry }: { entry: PrintableCode }) => {
+  const [open, setOpen] = useState(false);
   return (
-    <Button variant='outline' size='sm' onClick={() => void copy()}>
-      {copied ? <Check /> : <Copy />} {copied ? 'Zkopírováno' : 'Kopírovat SVG'}
-    </Button>
+    <div className='relative'>
+      {entry.kind === 'T' ? (
+        <TeamLoginQr value={entry.code} teamName={entry.label} logo={logo} />
+      ) : (
+        <ProgressQr value={entry.code} locationName={entry.label} logo={logo} />
+      )}
+      <Button
+        variant='outline'
+        size='icon'
+        title='Stáhnout'
+        aria-label={`Stáhnout ${entry.label}`}
+        onClick={() => setOpen(true)}
+        className='absolute top-3 right-3 border-black/20 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/20 dark:bg-white dark:hover:bg-black/5'
+      >
+        <Download />
+      </Button>
+      <ExportDialog entry={entry} open={open} onOpenChange={setOpen} />
+    </div>
   );
 };
 
-const DownloadButton = ({ entry }: { entry: PrintableCode }) => {
-  const [busy, setBusy] = useState(false);
-  const [warping, setWarping] = useState(false);
-  const run = async (task: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await task();
-    } catch {
-      toast.error('Soubor se nepodařilo vytvořit.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const downloadSvg = () =>
-    run(async () => {
-      const svg = qrCodeSvg(entry.code, await toDataUrl(logo));
-      saveBlob(new Blob([svg], { type: 'image/svg+xml' }), fileName(entry, 'svg'));
-    });
-  const downloadPdf = (format: PaperFormat) =>
-    run(async () => {
-      // pdf-lib and the fonts are loaded only when someone actually asks for a PDF.
-      const { qrCardPdf } = await import('@/components/qr/qr-pdf');
-      const pdf = await qrCardPdf({
-        kind: entry.kind,
-        value: entry.code,
-        label: entry.label,
-        format,
-        logo,
-      });
-      saveBlob(pdf, fileName(entry, 'pdf', format.toLowerCase()));
-    });
-  return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant='outline' size='sm' disabled={busy}>
-            {busy ? <Loader2 className='animate-spin' /> : <Download />} Stáhnout
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent>
-          <DropdownMenuItem onSelect={() => void downloadSvg()}>
-            <FileImage /> SVG
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void downloadPdf('A4')}>
-            <FileText /> PDF na A4
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void downloadPdf('A5')}>
-            <FileText /> PDF na A5
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setWarping(true)}>
-            <Rotate3d /> Zkreslení a zrcadlení…
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <WarpDialog entry={entry} open={warping} onOpenChange={setWarping} />
-    </>
-  );
-};
-
-/** Every QR code of the game: copy or download each one (SVG, PDF on A4/A5, stretched for an angled view). */
+/** Every QR code of the game; each card's download button opens all export options. */
 export const PrintPage = () => {
   const codes = useQuery({
     queryKey: adminKeys.codes,
@@ -134,17 +56,7 @@ export const PrintPage = () => {
       </div>
       <div className='flex flex-wrap gap-4'>
         {codes.data.map((entry) => (
-          <div key={entry.code} className='flex flex-col items-center gap-2'>
-            {entry.kind === 'T' ? (
-              <TeamLoginQr value={entry.code} teamName={entry.label} logo={logo} />
-            ) : (
-              <ProgressQr value={entry.code} locationName={entry.label} logo={logo} />
-            )}
-            <div className='flex gap-2'>
-              <CopySvgButton entry={entry} />
-              <DownloadButton entry={entry} />
-            </div>
-          </div>
+          <CodeCard key={entry.code} entry={entry} />
         ))}
       </div>
     </div>

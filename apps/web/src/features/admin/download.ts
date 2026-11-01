@@ -20,3 +20,19 @@ export const saveBlob = (blob: Blob, name: string) => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
+
+/**
+ * Puts the SVG on the clipboard both as an image (pastes into design tools that accept it) and as
+ * text (pastes into Figma, Illustrator or a code editor).
+ */
+export const copySvg = async (svg: string) => {
+  const text = new Blob([svg], { type: 'text/plain' });
+  const image = new Blob([svg], { type: 'image/svg+xml' });
+  if (typeof ClipboardItem !== 'undefined' && ClipboardItem.supports?.('image/svg+xml')) {
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'text/plain': text, 'image/svg+xml': image }),
+    ]);
+  } else {
+    await navigator.clipboard.writeText(svg);
+  }
+};
