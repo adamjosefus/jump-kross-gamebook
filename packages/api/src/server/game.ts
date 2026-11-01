@@ -161,11 +161,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* commit(team, applyChoice(story, position, index), `choice:${index}`);
     });
 
-    const scan = Effect.fn('Game.scan')(function* (
-      teamId: number,
-      code: string,
-      expectedStep: number,
-    ) {
+    /** The story's location a scanned code belongs to. */
+    const locationOf = Effect.fn('Game.locationOf')(function* (code: string) {
       const payload = yield* Effect.promise(() => verifyQr(config.qrSecret, code));
       if (payload === undefined) {
         yield* penalty;
@@ -176,6 +173,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const location = story.locations.find((l) => l.id === payload.id);
       if (location === undefined)
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
+      return location;
+    });
+
+    const scan = Effect.fn('Game.scan')(function* (
+      teamId: number,
+      code: string,
+      expectedStep: number,
+    ) {
+      const location = yield* locationOf(code);
       const { team, position } = yield* prepareMove(teamId, expectedStep);
       return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
     });
@@ -282,7 +288,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const playtest = Effect.fn('Game.playtest')(function* (input: {
       readonly node: string;
       readonly state?: TeamRow['state'];
-      readonly move?: { readonly choice: number } | { readonly scan: number };
+      readonly move?:
+        | { readonly choice: number }
+        | { readonly scan: number }
+        | { readonly code: string };
     }) {
       const start =
         input.state === undefined
@@ -294,7 +303,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ? { ok: true, position: start }
           : 'choice' in input.move
             ? applyChoice(story, start, input.move.choice)
-            : applyScan(story, start, input.move.scan);
+            : applyScan(
+                story,
+                start,
+                'scan' in input.move ? input.move.scan : (yield* locationOf(input.move.code)).id,
+              );
       if (!result.ok)
         return yield* new InvalidMove({
           reason: result.error,

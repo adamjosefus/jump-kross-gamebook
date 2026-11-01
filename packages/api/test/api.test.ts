@@ -67,6 +67,12 @@ describe('api', () => {
       state: { gold: 80, hatColor: 'green' },
       view: { scan: true, scans: [{ id: 32, name: 'Místo 32' }, { id: 33 }] },
     });
+    // A real code works too and is checked like in the game.
+    const code = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    expect((await play({ node: 'A2', state: a2.state, move: { code } })).body.node).toBe('B1');
+    expect(
+      (await play({ node: 'A2', state: a2.state, move: { code: 'L-32-AAAA' } })).body._tag,
+    ).toBe('InvalidCode');
     const b1 = (await play({ node: 'A2', state: a2.state, move: { scan: 33 } })).body;
     expect(b1).toMatchObject({ node: 'B1', state: { gold: 130 } });
     expect(b1.view.choices.map((c: { label: string }) => c.label)).toEqual([

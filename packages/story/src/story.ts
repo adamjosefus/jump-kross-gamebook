@@ -64,7 +64,7 @@ export const story = defineStory<State>()({
       ],
       choices: [
         {
-          label: 'Koupit mapu (20 mincí)',
+          label: 'Koupit mapu',
           goto: 'FOREST',
           when: (s) => s.coins >= 20,
           nextState: (s) => ({ coins: s.coins - 20, hasMap: true }),

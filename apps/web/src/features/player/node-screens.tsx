@@ -1,7 +1,7 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
 import { Camera, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { SlideButton } from '@/components/slide-button';
@@ -46,15 +46,12 @@ export const NodeScreens = ({
   busy,
   onScan,
   onPick,
-  scanActions,
 }: {
   node: PlayerNode;
   step: number;
   busy: boolean;
   onScan?: () => void;
   onPick: (choice: { index: number; label: string }) => void;
-  /** Replaces the scan button, e.g. with buttons that skip the QR code in a test run. */
-  scanActions?: ReactNode;
 }) => {
   const count = node.screens.length;
   const [paging, setPaging] = useState(() => freshPaging(node, step));
@@ -104,11 +101,9 @@ export const NodeScreens = ({
             Další <ChevronRight />
           </Button>
         ) : node.scan ? (
-          (scanActions ?? (
-            <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
-              <Camera /> Naskenovat QR kód
-            </Button>
-          ))
+          <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
+            <Camera /> Naskenovat QR kód
+          </Button>
         ) : node.type === 'end' ? (
           <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
             <Flag className='size-4' /> Konec hry

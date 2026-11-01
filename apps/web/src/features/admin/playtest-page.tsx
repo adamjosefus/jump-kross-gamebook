@@ -1,10 +1,18 @@
 import type { PlaytestView } from '@gamebook/api';
+import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Loader2, QrCode, RotateCcw, Undo2 } from 'lucide-react';
+import { ChevronDown, Loader2, QrCode, RotateCcw, SkipForward, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -13,12 +21,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { NodeScreens } from '@/features/player/node-screens';
+import { QrScannerDialog } from '@/features/player/qr-scanner-dialog';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { startNodes, useStoryGraph } from './queries';
 
-type Move = { readonly choice: number } | { readonly scan: number };
+type Move = { readonly choice: number } | { readonly scan: number } | { readonly code: string };
 
 /** One visited node and how the run got there; the first step has no `via`. */
 interface Step extends PlaytestView {
@@ -27,8 +36,8 @@ interface Step extends PlaytestView {
 
 /**
  * Plays the story from a chosen start as a team would, without a team: nothing is stored, the
- * page keeps the path and sends the position with every move. QR codes are skipped by picking the
- * place the team would scan.
+ * page keeps the path and sends the position with every move. QR codes are scanned like in the
+ * game, or skipped from the toolbar by picking the place the team would scan.
  */
 export const PlaytestPage = () => {
   const graph = useStoryGraph();
@@ -47,6 +56,8 @@ export const PlaytestPage = () => {
   });
   const path: readonly Step[] = begin.data === undefined ? [] : [begin.data, ...moves];
   const current = path.at(-1);
+  const scans = current?.view.scans ?? [];
+  const [scanning, setScanning] = useState(false);
 
   const play = useMutation({
     mutationFn: ({ from, move }: { from: Step; move: Move; via: string }) =>
@@ -89,57 +100,71 @@ export const PlaytestPage = () => {
             </SelectContent>
           </Select>
         </span>
-        <Button
-          variant='ghost'
-          size='sm'
-          disabled={path.length < 2 || play.isPending}
-          onClick={() => backTo(path.length - 2)}
-        >
-          <Undo2 /> Krok zpět
-        </Button>
-        <Button
-          variant='ghost'
-          size='sm'
-          disabled={start === undefined || play.isPending}
-          onClick={() => start !== undefined && restart(start)}
-        >
-          <RotateCcw /> Znovu
-        </Button>
         {(play.isPending || begin.isFetching) && <Loader2 className='size-4 animate-spin' />}
-        <span>Test se nikam neukládá, QR kódy jde přeskočit.</span>
+        <span>Test se nikam neukládá.</span>
       </div>
 
       <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-4 md:flex-row md:items-start'>
-        <div className='mx-auto flex h-[min(44rem,100%)] min-h-[32rem] w-full max-w-sm shrink-0 flex-col overflow-auto rounded-[2rem] border-4 bg-background p-5 shadow-sm md:mx-0'>
-          {begin.isError && <p className='text-destructive'>{errorMessage(begin.error)}</p>}
-          {current !== undefined && (
-            <NodeScreens
-              node={current.view}
-              step={path.length}
-              busy={play.isPending}
-              onPick={(choice) => take({ choice: choice.index }, choice.label)}
-              scanActions={
-                current.view.scans.length === 0 ? (
-                  <p className='text-center text-sm text-destructive'>
-                    V tomto stavu nevede žádný QR kód dál.
-                  </p>
-                ) : (
-                  current.view.scans.map((location) => (
-                    <Button
-                      key={location.id}
-                      size='lg'
-                      variant='outline'
-                      className='h-auto min-h-14 justify-start border-dashed py-3 text-base whitespace-normal'
-                      disabled={play.isPending}
-                      onClick={() => take({ scan: location.id }, `QR ${location.name}`)}
-                    >
-                      <QrCode /> Přeskočit sken: {location.name}
-                    </Button>
-                  ))
-                )
-              }
-            />
-          )}
+        <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
+          {/* Exactly what the players see; test tools are in the toolbar under it. */}
+          <div className='flex h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] flex-col overflow-auto rounded-[2rem] border-4 bg-background p-5 shadow-sm'>
+            {begin.isError && <p className='text-destructive'>{errorMessage(begin.error)}</p>}
+            {current !== undefined && (
+              <NodeScreens
+                node={current.view}
+                step={path.length}
+                busy={play.isPending}
+                onScan={() => setScanning(true)}
+                onPick={(choice) => take({ choice: choice.index }, choice.label)}
+              />
+            )}
+          </div>
+          <div className='flex flex-wrap items-center gap-1 rounded-xl border bg-muted/40 p-1'>
+            <Button
+              variant='ghost'
+              size='sm'
+              disabled={path.length < 2 || play.isPending}
+              onClick={() => backTo(path.length - 2)}
+            >
+              <Undo2 /> Krok zpět
+            </Button>
+            <Button
+              variant='ghost'
+              size='sm'
+              disabled={start === undefined || play.isPending}
+              onClick={() => start !== undefined && restart(start)}
+            >
+              <RotateCcw /> Znovu
+            </Button>
+            <span className='flex-1' />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
+                  title={
+                    current?.view.scan === true && scans.length === 0
+                      ? 'V tomto stavu nevede žádný QR kód dál.'
+                      : undefined
+                  }
+                >
+                  <SkipForward /> Přeskočit sken <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
+                {scans.map((location) => (
+                  <DropdownMenuItem
+                    key={location.id}
+                    onSelect={() => take({ scan: location.id }, `${location.name} (přeskočeno)`)}
+                  >
+                    <QrCode /> {location.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className='flex min-w-0 flex-1 flex-col gap-6 text-sm'>
@@ -185,6 +210,17 @@ export const PlaytestPage = () => {
           </section>
         </div>
       </div>
+
+      <QrScannerDialog
+        open={scanning}
+        onOpenChange={setScanning}
+        onCode={(code) => {
+          setScanning(false);
+          const id = parseQr(code)?.id;
+          const name = scans.find((location) => location.id === id)?.name;
+          take({ code }, `QR ${name ?? code}`);
+        }}
+      />
     </div>
   );
 };
