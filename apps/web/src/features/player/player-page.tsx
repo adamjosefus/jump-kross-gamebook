@@ -1,5 +1,5 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import type { Theme } from '@gamebook/core';
+import { parseQr, type Theme } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, ChevronLeft, ChevronRight, Flag, Loader2, QrCode } from 'lucide-react';
 import { useState } from 'react';
@@ -51,6 +51,9 @@ export const PlayerPage = () => {
   // The choice stays set while the dialog animates out, so its label does not blink.
   const [confirm, setConfirm] = useState<{ index: number; label: string }>();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Login code of another team scanned mid-game; kept while the dialog animates out.
+  const [switchCode, setSwitchCode] = useState<string>();
+  const [switchOpen, setSwitchOpen] = useState(false);
 
   const state = useQuery({
     queryKey: STATE_KEY,
@@ -94,9 +97,14 @@ export const PlayerPage = () => {
 
   const onCode = (code: string) => {
     setScanning(false);
-    // A team code always logs in, so a device can switch teams by scanning another login code.
-    if (code.trim().toUpperCase().startsWith('T:') || view == null) login.mutate(code);
-    else scan.mutate({ code, step: view.step });
+    if (view == null) return login.mutate(code);
+    const parsed = parseQr(code);
+    if (parsed?.kind !== 'T') return scan.mutate({ code, step: view.step });
+    // A login code switches the device to that team, but only after asking: a stray card of
+    // another team must not move a player over by accident.
+    if (parsed.id === view.team.id) return toast.info(`Už hrajete za tým ${view.team.name}.`);
+    setSwitchCode(code);
+    setSwitchOpen(true);
   };
 
   const pick = (choice: { index: number; label: string }) => {
@@ -166,6 +174,28 @@ export const PlayerPage = () => {
               }}
             >
               Potvrdit volbu
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Přepnout na jiný tým?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát
+              za něj místo za tým {view?.team.name}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Zůstat v týmu {view?.team.name}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (switchCode !== undefined) login.mutate(switchCode);
+              }}
+            >
+              Přepnout tým
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
