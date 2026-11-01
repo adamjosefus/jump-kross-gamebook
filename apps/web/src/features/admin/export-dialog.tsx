@@ -3,10 +3,9 @@ import { Check, Copy, Download, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import logo from '@/assets/qr-logo.svg';
 import { QrCode } from '@/components/qr/qr-code';
 import type { PaperFormat } from '@/components/qr/qr-pdf';
-import { qrCodeSvg, toDataUrl } from '@/components/qr/qr-svg';
+import { qrCodeSvg } from '@/components/qr/qr-svg';
 import {
   type Anamorphosis,
   DEFAULT_ANAMORPHOSIS,
@@ -111,9 +110,8 @@ const Checkbox = ({
 
 /**
  * Every way to get a QR code out, in one place: format (SVG, PDF on A4 or A5), copy or download,
- * and optionally stretched for an angled view (anamorphosis) and mirrored. An unmodified code keeps
- * the logo and the PDF is the full card; a modified one is the bare code, since a logo cannot be
- * stretched.
+ * and optionally stretched for an angled view (anamorphosis) and mirrored. The PDF of an unmodified
+ * code is the full card; a modified one is the bare code with a note for the organisers.
  */
 export const ExportDialog = ({
   entry,
@@ -146,16 +144,13 @@ export const ExportDialog = ({
     .filter(Boolean)
     .join('-');
 
-  const svg = async () =>
-    modified ? warpedQrSvg(entry.code, effective) : qrCodeSvg(entry.code, await toDataUrl(logo));
+  const svg = async () => (modified ? warpedQrSvg(entry.code, effective) : qrCodeSvg(entry.code));
 
   const pdf = async (paper: PaperFormat) => {
     // pdf-lib and the fonts are loaded only when someone actually asks for a PDF.
     const { qrCardPdf, warpedQrPdf } = await import('@/components/qr/qr-pdf');
     const common = { kind: entry.kind, value: entry.code, label: entry.label, format: paper };
-    return modified
-      ? warpedQrPdf({ ...common, anamorphosis: effective })
-      : qrCardPdf({ ...common, logo });
+    return modified ? warpedQrPdf({ ...common, anamorphosis: effective }) : qrCardPdf(common);
   };
 
   const run = async (task: () => Promise<void>, failure: string) => {
@@ -204,7 +199,7 @@ export const ExportDialog = ({
         <div className='grid gap-6 sm:grid-cols-[1fr_16rem]'>
           <div className='flex h-72 items-center justify-center rounded-lg border bg-white p-4'>
             {preview === undefined ? (
-              <QrCode value={entry.code} logo={logo} className='max-h-full w-auto' />
+              <QrCode value={entry.code} className='max-h-full w-auto' />
             ) : (
               <svg
                 viewBox={`0 0 ${preview.width} ${preview.height}`}
@@ -224,10 +219,10 @@ export const ExportDialog = ({
               <Label>Formát</Label>
               <Segmented value={format} options={FORMATS} onChange={setFormat} />
               <p className='text-xs text-muted-foreground'>
-                {modified
-                  ? 'Upravený kód je bez loga, logo zkreslit nejde.'
-                  : format === 'svg'
-                    ? 'Samotný kód s logem.'
+                {format === 'svg'
+                  ? 'Samotný kód.'
+                  : modified
+                    ? 'Upravený kód přes celou stránku, pod ním poznámka pro organizátory.'
                     : 'Celá karta s názvem a nápovědou, jako na obrazovce.'}
               </p>
             </div>

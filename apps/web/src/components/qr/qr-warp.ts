@@ -86,10 +86,7 @@ export interface WarpedQr {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-/**
- * The code stretched so that it looks square from the given spot, then mirrored. Without the
- * logo, which could not be warped.
- */
+/** The code stretched so that it looks square from the given spot, then mirrored. */
 export const warpedQr = (
   value: string,
   { side, angle, distance, mirrorX, mirrorY }: Anamorphosis,

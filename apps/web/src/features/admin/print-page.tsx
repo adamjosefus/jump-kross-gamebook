@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import logo from '@/assets/qr-logo.svg';
 import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
 import { Button } from '@/components/ui/button';
 import { api, errorMessage } from '@/lib/api';
@@ -17,9 +16,9 @@ const CodeCard = ({ entry }: { entry: PrintableCode }) => {
   return (
     <div className='relative'>
       {entry.kind === 'T' ? (
-        <TeamLoginQr value={entry.code} teamName={entry.label} logo={logo} />
+        <TeamLoginQr value={entry.code} teamName={entry.label} />
       ) : (
-        <ProgressQr value={entry.code} locationName={entry.label} logo={logo} />
+        <ProgressQr value={entry.code} locationName={entry.label} />
       )}
       <Button
         variant='outline'
