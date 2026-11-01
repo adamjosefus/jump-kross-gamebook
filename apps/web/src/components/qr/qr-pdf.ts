@@ -6,7 +6,7 @@ import geistSemiBoldUrl from '@/assets/fonts/Geist-SemiBold.ttf?url';
 import geistMonoUrl from '@/assets/fonts/GeistMono-Regular.ttf?url';
 
 import { type QrCardKind, qrCardText } from './qr-card-text';
-import { qrGeometry } from './qr-svg';
+import { type QrNoise, qrGeometry } from './qr-svg';
 import { type Anamorphosis, viewerHint, warpedQr } from './qr-warp';
 
 export type PaperFormat = 'A4' | 'A5';
@@ -23,6 +23,8 @@ export interface QrPdfInput {
   readonly label?: string | undefined;
   readonly format: PaperFormat;
   readonly fonts: QrPdfFonts;
+  /** Random modules around the code. */
+  readonly noise?: QrNoise | undefined;
 }
 
 const black = rgb(0, 0, 0);
@@ -65,6 +67,7 @@ export const buildQrCardPdf = async ({
   label,
   format,
   fonts,
+  noise,
 }: QrPdfInput): Promise<Uint8Array> => {
   const text = qrCardText(kind, label);
   const pdf = await PDFDocument.create();
@@ -137,7 +140,7 @@ export const buildQrCardPdf = async ({
   const footerTop = footer + 6 * MM * s - hintSize * 0.3;
 
   // The code fills the space between, centred. Its quiet zone is part of the geometry.
-  const geometry = qrGeometry(value);
+  const geometry = qrGeometry(value, noise);
   const qrSide = Math.min(contentWidth, headerBottom - footerTop);
   const module = qrSide / geometry.size;
   const qrLeft = left + (contentWidth - qrSide) / 2;
@@ -162,6 +165,7 @@ export const buildWarpedQrPdf = async ({
   format,
   fonts,
   anamorphosis,
+  noise,
 }: WarpedQrPdfInput): Promise<Uint8Array> => {
   const text = qrCardText(kind, label);
   const pdf = await PDFDocument.create();
@@ -181,7 +185,7 @@ export const buildWarpedQrPdf = async ({
   const contentWidth = width - margin * 2;
   const noteSize = 10 * s;
   const lineHeight = noteSize * 1.35;
-  const warped = warpedQr(value, anamorphosis);
+  const warped = warpedQr(value, anamorphosis, noise);
 
   // Note from the bottom up. Its length depends on the code's printed width, which depends on
   // how much room the note leaves, so lay it out for the longest wording first.

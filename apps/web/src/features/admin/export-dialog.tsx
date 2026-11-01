@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 
 import { QrCode } from '@/components/qr/qr-code';
 import type { PaperFormat } from '@/components/qr/qr-pdf';
-import { qrCodeSvg } from '@/components/qr/qr-svg';
+import { type NoiseShape, type QrNoise, qrCodeSvg } from '@/components/qr/qr-svg';
 import {
   type Anamorphosis,
   DEFAULT_ANAMORPHOSIS,
   MAX_ANGLE,
+  qrExtent,
   safeDistance,
   type ViewerSide,
   viewerHint,
@@ -55,12 +56,12 @@ const isSide = (value: string): value is ViewerSide => SIDES.some((side) => side
 
 const MAX_DISTANCE = 20;
 
-/** Keeps the distance far enough for the angle, so the print never runs off to infinity. */
-const withAngle = (current: Anamorphosis, angle: number): Anamorphosis => ({
-  ...current,
-  angle,
-  distance: Math.max(current.distance, safeDistance(angle)),
-});
+const NOISE_SHAPES: { value: NoiseShape; label: string }[] = [
+  { value: 'square', label: 'Čtverec' },
+  { value: 'circle', label: 'Kruh' },
+];
+
+const MAX_NOISE = 24;
 
 /** Segmented control: one of a few options as a row of buttons. */
 const Segmented = <T extends string>({
@@ -125,18 +126,35 @@ export const ExportDialog = ({
   const [format, setFormat] = useState<Format>('svg');
   const [warp, setWarp] = useState(false);
   const [view, setView] = useState(DEFAULT_ANAMORPHOSIS);
+  const [noiseOn, setNoiseOn] = useState(false);
+  const [noiseShape, setNoiseShape] = useState<NoiseShape>('square');
+  const [noiseWidth, setNoiseWidth] = useState(8);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const effective: Anamorphosis = { ...view, angle: warp ? view.angle : 0 };
+  const noise = useMemo<QrNoise | undefined>(
+    () => (noiseOn ? { shape: noiseShape, width: noiseWidth } : undefined),
+    [noiseOn, noiseShape, noiseWidth],
+  );
+  // The noise reaches further from the eye than the code, so it sets how close the eye may be.
+  const extent = useMemo(() => qrExtent(entry.code, noise), [entry.code, noise]);
+  const closest = safeDistance(view.angle, extent);
+  const effective = useMemo<Anamorphosis>(
+    () => ({
+      ...view,
+      angle: warp ? view.angle : 0,
+      distance: Math.max(view.distance, safeDistance(view.angle, extent)),
+    }),
+    [view, warp, extent],
+  );
   const modified = effective.angle > 0 || view.mirrorX || view.mirrorY;
-  const preview = useMemo(() => {
-    const anamorphosis = { ...view, angle: warp ? view.angle : 0 };
-    const changed = anamorphosis.angle > 0 || view.mirrorX || view.mirrorY;
-    return changed ? warpedQr(entry.code, anamorphosis) : undefined;
-  }, [entry.code, warp, view]);
+  const preview = useMemo(
+    () => (modified ? warpedQr(entry.code, effective, noise) : undefined),
+    [entry.code, effective, modified, noise],
+  );
 
   const suffix = [
+    noise !== undefined && `sum-${noise.shape === 'circle' ? 'kruh' : 'ctverec'}-${noise.width}`,
     effective.angle > 0 && `zkresleni-${effective.angle}`,
     view.mirrorX && 'zrcadlo-vodorovne',
     view.mirrorY && 'zrcadlo-svisle',
@@ -144,12 +162,19 @@ export const ExportDialog = ({
     .filter(Boolean)
     .join('-');
 
-  const svg = async () => (modified ? warpedQrSvg(entry.code, effective) : qrCodeSvg(entry.code));
+  const svg = async () =>
+    modified ? warpedQrSvg(entry.code, effective, noise) : qrCodeSvg(entry.code, noise);
 
   const pdf = async (paper: PaperFormat) => {
     // pdf-lib and the fonts are loaded only when someone actually asks for a PDF.
     const { qrCardPdf, warpedQrPdf } = await import('@/components/qr/qr-pdf');
-    const common = { kind: entry.kind, value: entry.code, label: entry.label, format: paper };
+    const common = {
+      kind: entry.kind,
+      value: entry.code,
+      label: entry.label,
+      format: paper,
+      noise,
+    };
     return modified ? warpedQrPdf({ ...common, anamorphosis: effective }) : qrCardPdf(common);
   };
 
@@ -199,7 +224,7 @@ export const ExportDialog = ({
         <div className='grid gap-6 sm:grid-cols-[1fr_16rem]'>
           <div className='flex h-72 items-center justify-center rounded-lg border bg-white p-4'>
             {preview === undefined ? (
-              <QrCode value={entry.code} className='max-h-full w-auto' />
+              <QrCode value={entry.code} noise={noise} className='max-h-full w-auto' />
             ) : (
               <svg
                 viewBox={`0 0 ${preview.width} ${preview.height}`}
@@ -225,6 +250,34 @@ export const ExportDialog = ({
                     ? 'Upravený kód přes celou stránku, pod ním poznámka pro organizátory.'
                     : 'Celá karta s názvem a nápovědou, jako na obrazovce.'}
               </p>
+            </div>
+
+            <div className='flex flex-col gap-3'>
+              <Checkbox checked={noiseOn} onChange={setNoiseOn}>
+                Šum kolem kódu
+              </Checkbox>
+              {noiseOn && (
+                <div className='flex flex-col gap-3 border-l-2 pl-3'>
+                  <Segmented value={noiseShape} options={NOISE_SHAPES} onChange={setNoiseShape} />
+                  <div className='flex flex-col gap-1.5'>
+                    <Label htmlFor='export-noise'>Šířka šumu: {noiseWidth} modulů</Label>
+                    <input
+                      id='export-noise'
+                      type='range'
+                      min={1}
+                      max={MAX_NOISE}
+                      step={1}
+                      value={noiseWidth}
+                      onChange={(event) => setNoiseWidth(Number(event.target.value))}
+                      className='accent-foreground'
+                    />
+                    <p className='text-xs text-muted-foreground'>
+                      Náhodné čtverečky ztíží čtení okem, čtečka je ignoruje. Bílý okraj kolem kódu
+                      zůstává.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className='flex flex-col gap-3'>
@@ -259,21 +312,21 @@ export const ExportDialog = ({
                       max={MAX_ANGLE}
                       step={5}
                       value={view.angle}
-                      onChange={(event) => setView(withAngle(view, Number(event.target.value)))}
+                      onChange={(event) => setView({ ...view, angle: Number(event.target.value) })}
                       className='accent-foreground'
                     />
                   </div>
                   <div className='flex flex-col gap-1.5'>
                     <Label htmlFor='export-distance'>
-                      Vzdálenost oka: {String(view.distance).replace('.', ',')}× šířka kódu
+                      Vzdálenost oka: {String(effective.distance).replace('.', ',')}× šířka kódu
                     </Label>
                     <input
                       id='export-distance'
                       type='range'
-                      min={safeDistance(view.angle)}
+                      min={closest}
                       max={MAX_DISTANCE}
                       step={0.5}
-                      value={view.distance}
+                      value={effective.distance}
                       onChange={(event) =>
                         setView({ ...view, distance: Number(event.target.value) })
                       }

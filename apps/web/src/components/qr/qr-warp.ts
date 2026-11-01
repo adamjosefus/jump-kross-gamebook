@@ -1,4 +1,4 @@
-import { escapeAttribute, QUIET_ZONE, qrRuns } from './qr-svg';
+import { escapeAttribute, type QrNoise, QUIET_ZONE, qrRuns } from './qr-svg';
 
 /** Edge of the printed sheet the viewer stands at. */
 export type ViewerSide = 'bottom' | 'top' | 'left' | 'right';
@@ -37,11 +37,20 @@ const radians = (degrees: number) => (degrees * Math.PI) / 180;
  * The closest distance at which the far edge of the code is still in front of the viewer's eye
  * (closer than that, the stretched print would have to be infinitely long). Used with a margin.
  */
-export const minDistance = (angle: number) => Math.tan(radians(angle)) / 2;
+export const minDistance = (angle: number, extent = 1) => (Math.tan(radians(angle)) * extent) / 2;
 
-/** `minDistance` with room to spare, so the print stays a sensible shape. */
-export const safeDistance = (angle: number) =>
-  Math.max(1, Math.ceil(minDistance(angle) * 1.5 * 2) / 2);
+/**
+ * `minDistance` with room to spare, so the print stays a sensible shape. `extent` is the printed
+ * width (noise included) in code widths; the noise reaches further away than the code.
+ */
+export const safeDistance = (angle: number, extent = 1) =>
+  Math.max(1, Math.ceil(minDistance(angle, extent) * 1.5 * 2) / 2);
+
+/** Printed width with noise in code widths, for `safeDistance`. */
+export const qrExtent = (value: string, noise?: QrNoise) => {
+  const { size, code } = qrRuns(value, noise);
+  return size / code.size;
+};
 
 export type Point = readonly [number, number];
 
@@ -93,16 +102,19 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 export const warpedQr = (
   value: string,
   { side, angle, distance, mirrorX, mirrorY }: Anamorphosis,
+  noise?: QrNoise,
 ): WarpedQr => {
-  const { size, runs } = qrRuns(value);
+  const { size, runs, code: codeArea } = qrRuns(value, noise);
+  // Distances are in code widths, so noise around the code does not change how the code is seen.
+  const unit = codeArea.size;
   const frame = FRAMES[side];
   const project = fromBottom(Math.min(Math.max(angle, 0), MAX_ANGLE), distance);
   // Module coordinates (y down, origin top left) to the sheet, in modules (y down), mirrored first.
   const map = (column: number, row: number): Point => {
     const x = mirrorX ? size - column : column;
     const y = mirrorY ? size - row : row;
-    const [a, b] = frame.back(project(frame.to([x / size - 0.5, 0.5 - y / size])));
-    return [a * size, -b * size];
+    const [a, b] = frame.back(project(frame.to([(x - size / 2) / unit, (size / 2 - y) / unit])));
+    return [a * unit, -b * unit];
   };
   const box = (from: number, to: number) => {
     const corners = [map(from, from), map(to, from), map(to, to), map(from, to)];
@@ -119,7 +131,7 @@ export const warpedQr = (
   // off centre. The quiet zone is widened on the short sides until the modules are centred; it never
   // gets narrower than the projected one.
   const zone = box(0, size);
-  const code = box(QUIET_ZONE, size - QUIET_ZONE);
+  const code = box(codeArea.at + QUIET_ZONE, codeArea.at + codeArea.size - QUIET_ZONE);
   const cx = (code.left + code.right) / 2;
   const cy = (code.top + code.bottom) / 2;
   const halfWidth = Math.max(cx - zone.left, zone.right - cx);
@@ -143,7 +155,7 @@ export const warpedQr = (
     width: right - left,
     height: bottom - top,
     path,
-    codeWidth: size,
+    codeWidth: unit,
     centre: place(map(size / 2, size / 2)),
   };
 };
@@ -179,8 +191,8 @@ export const viewerHint = (
   mirrorHint(mirrorX, mirrorY);
 
 /** Self-contained SVG file of the mirrored and stretched code. */
-export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis): string => {
-  const { width, height, path } = warpedQr(value, anamorphosis);
+export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis, noise?: QrNoise): string => {
+  const { width, height, path } = warpedQr(value, anamorphosis, noise);
   const w = round(width);
   const h = round(height);
   return (

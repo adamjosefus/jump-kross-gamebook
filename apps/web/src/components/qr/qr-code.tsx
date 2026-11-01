@@ -2,18 +2,20 @@ import { useMemo } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import { qrGeometry } from './qr-svg';
+import { type QrNoise, qrGeometry } from './qr-svg';
 
 export interface QrCodeProps {
   readonly value: string;
+  /** Random modules around the code, harder to read by eye. */
+  readonly noise?: QrNoise | undefined;
   readonly className?: string;
 }
 
 /**
  * QR code drawn as one SVG path, always dark on white so it scans in dark mode and in print.
  */
-export const QrCode = ({ value, className }: QrCodeProps) => {
-  const { size, path } = useMemo(() => qrGeometry(value), [value]);
+export const QrCode = ({ value, noise, className }: QrCodeProps) => {
+  const { size, path } = useMemo(() => qrGeometry(value, noise), [value, noise]);
 
   return (
     <svg
