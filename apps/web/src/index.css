@@ -174,16 +174,6 @@
   }
 }
 
-@media print {
-  @page {
-    size: A4;
-    margin: 1cm;
-  }
-  body {
-    background: white;
-  }
-}
-
 /* React Flow in the app's black and white palette. */
 .story-graph .react-flow {
   --xy-background-color: transparent;
