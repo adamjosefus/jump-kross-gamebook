@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 
-import { ScanPrompt } from './qr-scanner';
+import { ScanScreen } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
@@ -78,7 +78,13 @@ export const NodeScreens = ({
           <ChevronLeft /> Zpět
         </Button>
       )}
-      {scanning && <ScanPrompt onCode={onCode} busy={busy} />}
+      {scanning && (
+        <ScanScreen
+          onCode={onCode}
+          busy={busy}
+          {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
+        />
+      )}
       {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
         <div className='flex flex-1 flex-col justify-center'>
