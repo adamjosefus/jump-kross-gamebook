@@ -228,6 +228,8 @@ export const PlaytestInput = Schema.Struct({
       Schema.Struct({ choice: Schema.Number }),
       /** Skips the QR code: moves as if the location's code was scanned. */
       Schema.Struct({ scan: Schema.Number }),
+      /** A scanned or typed QR code, checked like in the game. */
+      Schema.Struct({ code: Schema.String }),
     ]),
   ),
 });
@@ -273,7 +275,7 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     HttpApiEndpoint.post('playtest', '/playtest', {
       payload: PlaytestInput,
       success: PlaytestView,
-      error: [InvalidMove, NotFound],
+      error: [InvalidCode, InvalidMove, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     HttpApiEndpoint.post('createTeam', '/teams', {

@@ -1,11 +1,14 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
-import { Camera, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { useState } from 'react';
 import Markdown from 'react-markdown';
 
+import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+import { ScanPrompt } from './qr-scanner';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
@@ -25,33 +28,47 @@ const THEME_TEXT: Record<Theme, string> = {
 };
 
 /**
+ * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
+ * polling does not reshuffle them.
+ */
+const freshPaging = (node: PlayerNode, step: number) => ({
+  node: node.id,
+  step,
+  index: 0,
+  ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
+});
+
+/**
  * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
- * last screen offers the choices, or the scan button when the node waits for a QR code.
+ * last screen offers the choices, or is the scanner when the node waits for a QR code.
  */
 export const NodeScreens = ({
   node,
   step,
   busy,
-  onScan,
+  onCode,
   onPick,
-  scanActions,
 }: {
   node: PlayerNode;
   step: number;
   busy: boolean;
-  onScan?: () => void;
+  /** A QR code read on the scan screen. */
+  onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
-  /** Replaces the scan button, e.g. with buttons that skip the QR code in a test run. */
-  scanActions?: ReactNode;
 }) => {
-  const count = node.screens.length;
-  const [paging, setPaging] = useState({ node: node.id, step, index: 0 });
-  if (paging.node !== node.id || paging.step !== step) setPaging({ node: node.id, step, index: 0 });
+  // A node left by scanning has one more screen after its blocks: the scanner.
+  const count = node.screens.length + (node.scan ? 1 : 0);
+  const [paging, setPaging] = useState(() => freshPaging(node, step));
+  if (paging.node !== node.id || paging.step !== step) setPaging(freshPaging(node, step));
   const index = Math.min(paging.index, count - 1);
   const go = (to: number) => setPaging({ ...paging, index: to });
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
+  const scanning = node.scan && index === node.screens.length;
+  const choices = node.choices.toSorted(
+    (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
+  );
 
   return (
     <article
@@ -61,6 +78,19 @@ export const NodeScreens = ({
         THEME_SCREEN[theme],
       )}
     >
+      {index > 0 && (
+        <Button
+          variant='ghost'
+          size='sm'
+          className='-mt-2 -ml-3 self-start text-muted-foreground'
+          onClick={() => go(index - 1)}
+        >
+          <ChevronLeft /> Zpět
+        </Button>
+      )}
+      {scanning && (
+        <ScanPrompt hint='Namiřte fotoaparát na QR kód na místě.' onCode={onCode} busy={busy} />
+      )}
       {screen !== undefined && (
         <div
           className={cn(
@@ -78,39 +108,16 @@ export const NodeScreens = ({
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />
           </Button>
-        ) : node.scan ? (
-          (scanActions ?? (
-            <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
-              <Camera /> Naskenovat QR kód
-            </Button>
-          ))
-        ) : node.type === 'end' ? (
+        ) : scanning ? null : node.type === 'end' ? (
           <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
             <Flag className='size-4' /> Konec hry
           </p>
         ) : (
-          node.choices.map((choice) => (
-            <Button
-              key={choice.index}
-              size='lg'
-              variant={node.choices.length === 1 ? 'default' : 'outline'}
-              className='h-auto min-h-14 py-3 text-base whitespace-normal'
-              onClick={() => onPick(choice)}
-              disabled={busy}
-            >
+          choices.map((choice) => (
+            <SlideButton key={choice.index} onConfirm={() => onPick(choice)} disabled={busy}>
               {choice.label}
-            </Button>
+            </SlideButton>
           ))
-        )}
-        {count > 1 && (
-          <div className='flex items-center justify-between text-sm text-muted-foreground'>
-            <Button variant='ghost' size='sm' onClick={() => go(index - 1)} disabled={index === 0}>
-              <ChevronLeft /> Zpět
-            </Button>
-            <span>
-              {index + 1} / {count}
-            </span>
-          </div>
         )}
       </div>
     </article>

@@ -1,7 +1,7 @@
 import type { PlayerView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Camera, Loader2, QrCode } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, QrCode } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { api, errorMessage, isApiError } from '@/lib/api';
 
 import { NodeScreens } from './node-screens';
-import { QrScannerDialog } from './qr-scanner-dialog';
+import { ScanPrompt } from './qr-scanner';
 
 const STATE_KEY = ['player', 'state'] as const;
 
@@ -29,10 +29,6 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
-  const [scanning, setScanning] = useState(false);
-  // The choice stays set while the dialog animates out, so its label does not blink.
-  const [confirm, setConfirm] = useState<{ index: number; label: string }>();
-  const [confirmOpen, setConfirmOpen] = useState(false);
   // Login code of another team scanned mid-game; kept while the dialog animates out.
   const [switchCode, setSwitchCode] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -78,7 +74,6 @@ export const PlayerPage = () => {
   });
 
   const onCode = (code: string) => {
-    setScanning(false);
     if (view == null) return login.mutate(code);
     const parsed = parseQr(code);
     if (parsed?.kind !== 'T') return scan.mutate({ code, step: view.step });
@@ -89,12 +84,9 @@ export const PlayerPage = () => {
     setSwitchOpen(true);
   };
 
-  const pick = (choice: { index: number; label: string }) => {
-    if (view == null) return;
-    if (view.node !== undefined && view.node.choices.length >= 2) {
-      setConfirm(choice);
-      setConfirmOpen(true);
-    } else choose.mutate({ index: choice.index, step: view.step });
+  // The slide button is the confirmation, so a choice is sent right away.
+  const pick = (choice: { index: number }) => {
+    if (view != null) choose.mutate({ index: choice.index, step: view.step });
   };
 
   const busy = login.isPending || choose.isPending || scan.isPending;
@@ -109,7 +101,7 @@ export const PlayerPage = () => {
   return (
     <main className='mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 px-5 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]'>
       {view == null ? (
-        <Welcome onScan={() => setScanning(true)} busy={busy} />
+        <Welcome onCode={onCode} busy={busy} />
       ) : (
         <>
           <header className='flex items-center justify-between text-sm text-muted-foreground'>
@@ -130,36 +122,12 @@ export const PlayerPage = () => {
               node={view.node}
               step={view.step}
               busy={busy}
-              onScan={() => setScanning(true)}
+              onCode={onCode}
               onPick={pick}
             />
           )}
         </>
       )}
-
-      <QrScannerDialog open={scanning} onOpenChange={setScanning} onCode={onCode} />
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Opravdu?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Vybíráte „{confirm?.label}“. Rozhodnutí platí pro celý tým a nejde vrátit.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Zpět</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (confirm !== undefined && view != null)
-                  choose.mutate({ index: confirm.index, step: view.step });
-              }}
-            >
-              Potvrdit volbu
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
         <AlertDialogContent>
@@ -190,17 +158,40 @@ const Centered = ({ children }: { children: React.ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
 );
 
-const Welcome = ({ onScan, busy }: { onScan: () => void; busy: boolean }) => (
-  <Centered>
-    <div className='flex max-w-xs flex-col items-center gap-6 text-center'>
-      <QrCode className='size-12' strokeWidth={1.5} />
-      <div className='flex flex-col gap-2'>
-        <h1 className='text-2xl font-semibold'>Vítejte ve hře</h1>
-        <p className='text-muted-foreground'>Naskenujte přihlašovací QR kód svého týmu.</p>
-      </div>
-      <Button size='lg' className='h-14 w-full text-base' onClick={onScan} disabled={busy}>
-        {busy ? <Loader2 className='animate-spin' /> : <Camera />} Naskenovat QR kód
+/**
+ * Before login: a greeting, then — like the next block of a node — the screen that scans the
+ * team's login code.
+ */
+const Welcome = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => {
+  const [scanning, setScanning] = useState(false);
+  return scanning ? (
+    <article className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2'>
+      <Button
+        variant='ghost'
+        size='sm'
+        className='-mt-2 -ml-3 self-start text-muted-foreground'
+        onClick={() => setScanning(false)}
+      >
+        <ChevronLeft /> Zpět
       </Button>
-    </div>
-  </Centered>
-);
+      <ScanPrompt
+        hint='Namiřte fotoaparát na přihlašovací QR kód svého týmu.'
+        onCode={onCode}
+        busy={busy}
+      />
+    </article>
+  ) : (
+    <Centered>
+      <div className='flex max-w-xs flex-col items-center gap-6 text-center'>
+        <QrCode className='size-12' strokeWidth={1.5} />
+        <div className='flex flex-col gap-2'>
+          <h1 className='text-2xl font-semibold'>Vítejte ve hře</h1>
+          <p className='text-muted-foreground'>Naskenujte přihlašovací QR kód svého týmu.</p>
+        </div>
+        <Button size='lg' className='h-14 w-full text-base' onClick={() => setScanning(true)}>
+          Další <ChevronRight />
+        </Button>
+      </div>
+    </Centered>
+  );
+};
