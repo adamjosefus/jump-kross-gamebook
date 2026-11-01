@@ -46,9 +46,17 @@ export const story = defineStory<State>()({
     blocks: (s) => [
       `Máte ${s.gold} zlaťáků.`,
       s.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
-      checkpoint(32, 'Jděte ke studni a naskenujte QR kód.'), // dál až po skenu místa 32
-      'Ve studni něco leží.',
+      'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
     ],
+    // QR volby: kam tým pokračuje, rozhodne naskenované místo. Hráč vidí jen tlačítko Naskenovat.
+    scans: [
+      { location: 32, goto: 'A2' },
+      { location: 33, goto: 'END', when: (s) => s.gold >= 90 },
+    ],
+  },
+  A2: {
+    blocks: ['Ve studni něco leží.'],
+    // Tlačítka. Uzel má buď choices, nebo scans, nikdy obojí.
     choices: [
       {
         label: 'Koupit meč',

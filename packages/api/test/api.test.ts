@@ -58,6 +58,7 @@ describe('api', () => {
   it('plays a game end to end', async () => {
     await admin('PUT', '/api/admin/locations/32', { name: 'Studna', kind: 'progress' });
     await admin('PUT', '/api/admin/locations/33', { name: 'Brána', kind: 'progress' });
+    await admin('PUT', '/api/admin/locations/34', { name: 'Sklep', kind: 'progress' });
     const team = (await admin('POST', '/api/admin/teams', { name: 'Vlci', startNode: 'A1' })).body;
     expect(team).toMatchObject({ id: 1, name: 'Vlci', step: 0 });
 
@@ -66,7 +67,7 @@ describe('api', () => {
     ).body;
     const login = codes.find((c) => c.kind === 'T')!.code;
     const studna = codes.find((c) => c.kind === 'L' && c.id === 32)!.code;
-    const brana = codes.find((c) => c.kind === 'L' && c.id === 33)!.code;
+    const sklep = codes.find((c) => c.kind === 'L' && c.id === 34)!.code;
     expect(studna).toBe(await encodeQr(config.qrSecret, { kind: 'L', id: 32 }));
 
     const phone = device();
@@ -87,16 +88,17 @@ describe('api', () => {
     // Both devices see the same step; the tablet decides first, the phone gets a conflict.
     const step = start.body.step;
     const moved = await tablet('POST', '/api/player/choose', { index: 1, expectedStep: step });
-    expect(moved.body).toMatchObject({ node: { id: 'A2', choices: [] } });
-    // Nothing behind the locked checkpoint reaches the client.
-    expect(moved.body.node.screens).toEqual([
-      { theme: 'default', content: 'Jděte ke studni na nádvoří.' },
-      {
-        theme: 'default',
-        content: 'Naskenujte QR kód u studny.',
-        checkpoint: { location: 32, unlocked: false },
-      },
-    ]);
+    // Which codes lead where stays on the server; the client only learns it has to scan.
+    expect(moved.body.node).toEqual({
+      id: 'A2',
+      type: 'passage',
+      screens: [
+        { theme: 'default', content: 'Jděte ke studni na nádvoří, nebo k bráně.' },
+        { theme: 'night', content: 'Setmělo se.' },
+      ],
+      choices: [],
+      scan: true,
+    });
     const late = await phone('POST', '/api/player/choose', { index: 0, expectedStep: step });
     expect(late).toMatchObject({ status: 409, body: { _tag: 'StepConflict' } });
 
@@ -110,27 +112,16 @@ describe('api', () => {
       (await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status,
     ).toBe(400);
     expect(
-      (await phone('POST', '/api/player/scan', { code: brana, expectedStep: view.step })).body
+      (await phone('POST', '/api/player/scan', { code: sklep, expectedStep: view.step })).body
         .reason,
     ).toBe('wrong-location');
 
-    const scanned = await phone('POST', '/api/player/scan', {
-      code: studna,
-      expectedStep: view.step,
-    });
-    expect(scanned.body).toMatchObject({ status: 'playing', node: { id: 'A2', choices: [] } });
-    expect(scanned.body.node.screens).toHaveLength(4);
-
-    const through = await phone('POST', '/api/player/scan', {
-      code: brana,
-      expectedStep: scanned.body.step,
-    });
-    expect(through.body.node.choices).toEqual([{ index: 0, label: 'Pokračovat' }]);
-
-    const b1 = await phone('POST', '/api/player/choose', {
-      index: 0,
-      expectedStep: through.body.step,
-    });
+    const b1 = await phone('POST', '/api/player/scan', { code: studna, expectedStep: view.step });
+    expect(b1.body).toMatchObject({ status: 'playing', node: { id: 'B1', scan: false } });
+    expect(
+      (await phone('POST', '/api/player/scan', { code: studna, expectedStep: b1.body.step })).body
+        .reason,
+    ).toBe('no-scan');
     expect(b1.body.node.screens[0].content).toContain('chudou pokrývku hlavy');
     expect(b1.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }]);
 
@@ -144,12 +135,9 @@ describe('api', () => {
       devices: 2,
       state: { gold: 80 },
     });
-    // Scans keep the team on A2, so they are not visits.
     expect(overview.visits).toEqual({ A1: 1, A2: 1, B1: 1, C1: 1 });
     expect(overview.log.map((e: { action: string }) => e.action)).toEqual([
       'choice:0',
-      'choice:0',
-      'scan:33',
       'scan:32',
       'choice:1',
       'start',

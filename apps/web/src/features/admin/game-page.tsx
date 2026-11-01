@@ -115,8 +115,9 @@ export const GamePage = () => {
         <CardHeader>
           <CardTitle>Místa</CardTitle>
           <CardDescription>
-            Číslo místa se píše do příběhu jako <code>{'checkpoint(32, …)'}</code>. Na každé místo
-            patří jeden QR kód.
+            Číslo místa se píše do příběhu jako QR volba{' '}
+            <code>{"scans: [{ location: 32, goto: 'UZEL' }]"}</code>. Na každé místo patří jeden QR
+            kód.
           </CardDescription>
         </CardHeader>
         <CardContent className='flex flex-col gap-4'>

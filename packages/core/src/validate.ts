@@ -1,4 +1,4 @@
-import { availableChoices, mergeState, screensOf } from './engine.ts';
+import { availableChoices, availableScans, mergeState, screensOf } from './engine.ts';
 import type { Story } from './story.ts';
 import type { State } from './types.ts';
 
@@ -21,7 +21,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 /**
  * Mistakes the type checker cannot see. Plays every reachable (node, state) pair from every start
  * and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
- * blocks that throw and checkpoints that would trap a team at an end.
+ * blocks that throw, bad location numbers and two QR choices for one location.
  */
 export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOptions = {}) => {
   const problems: string[] = [];
@@ -34,6 +34,12 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
 
   for (const id of story.order) {
     const labels = new Set<string>();
+    for (const { location, goto } of story.nodes[id]!.scans ?? []) {
+      if (!Number.isInteger(location) || location <= 0)
+        report(`QR volba v uzlu ${id} má neplatné číslo místa ${location}.`);
+      if (!Object.hasOwn(story.nodes, goto))
+        report(`QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`);
+    }
     for (const { label, goto } of story.nodes[id]!.choices ?? []) {
       if (label.trim() === '') report(`Uzel ${id} má volbu bez popisku.`);
       else if (labels.has(label)) report(`Uzel ${id} má dvě volby „${label}“.`);
@@ -71,11 +77,6 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
       screens.forEach((screen, index) => {
         if (screen.content.trim() === '')
           report(`Uzel ${id} má prázdnou obrazovku č. ${index + 1}.`);
-        if (screen.location === undefined) return;
-        if (!Number.isInteger(screen.location) || screen.location <= 0)
-          report(`Checkpoint v uzlu ${id} má neplatné číslo místa ${screen.location}.`);
-        if (node.end === true)
-          report(`Konec ${id} obsahuje checkpoint, přes který by se tým nedostal.`);
       });
     } catch (error) {
       report(`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(error)}`);
@@ -84,20 +85,40 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
     if (node.end === true) continue;
     let available;
     try {
-      available = availableChoices(node, state);
+      available = [
+        ...availableChoices(node, state).map(({ choice, index }) => ({
+          transition: choice,
+          key: `${id}#${index}`,
+          name: `volby „${choice.label}“`,
+        })),
+        ...availableScans(node, state).map(({ scan, index }) => ({
+          transition: scan,
+          key: `${id}@${index}`,
+          name: `QR volby místa ${scan.location}`,
+        })),
+      ];
     } catch (error) {
       report(`Podmínka volby v uzlu ${id} ve stavu ${show(state)} spadla: ${message(error)}`);
       continue;
     }
     if (available.length === 0)
       report(`Uzel ${id} je ve stavu ${show(state)} slepá ulička: žádná volba není dostupná.`);
-    for (const { choice, index } of available) {
-      usedChoices.add(`${id}#${index}`);
-      if (!Object.hasOwn(story.nodes, choice.goto)) continue;
+    const locations = new Set<number>();
+    for (const { transition } of available) {
+      if (!('location' in transition)) continue;
+      if (locations.has(transition.location))
+        report(
+          `Uzel ${id} má ve stavu ${show(state)} dvě QR volby pro místo ${transition.location}.`,
+        );
+      locations.add(transition.location);
+    }
+    for (const { transition, key, name } of available) {
+      usedChoices.add(key);
+      if (!Object.hasOwn(story.nodes, transition.goto)) continue;
       try {
-        enqueue(choice.goto, mergeState(state, choice.nextState?.(state)));
+        enqueue(transition.goto, mergeState(state, transition.nextState?.(state)));
       } catch (error) {
-        report(`nextState volby „${choice.label}“ v uzlu ${id} spadl: ${message(error)}`);
+        report(`nextState ${name} v uzlu ${id} spadl: ${message(error)}`);
       }
     }
   }
@@ -110,6 +131,12 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
     (story.nodes[id]!.choices ?? []).forEach((choice, index) => {
       if (!usedChoices.has(`${id}#${index}`))
         report(`Volba „${choice.label}“ v uzlu ${id} není dostupná v žádném dosažitelném stavu.`);
+    });
+    (story.nodes[id]!.scans ?? []).forEach((scan, index) => {
+      if (!usedChoices.has(`${id}@${index}`))
+        report(
+          `QR volba místa ${scan.location} v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,
+        );
     });
   }
 

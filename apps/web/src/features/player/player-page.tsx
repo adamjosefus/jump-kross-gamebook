@@ -26,19 +26,9 @@ const STATE_KEY = ['player', 'state'] as const;
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
-/** The locked checkpoint the team has to scan, if any; it is always the last screen. */
-const lockedCheckpoint = (node: PlayerNode | undefined) => {
-  const last = node?.screens.at(-1)?.checkpoint;
-  return last?.unlocked === false ? last : undefined;
-};
-
 /** Polling keeps every device of a team on the same node; slower while the team walks to a location. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
-  view == null || view.status === 'finished'
-    ? false
-    : lockedCheckpoint(view.node) !== undefined
-      ? 30_000
-      : 10_000;
+  view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 
 const THEME_SCREEN: Record<Theme, string> = {
   default: '',
@@ -185,8 +175,8 @@ export const PlayerPage = () => {
 };
 
 /**
- * One screen at a time, paged locally with „Další“. When a scan unlocks more screens, the device
- * jumps to the first new one; a new node starts from its first screen.
+ * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
+ * last screen offers the choices, or the scan button when the node waits for a QR code.
  */
 const NodeScreens = ({
   node,
@@ -202,17 +192,13 @@ const NodeScreens = ({
   onPick: (choice: { index: number; label: string }) => void;
 }) => {
   const count = node.screens.length;
-  const [paging, setPaging] = useState({ node: node.id, step, count, index: 0 });
-  if (paging.node !== node.id || paging.step !== step) {
-    const unlocked = paging.node === node.id && count > paging.count;
-    setPaging({ node: node.id, step, count, index: unlocked ? paging.count : 0 });
-  }
+  const [paging, setPaging] = useState({ node: node.id, step, index: 0 });
+  if (paging.node !== node.id || paging.step !== step) setPaging({ node: node.id, step, index: 0 });
   const index = Math.min(paging.index, count - 1);
   const go = (to: number) => setPaging({ ...paging, index: to });
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
-  const locked = last ? lockedCheckpoint(node) : undefined;
 
   return (
     <article
@@ -239,7 +225,7 @@ const NodeScreens = ({
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />
           </Button>
-        ) : locked !== undefined ? (
+        ) : node.scan ? (
           <Button size='lg' className='h-14 text-base' onClick={onScan} disabled={busy}>
             <Camera /> Naskenovat QR kód
           </Button>

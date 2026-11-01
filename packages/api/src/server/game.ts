@@ -28,8 +28,8 @@ import { Store, type TeamMove, type TeamRow } from './store.ts';
 
 const MOVE_MESSAGES: Record<MoveError | 'not-started', string> = {
   'wrong-location': 'Tady to není. Jste na špatném místě.',
-  'scan-required': 'Pokračujte naskenováním QR kódu na místě.',
-  'no-scan': 'Teď není potřeba nic skenovat.',
+  'scan-required': 'Pokračujte naskenováním QR kódu.',
+  'no-scan': 'Teď se vybírá v aplikaci, ne skenováním.',
   'unavailable-choice': 'Tuto volbu teď nelze vybrat.',
   finished: 'Hra už skončila.',
   'unknown-node': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
@@ -78,16 +78,18 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const node =
         team.node === undefined
           ? undefined
-          : renderNode(story, {
-              node: team.node,
-              state: team.state,
-              checkpoints: team.checkpoints,
-            });
+          : renderNode(story, { node: team.node, state: team.state });
       if (node === undefined) return { ...base, status: 'not-ready' };
       return {
         ...base,
         status: node.type === 'end' ? 'finished' : 'playing',
-        node: { id: node.id, type: node.type, screens: node.screens, choices: node.choices },
+        node: {
+          id: node.id,
+          type: node.type,
+          screens: node.screens,
+          choices: node.choices,
+          scan: node.scan,
+        },
       };
     };
 
@@ -144,7 +146,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           message: MOVE_MESSAGES['not-started'],
         });
       }
-      const position = { node: team.node, state: team.state, checkpoints: team.checkpoints };
+      const position = { node: team.node, state: team.state };
       return { team, position };
     });
 
@@ -255,7 +257,6 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const moved = yield* store.moveTeam(id, team.step, {
         node: start?.node,
         state: start?.state ?? {},
-        checkpoints: 0,
         finished: false,
         action: 'reset',
       });
@@ -271,7 +272,6 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const moved = yield* store.moveTeam(id, team.step, {
         node,
         state,
-        checkpoints: 0,
         finished: isEnd(node),
         action: 'admin',
       });
