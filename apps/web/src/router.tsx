@@ -11,7 +11,30 @@ import { PlayerPage } from '@/features/player/player-page';
 
 const root = createRootRoute({ component: Outlet });
 
-const player = createRoute({ getParentRoute: () => root, path: '/', component: PlayerPage });
+const index = (value: unknown) => {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : undefined;
+};
+
+/** Where the player is within the team's step, so a reload opens the same screen. */
+export interface PlayerSearch {
+  readonly step?: number;
+  readonly screen?: number;
+}
+
+const player = createRoute({
+  getParentRoute: () => root,
+  path: '/',
+  component: PlayerPage,
+  validateSearch: (search): PlayerSearch => {
+    const step = index(search['step']);
+    const screen = index(search['screen']);
+    return {
+      ...(step === undefined ? {} : { step }),
+      ...(screen === undefined ? {} : { screen }),
+    };
+  },
+});
 
 // The creator area (story graph, game setup, QR printing) is loaded on demand, so phones only download the
 // player part.
@@ -30,9 +53,23 @@ const story = createRoute({
   path: '/story',
   component: lazyRouteComponent(() => import('@/features/admin/story-page'), 'StoryPage'),
 });
+/** The test run's moves and screen, so a reload replays the same path. */
+export interface PlaytestSearch {
+  readonly path?: string;
+  readonly screen?: number;
+}
+
 const playtest = createRoute({
   getParentRoute: () => admin,
   path: '/playtest',
+  validateSearch: (search): PlaytestSearch => {
+    const path = typeof search['path'] === 'string' ? search['path'] : undefined;
+    const screen = index(search['screen']);
+    return {
+      ...(path === undefined || path === '' ? {} : { path }),
+      ...(screen === undefined ? {} : { screen }),
+    };
+  },
   component: lazyRouteComponent(() => import('@/features/admin/playtest-page'), 'PlaytestPage'),
 });
 const game = createRoute({

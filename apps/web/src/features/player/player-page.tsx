@@ -1,6 +1,7 @@
 import type { PlayerView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -27,6 +28,8 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
+  const search = useSearch({ from: '/' });
+  const navigate = useNavigate();
   // Login code of another team scanned mid-game; kept while the dialog animates out.
   const [switchCode, setSwitchCode] = useState<string>();
   const [switchOpen, setSwitchOpen] = useState(false);
@@ -99,7 +102,12 @@ export const PlayerPage = () => {
   return (
     <main className='safe-area-padding mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6'>
       {view == null ? (
-        <Intro onCode={onCode} busy={busy} />
+        <Intro
+          onCode={onCode}
+          busy={busy}
+          initialIndex={search.step === undefined ? (search.screen ?? 0) : 0}
+          onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
+        />
       ) : (
         <>
           <header className='flex items-center justify-between text-sm text-muted-foreground'>
@@ -122,6 +130,11 @@ export const PlayerPage = () => {
               busy={busy}
               onCode={onCode}
               onPick={pick}
+              // The screen in the URL belongs to one step; after a move the node opens at its start.
+              initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
+              onIndexChange={(screen) =>
+                void navigate({ to: '/', search: { step: view.step, screen }, replace: true })
+              }
             />
           )}
         </>
@@ -160,7 +173,17 @@ const Centered = ({ children }: { children: React.ReactNode }) => (
  * Before login: the story's intro, the same for every team, and after it the scanner like at the
  * end of any node. Scanning a team's code logs the device in.
  */
-const Intro = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => {
+const Intro = ({
+  onCode,
+  busy,
+  initialIndex,
+  onIndexChange,
+}: {
+  onCode: (code: string) => void;
+  busy: boolean;
+  initialIndex: number;
+  onIndexChange: (index: number) => void;
+}) => {
   const intro = useQuery({
     queryKey: ['player', 'intro'],
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
@@ -185,6 +208,8 @@ const Intro = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean
       busy={busy}
       onCode={onCode}
       onPick={() => {}}
+      initialIndex={initialIndex}
+      onIndexChange={onIndexChange}
     />
   );
 };

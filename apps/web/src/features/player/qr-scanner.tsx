@@ -110,7 +110,7 @@ const QrScannerView = ({
       </div>
       <div className='flex flex-1 items-center justify-center py-6'>
         {/* Square and as wide as the screen; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden bg-white/5'>
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-3xl bg-white/5'>
           {!manual && <div ref={stage} className='absolute inset-0' />}
           <div className={cn('relative w-full', sides)}>
             {disabled ? (

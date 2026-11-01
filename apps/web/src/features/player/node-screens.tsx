@@ -24,15 +24,16 @@ const THEME_BOX: Record<Theme, string> = {
  * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
  * polling does not reshuffle them.
  */
-const freshPaging = (node: PlayerNode, step: number) => ({
+const freshPaging = (node: PlayerNode, step: number, index: number) => ({
   node: node.id,
   step,
-  index: 0,
+  index,
   ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
 });
 
 /**
- * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
+ * One screen at a time, paged locally with „Další“; every move starts from the first screen
+ * (or `initialIndex`, for a reload). The
  * last screen offers the choices, or is the scanner when the node waits for a QR code.
  */
 export const NodeScreens = ({
@@ -41,20 +42,30 @@ export const NodeScreens = ({
   busy,
   onCode,
   onPick,
+  initialIndex = 0,
+  onIndexChange,
 }: {
   node: PlayerNode;
   step: number;
   busy: boolean;
+  /** Screen to open the node on, e.g. kept in the URL across a reload. */
+  initialIndex?: number;
+  /** Called when the player pages, to keep the screen in the URL. */
+  onIndexChange?: (index: number) => void;
   /** A QR code read on the scan screen. */
   onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
 }) => {
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
-  const [paging, setPaging] = useState(() => freshPaging(node, step));
-  if (paging.node !== node.id || paging.step !== step) setPaging(freshPaging(node, step));
-  const index = Math.min(paging.index, count - 1);
-  const go = (to: number) => setPaging({ ...paging, index: to });
+  const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex));
+  if (paging.node !== node.id || paging.step !== step)
+    setPaging(freshPaging(node, step, initialIndex));
+  const index = Math.max(Math.min(paging.index, count - 1), 0);
+  const go = (to: number) => {
+    setPaging({ ...paging, index: to });
+    onIndexChange?.(to);
+  };
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
