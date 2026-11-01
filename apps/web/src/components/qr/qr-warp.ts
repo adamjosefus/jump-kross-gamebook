@@ -1,4 +1,4 @@
-import { escapeAttribute, qrRuns } from './qr-svg';
+import { escapeAttribute, QUIET_ZONE, qrRuns } from './qr-svg';
 
 /** Edge of the printed sheet the viewer stands at. */
 export type ViewerSide = 'bottom' | 'top' | 'left' | 'right';
@@ -102,11 +102,30 @@ export const warpedQr = (
     const [a, b] = frame.back(project(frame.to([x / size - 0.5, 0.5 - y / size])));
     return [a * size, -b * size];
   };
-  const corners = [map(0, 0), map(size, 0), map(size, size), map(0, size)];
-  const left = Math.min(...corners.map(([x]) => x));
-  const top = Math.min(...corners.map(([, y]) => y));
-  const right = Math.max(...corners.map(([x]) => x));
-  const bottom = Math.max(...corners.map(([, y]) => y));
+  const box = (from: number, to: number) => {
+    const corners = [map(from, from), map(to, from), map(to, to), map(from, to)];
+    const xs = corners.map(([x]) => x);
+    const ys = corners.map(([, y]) => y);
+    return {
+      left: Math.min(...xs),
+      top: Math.min(...ys),
+      right: Math.max(...xs),
+      bottom: Math.max(...ys),
+    };
+  };
+  // The far side of the quiet zone stretches more than the near one, so the dark modules would sit
+  // off centre. The quiet zone is widened on the short sides until the modules are centred; it never
+  // gets narrower than the projected one.
+  const zone = box(0, size);
+  const code = box(QUIET_ZONE, size - QUIET_ZONE);
+  const cx = (code.left + code.right) / 2;
+  const cy = (code.top + code.bottom) / 2;
+  const halfWidth = Math.max(cx - zone.left, zone.right - cx);
+  const halfHeight = Math.max(cy - zone.top, zone.bottom - cy);
+  const left = cx - halfWidth;
+  const right = cx + halfWidth;
+  const top = cy - halfHeight;
+  const bottom = cy + halfHeight;
   const place = ([x, y]: Point): Point => [
     mirrorX ? right - x : x - left,
     mirrorY ? bottom - y : y - top,

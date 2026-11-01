@@ -1,7 +1,8 @@
 import QRCode from 'qrcode';
 
 /** Quiet zone around the code, in modules (the spec asks for 4). */
-const MARGIN = 4;
+export const QUIET_ZONE = 4;
+const MARGIN = QUIET_ZONE;
 /** White frame around the logo, in modules. */
 const LOGO_PAD = 0.8;
 
