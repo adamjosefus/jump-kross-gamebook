@@ -41,7 +41,7 @@ export const PlayerFrame = ({
           <Button
             variant='ghost'
             size='sm'
-            className='-ml-3 text-muted-foreground'
+            className='-ml-3 rounded-full text-muted-foreground'
             onClick={onBack}
           >
             <IconArrowLeft /> Zpět

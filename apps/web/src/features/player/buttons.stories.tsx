@@ -57,7 +57,7 @@ const Buttons = () => (
     </Row>
     <Row label='Zpět'>
       <div>
-        <Button variant='ghost' size='sm' className='text-muted-foreground'>
+        <Button variant='ghost' size='sm' className='rounded-full text-muted-foreground'>
           <IconArrowLeft /> Zpět
         </Button>
       </div>
