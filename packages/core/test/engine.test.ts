@@ -60,7 +60,7 @@ describe('engine', () => {
       type: 'passage',
       screens: [
         { theme: 'default', content: 'Jděte ke studni na nádvoří, nebo k bráně.' },
-        { theme: 'night', content: 'Setmělo se.' },
+        { theme: 'description', content: 'Setmělo se.' },
       ],
       choices: [],
       scan: true,

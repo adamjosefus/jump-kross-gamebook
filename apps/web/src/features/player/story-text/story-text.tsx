@@ -144,6 +144,8 @@ type Piece = Word | { readonly space: string; readonly run: RunType };
 
 interface Line {
   readonly pieces: readonly Piece[];
+  /** Added to every space of a justified line. */
+  readonly justifyGap: number;
 }
 
 interface LaidOut {
@@ -228,18 +230,61 @@ const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
   return wide;
 };
 
-const layOut = (prepared: readonly Prepared[], width: number, balanceAll: boolean) => {
+/** Narrowed only as much as it takes to bring more words to a short last line. */
+const prettyWidth = (inline: PreparedRichInline, maxWidth: number) => {
+  const measure = (width: number) => {
+    let lastLine = 0;
+    const lines = walkRichInlineLineRanges(inline, width, (line) => {
+      lastLine = line.width;
+    });
+    return { lines, lastLine };
+  };
+  const wide = measure(maxWidth);
+  const longEnough = maxWidth / 3;
+  if (wide.lines <= 1 || wide.lastLine >= longEnough) return maxWidth;
+  for (let width = maxWidth - 4; width > 0; width -= 4) {
+    const narrower = measure(width);
+    if (narrower.lines > wide.lines) break;
+    if (narrower.lastLine >= longEnough) return width;
+  }
+  return maxWidth;
+};
+
+const wrapWidth = (item: Prepared, available: number) => {
+  if (item.type.wrap === 'balance') return balancedWidth(item.inline, available);
+  if (item.type.wrap === 'pretty') return prettyWidth(item.inline, available);
+  return available;
+};
+
+/** The extra space per gap between words that makes the line fill the width. */
+const justifyGapOf = (pieces: readonly Piece[], lineWidth: number, available: number) => {
+  const gaps = pieces.slice(0, -1).filter((piece) => 'gap' in piece && piece.gap > 0).length;
+  const last = pieces.at(-1);
+  // The line's width counts the space after its last word, which only hangs past the end.
+  const hanging = last !== undefined && 'gap' in last ? last.gap : 0;
+  return gaps === 0 ? 0 : Math.max(available - lineWidth + hanging, 0) / gaps;
+};
+
+const layOut = (prepared: readonly Prepared[], width: number) => {
   let words = 0;
   const next = () => words++;
   const paragraphs = prepared.map((item): LaidOut => {
     const available = Math.max(width - indentOf(item.paragraph, item.type), 1);
-    const maxWidth =
-      item.type.heading || balanceAll ? balancedWidth(item.inline, available) : available;
-    const lines: Line[] = [];
-    walkRichInlineLineRanges(item.inline, maxWidth, (range) => {
+    const measured: { pieces: Piece[]; width: number }[] = [];
+    walkRichInlineLineRanges(item.inline, wrapWidth(item, available), (range) => {
       const line = materializeRichInlineLineRange(item.inline, range);
-      lines.push({ pieces: line.fragments.flatMap((fragment) => piecesOf(fragment, item, next)) });
+      measured.push({
+        pieces: line.fragments.flatMap((fragment) => piecesOf(fragment, item, next)),
+        width: line.width,
+      });
     });
+    const lines = measured.map(({ pieces, width: lineWidth }, index): Line => ({
+      pieces,
+      justifyGap:
+        item.type.align === 'justify' && index < measured.length - 1
+          ? justifyGapOf(pieces, lineWidth, available)
+          : 0,
+    }));
     return { prepared: item, lines };
   });
   return { paragraphs, words };
@@ -262,7 +307,6 @@ const fontStyle = (run: RunType): CSSProperties => ({
 export const StoryText = ({
   content,
   theme,
-  align = 'left',
   className,
   instant = false,
   fast = false,
@@ -270,7 +314,6 @@ export const StoryText = ({
 }: {
   content: string;
   theme: Theme;
-  align?: 'left' | 'center';
   className?: string;
   /** Show every word at once, e.g. on a screen the player has seen already. */
   instant?: boolean;
@@ -280,8 +323,7 @@ export const StoryText = ({
   onRevealed?: () => void;
 }) => {
   const { resolved } = useTheme();
-  // The night theme has its dark box in the light mode as well.
-  const lightOnDark = theme === 'night' || resolved === 'dark';
+  const lightOnDark = resolved === 'dark';
   const paragraphs = useMemo(() => paragraphsOf(content), [content]);
   const fonts = useMemo(
     () => [
@@ -304,11 +346,8 @@ export const StoryText = ({
     [loaded, paragraphs, theme, lightOnDark],
   );
   const layout = useMemo(
-    () =>
-      prepared === undefined || width === undefined
-        ? undefined
-        : layOut(prepared, width, align === 'center'),
-    [prepared, width, align],
+    () => (prepared === undefined || width === undefined ? undefined : layOut(prepared, width)),
+    [prepared, width],
   );
 
   // When the last word has faded in: at once when shown instantly, tapped, or without motion.
@@ -348,7 +387,7 @@ export const StoryText = ({
           style={{
             marginTop: gapOf(paragraph, layout.paragraphs[index - 1]?.prepared.paragraph, type),
             paddingLeft: indentOf(paragraph, type),
-            textAlign: align,
+            textAlign: type.align === 'center' ? 'center' : 'left',
           }}
         >
           {paragraph.kind === 'quote' && (
@@ -387,7 +426,13 @@ export const StoryText = ({
                     style={{
                       ...fontStyle(piece.run),
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
-                      ...(piece.gap === 0 ? {} : { paddingRight: piece.gap }),
+                      ...(piece.gap === 0
+                        ? {}
+                        : {
+                            paddingRight:
+                              piece.gap +
+                              (pieceIndex < line.pieces.length - 1 ? line.justifyGap : 0),
+                          }),
                       animationDelay: `${revealDelay(piece.index, layout.words, pace)}ms`,
                       animationDuration: `${pace.wordFadeMs}ms`,
                     }}

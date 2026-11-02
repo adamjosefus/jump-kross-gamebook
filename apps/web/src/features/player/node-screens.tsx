@@ -6,7 +6,7 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { blockAlign, THEME_BOX } from './block-look';
+import { THEME_BOX } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
@@ -114,7 +114,6 @@ export const NodeScreens = ({
               onRead={onRead}
               content={screen.content}
               theme={theme}
-              align={blockAlign(theme, node.type === 'end')}
               className={THEME_BOX[theme]}
               instant={shown}
               onRevealed={() => {

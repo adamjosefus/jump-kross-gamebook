@@ -4,14 +4,12 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ThemeContext } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-import { blockAlign, THEME_BOX } from './block-look';
+import { THEME_BOX } from './block-look';
 import { StoryText } from './story-text/story-text';
 
 interface Look {
   readonly name: string;
   readonly theme: Theme;
-  /** On the last screen of the game. */
-  readonly end?: boolean;
   /** A text of this look from the game. */
   readonly content: string;
 }
@@ -24,26 +22,25 @@ const LOOKS: readonly Look[] = [
       '## Pravidla\n\nHrajete jako tým. Příběh vás povede po okolí: někdy vybíráte v aplikaci, jindy musíte dojít na místo a naskenovat tam QR kód.',
   },
   {
-    name: 'Základní, konec hry',
-    theme: 'default',
-    end: true,
-    content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.',
-  },
-  {
     name: 'Úvod',
     theme: 'intro',
     content:
       '# Poklad starého mlýna\n\nHledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?',
   },
   {
+    name: 'Závěr',
+    theme: 'outro',
+    content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.',
+  },
+  {
     name: 'Dopis',
     theme: 'letter',
     content:
-      '*Milí hledači,*\n\npoklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.\n\n— **Matěj**',
+      '## Milí hledači,\n\npoklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.\n\n— **Matěj**',
   },
   {
-    name: 'Noc',
-    theme: 'night',
+    name: 'Popis',
+    theme: 'description',
     content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
   },
 ];
@@ -74,7 +71,7 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
         {mode === 'dark' ? 'Tmavý režim' : 'Světlý režim'}
       </h2>
       <div className='flex flex-wrap items-start gap-x-10 gap-y-12'>
-        {LOOKS.map(({ name, theme, end = false, content }) => (
+        {LOOKS.map(({ name, theme, content }) => (
           <article key={name} className='flex w-[350px] flex-col gap-4 font-story'>
             <p className='border-b pb-2 font-sans text-xs text-muted-foreground'>
               {name} · <code>{theme}</code>
@@ -83,7 +80,6 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
               instant
               content={sample ?? content}
               theme={theme}
-              align={blockAlign(theme, end)}
               className={THEME_BOX[theme]}
             />
           </article>

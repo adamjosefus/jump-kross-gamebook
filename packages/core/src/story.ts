@@ -1,7 +1,7 @@
 import type { State } from './types.ts';
 
 /** Looks of one screen; the player maps each theme to its own styles. */
-export const THEMES = ['default', 'intro', 'letter', 'night'] as const;
+export const THEMES = ['default', 'intro', 'outro', 'letter', 'description'] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** One screen of markdown. */

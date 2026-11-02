@@ -16,7 +16,7 @@ type State = {
  * their codes from here. `intro` is what anyone sees before scanning a team's code; then the team
  * continues where it is, or at START when it has not started yet.
  *
- * Demo: an intro, a letter, a night screen, a fork decided by which place the team walks to
+ * Demo: an intro, a letter, a description, a fork decided by which place the team walks to
  * (locations 1 and 2), a choice that appears only with enough coins, and two endings.
  */
 export const story = defineStory<State>()({
@@ -99,7 +99,7 @@ export const story = defineStory<State>()({
     WELL: {
       blocks: [
         {
-          theme: 'night',
+          theme: 'description',
           content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
         },
       ],
@@ -118,7 +118,7 @@ export const story = defineStory<State>()({
       blocks: (s) => [
         'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
         s.courage > 0 && {
-          theme: 'night',
+          theme: 'description',
           content: 'Ve tmě si všimnete slabého světla pod deskou.',
         },
       ],
@@ -131,13 +131,15 @@ export const story = defineStory<State>()({
     TREASURE: {
       end: true,
       blocks: [
-        { theme: 'intro', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
+        { theme: 'outro', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
       ],
     },
 
     HOME: {
       end: true,
-      blocks: ['Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.'],
+      blocks: [
+        { theme: 'outro', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
+      ],
     },
   },
 });
