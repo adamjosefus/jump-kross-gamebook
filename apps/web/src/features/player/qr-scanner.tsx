@@ -90,7 +90,7 @@ const QrScannerView = ({
       <div className='flex flex-col gap-2'>{header}</div>
       <div className='flex flex-1 items-center justify-center py-6'>
         {/* Square across the column; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-white/5'>
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-card'>
           <div ref={stage} className='absolute inset-0' />
           <div className='relative w-full px-4'>
             {disabled ? (
@@ -98,7 +98,7 @@ const QrScannerView = ({
             ) : (
               cameraError !== undefined && (
                 <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
-                  <p className='text-sm text-white/80'>{cameraError}</p>
+                  <p className='text-sm text-muted-foreground'>{cameraError}</p>
                   <Button variant='secondary' onClick={() => setCameraError(undefined)}>
                     <RotateCw /> Zkusit znovu
                   </Button>
@@ -123,7 +123,7 @@ export const ScanScreen = ({ onCode, busy }: { onCode: (code: string) => void; b
     header={
       <>
         <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
-        <p className='text-white/70'>Namiřte fotoaparát na QR kód.</p>
+        <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód.</p>
       </>
     }
   />

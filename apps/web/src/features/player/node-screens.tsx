@@ -109,11 +109,7 @@ export const NodeScreens = ({
   );
 
   return (
-    <PlayerFrame
-      onBack={index > 0 ? () => go(index - 1) : undefined}
-      aside={aside}
-      camera={scanning}
-    >
+    <PlayerFrame onBack={index > 0 ? () => go(index - 1) : undefined} aside={aside} dark={scanning}>
       <article
         key={`${node.id}-${step}-${index}`}
         className='screen-fade-in flex flex-1 flex-col gap-6'
