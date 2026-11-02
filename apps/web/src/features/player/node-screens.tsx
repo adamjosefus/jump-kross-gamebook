@@ -66,7 +66,6 @@ export const NodeScreens = ({
   initialIndex = 0,
   onIndexChange,
   requireCamera = false,
-  manualEntry = false,
   aside,
   onRead,
 }: {
@@ -81,8 +80,6 @@ export const NodeScreens = ({
   onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
   requireCamera?: boolean;
-  /** The scan screen also takes a typed code (the admin's test run; players can only scan). */
-  manualEntry?: boolean;
   /** Shown at the right end of the navigation bar. */
   aside?: ReactNode;
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
@@ -106,7 +103,7 @@ export const NodeScreens = ({
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
   const shown = screen === undefined || paging.seen.includes(index);
-  const scanScreen = <ScanScreen onCode={onCode} busy={busy} manualEntry={manualEntry} />;
+  const scanScreen = <ScanScreen onCode={onCode} busy={busy} />;
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );

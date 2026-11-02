@@ -2,8 +2,16 @@ import type { PlaytestView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronDown, Loader2, QrCode, RotateCcw, SkipForward, Undo2 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ChevronDown,
+  Keyboard,
+  Loader2,
+  QrCode,
+  RotateCcw,
+  SkipForward,
+  Undo2,
+} from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +22,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NodeScreens } from '@/features/player/node-screens';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -83,11 +93,66 @@ const introStep = (screens: PlaytestView['view']['screens']): Step => ({
   view: { id: 'intro', type: 'passage', screens, choices: [], scan: true, scans: [] },
 });
 
+/** A QR code typed in, for when the test run has no camera or no printed code at hand. */
+const CodeEntry = ({
+  disabled,
+  busy,
+  onCode,
+}: {
+  disabled: boolean;
+  busy: boolean;
+  /** `done` is called once the code worked; one that did not stays in the field to be fixed. */
+  onCode: (code: string, done: () => void) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const code = text.trim();
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (code === '' || busy) return;
+    onCode(code, () => {
+      setText('');
+      setOpen(false);
+    });
+  };
+  return (
+    <Popover open={open && !disabled} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant='ghost' size='sm' disabled={disabled} title='Zadat kód ručně'>
+          <Keyboard /> Kód
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side='top' align='end'>
+        <form onSubmit={submit} className='flex flex-col gap-3'>
+          <div className='flex flex-col gap-0.5'>
+            <h3 className='text-sm font-medium'>Zadat kód ručně</h3>
+            <p className='text-xs text-muted-foreground'>Kód je vytištěný pod QR kódem.</p>
+          </div>
+          <div className='flex gap-2'>
+            <Input
+              value={text}
+              onChange={(event) => setText(event.target.value.toUpperCase())}
+              placeholder='L-12-ABCD'
+              aria-label='Kód z QR'
+              autoCapitalize='characters'
+              autoComplete='off'
+              className='min-w-0 flex-1 font-mono'
+            />
+            <Button type='submit' disabled={code === '' || busy}>
+              {busy ? <Loader2 className='animate-spin' /> : 'Potvrdit'}
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 /**
  * Plays the story as a team would, without a team: nothing is stored, the page keeps the path and
  * sends the position with every move. It begins with the intro and the login scan; QR codes are
- * scanned like in the game, or skipped from the toolbar. The moves and the screen are in the URL,
- * so a reload replays the same path.
+ * scanned like in the game, or typed in or skipped from the toolbar. The moves and the screen are
+ * in the URL, so a reload replays the same path.
  */
 export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
@@ -179,7 +244,6 @@ export const PlaytestPage = () => {
                   busy={play.isPending}
                   onCode={(code) => take({ code })}
                   requireCamera={current.intro === true}
-                  manualEntry
                   onPick={(choice) => take({ choice: choice.index })}
                   // The screen in the URL belongs to the path in it; after a move it starts over.
                   initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
@@ -214,14 +278,23 @@ export const PlaytestPage = () => {
               <RotateCcw /> Znovu
             </Button>
             <span className='flex-1' />
+            <CodeEntry
+              disabled={current?.view.scan !== true}
+              busy={play.isPending}
+              onCode={(code, done) => {
+                if (current !== undefined)
+                  play.mutate({ from: current, move: { code } }, { onSuccess: done });
+              }}
+            />
             {current?.intro === true ? (
               <Button
                 variant='ghost'
                 size='sm'
                 disabled={play.isPending}
+                title='Přeskočit přihlášení'
                 onClick={() => take(undefined)}
               >
-                <SkipForward /> Přeskočit přihlášení
+                <SkipForward /> Přeskočit
               </Button>
             ) : (
               <DropdownMenu>
@@ -236,7 +309,7 @@ export const PlaytestPage = () => {
                         : undefined
                     }
                   >
-                    <SkipForward /> Přeskočit sken <ChevronDown />
+                    <SkipForward /> Přeskočit <ChevronDown />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
