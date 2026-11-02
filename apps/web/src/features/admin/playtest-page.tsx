@@ -175,6 +175,7 @@ export const PlaytestPage = () => {
                 <NodeScreens
                   node={current.view}
                   step={path.length}
+                  visitScope='playtest'
                   busy={play.isPending}
                   onCode={(code) => take({ code })}
                   requireCamera={current.intro === true}

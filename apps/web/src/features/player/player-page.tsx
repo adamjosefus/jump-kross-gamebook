@@ -127,6 +127,7 @@ export const PlayerPage = () => {
             <NodeScreens
               node={view.node}
               step={view.step}
+              visitScope={`team-${view.team.id}`}
               busy={busy}
               onCode={onCode}
               onPick={pick}
@@ -205,6 +206,7 @@ const Intro = ({
     <NodeScreens
       node={{ id: 'intro', type: 'passage', screens: intro.data.screens, choices: [], scan: true }}
       step={0}
+      visitScope='intro'
       busy={busy}
       onCode={onCode}
       onPick={() => {}}

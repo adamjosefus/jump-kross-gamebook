@@ -1,7 +1,7 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
 import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { CameraGate } from './camera-access';
 import { ScanScreen } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
+import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
@@ -21,6 +22,14 @@ const THEME_BOX: Record<Theme, string> = {
     'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50',
   night: 'rounded-lg bg-slate-950 p-6 text-slate-100 ring-1 ring-slate-800',
 };
+
+/** A screen's text, shown very quickly when the screen was visited a moment ago. */
+const VisitedStoryText = ({
+  block,
+  ...props
+}: ComponentProps<typeof StoryText> & { block: string }) => (
+  <StoryText {...props} fast={useRecentVisit(block)} />
+);
 
 /**
  * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
@@ -43,6 +52,7 @@ const freshPaging = (node: PlayerNode, step: number, index: number) => ({
 export const NodeScreens = ({
   node,
   step,
+  visitScope,
   busy,
   onCode,
   onPick,
@@ -53,6 +63,8 @@ export const NodeScreens = ({
 }: {
   node: PlayerNode;
   step: number;
+  /** Whose visits count for the fast text, so they do not carry over to another team. */
+  visitScope: string;
   busy: boolean;
   /** Screen to open the node on, e.g. kept in the URL across a reload. */
   initialIndex?: number;
@@ -112,7 +124,8 @@ export const NodeScreens = ({
       {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
         <div className='flex flex-1 flex-col justify-center'>
-          <StoryText
+          <VisitedStoryText
+            block={`${visitScope}/${node.id}/${index}`}
             content={screen.content}
             theme={theme}
             align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}

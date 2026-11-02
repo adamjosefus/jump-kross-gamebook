@@ -26,6 +26,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const Fast: Story = { args: { fast: true } };
+
 export const Intro: Story = {
   args: {
     theme: 'intro',
