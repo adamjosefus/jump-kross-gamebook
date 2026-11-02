@@ -1,5 +1,5 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import { IconChevronRight, IconFlag } from '@tabler/icons-react';
+import { IconArrowRight, IconFlag } from '@tabler/icons-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { ActionButton } from '@/components/action-button';
@@ -139,7 +139,7 @@ export const NodeScreens = ({
           >
             {!last ? (
               <ActionButton
-                icon={<IconChevronRight className='size-5' />}
+                icon={<IconArrowRight className='size-5' />}
                 onClick={() => go(index + 1)}
               >
                 Další

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   IconCamera,
   IconChevronLeft,
-  IconChevronRight,
+  IconArrowRight,
   IconLoader2,
   IconRotateClockwise,
 } from '@tabler/icons-react';
@@ -27,7 +27,7 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 const Buttons = () => (
   <div className='flex flex-col gap-6'>
     <Row label='Další'>
-      <ActionButton icon={<IconChevronRight className='size-5' />}>Další</ActionButton>
+      <ActionButton icon={<IconArrowRight className='size-5' />}>Další</ActionButton>
     </Row>
     <Row label='Volby'>
       <SlideButton onConfirm={() => undefined}>Vyrazit na cestu</SlideButton>
