@@ -100,7 +100,7 @@ export const PlayerPage = () => {
     );
 
   return (
-    <main className='safe-area-padding mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6'>
+    <main className='safe-area-padding mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 font-story'>
       {view == null ? (
         <Intro
           onCode={onCode}
@@ -127,6 +127,7 @@ export const PlayerPage = () => {
             <NodeScreens
               node={view.node}
               step={view.step}
+              visitScope={`team-${view.team.id}`}
               busy={busy}
               onCode={onCode}
               onPick={pick}
@@ -141,7 +142,7 @@ export const PlayerPage = () => {
       )}
 
       <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className='font-story'>
           <AlertDialogHeader>
             <AlertDialogTitle>Přepnout na jiný tým?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -205,6 +206,7 @@ const Intro = ({
     <NodeScreens
       node={{ id: 'intro', type: 'passage', screens: intro.data.screens, choices: [], scan: true }}
       step={0}
+      visitScope='intro'
       busy={busy}
       onCode={onCode}
       onPick={() => {}}

@@ -13,31 +13,48 @@ import { cn } from '@/lib/utils';
 import { paragraphsOf, type Paragraph } from './markdown';
 import { paragraphType, QUOTE_LINE, runType, type ParagraphType, type RunType } from './typography';
 
-/** Average time per word; long screens go faster so the whole reveal never takes too long. */
-const WORD_STEP_MS = 70;
-const MAX_REVEAL_MS = 4000;
+interface RevealPace {
+  /** Average time per word; long screens go faster so the whole reveal never takes too long. */
+  readonly wordStepMs: number;
+  readonly maxRevealMs: number;
+  /** How long one word takes to fade in; the CSS animation gets it from here. */
+  readonly wordFadeMs: number;
+  /** Shortest time between two words, so even in the middle they come one by one. */
+  readonly minWordGapMs: number;
+}
+
+const NORMAL_PACE: RevealPace = {
+  wordStepMs: 70,
+  maxRevealMs: 4000,
+  wordFadeMs: 800,
+  minWordGapMs: 30,
+};
+/** For a text the player has read a moment ago: done in about a quarter of a second. */
+const FAST_PACE: RevealPace = {
+  wordStepMs: 5,
+  maxRevealMs: 150,
+  wordFadeMs: 100,
+  minWordGapMs: 0,
+};
+
 /** Steepness of the S-curve: the higher, the slower the start and the end against the middle. */
 const REVEAL_EASING = 2.5;
-/** How long one word takes to fade in; the CSS animation gets it from here. */
-const WORD_FADE_MS = 800;
-/** Shortest time between two words, so even in the middle they come one by one. */
-const MIN_WORD_GAP_MS = 30;
 
 /**
  * When the word starts to fade in. One S-curve covers the whole screen: the share of words shown
  * grows like an ease-in-out over time, so the first and the last words come slowly and the middle
  * ones quickly, always one after another.
  */
-const revealDelay = (index: number, words: number) => {
+const revealDelay = (index: number, words: number, pace: RevealPace) => {
   if (words <= 1) return 0;
-  const curve = Math.min(words * WORD_STEP_MS, MAX_REVEAL_MS);
+  const curve = Math.min(words * pace.wordStepMs, pace.maxRevealMs);
   const progress = index / (words - 1);
   // The inverse of the ease-in-out: the time at which this share of the words is shown.
   const time =
     progress < 0.5
       ? 0.5 * (2 * progress) ** (1 / REVEAL_EASING)
       : 1 - 0.5 * (2 * (1 - progress)) ** (1 / REVEAL_EASING);
-  return Math.round(index * MIN_WORD_GAP_MS + curve * time);
+  return Math.round(index * pace.minWordGapMs + curve * time);
 };
 
 // -----------------------------------------------------------------------------------------------
@@ -217,6 +234,7 @@ export const StoryText = ({
   align = 'left',
   className,
   instant = false,
+  fast = false,
   onRevealed,
 }: {
   content: string;
@@ -225,6 +243,8 @@ export const StoryText = ({
   className?: string;
   /** Show every word at once, e.g. on a screen the player has seen already. */
   instant?: boolean;
+  /** Show the words very quickly, e.g. on a screen the player has visited a moment ago. */
+  fast?: boolean;
   /** Called once every word is fully visible. */
   onRevealed?: () => void;
 }) => {
@@ -256,10 +276,11 @@ export const StoryText = ({
 
   // When the last word has faded in: at once when shown instantly, tapped, or without motion.
   const shownAll = revealed || instant;
+  const pace = fast ? FAST_PACE : NORMAL_PACE;
   const revealMs =
     layout === undefined || layout.words === 0
       ? 0
-      : revealDelay(layout.words - 1, layout.words) + WORD_FADE_MS;
+      : revealDelay(layout.words - 1, layout.words, pace) + pace.wordFadeMs;
   const reportRevealed = useEffectEvent(() => onRevealed?.());
   const laidOut = layout !== undefined;
   useEffect(() => {
@@ -325,8 +346,8 @@ export const StoryText = ({
                       ...fontStyle(piece.run),
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
                       ...(piece.gap === 0 ? {} : { paddingRight: piece.gap }),
-                      animationDelay: `${revealDelay(piece.index, layout.words)}ms`,
-                      animationDuration: `${WORD_FADE_MS}ms`,
+                      animationDelay: `${revealDelay(piece.index, layout.words, pace)}ms`,
+                      animationDuration: `${pace.wordFadeMs}ms`,
                     }}
                   >
                     {piece.text}

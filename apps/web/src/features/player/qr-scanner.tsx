@@ -1,11 +1,9 @@
-import { Camera, ChevronLeft, Keyboard, Loader2 } from 'lucide-react';
+import { Camera, ChevronLeft, Keyboard, Loader2, RotateCw } from 'lucide-react';
 import QrScanner from 'qr-scanner';
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-const MANUAL = 'Zadejte kód ručně.';
 
 /**
  * Why the camera did not start, for the player. `qr-scanner` reports a denied permission as
@@ -13,43 +11,46 @@ const MANUAL = 'Zadejte kód ručně.';
  */
 const cameraProblem = async (error: unknown) => {
   if (!window.isSecureContext || navigator.mediaDevices === undefined)
-    return `Kamera funguje jen na zabezpečené adrese (https). ${MANUAL}`;
+    return 'Kamera funguje jen na zabezpečené adrese (https).';
   const permission = await navigator.permissions
     ?.query({ name: 'camera' })
     .then((status) => status.state)
     .catch(() => undefined);
   const name = error instanceof Error ? error.name : '';
   if (permission === 'denied' || name === 'NotAllowedError')
-    return `Prohlížeč nepovolil přístup ke kameře. Povolte ho v nastavení stránky, nebo ${MANUAL.toLowerCase()}`;
-  if (name === 'NotReadableError')
-    return `Kameru právě používá jiná aplikace. Zavřete ji, nebo ${MANUAL.toLowerCase()}`;
-  if (name === 'NotFoundError' || error === 'Camera not found.')
-    return `Nenašla se žádná kamera. ${MANUAL}`;
-  return `Kameru se nepodařilo spustit. ${MANUAL}`;
+    return 'Prohlížeč nepovolil přístup ke kameře. Povolte ho v nastavení stránky.';
+  if (name === 'NotReadableError') return 'Kameru právě používá jiná aplikace. Zavřete ji.';
+  if (name === 'NotFoundError' || error === 'Camera not found.') return 'Nenašla se žádná kamera.';
+  return 'Kameru se nepodařilo spustit.';
 };
 
 /** The same code read again within this time is ignored, so one code is not sent twice. */
 const REPEAT_MS = 3000;
 
 /**
- * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`) with a manual
- * fallback: the code is printed under every QR, so it can be typed in when the camera fails. The
- * camera runs while the component is mounted, so a wrong code can be followed by another one.
+ * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`). The camera
+ * runs while the component is mounted, so a wrong code can be followed by another one. The admin's
+ * test run can also type the code in, as it is printed under every QR; players can only scan.
  */
 const QrScannerView = ({
   onCode,
   disabled = false,
+  manualEntry = false,
   header,
 }: {
   onCode: (code: string) => void;
   /** Codes read meanwhile are ignored, e.g. while the last one is being sent. */
   disabled?: boolean;
+  /** Offers typing the code in instead of scanning it. */
+  manualEntry?: boolean;
   /** Shown over the top of the camera. */
   header: ReactNode;
 }) => {
   const stage = useRef<HTMLDivElement>(null);
   const [manual, setManual] = useState(false);
   const [cameraError, setCameraError] = useState<string>();
+  // A failed camera stays off until the player tries again.
+  const failed = cameraError !== undefined;
   const [text, setText] = useState('');
 
   const last = useRef<{ code: string; at: number }>(undefined);
@@ -62,8 +63,7 @@ const QrScannerView = ({
 
   useEffect(() => {
     const container = stage.current;
-    if (manual || container === null) return undefined;
-    setCameraError(undefined);
+    if (manual || failed || container === null) return undefined;
     // Every scanner gets its own video: a destroyed scanner stops the stream in its video 300 ms
     // later, which in a shared one would be the next scanner's camera (React runs effects twice
     // in development, so that happens on every mount).
@@ -90,7 +90,7 @@ const QrScannerView = ({
       // The scan region overlay sits next to the video.
       container.replaceChildren();
     };
-  }, [manual]);
+  }, [manual, failed]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -128,24 +128,32 @@ const QrScannerView = ({
                 </form>
               ) : (
                 cameraError !== undefined && (
-                  <p className='mx-auto max-w-xs text-center text-sm text-white/80'>
-                    {cameraError}
-                  </p>
+                  <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
+                    <p className='text-sm text-white/80'>{cameraError}</p>
+                    <Button variant='secondary' onClick={() => setCameraError(undefined)}>
+                      <RotateCw /> Zkusit znovu
+                    </Button>
+                  </div>
                 )
               )}
             </div>
           </div>
         </div>
-        <div className='flex justify-center'>
-          <Button
-            variant='ghost'
-            className='text-white hover:bg-white/10 hover:text-white'
-            onClick={() => setManual(!manual)}
-          >
-            {manual ? <Camera /> : <Keyboard />}
-            {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
-          </Button>
-        </div>
+        {manualEntry && (
+          <div className='flex justify-center'>
+            <Button
+              variant='ghost'
+              className='text-white hover:bg-white/10 hover:text-white'
+              onClick={() => {
+                setManual(!manual);
+                setCameraError(undefined);
+              }}
+            >
+              {manual ? <Camera /> : <Keyboard />}
+              {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -158,16 +166,20 @@ const QrScannerView = ({
 export const ScanScreen = ({
   onCode,
   busy,
+  manualEntry = false,
   onBack,
 }: {
   onCode: (code: string) => void;
   busy: boolean;
+  /** Offers typing the code in instead of scanning it. */
+  manualEntry?: boolean;
   /** Back to the last screen of text; missing when there is none. */
   onBack?: () => void;
 }) => (
   <QrScannerView
     onCode={onCode}
     disabled={busy}
+    manualEntry={manualEntry}
     header={
       <>
         {onBack !== undefined && (

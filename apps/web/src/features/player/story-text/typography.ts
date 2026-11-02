@@ -4,8 +4,7 @@ import type { Mark, ParagraphKind } from './markdown';
 
 // Named fonts only: Pretext measures with canvas, and `system-ui` or `ui-serif` resolve
 // differently there than in CSS. The same strings style the painted text, so both agree.
-const SANS = '"Geist Variable", sans-serif';
-const SERIF = 'Georgia, "Times New Roman", serif';
+const SERIF = '"Noto Serif Variable", serif';
 const MONO = 'Menlo, Consolas, "Liberation Mono", monospace';
 
 interface ThemeType {
@@ -16,10 +15,10 @@ interface ThemeType {
 }
 
 const THEME_TYPE: Record<Theme, ThemeType> = {
-  default: { family: SANS, size: 18, lineHeight: 29 },
-  intro: { family: SANS, size: 20, lineHeight: 32 },
-  letter: { family: SERIF, size: 18, lineHeight: 29 },
-  night: { family: SANS, size: 18, lineHeight: 29 },
+  default: { family: SERIF, size: 20, lineHeight: 34 },
+  intro: { family: SERIF, size: 22, lineHeight: 37 },
+  letter: { family: SERIF, size: 20, lineHeight: 34 },
+  night: { family: SERIF, size: 20, lineHeight: 34 },
 };
 
 const KIND_SCALE: Record<ParagraphKind, { size: number; lineHeight: number; weight: number }> = {
