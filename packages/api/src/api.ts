@@ -130,6 +130,12 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       success: PlayerView,
       error: [InvalidCode, StepConflict, InvalidMove, NotFound],
     }).middleware(PlayerAuth),
+    /** How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. */
+    HttpApiEndpoint.post('reading', '/reading', {
+      payload: Schema.Struct({
+        intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })),
+      }),
+    }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
   )
   .prefix('/api/player') {}
@@ -188,6 +194,10 @@ export const TeamStatus = Schema.Struct({
   updatedAt: Schema.String,
   /** Devices seen in the last two minutes. */
   devices: Schema.Number,
+  /** From the team's first scan until its end, or until now; missing before the first scan. */
+  playMs: Schema.optionalKey(Schema.Number),
+  /** How long a text was on at least one of the team's devices. */
+  readingMs: Schema.Number,
 });
 export type TeamStatus = typeof TeamStatus.Type;
 

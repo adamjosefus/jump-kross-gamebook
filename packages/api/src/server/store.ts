@@ -12,6 +12,8 @@ export interface TeamRow {
   readonly node: string | undefined;
   readonly state: State;
   readonly step: number;
+  /** The team's first scan; undefined before it and after a reset. */
+  readonly startedAt: Date | undefined;
   readonly finishedAt: Date | undefined;
   readonly updatedAt: Date;
 }
@@ -23,6 +25,13 @@ export interface LogRow {
   readonly fromNode: string | undefined;
   readonly toNode: string | undefined;
   readonly state: State;
+}
+
+/** A time a device of the team showed a text. */
+export interface ReadingRow {
+  readonly teamId: number;
+  readonly startedAt: Date;
+  readonly endedAt: Date;
 }
 
 export interface TeamMove {
@@ -47,6 +56,13 @@ export interface StoreShape {
     expectedStep: number,
     move: TeamMove,
   ) => Effect.Effect<TeamRow | undefined, StoreError>;
+
+  /** Records the team's first scan; later calls change nothing. */
+  readonly markStarted: (id: number) => Effect.Effect<void, StoreError>;
+  /** Forgets the first scan and the reading, for a new game of the team. */
+  readonly clearTiming: (id: number) => Effect.Effect<void, StoreError>;
+  readonly addReading: (rows: readonly ReadingRow[]) => Effect.Effect<void, StoreError>;
+  readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;
 
   readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>;
   /** Resolves a session and records that the device is alive. */

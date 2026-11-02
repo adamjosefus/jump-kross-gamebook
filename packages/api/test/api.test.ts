@@ -191,6 +191,60 @@ describe('api', () => {
     ]);
   });
 
+  it('measures the game and the reading', async () => {
+    const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[1];
+    expect(await team()).toMatchObject({ readingMs: 0 });
+    expect((await team()).playMs).toBeUndefined();
+
+    const phone = device();
+    const tablet = device();
+    const anonymous = { intervals: [{ ms: 1000, agoMs: 0 }] };
+    expect((await phone('POST', '/api/player/reading', anonymous)).status).toBe(401);
+
+    // The clock runs from the first scan, which is the login.
+    const start = (await phone('POST', '/api/player/login', { code: lisky })).body;
+    await tablet('POST', '/api/player/login', { code: lisky });
+    expect((await team()).playMs).toBeGreaterThanOrEqual(0);
+
+    // Two phones reading at the same time are one team reading.
+    const read = (who: typeof phone, ms: number, agoMs: number) =>
+      who('POST', '/api/player/reading', { intervals: [{ ms, agoMs }] });
+    await read(phone, 60_000, 100_000);
+    await read(tablet, 60_000, 70_000);
+    // 100–40 s ago and 70–10 s ago make 90 s, give or take the milliseconds of the test.
+    expect((await team()).readingMs).toBeGreaterThanOrEqual(89_000);
+    expect((await team()).readingMs).toBeLessThanOrEqual(91_000);
+
+    // A phone left on a text counts for 5 minutes at most; nonsense counts for nothing.
+    await read(phone, 3_600_000, 1_000_000);
+    await read(phone, -5, 0);
+    const capped = (await team()).readingMs;
+    expect(capped).toBeGreaterThanOrEqual(389_000);
+    expect(capped).toBeLessThanOrEqual(391_000);
+
+    // The clock stops at the end.
+    const a2 = await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step });
+    const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    const b1 = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedStep: a2.body.step,
+    });
+    await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
+    const finished = (await team()).playMs;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect((await team()).playMs).toBe(finished);
+
+    // A reset starts over; with the phones still logged in, the next scan starts the clock.
+    const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
+    expect(reset).toMatchObject({ readingMs: 0 });
+    expect(reset.playMs).toBeUndefined();
+    const again = await phone('POST', '/api/player/choose', { index: 1, expectedStep: reset.step });
+    expect((await team()).playMs).toBeUndefined();
+    await phone('POST', '/api/player/scan', { code: studna, expectedStep: again.body.step });
+    expect((await team()).playMs).toBeGreaterThanOrEqual(0);
+  });
+
   it('resets a team to the start', async () => {
     const reset = (await admin('POST', '/api/admin/teams/1/reset')).body;
     expect(reset).toMatchObject({ node: 'A1', finished: false, state: { gold: 100 } });

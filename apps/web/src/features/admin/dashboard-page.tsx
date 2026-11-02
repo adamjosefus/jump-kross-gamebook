@@ -55,6 +55,13 @@ const timeAgo = (iso: string) => {
   return new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
 };
 
+const formatDuration = (ms: number) => {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return `${Math.floor(ms / 1000)} s`;
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+};
+
 const formatState = (state: Readonly<Record<string, Value>>) =>
   Object.entries(state)
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
@@ -205,6 +212,11 @@ export const DashboardPage = () => {
                       <div className='text-xs text-muted-foreground'>
                         {team.devices} zař. · {timeAgo(team.updatedAt)}
                       </div>
+                      {team.playMs !== undefined && (
+                        <div className='text-xs text-muted-foreground'>
+                          Hra {formatDuration(team.playMs)} · čtení {formatDuration(team.readingMs)}
+                        </div>
+                      )}
                     </div>
                     <Button
                       variant='ghost'

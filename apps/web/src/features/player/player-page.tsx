@@ -3,7 +3,7 @@ import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -19,6 +19,7 @@ import {
 import { api, errorMessage, isApiError } from '@/lib/api';
 
 import { NodeScreens } from './node-screens';
+import { useReadingReport } from './reading';
 
 const STATE_KEY = ['player', 'state'] as const;
 
@@ -124,7 +125,8 @@ export const PlayerPage = () => {
               </p>
             </Centered>
           ) : (
-            <NodeScreens
+            <TeamNodeScreens
+              teamId={view.team.id}
               node={view.node}
               step={view.step}
               visitScope={`team-${view.team.id}`}
@@ -165,6 +167,14 @@ export const PlayerPage = () => {
     </main>
   );
 };
+
+/** The screens of a logged-in team, whose reading time is measured. */
+const TeamNodeScreens = ({
+  teamId,
+  ...props
+}: ComponentProps<typeof NodeScreens> & { teamId: number }) => (
+  <NodeScreens {...props} onRead={useReadingReport(teamId)} />
+);
 
 const Centered = ({ children }: { children: React.ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
