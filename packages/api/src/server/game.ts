@@ -27,6 +27,7 @@ import {
   type TeamStatus,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
+import { readingTotals } from './reading.ts';
 import { Store, type TeamMove, type TeamRow } from './store.ts';
 
 const MOVE_MESSAGES: Record<MoveError | 'not-started', string> = {
@@ -41,6 +42,14 @@ const MOVE_MESSAGES: Record<MoveError | 'not-started', string> = {
 };
 
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * The most one continuous view of a text counts for. A phone left unlocked on a text while the
+ * team walks is not reading.
+ */
+const MAX_READING_MS = 5 * 60 * 1000;
+/** More than a device can have waiting, so one request cannot flood the table. */
+const MAX_READING_BATCH = 500;
 
 /** Small pause after a wrong code, so codes cannot be guessed quickly. */
 const penalty = Effect.sleep('400 millis');
@@ -198,6 +207,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     ) {
       const location = yield* locationOf(code);
       const { team, position } = yield* prepareMove(teamId, expectedStep);
+      // After a reset the phones stay logged in, so the first scan is at a location.
+      if (team.startedAt === undefined) yield* store.markStarted(team.id);
       return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
     });
 
@@ -205,15 +216,31 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const login = Effect.fn('Game.login')(function* (code: string) {
       const { id } = yield* teamOf(code);
       const team = yield* store.ensureTeam(id);
+      if (team.startedAt === undefined) yield* store.markStarted(team.id);
       const sessionId = crypto.randomUUID();
       yield* store.createSession(sessionId, team.id);
       return { sessionId, view: yield* playerView(team.id) };
     });
 
+    const reading = Effect.fn('Game.reading')(function* (
+      teamId: number,
+      intervals: readonly { readonly ms: number; readonly agoMs: number }[],
+    ) {
+      const now = Date.now();
+      const rows = intervals.slice(0, MAX_READING_BATCH).flatMap(({ ms, agoMs }) => {
+        const counted = Math.min(ms, MAX_READING_MS);
+        const ended = now - Math.max(agoMs, 0);
+        return counted > 0
+          ? [{ teamId, startedAt: new Date(ended - counted), endedAt: new Date(ended) }]
+          : [];
+      });
+      if (rows.length > 0) yield* store.addReading(rows);
+    });
+
     // -------------------------------------------------------------------------------------------
     // Admin
 
-    const teamStatus = (team: TeamRow, devices: number): TeamStatus => ({
+    const teamStatus = (team: TeamRow, devices: number, readingMs: number): TeamStatus => ({
       id: team.id,
       name: teamName(team.id),
       ...(team.node === undefined ? {} : { node: team.node }),
@@ -223,27 +250,44 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       finished: team.finishedAt !== undefined,
       updatedAt: team.updatedAt.toISOString(),
       devices,
+      ...(team.startedAt === undefined
+        ? {}
+        : { playMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime() }),
+      readingMs,
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const devices = yield* store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS));
-      return teamStatus(team, devices.get(team.id) ?? 0);
+      const [devices, readingRows] = yield* Effect.all([
+        store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
+        store.listReading(),
+      ]);
+      return teamStatus(
+        team,
+        devices.get(team.id) ?? 0,
+        readingTotals(readingRows).get(team.id) ?? 0,
+      );
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits] = yield* Effect.all(
+      const [teams, log, devices, visits, readingRows] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
+          store.listReading(),
         ],
         { concurrency: 'unbounded' },
       );
+      const readingMs = readingTotals(readingRows);
       const result: Overview = {
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) =>
-          teamStatus(teams.find((team) => team.id === id) ?? notStarted(id), devices.get(id) ?? 0),
+          teamStatus(
+            teams.find((team) => team.id === id) ?? notStarted(id),
+            devices.get(id) ?? 0,
+            readingMs.get(id) ?? 0,
+          ),
         ),
         locations: story.locations,
         log: log.map((entry) => ({
@@ -264,6 +308,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       node: undefined,
       state: {},
       step: 0,
+      startedAt: undefined,
       finishedAt: undefined,
       updatedAt: new Date(0),
     });
@@ -283,7 +328,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         finished: false,
         action: 'reset',
       });
-      return yield* singleTeamStatus(moved ?? (yield* requireTeam(id)));
+      yield* store.clearTiming(id);
+      // The row from the move still has the old first scan.
+      return yield* singleTeamStatus(
+        moved === undefined ? yield* requireTeam(id) : { ...moved, startedAt: undefined },
+      );
     });
 
     /** A new game: every team back on the start. */
@@ -380,6 +429,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       playerView,
       choose,
       scan,
+      reading,
       graph,
       intro,
       overview,

@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 import { CameraGate } from './camera-access';
 import { ScanScreen } from './qr-scanner';
+import { useReadingTime } from './reading';
 import { StoryText } from './story-text/story-text';
 import { useRecentVisit } from './visits';
 
@@ -26,10 +27,15 @@ const THEME_BOX: Record<Theme, string> = {
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
 const VisitedStoryText = ({
   block,
+  onRead,
   ...props
-}: ComponentProps<typeof StoryText> & { block: string }) => (
-  <StoryText {...props} fast={useRecentVisit(block)} />
-);
+}: ComponentProps<typeof StoryText> & {
+  block: string;
+  onRead: ((ms: number) => void) | undefined;
+}) => {
+  useReadingTime(onRead);
+  return <StoryText {...props} fast={useRecentVisit(block)} />;
+};
 
 /**
  * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
@@ -60,6 +66,7 @@ export const NodeScreens = ({
   onIndexChange,
   requireCamera = false,
   manualEntry = false,
+  onRead,
 }: {
   node: PlayerNode;
   step: number;
@@ -74,6 +81,8 @@ export const NodeScreens = ({
   requireCamera?: boolean;
   /** The scan screen also takes a typed code (the admin's test run; players can only scan). */
   manualEntry?: boolean;
+  /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
+  onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
   onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
@@ -126,6 +135,7 @@ export const NodeScreens = ({
         <div className='flex flex-1 flex-col justify-center'>
           <VisitedStoryText
             block={`${visitScope}/${node.id}/${index}`}
+            onRead={onRead}
             content={screen.content}
             theme={theme}
             align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}

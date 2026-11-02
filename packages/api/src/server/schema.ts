@@ -13,6 +13,7 @@ create table if not exists team (
 alter table team drop column if exists name;
 alter table team drop column if exists start_node;
 alter table team alter column id drop default;
+alter table team add column if not exists started_at timestamptz;
 
 create table if not exists step_log (
   id bigserial primary key,
@@ -32,4 +33,12 @@ create table if not exists session (
   last_seen_at timestamptz not null default now()
 );
 create index if not exists session_last_seen on session (last_seen_at);
+
+create table if not exists reading (
+  id bigserial primary key,
+  team_id int not null references team (id) on delete cascade,
+  started_at timestamptz not null,
+  ended_at timestamptz not null
+);
+create index if not exists reading_team on reading (team_id);
 `;

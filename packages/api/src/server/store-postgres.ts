@@ -3,7 +3,7 @@ import { Effect, Layer, Schema } from 'effect';
 
 import { GameState } from '../api.ts';
 import { SCHEMA } from './schema.ts';
-import { Store, StoreError, type LogRow, type TeamRow } from './store.ts';
+import { Store, StoreError, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
 type Row = Record<string, unknown>;
 
@@ -21,6 +21,7 @@ const toTeam = (row: Row): TeamRow => ({
   node: optionalText(row['node']),
   state: decodeState(row['state']),
   step: Number(row['step']),
+  startedAt: row['started_at'] === null ? undefined : timestamp(row['started_at']),
   finishedAt: row['finished_at'] === null ? undefined : timestamp(row['finished_at']),
   updatedAt: timestamp(row['updated_at']),
 });
@@ -32,6 +33,12 @@ const toLog = (row: Row): LogRow => ({
   fromNode: optionalText(row['from_node']),
   toNode: optionalText(row['to_node']),
   state: decodeState(row['state']),
+});
+
+const toReading = (row: Row): ReadingRow => ({
+  teamId: Number(row['team_id']),
+  startedAt: timestamp(row['started_at']),
+  endedAt: timestamp(row['ended_at']),
 });
 
 /** Neon over HTTP: one round trip per query, no connection to keep warm in a serverless function. */
@@ -96,6 +103,32 @@ export const makePostgresStore = (url: string) => {
           select * from updated`;
         return row === undefined ? undefined : toTeam(row);
       }),
+
+    markStarted: (id) =>
+      query(
+        async () =>
+          void (await sql`update team set started_at = coalesce(started_at, now()) where id = ${id}`),
+      ),
+    clearTiming: (id) =>
+      query(
+        async () =>
+          void (await sql.transaction([
+            sql`update team set started_at = null where id = ${id}`,
+            sql`delete from reading where team_id = ${id}`,
+          ])),
+      ),
+    addReading: (rows) =>
+      query(
+        async () =>
+          void (await sql.transaction(
+            rows.map(
+              ({ teamId, startedAt, endedAt }) => sql`
+                insert into reading (team_id, started_at, ended_at)
+                values (${teamId}, ${startedAt.toISOString()}, ${endedAt.toISOString()})`,
+            ),
+          )),
+      ),
+    listReading: () => query(async () => (await sql`select * from reading`).map(toReading)),
 
     createSession: (id, teamId) =>
       query(

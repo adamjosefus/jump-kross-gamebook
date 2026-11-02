@@ -1,12 +1,13 @@
 import { Effect, Layer } from 'effect';
 
-import { Store, type LogRow, type TeamRow } from './store.ts';
+import { Store, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = () => {
   const teams = new Map<number, TeamRow>();
   const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>();
   const log: LogRow[] = [];
+  let reading: readonly ReadingRow[] = [];
 
   return Store.of({
     listTeams: () => Effect.sync(() => [...teams.values()].toSorted((a, b) => a.id - b.id)),
@@ -20,6 +21,7 @@ export const makeMemoryStore = () => {
           node: undefined,
           state: {},
           step: 0,
+          startedAt: undefined,
           finishedAt: undefined,
           updatedAt: new Date(),
         };
@@ -50,6 +52,23 @@ export const makeMemoryStore = () => {
         });
         return updated;
       }),
+
+    markStarted: (id) =>
+      Effect.sync(() => {
+        const team = teams.get(id);
+        if (team !== undefined) teams.set(id, { ...team, startedAt: team.startedAt ?? new Date() });
+      }),
+    clearTiming: (id) =>
+      Effect.sync(() => {
+        const team = teams.get(id);
+        if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
+        reading = reading.filter((row) => row.teamId !== id);
+      }),
+    addReading: (rows) =>
+      Effect.sync(() => {
+        reading = [...reading, ...rows];
+      }),
+    listReading: () => Effect.sync(() => reading),
 
     createSession: (id, teamId) =>
       Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
