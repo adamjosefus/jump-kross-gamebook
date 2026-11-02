@@ -41,7 +41,7 @@ const THEME_TYPE: Record<Theme, ThemeType> = {
   },
   green: DEFAULT_TYPE,
   red: DEFAULT_TYPE,
-  letter: { ...DEFAULT_TYPE, text: { align: 'justify', wrap: 'normal' } },
+  letter: { ...DEFAULT_TYPE, text: { align: 'justify', wrap: 'pretty' } },
   description: {
     ...DEFAULT_TYPE,
     heading: { align: 'center', wrap: 'pretty' },
