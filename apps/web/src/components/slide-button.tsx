@@ -104,10 +104,11 @@ export const SlideButton = ({
           'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
           active ? '-top-px -bottom-px -left-px' : 'top-1 bottom-1 left-1',
           drag === undefined
-            ? 'transition-[top,bottom,left,width] duration-300 ease-out'
+            ? 'transition-[top,bottom,left,right] duration-300 ease-out'
             : 'transition-[top,bottom,left] duration-150 ease-out',
         )}
-        style={{ width: active ? `calc(${thumbEnd} + 1px)` : '3rem' }}
+        // The end is set directly, so a touch moves only the other three sides, not this one.
+        style={{ right: `calc(100% - ${thumbEnd})` }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
