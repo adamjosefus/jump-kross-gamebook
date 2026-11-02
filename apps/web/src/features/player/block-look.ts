@@ -6,7 +6,7 @@ export const THEME_BOX: Record<Theme, string> = {
   intro: '',
   green: '',
   red: '',
-  letter: '',
+  letter: 'mx-auto w-[90%]',
   description: 'mx-auto w-[62%] opacity-75',
 };
 
