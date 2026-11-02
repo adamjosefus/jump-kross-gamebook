@@ -87,6 +87,8 @@ export const PlayerView = Schema.Struct({
       choices: Schema.Array(PlayerChoice),
       /** The team moves on by scanning a QR code instead of choosing. */
       scan: Schema.Boolean,
+      /** The heading of the scan screen, when the story sets one. */
+      scanTitle: Schema.optionalKey(Schema.String),
     }),
   ),
 });
@@ -105,7 +107,12 @@ export class PlayerAuth extends HttpApiMiddleware.Service<PlayerAuth, { provides
 ) {}
 
 /** What anyone sees before scanning a team's login code. */
-export const PlayerIntro = Schema.Struct({ screens: Schema.Array(PlayerScreen) });
+export const PlayerIntro = Schema.Struct({
+  screens: Schema.Array(PlayerScreen),
+  /** The heading of the login scan screen, when the story sets one. */
+  scanTitle: Schema.optionalKey(Schema.String),
+});
+export type PlayerIntro = typeof PlayerIntro.Type;
 
 export class PlayerGroup extends HttpApiGroup.make('player')
   .add(
@@ -256,6 +263,7 @@ export const PlaytestView = Schema.Struct({
     screens: Schema.Array(PlayerScreen),
     choices: Schema.Array(PlayerChoice),
     scan: Schema.Boolean,
+    scanTitle: Schema.optionalKey(Schema.String),
     scans: Schema.Array(Location),
   }),
 });

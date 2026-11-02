@@ -34,6 +34,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
   if (starts.length > 1) report(`Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`);
 
   if (story.intro.length === 0) report('Příběh nemá úvod (intro).');
+  if (story.introScanTitle?.trim() === '') report('Úvod má prázdný titulek skeneru.');
   introScreens(story).forEach((screen, index) => {
     if (screen.content.trim() === '') report(`Úvod má prázdnou obrazovku č. ${index + 1}.`);
   });
@@ -58,6 +59,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
 
   for (const id of story.order) {
     const labels = new Set<string>();
+    if (story.nodes[id]!.scanTitle?.trim() === '') report(`Uzel ${id} má prázdný titulek skeneru.`);
     for (const { location, goto } of story.nodes[id]!.scans ?? []) {
       if (!known.has(location))
         report(`QR volba v uzlu ${id} vede přes neznámé místo ${location}.`);

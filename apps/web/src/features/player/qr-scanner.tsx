@@ -116,13 +116,22 @@ const QrScannerView = ({
  * The scan screen: the camera as a square across the width of the story text. It looks the same for every code, so it
  * never tells how many codes would work or where they lead.
  */
-export const ScanScreen = ({ onCode, busy }: { onCode: (code: string) => void; busy: boolean }) => (
+export const ScanScreen = ({
+  title = 'Naskenujte QR kód',
+  onCode,
+  busy,
+}: {
+  /** From the story; a default one without it. */
+  readonly title?: string | undefined;
+  readonly onCode: (code: string) => void;
+  readonly busy: boolean;
+}) => (
   <QrScannerView
     onCode={onCode}
     disabled={busy}
     header={
       <>
-        <h2 className='story-heading'>Naskenujte QR kód</h2>
+        <h2 className='story-heading'>{title}</h2>
         <p>Namiřte fotoaparát na QR kód.</p>
       </>
     }

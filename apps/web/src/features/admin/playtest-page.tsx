@@ -1,4 +1,4 @@
-import type { PlaytestView } from '@gamebook/api';
+import type { PlayerIntro, PlaytestView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import {
   IconArrowBackUp,
@@ -86,11 +86,11 @@ const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
   return { ...next, via: viaOf(from, move), token: encodeMove(move) };
 };
 
-const introStep = (screens: PlaytestView['view']['screens']): Step => ({
+const introStep = (intro: PlayerIntro): Step => ({
   intro: true,
   node: 'Úvod',
   state: {},
-  view: { id: 'intro', type: 'passage', screens, choices: [], scan: true, scans: [] },
+  view: { ...intro, id: 'intro', type: 'passage', choices: [], scan: true, scans: [] },
 });
 
 /** A QR code typed in, for when the test run has no camera or no printed code at hand. */
@@ -163,7 +163,7 @@ export const PlaytestPage = () => {
     // The story changes only with a deploy.
     staleTime: Infinity,
   });
-  const start = intro.data === undefined ? undefined : introStep(intro.data.screens);
+  const start = intro.data === undefined ? undefined : introStep(intro.data);
 
   // The path the page opened with is replayed once; from then on the page keeps it.
   const [opened] = useState(() => search.path ?? '');

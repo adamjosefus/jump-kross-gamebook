@@ -226,7 +226,7 @@ const Intro = ({
     );
   return (
     <NodeScreens
-      node={{ id: 'intro', type: 'passage', screens: intro.data.screens, choices: [], scan: true }}
+      node={{ ...intro.data, id: 'intro', type: 'passage', choices: [], scan: true }}
       step={0}
       visitScope='intro'
       busy={busy}

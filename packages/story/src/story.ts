@@ -44,6 +44,7 @@ export const story = defineStory<State>()({
     v týmu, všechny pak ukazují totéž.
     `,
   ],
+  introScanTitle: 'Naskenujte kód svého týmu',
   locations: {
     1: 'Lesní studánka',
     2: 'Starý mlýn',
@@ -90,6 +91,7 @@ export const story = defineStory<State>()({
           : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
         'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
       ],
+      scanTitle: 'Kam jste došli?',
       scans: [
         { location: 1, goto: 'WELL' },
         { location: 2, goto: 'MILL' },

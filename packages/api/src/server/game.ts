@@ -67,7 +67,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     // Previews depend only on the story, so the graph is computed once.
     let cachedGraph: GameGraph | undefined;
     const graph = () => (cachedGraph ??= toGraph(story));
-    const intro = { screens: introScreens(story) };
+    const intro = {
+      screens: introScreens(story),
+      ...(story.introScanTitle === undefined ? {} : { scanTitle: story.introScanTitle }),
+    };
 
     const teamName = (id: number) =>
       story.teams.find((team) => team.id === id)?.name ?? `Tým ${id}`;
@@ -97,6 +100,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           screens: node.screens,
           choices: node.choices,
           scan: node.scan,
+          ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
         },
       };
     };

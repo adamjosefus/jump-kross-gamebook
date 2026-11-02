@@ -57,6 +57,8 @@ export const story = defineStory<State>()({
         s.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
         'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
       ],
+      // Titulek obrazovky skeneru; bez něj se ukáže výchozí. Pro přihlašovací sken je `introScanTitle`.
+      scanTitle: 'Kam jste došli?',
       // QR volby: kam tým pokračuje, rozhodne naskenované místo. Hráč vidí jen tlačítko Naskenovat.
       scans: [
         { location: 32, goto: 'A2' },
