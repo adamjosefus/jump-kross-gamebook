@@ -8,12 +8,13 @@ export const fileName = (entry: PrintableCode, extension: string, suffix?: strin
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-  const kind = { T: 'tym', L: 'misto' }[entry.kind];
+  const kind = ({ T: 'tym', L: 'misto' } as const)[entry.kind];
   return `qr-${[kind, slug, entry.kind, entry.id, suffix].filter(Boolean).join('-')}.${extension}`;
 };
 
 export const saveBlob = (blob: Blob, name: string) => {
   const url = URL.createObjectURL(blob);
+  // The anchor is a DOM element; its attributes are set in place as the DOM API requires.
   const link = document.createElement('a');
   link.href = url;
   link.download = name;

@@ -30,7 +30,7 @@ import { ServerConfig } from './config.ts';
 import { readingTotals } from './reading.ts';
 import { Store, type TeamMove, type TeamRow } from './store.ts';
 
-const MOVE_MESSAGES: Record<MoveError | 'not-started', string> = {
+const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started', string>> = {
   'wrong-location': 'Tady to není. Jste na špatném místě.',
   'scan-required': 'Pokračujte naskenováním QR kódu.',
   'no-scan': 'Teď se vybírá v aplikaci, ne skenováním.',
@@ -64,7 +64,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const store = yield* Store;
     const config = yield* ServerConfig;
     const story = yield* CurrentStory;
-    // Previews depend only on the story, so the graph is computed once.
+    // Previews depend only on the story, so the graph is computed once, lazily on the first
+    // admin request; the cache has to be a `let` for that.
     let cachedGraph: GameGraph | undefined;
     const graph = () => (cachedGraph ??= toGraph(story));
     const intro = {
@@ -185,7 +186,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
               : 'Nejdřív naskenujte přihlašovací kód týmu.',
         });
       }
-      const team = story.teams.find((t) => t.id === payload.id);
+      const team = story.teams.find((candidate) => candidate.id === payload.id);
       if (team === undefined)
         return yield* new InvalidCode({ message: 'Tento tým už ve hře není.' });
       return team;
@@ -200,7 +201,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       }
       if (payload.kind === 'T')
         return yield* new InvalidCode({ message: 'Tohle je přihlašovací kód týmu.' });
-      const location = story.locations.find((l) => l.id === payload.id);
+      const location = story.locations.find((candidate) => candidate.id === payload.id);
       if (location === undefined)
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
       return location;
@@ -403,7 +404,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         view: {
           ...rendered,
           scans: availableScans(node, position.state).flatMap(
-            (option) => story.locations.find((l) => l.id === option.scan.location) ?? [],
+            (option) =>
+              story.locations.find((location) => location.id === option.scan.location) ?? [],
           ),
         },
       };
@@ -412,7 +414,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const codes = Effect.fn('Game.codes')(function* () {
       // Teams and places come from the story, so their codes change only with a deploy.
-      const entries: { kind: PrintableCode['kind']; id: number; label: string }[] = [
+      const entries: readonly {
+        readonly kind: PrintableCode['kind'];
+        readonly id: number;
+        readonly label: string;
+      }[] = [
         ...story.teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
         ...story.locations.map((location) => ({
           kind: 'L' as const,

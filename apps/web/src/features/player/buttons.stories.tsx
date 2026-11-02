@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 
 import { THEME_PAGE } from './block-look';
 
-const Row = ({ label, children }: { label: string; children: ReactNode }) => (
+const Row = ({ label, children }: { readonly label: string; readonly children: ReactNode }) => (
   <div className='flex flex-col gap-2'>
     <p className='font-sans text-xs opacity-60'>{label}</p>
     {children}
@@ -71,13 +71,13 @@ const Buttons = () => (
   </div>
 );
 
-const PAGES: readonly { name: string; theme: Theme }[] = [
+const PAGES: readonly { readonly name: string; readonly theme: Theme }[] = [
   { name: 'Běžná stránka', theme: 'default' },
   { name: 'Zelená stránka', theme: 'green' },
   { name: 'Červená stránka', theme: 'red' },
 ];
 
-const Mode = ({ mode }: { mode: 'light' | 'dark' }) => (
+const Mode = ({ mode }: { readonly mode: 'light' | 'dark' }) => (
   <section
     className={cn(
       'flex flex-col gap-6 bg-background p-8 text-foreground',

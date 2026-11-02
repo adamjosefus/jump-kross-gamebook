@@ -2,15 +2,29 @@ import { Effect, Layer } from 'effect';
 
 import { Store, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
+interface SessionRow {
+  readonly teamId: number;
+  readonly lastSeenAt: Date;
+}
+
+/** How many times each key occurs. */
+const countBy = <K>(keys: readonly K[]): ReadonlyMap<K, number> =>
+  new Map(
+    [...new Set(keys)].map((key) => [key, keys.filter((candidate) => candidate === key).length]),
+  );
+
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = () => {
+  // The store is the one place that holds state, so these collections are replaced or updated in
+  // place on purpose; the rows themselves are never changed, only swapped for new ones.
   const teams = new Map<number, TeamRow>();
-  const sessions = new Map<string, { teamId: number; lastSeenAt: Date }>();
-  const log: LogRow[] = [];
+  const sessions = new Map<string, SessionRow>();
+  let log: readonly LogRow[] = [];
   let reading: readonly ReadingRow[] = [];
 
   return Store.of({
-    listTeams: () => Effect.sync(() => [...teams.values()].toSorted((a, b) => a.id - b.id)),
+    listTeams: () =>
+      Effect.sync(() => [...teams.values()].toSorted((first, second) => first.id - second.id)),
     getTeam: (id) => Effect.sync(() => teams.get(id)),
     ensureTeam: (id) =>
       Effect.sync(() => {
@@ -42,14 +56,17 @@ export const makeMemoryStore = () => {
           updatedAt: now,
         };
         teams.set(id, updated);
-        log.push({
-          teamId: id,
-          at: now,
-          action: move.action,
-          fromNode: team.node,
-          toNode: move.node,
-          state: move.state,
-        });
+        log = [
+          ...log,
+          {
+            teamId: id,
+            at: now,
+            action: move.action,
+            fromNode: team.node,
+            toNode: move.node,
+            state: move.state,
+          },
+        ];
         return updated;
       }),
 
@@ -76,28 +93,24 @@ export const makeMemoryStore = () => {
       Effect.sync(() => {
         const session = sessions.get(id);
         if (session === undefined || !teams.has(session.teamId)) return undefined;
-        session.lastSeenAt = new Date();
+        sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),
     deleteSession: (id) => Effect.sync(() => void sessions.delete(id)),
     activeDevices: (since) =>
-      Effect.sync(() => {
-        const counts = new Map<number, number>();
-        for (const { teamId, lastSeenAt } of sessions.values()) {
-          if (lastSeenAt >= since) counts.set(teamId, (counts.get(teamId) ?? 0) + 1);
-        }
-        return counts;
-      }),
+      Effect.sync(() =>
+        countBy(
+          [...sessions.values()]
+            .filter((session) => session.lastSeenAt >= since)
+            .map((session) => session.teamId),
+        ),
+      ),
 
     recentLog: (limit) => Effect.sync(() => log.slice(-limit).toReversed()),
     visitCounts: () =>
-      Effect.sync(() => {
-        const counts = new Map<string, number>();
-        for (const { toNode } of log) {
-          if (toNode !== undefined) counts.set(toNode, (counts.get(toNode) ?? 0) + 1);
-        }
-        return counts;
-      }),
+      Effect.sync(() =>
+        countBy(log.flatMap((row) => (row.toNode === undefined ? [] : [row.toNode]))),
+      ),
   });
 };
 

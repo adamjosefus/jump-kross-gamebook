@@ -11,7 +11,7 @@ import { ExportDialog } from './export-dialog';
 import { adminKeys } from './queries';
 
 /** A card with a download button in its top right corner, opening every export option. */
-const CodeCard = ({ entry }: { entry: PrintableCode }) => {
+const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className='relative'>

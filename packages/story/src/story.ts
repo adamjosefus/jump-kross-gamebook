@@ -1,9 +1,9 @@
 import { defineStory } from '@gamebook/core';
 
 type State = {
-  coins: number;
-  hasMap: boolean;
-  courage: number;
+  readonly coins: number;
+  readonly hasMap: boolean;
+  readonly courage: number;
 };
 
 /**
@@ -69,16 +69,16 @@ export const story = defineStory<State>()({
     },
 
     MARKET: {
-      blocks: (s) => [
-        `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${s.coins} mincí**.`,
+      blocks: (state) => [
+        `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${state.coins} mincí**.`,
         { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
       ],
       choices: [
         {
           label: 'Koupit mapu',
           goto: 'FOREST',
-          when: (s) => s.coins >= 20,
-          nextState: (s) => ({ coins: s.coins - 20, hasMap: true }),
+          when: (state) => state.coins >= 20,
+          nextState: (state) => ({ coins: state.coins - 20, hasMap: true }),
         },
         { label: 'Jít bez mapy', goto: 'FOREST' },
       ],
@@ -86,8 +86,8 @@ export const story = defineStory<State>()({
 
     // The team picks the path by walking: the code it scans decides the next node.
     FOREST: {
-      blocks: (s) => [
-        s.hasMap
+      blocks: (state) => [
+        state.hasMap
           ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
           : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
         'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
@@ -108,7 +108,11 @@ export const story = defineStory<State>()({
         },
       ],
       choices: [
-        { label: 'Jít potmě dál', goto: 'TO_MILL', nextState: (s) => ({ courage: s.courage + 1 }) },
+        {
+          label: 'Jít potmě dál',
+          goto: 'TO_MILL',
+          nextState: (state) => ({ courage: state.courage + 1 }),
+        },
         { label: 'Počkat na ráno', goto: 'TO_MILL' },
       ],
     },
@@ -121,15 +125,19 @@ export const story = defineStory<State>()({
     },
 
     MILL: {
-      blocks: (s) => [
+      blocks: (state) => [
         'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
-        s.courage > 0 && {
+        state.courage > 0 && {
           theme: 'description',
           content: 'Ve tmě si všimnete slabého světla pod deskou.',
         },
       ],
       choices: [
-        { label: 'Zvednout desku', goto: 'TREASURE', when: (s) => s.courage > 0 || s.hasMap },
+        {
+          label: 'Zvednout desku',
+          goto: 'TREASURE',
+          when: (state) => state.courage > 0 || state.hasMap,
+        },
         { label: 'Vrátit se domů', goto: 'HOME' },
       ],
     },

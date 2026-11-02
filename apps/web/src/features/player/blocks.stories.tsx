@@ -64,7 +64,13 @@ Běžný text s **tučným slovem**, *kurzívou* a kódem \`L-2-S0D2\`.
 
 > Citace, která se může zalomit na víc řádků.`;
 
-const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undefined }) => (
+const Mode = ({
+  mode,
+  sample,
+}: {
+  readonly mode: 'light' | 'dark';
+  readonly sample: string | undefined;
+}) => (
   <ThemeContext value={{ preference: mode, resolved: mode, setPreference: () => undefined }}>
     <section
       className={cn(
@@ -99,7 +105,7 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
   </ThemeContext>
 );
 
-const Blocks = ({ sample }: { sample?: string }) => (
+const Blocks = ({ sample }: { readonly sample?: string }) => (
   <div className='-m-8 flex flex-col'>
     <Mode mode='light' sample={sample} />
     <Mode mode='dark' sample={sample} />

@@ -38,20 +38,29 @@ interface Box extends XYPosition {
   readonly height: number;
 }
 
-interface Layout {
-  readonly nodes: ReadonlyMap<string, XYPosition>;
-  /** Orthogonal route and label box of every edge, so parallel edges and labels do not overlap. */
-  readonly edges: ReadonlyMap<string, { points: readonly XYPosition[]; label?: Box }>;
+/** Orthogonal route and label box of an edge, so parallel edges and labels do not overlap. */
+interface EdgeRoute {
+  readonly points: readonly XYPosition[];
+  readonly label?: Box;
 }
 
-/** Layouts by graph structure, so choosing another start does not lay the graph out again. */
+interface Layout {
+  readonly nodes: ReadonlyMap<string, XYPosition>;
+  readonly edges: ReadonlyMap<string, EdgeRoute>;
+}
+
+/**
+ * Layouts by graph structure, so choosing another start does not lay the graph out again. A
+ * module-wide cache that fills up as graphs are shown; it is mutable by design.
+ */
 const layouts = new Map<string, Promise<Layout>>();
 
 const structureOf = (graph: GameGraph) =>
   graph.order
     .map((id) => {
       const node = graph.nodes[id]!;
-      return `${id}:${node.type}>${node.choices.map((c) => `${c.target}:${c.label}`).join(',')}`;
+      const choices = node.choices.map((choice) => `${choice.target}:${choice.label}`).join(',');
+      return `${id}:${node.type}>${choices}`;
     })
     .join(';');
 
@@ -127,7 +136,7 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
       (result.children ?? []).map((child) => [child.id, { x: child.x ?? 0, y: child.y ?? 0 }]),
     ),
     edges: new Map(
-      (result.edges ?? []).map((edge) => {
+      (result.edges ?? []).map((edge): readonly [string, EdgeRoute] => {
         const section = edge.sections?.[0];
         const label = edge.labels?.[0];
         return [
@@ -156,12 +165,12 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
 
 type RouteEdge = Edge<
   {
-    points: readonly XYPosition[];
-    text?: string;
+    readonly points: readonly XYPosition[];
+    readonly text?: string;
     /** The edge is a QR choice. */
-    qr?: boolean;
-    label?: Box;
-    dimmed: boolean;
+    readonly qr?: boolean;
+    readonly label?: Box;
+    readonly dimmed: boolean;
   },
   'route'
 >;
@@ -169,7 +178,9 @@ type RouteEdge = Edge<
 /** Edge drawn along the route ELK computed, with its label where ELK placed it. */
 const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   if (data === undefined || data.points.length === 0) return null;
-  const path = data.points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const path = data.points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ');
   const { label } = data;
   return (
     <>
@@ -200,7 +211,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   );
 };
 
-const edgeTypes = { route: RouteEdgeView };
+const edgeTypes = { route: RouteEdgeView } as const;
 
 /** A clan standing on a node, shown as a colored avatar on its card. */
 export interface GraphTeam {
@@ -210,10 +221,14 @@ export interface GraphTeam {
 }
 
 type StoryFlowNode = Node<
-  { node: GraphNode; teams: readonly GraphTeam[]; visits: number | undefined },
+  {
+    readonly node: GraphNode;
+    readonly teams: readonly GraphTeam[];
+    readonly visits: number | undefined;
+  },
   'story'
 >;
-type InitialFlowNode = Node<{ dimmed: boolean }, 'initial'>;
+type InitialFlowNode = Node<{ readonly dimmed: boolean }, 'initial'>;
 
 const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
   <div
@@ -280,7 +295,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
   );
 };
 
-const nodeTypes = { story: StoryNodeCard, initial: InitialDot };
+const nodeTypes = { story: StoryNodeCard, initial: InitialDot } as const;
 
 export interface StoryGraphProps {
   readonly graph: GameGraph;
@@ -304,16 +319,15 @@ export const StoryGraph = ({
   className,
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
-  const [laidOut, setLaidOut] = useState<{ key: string; layout: Layout }>();
+  const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: Layout }>();
 
   const structure = useMemo(() => structureOf(graph), [graph]);
   useEffect(() => {
+    // Flipped by the cleanup so a layout finishing after the graph changed is not applied.
     let current = true;
-    let pending = layouts.get(structure);
-    if (pending === undefined) {
-      pending = layout(graph);
-      layouts.set(structure, pending);
-    }
+    const cached = layouts.get(structure);
+    const pending = cached ?? layout(graph);
+    if (cached === undefined) layouts.set(structure, pending);
     void pending.then((result) => {
       if (current) setLaidOut({ key: structure, layout: result });
     });
@@ -322,6 +336,7 @@ export const StoryGraph = ({
     };
   }, [graph, structure]);
 
+  // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
   const nodes = useMemo<(StoryFlowNode | InitialFlowNode)[]>(() => {
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
     return [

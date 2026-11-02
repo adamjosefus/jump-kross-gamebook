@@ -22,23 +22,32 @@ const VisitedStoryText = ({
   onRead,
   ...props
 }: ComponentProps<typeof StoryText> & {
-  block: string;
-  onRead: ((ms: number) => void) | undefined;
+  readonly block: string;
+  readonly onRead: ((ms: number) => void) | undefined;
 }) => {
   useReadingTime(onRead);
   return <StoryText {...props} fast={useRecentVisit(block)} />;
 };
 
+interface Paging {
+  readonly node: PlayerNode['id'];
+  readonly step: number;
+  readonly index: number;
+  /** Screens whose text has been shown in full; going back to one shows it at once. */
+  readonly seen: readonly number[];
+  /** The random order of the choices, by their index. */
+  readonly ranks: Readonly<Record<string, number>>;
+}
+
 /**
  * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
  * polling does not reshuffle them.
  */
-const freshPaging = (node: PlayerNode, step: number, index: number) => ({
+const freshPaging = (node: PlayerNode, step: number, index: number): Paging => ({
   node: node.id,
   step,
   index,
-  /** Screens whose text has been shown in full; going back to one shows it at once. */
-  seen: [] as readonly number[],
+  seen: [],
   ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
 });
 
@@ -60,24 +69,24 @@ export const NodeScreens = ({
   aside,
   onRead,
 }: {
-  node: PlayerNode;
-  step: number;
+  readonly node: PlayerNode;
+  readonly step: number;
   /** Whose visits count for the fast text, so they do not carry over to another team. */
-  visitScope: string;
-  busy: boolean;
+  readonly visitScope: string;
+  readonly busy: boolean;
   /** Screen to open the node on, e.g. kept in the URL across a reload. */
-  initialIndex?: number;
+  readonly initialIndex?: number;
   /** Called when the player pages, to keep the screen in the URL. */
-  onIndexChange?: (index: number) => void;
+  readonly onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
-  requireCamera?: boolean;
+  readonly requireCamera?: boolean;
   /** Shown at the right end of the navigation bar. */
-  aside?: ReactNode;
+  readonly aside?: ReactNode;
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
-  onRead?: (ms: number) => void;
+  readonly onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
-  onCode: (code: string) => void;
-  onPick: (choice: { index: number; label: string }) => void;
+  readonly onCode: (code: string) => void;
+  readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
@@ -98,7 +107,7 @@ export const NodeScreens = ({
     <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
   );
   const choices = node.choices.toSorted(
-    (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
+    (first, second) => (paging.ranks[first.index] ?? 0) - (paging.ranks[second.index] ?? 0),
   );
 
   return (

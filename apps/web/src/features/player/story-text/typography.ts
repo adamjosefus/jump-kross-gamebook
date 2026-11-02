@@ -30,7 +30,7 @@ const DEFAULT_TYPE: ThemeType = {
   text: { align: 'left', wrap: 'normal' },
 };
 
-const THEME_TYPE: Record<Theme, ThemeType> = {
+const THEME_TYPE: Readonly<Record<Theme, ThemeType>> = {
   default: DEFAULT_TYPE,
   intro: {
     ...DEFAULT_TYPE,
@@ -50,7 +50,12 @@ const THEME_TYPE: Record<Theme, ThemeType> = {
   },
 };
 
-const KIND_SCALE: Record<ParagraphKind, { size: number; lineHeight: number; weight: number }> = {
+const KIND_SCALE: Readonly<
+  Record<
+    ParagraphKind,
+    { readonly size: number; readonly lineHeight: number; readonly weight: number }
+  >
+> = {
   h1: { size: 2, lineHeight: 1.05, weight: 720 },
   h2: { size: 1.45, lineHeight: 1.05, weight: 720 },
   h3: { size: 1.2, lineHeight: 1.1, weight: 720 },
@@ -69,7 +74,7 @@ const LIGHT_ON_DARK = {
   letterSpacing: 0.01,
   /** Added to the line height of body text, in px. */
   lineHeight: 1,
-};
+} as const;
 
 const quarter = (px: number) => Math.round(px * 4) / 4;
 

@@ -35,18 +35,18 @@ const QrScannerView = ({
   disabled = false,
   header,
 }: {
-  onCode: (code: string) => void;
+  readonly onCode: (code: string) => void;
   /** Codes read meanwhile are ignored, e.g. while the last one is being sent. */
-  disabled?: boolean;
+  readonly disabled?: boolean;
   /** Shown over the top of the camera. */
-  header: ReactNode;
+  readonly header: ReactNode;
 }) => {
   const stage = useRef<HTMLDivElement>(null);
   const [cameraError, setCameraError] = useState<string>();
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
-  const last = useRef<{ code: string; at: number }>(undefined);
+  const last = useRef<{ readonly code: string; readonly at: number }>(undefined);
   const emit = useEffectEvent((code: string) => {
     const now = Date.now();
     if (disabled || (last.current?.code === code && now - last.current.at < REPEAT_MS)) return;
@@ -71,7 +71,8 @@ const QrScannerView = ({
       highlightScanRegion: true,
       maxScansPerSecond: 8,
     });
-    // A scanner torn down meanwhile (React runs effects twice in development) must not report.
+    // A scanner torn down meanwhile (React runs effects twice in development) must not report;
+    // `start()` cannot be aborted, so the cleanup flags it instead.
     let current = true;
     scanner.start().catch(async (error: unknown) => {
       const message = await cameraProblem(error);
