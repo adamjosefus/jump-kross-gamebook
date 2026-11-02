@@ -97,7 +97,7 @@ const QrScannerView = ({
               <Loader2 className='mx-auto size-8 animate-spin' />
             ) : (
               cameraError !== undefined && (
-                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
+                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center text-balance'>
                   <p>{cameraError}</p>
                   <Button variant='secondary' onClick={() => setCameraError(undefined)}>
                     <RotateCw /> Zkusit znovu

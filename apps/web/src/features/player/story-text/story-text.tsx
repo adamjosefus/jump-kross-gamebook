@@ -228,12 +228,13 @@ const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
   return wide;
 };
 
-const layOut = (prepared: readonly Prepared[], width: number) => {
+const layOut = (prepared: readonly Prepared[], width: number, balanceAll: boolean) => {
   let words = 0;
   const next = () => words++;
   const paragraphs = prepared.map((item): LaidOut => {
     const available = Math.max(width - indentOf(item.paragraph, item.type), 1);
-    const maxWidth = item.type.heading ? balancedWidth(item.inline, available) : available;
+    const maxWidth =
+      item.type.heading || balanceAll ? balancedWidth(item.inline, available) : available;
     const lines: Line[] = [];
     walkRichInlineLineRanges(item.inline, maxWidth, (range) => {
       const line = materializeRichInlineLineRange(item.inline, range);
@@ -303,8 +304,11 @@ export const StoryText = ({
     [loaded, paragraphs, theme, lightOnDark],
   );
   const layout = useMemo(
-    () => (prepared === undefined || width === undefined ? undefined : layOut(prepared, width)),
-    [prepared, width],
+    () =>
+      prepared === undefined || width === undefined
+        ? undefined
+        : layOut(prepared, width, align === 'center'),
+    [prepared, width, align],
   );
 
   // When the last word has faded in: at once when shown instantly, tapped, or without motion.

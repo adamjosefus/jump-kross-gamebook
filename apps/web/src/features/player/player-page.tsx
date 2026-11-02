@@ -126,7 +126,9 @@ export const PlayerPage = () => {
       ) : view.status === 'not-ready' || view.node === undefined ? (
         <PlayerFrame aside={aside}>
           <Centered>
-            <p className='text-center'>Hra ještě nezačala. Vyčkejte na pokyn organizátorů.</p>
+            <p className='text-center text-balance'>
+              Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
+            </p>
           </Centered>
         </PlayerFrame>
       ) : (
@@ -218,7 +220,7 @@ const Intro = ({
     return (
       <PlayerFrame>
         <Centered>
-          <p className='text-center text-destructive'>{errorMessage(intro.error)}</p>
+          <p className='text-center text-balance text-destructive'>{errorMessage(intro.error)}</p>
         </Centered>
       </PlayerFrame>
     );

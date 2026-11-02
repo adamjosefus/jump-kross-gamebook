@@ -86,7 +86,7 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-6 text-center'>
       <Camera className='size-12' strokeWidth={1.5} />
-      <div className='flex max-w-xs flex-col gap-2'>
+      <div className='flex max-w-xs flex-col gap-2 text-balance'>
         <h2 className='story-heading'>Povolte přístup ke kameře</h2>
         <p>
           {insecure
