@@ -1,4 +1,4 @@
-import { IconChevronRight } from '@tabler/icons-react';
+import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -17,12 +17,22 @@ const Label = ({ children }: { readonly children: ReactNode }) => (
   </span>
 );
 
+const TargetArrow = ({ visible }: { readonly visible: boolean }) => (
+  <IconArrowRight
+    className={cn(
+      'absolute top-1/2 right-5 size-5 -translate-y-1/2 transition-opacity duration-150',
+      !visible && 'opacity-0',
+    )}
+  />
+);
+
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
  * never made by a stray tap. While sliding, the thumb is as high as the track and grows until it
  * fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
  * when it is enabled again. The label is always one line in the middle of the track and stays
- * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb.
+ * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb. A touch
+ * swaps the thumb's chevron for an arrow at the end of the track, where the slide leads.
  */
 export const SlideButton = ({
   children,
@@ -85,6 +95,7 @@ export const SlideButton = ({
       )}
     >
       <Label>{children}</Label>
+      <TargetArrow visible={active} />
       <button
         type='button'
         aria-label='Posuňte doprava pro potvrzení'
@@ -103,7 +114,9 @@ export const SlideButton = ({
         onPointerCancel={() => setDrag(undefined)}
         onKeyDown={onKeyDown}
       >
-        <IconChevronRight className='size-5' />
+        <IconChevronRight
+          className={cn('size-5 transition-opacity duration-150', active && 'opacity-0')}
+        />
       </button>
       <div
         aria-hidden
@@ -114,6 +127,7 @@ export const SlideButton = ({
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
       >
         <Label>{children}</Label>
+        <TargetArrow visible={active} />
       </div>
     </div>
   );
