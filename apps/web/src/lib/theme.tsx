@@ -20,7 +20,7 @@ const readPreference = (): ThemePreference => {
   }
 };
 
-const ThemeContext = createContext<ThemeContextValue>({
+export const ThemeContext = createContext<ThemeContextValue>({
   preference: 'system',
   resolved: 'light',
   setPreference: () => undefined,

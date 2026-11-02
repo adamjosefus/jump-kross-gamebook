@@ -41,7 +41,7 @@ export const SAMPLE = defineStory<State>()({
     A2: {
       blocks: [
         'Jděte ke studni na nádvoří, nebo k bráně.',
-        { theme: 'night', content: 'Setmělo se.' },
+        { theme: 'description', content: 'Setmělo se.' },
       ],
       scans: [
         { location: 32, goto: 'B1' },

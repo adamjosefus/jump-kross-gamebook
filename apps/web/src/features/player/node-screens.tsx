@@ -1,5 +1,4 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import type { Theme } from '@gamebook/core';
 import { ChevronRight, Flag } from 'lucide-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
@@ -7,6 +6,7 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+import { THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
@@ -15,15 +15,6 @@ import { StoryText } from './story-text/story-text';
 import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
-
-/** Box around the text; its typography comes from `StoryText`. */
-const THEME_BOX: Record<Theme, string> = {
-  default: '',
-  intro: '',
-  letter:
-    'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50/90',
-  night: 'rounded-lg bg-slate-900 p-6 text-slate-200 ring-1 ring-slate-800',
-};
 
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
 const VisitedStoryText = ({
@@ -109,7 +100,12 @@ export const NodeScreens = ({
   );
 
   return (
-    <PlayerFrame onBack={index > 0 ? () => go(index - 1) : undefined} aside={aside} dark={scanning}>
+    <PlayerFrame
+      onBack={index > 0 ? () => go(index - 1) : undefined}
+      aside={aside}
+      dark={scanning}
+      className={screen === undefined ? undefined : THEME_PAGE[theme]}
+    >
       <article
         key={`${node.id}-${step}-${index}`}
         className='screen-fade-in flex flex-1 flex-col gap-6'
@@ -123,7 +119,6 @@ export const NodeScreens = ({
               onRead={onRead}
               content={screen.content}
               theme={theme}
-              align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
               className={THEME_BOX[theme]}
               instant={shown}
               onRevealed={() => {

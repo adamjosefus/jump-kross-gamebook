@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
+import { THEME_BOX } from '../block-look';
 import { StoryText } from './story-text';
 
 const meta = {
@@ -31,7 +32,6 @@ export const Fast: Story = { args: { fast: true } };
 export const Intro: Story = {
   args: {
     theme: 'intro',
-    align: 'center',
     content:
       '# Poklad starého mlýna\n\nHledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?',
   },
@@ -40,7 +40,7 @@ export const Intro: Story = {
 export const Letter: Story = {
   args: {
     theme: 'letter',
-    className: 'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm',
+    className: THEME_BOX.letter,
     content: `*Milí hledači,*
 
 poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
