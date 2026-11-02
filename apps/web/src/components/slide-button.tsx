@@ -103,11 +103,7 @@ export const SlideButton = ({
         onPointerCancel={() => setDrag(undefined)}
         onKeyDown={onKeyDown}
       >
-        <IconChevronRight
-          className='size-5'
-          // The arrow would cross the label on the way, so it shows only near the ends.
-          style={{ opacity: Math.max(1 - Math.min(progress, 1 - progress) * 8, 0) }}
-        />
+        <IconChevronRight className='size-5' />
       </button>
       <div
         aria-hidden
