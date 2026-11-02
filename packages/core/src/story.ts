@@ -55,16 +55,28 @@ interface NodeBase<S> {
 
 /** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */
 export type StoryNode<S, K extends string, L extends number = number> =
-  | (NodeBase<S> & { readonly end: true; readonly choices?: never; readonly scans?: never })
+  | (NodeBase<S> & {
+      readonly end: true;
+      readonly choices?: never;
+      readonly scans?: never;
+      readonly scanTitle?: never;
+      readonly scanText?: never;
+    })
   | (NodeBase<S> & {
       readonly end?: false;
       readonly choices: readonly [Choice<S, K>, ...Choice<S, K>[]];
       readonly scans?: never;
+      readonly scanTitle?: never;
+      readonly scanText?: never;
     })
   | (NodeBase<S> & {
       readonly end?: false;
       readonly choices?: never;
       readonly scans: readonly [ScanChoice<S, K, L>, ...ScanChoice<S, K, L>[]];
+      /** The heading of the scan screen; the player's default one without it. */
+      readonly scanTitle?: string;
+      /** The text under that heading; the player's default one without it. */
+      readonly scanText?: string;
     });
 
 /** A physical place with a QR code; teams scan it to take a QR choice. */
@@ -86,6 +98,10 @@ export interface Story {
   readonly locations: readonly Location[];
   /** Screens anyone sees before scanning a team's login code; the same for every team. */
   readonly intro: readonly Block[];
+  /** The heading of the login scan screen; the player's default one without it. */
+  readonly introScanTitle?: string;
+  /** The text under that heading; the player's default one without it. */
+  readonly introScanText?: string;
   /** Node ids in definition order. */
   readonly order: readonly string[];
   readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
@@ -101,6 +117,10 @@ export interface StoryDefinition<S, K extends string, L extends number> {
    * the player scans the team's code; a team that has not started yet begins at the start node.
    */
   readonly intro: readonly Block[];
+  /** The heading of the login scan screen; the player's default one without it. */
+  readonly introScanTitle?: string;
+  /** The text under that heading; the player's default one without it. */
+  readonly introScanText?: string;
   readonly nodes: Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>;
 }
 
@@ -128,11 +148,15 @@ export const defineStory =
     teams,
     locations,
     intro,
+    introScanTitle,
+    introScanText,
     nodes,
   }: StoryDefinition<S, K, L>): Story => ({
     teams: byId(teams),
     locations: byId(locations),
     intro,
+    ...(introScanTitle === undefined ? {} : { introScanTitle }),
+    ...(introScanText === undefined ? {} : { introScanText }),
     order: Object.keys(nodes),
     nodes,
   });

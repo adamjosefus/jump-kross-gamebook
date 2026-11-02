@@ -35,6 +35,10 @@ export interface RenderedNode {
   readonly choices: readonly RenderedChoice[];
   /** The team moves on by scanning a QR code; where the codes lead stays hidden. */
   readonly scan: boolean;
+  /** The heading of the scan screen, when the story sets one. */
+  readonly scanTitle?: string;
+  /** The text under that heading, when the story sets one. */
+  readonly scanText?: string;
 }
 
 export type MoveError =
@@ -122,6 +126,8 @@ export const renderNode = (story: Story, position: Position): RenderedNode | und
       label: choice.label,
     })),
     scan: node.scans !== undefined,
+    ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
+    ...(node.scanText === undefined ? {} : { scanText: node.scanText }),
   };
 };
 

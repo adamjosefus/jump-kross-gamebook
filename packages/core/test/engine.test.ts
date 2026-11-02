@@ -22,6 +22,35 @@ describe('engine', () => {
     expect(start).toEqual({ node: 'A1', state: { gold: 100, hatColor: 'red' } });
   });
 
+  it('passes the scan texts of a node to the player', () => {
+    const titled = defineStory<{ gold: number }>()({
+      teams: { 1: 'Tým' },
+      locations: { 1: 'Studna' },
+      intro: ['Úvod'],
+      introScanTitle: 'Kód týmu',
+      introScanText: 'Namiřte na kód týmu.',
+      nodes: {
+        A: {
+          initialState: { gold: 0 },
+          blocks: ['A'],
+          scanTitle: 'Kde jste?',
+          scanText: 'Namiřte na kód místa.',
+          scans: [{ location: 1, goto: 'B' }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(titled).toMatchObject({
+      introScanTitle: 'Kód týmu',
+      introScanText: 'Namiřte na kód týmu.',
+    });
+    expect(renderNode(titled, startPosition(titled)!)).toMatchObject({
+      scanTitle: 'Kde jste?',
+      scanText: 'Namiřte na kód místa.',
+    });
+    expect(renderNode(titled, { node: 'B', state: { gold: 0 } })).not.toHaveProperty('scanTitle');
+  });
+
   it('renders the intro', () => {
     expect(introScreens(story)).toEqual([
       { theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' },

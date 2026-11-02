@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ThemeContext } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-import { THEME_BOX, THEME_PAGE } from './block-look';
+import { OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { StoryText } from './story-text/story-text';
 
 interface Look {
@@ -83,10 +83,7 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
             </p>
             {/* A screen of a phone. */}
             <div
-              className={cn(
-                'flex min-h-96 flex-col justify-center rounded-xl border p-5',
-                THEME_PAGE[theme],
-              )}
+              className={cn('min-h-96 rounded-xl border p-5', OPTICAL_CENTER, THEME_PAGE[theme])}
             >
               <StoryText
                 instant

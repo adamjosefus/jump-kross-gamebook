@@ -35,10 +35,10 @@ interface RevealPace {
 
 const NORMAL_PACE: RevealPace = {
   firstWordDelayMs: 500,
-  wordStepMs: 70,
-  maxRevealMs: 4000,
-  wordFadeMs: 800,
-  minWordGapMs: 30,
+  wordStepMs: 110,
+  maxRevealMs: 6500,
+  wordFadeMs: 1100,
+  minWordGapMs: 45,
 };
 /** For a text the player has read a moment ago: done in about a quarter of a second. */
 const FAST_PACE: RevealPace = {

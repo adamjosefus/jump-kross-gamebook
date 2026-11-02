@@ -1,4 +1,4 @@
-import { IconChevronLeft } from '@tabler/icons-react';
+import { IconArrowLeft } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -41,10 +41,10 @@ export const PlayerFrame = ({
           <Button
             variant='ghost'
             size='sm'
-            className='-ml-3 text-muted-foreground'
+            className='-ml-3 rounded-full text-muted-foreground'
             onClick={onBack}
           >
-            <IconChevronLeft /> Zpět
+            <IconArrowLeft /> Zpět
           </Button>
         )}
         {aside}

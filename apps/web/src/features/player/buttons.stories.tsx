@@ -2,7 +2,7 @@ import type { Theme } from '@gamebook/core';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
   IconCamera,
-  IconChevronLeft,
+  IconArrowLeft,
   IconArrowRight,
   IconLoader2,
   IconRotateClockwise,
@@ -57,8 +57,8 @@ const Buttons = () => (
     </Row>
     <Row label='Zpět'>
       <div>
-        <Button variant='ghost' size='sm' className='text-muted-foreground'>
-          <IconChevronLeft /> Zpět
+        <Button variant='ghost' size='sm' className='rounded-full text-muted-foreground'>
+          <IconArrowLeft /> Zpět
         </Button>
       </div>
     </Row>
