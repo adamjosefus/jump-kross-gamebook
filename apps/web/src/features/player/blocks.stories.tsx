@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 import { THEME_BOX, THEME_PAGE } from './block-look';
 import { StoryText } from './story-text/story-text';
+import { StoryTexture } from './story-texture';
 
 interface Look {
   readonly name: string;
@@ -84,10 +85,11 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
             {/* A screen of a phone. */}
             <div
               className={cn(
-                'story-texture flex min-h-96 flex-col justify-center rounded-xl border p-5',
+                'relative isolate flex min-h-96 flex-col justify-center rounded-xl border p-5',
                 THEME_PAGE[theme],
               )}
             >
+              <StoryTexture block={name} />
               <StoryText
                 instant
                 content={sample ?? content}

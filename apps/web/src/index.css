@@ -196,13 +196,9 @@
 }
 
 /* Very fine randomly scattered dots behind the story, in the color of the text so they suit every
-   page. A vector tile used as a mask, so it stays sharp on any display. */
+   page. A vector tile used as a mask, so it stays sharp on any display; the frame around it is
+   `isolate`, so it stays above the frame's background. StoryTexture moves it for every block. */
 .story-texture {
-  position: relative;
-  isolation: isolate;
-}
-.story-texture::before {
-  content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
