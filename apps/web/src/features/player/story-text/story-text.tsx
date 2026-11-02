@@ -120,12 +120,14 @@ const useWidth = () => {
  * One item Pretext lays out: a word with the spaces after it, or a whole piece of inline code.
  * Words are separate items so the space after each can be wider (`gap`): CSS `word-spacing`
  * would paint wider spaces than Pretext measured, so the extra width goes into the layout as the
- * word's `extraWidth` and is painted as its right padding.
+ * word's `extraWidth` and is painted as its right padding. A non-breaking space is part of its
+ * word, so it gets the same extra width and is painted wider by `word-spacing` (`glueGap`).
  */
 interface Item {
   readonly text: string;
   readonly run: RunType;
   readonly gap: number;
+  readonly glueGap: number;
 }
 
 interface Prepared {
@@ -140,6 +142,8 @@ interface Word {
   readonly run: RunType;
   /** Extra space painted after the word. */
   readonly gap: number;
+  /** Extra space painted at every non-breaking space inside the word. */
+  readonly glueGap: number;
   /** Inline code: one box with its padding and background. */
   readonly code: boolean;
   /** Position among all words of the screen, for the reveal. */
@@ -160,18 +164,31 @@ interface LaidOut {
   readonly lines: readonly Line[];
 }
 
+// The spaces a line can break at. Not `\s`, which also matches the non-breaking space.
+const WORDS = /[^ \t\r\n]+[ \t\r\n]*|[ \t\r\n]+/g;
+const HAS_WORD = /[^ \t\r\n]/;
+const SPACE_AT_START = /^[ \t\r\n]/;
+const SPACE_AT_END = /[ \t\r\n]$/;
+const SPACES_AROUND = /^[ \t\r\n]+|[ \t\r\n]+$/g;
+const NON_BREAKING_SPACES = /\u00A0/g;
+
 const itemsOf = (paragraph: Paragraph, type: ParagraphType): Item[] => {
   const tokens = paragraph.runs.flatMap((run) => {
     const looks = runType(type, run.marks);
     return looks.padding > 0
       ? [{ text: run.text, run: looks }]
-      : (run.text.match(/\S+\s*|\s+/g) ?? []).map((text) => ({ text, run: looks }));
+      : (run.text.match(WORDS) ?? []).map((text) => ({ text, run: looks }));
   });
   // A word gets the wider space when a space follows it, in its own text or the next run's.
   return tokens.map((token, index) => {
-    const word = /\S/.test(token.text) && token.run.padding === 0;
-    const spaceAfter = /\s$/.test(token.text) || /^\s/.test(tokens[index + 1]?.text ?? '');
-    return { ...token, gap: word && spaceAfter ? type.wordGap : 0 };
+    const word = HAS_WORD.test(token.text) && token.run.padding === 0;
+    const spaceAfter =
+      SPACE_AT_END.test(token.text) || SPACE_AT_START.test(tokens[index + 1]?.text ?? '');
+    return {
+      ...token,
+      gap: word && spaceAfter ? type.wordGap : 0,
+      glueGap: token.run.padding === 0 ? type.wordGap : 0,
+    };
   });
 };
 
@@ -184,16 +201,17 @@ const prepare = (
     const type = paragraphType(theme, paragraph.kind, lightOnDark);
     const items = itemsOf(paragraph, type);
     const inline = prepareRichInline(
-      items.map(({ text, run, gap }) =>
-        run.padding > 0
+      items.map(({ text, run, gap, glueGap }) => {
+        const extraWidth = gap + (text.match(NON_BREAKING_SPACES)?.length ?? 0) * glueGap;
+        return run.padding > 0
           ? { text, font: run.font, break: 'never' as const, extraWidth: run.padding * 2 }
           : {
               text,
               font: run.font,
-              ...(gap === 0 ? {} : { extraWidth: gap }),
+              ...(extraWidth === 0 ? {} : { extraWidth }),
               ...(run.letterSpacing === 0 ? {} : { letterSpacing: run.letterSpacing }),
-            },
-      ),
+            };
+      }),
     );
     return { paragraph, type, items, inline };
   });
@@ -203,12 +221,12 @@ const piecesOf = (
   prepared: Prepared,
   next: () => number,
 ): Piece[] => {
-  const { run, gap } = prepared.items[fragment.itemIndex]!;
+  const { run, gap, glueGap } = prepared.items[fragment.itemIndex]!;
   const pieces: Piece[] = [];
   if (fragment.gapBefore > 0)
     pieces.push({ space: ' ', run: prepared.items[fragment.gapItemIndex]?.run ?? run });
-  const text = run.padding > 0 ? fragment.text : fragment.text.trim();
-  if (text !== '') pieces.push({ text, run, gap, code: run.padding > 0, index: next() });
+  const text = run.padding > 0 ? fragment.text : fragment.text.replace(SPACES_AROUND, '');
+  if (text !== '') pieces.push({ text, run, gap, glueGap, code: run.padding > 0, index: next() });
   return pieces;
 };
 
@@ -433,6 +451,7 @@ export const StoryText = ({
                     style={{
                       ...fontStyle(piece.run),
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
+                      ...(piece.glueGap === 0 ? {} : { wordSpacing: piece.glueGap }),
                       ...(piece.gap === 0
                         ? {}
                         : {

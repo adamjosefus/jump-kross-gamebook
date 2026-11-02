@@ -31,17 +31,17 @@ export const story = defineStory<State>()({
       content: `
       # Poklad starého mlýna
 
-      Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
+      Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
     `,
     },
     `
     ## Pravidla
 
-    Hrajete jako tým. Příběh vás povede po okolí: někdy vybíráte v aplikaci, jindy musíte dojít na
-    místo a naskenovat tam QR kód.
+    Hrajete jako tým. Příběh vás povede po okolí: někdy vybíráte v aplikaci, jindy musíte dojít na
+    místo a naskenovat tam QR kód.
 
     Na začátku naskenujte přihlašovací kód svého týmu. Stejný kód může naskenovat každý telefon
-    v týmu, všechny pak ukazují totéž.
+    v týmu, všechny pak ukazují totéž.
     `,
   ],
   locations: {
@@ -57,9 +57,9 @@ export const story = defineStory<State>()({
           content: `
           *Milí hledači,*
 
-          poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
+          poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
 
-          — **Matěj**
+          — **Matěj**
         `,
         },
       ],
@@ -68,8 +68,8 @@ export const story = defineStory<State>()({
 
     MARKET: {
       blocks: (s) => [
-        `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${s.coins} mincí**.`,
-        { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
+        `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${s.coins} mincí**.`,
+        { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
       ],
       choices: [
         {
@@ -86,9 +86,9 @@ export const story = defineStory<State>()({
     FOREST: {
       blocks: (s) => [
         s.hasMap
-          ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
-          : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
-        'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
+          ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
+          : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
+        'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
       ],
       scans: [
         { location: 1, goto: 'WELL' },
@@ -100,7 +100,7 @@ export const story = defineStory<State>()({
       blocks: [
         {
           theme: 'description',
-          content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
+          content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
         },
       ],
       choices: [
@@ -110,13 +110,13 @@ export const story = defineStory<State>()({
     },
 
     TO_MILL: {
-      blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
+      blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
       scans: [{ location: 2, goto: 'MILL' }],
     },
 
     MILL: {
       blocks: (s) => [
-        'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
+        'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
         s.courage > 0 && {
           theme: 'description',
           content: 'Ve tmě si všimnete slabého světla pod deskou.',
@@ -131,14 +131,14 @@ export const story = defineStory<State>()({
     TREASURE: {
       end: true,
       blocks: [
-        { theme: 'green', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
+        { theme: 'green', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
       ],
     },
 
     HOME: {
       end: true,
       blocks: [
-        { theme: 'red', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
+        { theme: 'red', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
       ],
     },
   },
