@@ -6,10 +6,14 @@ type Platform =
   | 'android-samsung'
   | 'android-firefox'
   | 'android-other'
+  | 'desktop-chrome'
+  | 'desktop-edge'
+  | 'desktop-safari'
+  | 'desktop-firefox'
   | 'other';
 
 /**
- * The phone's system and browser, from the user agent. iPadOS says it is a Mac, so a Mac with a
+ * The system and browser, from the user agent. iPadOS says it is a Mac, so a Mac with a
  * touch screen counts as iOS. Every browser on iOS runs on Safari's engine, only the settings of
  * the app differ.
  */
@@ -27,6 +31,10 @@ const detectPlatform = (): Platform => {
     if (/Chrome/.test(ua) && !/EdgA|OPR|YaBrowser|wv\)/.test(ua)) return 'android-chrome';
     return 'android-other';
   }
+  if (/Edg\//.test(ua)) return 'desktop-edge';
+  if (/Firefox/.test(ua)) return 'desktop-firefox';
+  if (/Chrome|Chromium/.test(ua)) return 'desktop-chrome';
+  if (/Safari/.test(ua) && /Macintosh/.test(ua)) return 'desktop-safari';
   return 'other';
 };
 
@@ -50,6 +58,14 @@ const IOS_SYSTEM = (app: string) => [
   RETRY,
 ];
 
+const CLICK_RETRY = 'Vraťte se sem a klikněte na **Zkusit znovu**.';
+
+/** A Mac also has to let the browser use the camera; on other systems the browser asks itself. */
+const desktopNote = (app: string) =>
+  /Macintosh/.test(navigator.userAgent)
+    ? `Pořád nic? Na Macu otevřete **Nastavení systému → Soukromí a zabezpečení → Kamera** a zapněte **${app}**.`
+    : RELOAD;
+
 const ANDROID_SYSTEM = (app: string) =>
   `Pořád nic? V **Nastavení** telefonu otevřete **Aplikace → ${app} → Oprávnění → Fotoaparát** a zvolte **Povolit**.`;
 
@@ -60,7 +76,7 @@ interface Help {
   readonly note?: string;
 }
 
-const helpFor = (platform: Platform): Help | undefined => {
+const helpFor = (platform: Platform): Help => {
   switch (platform) {
     case 'ios-safari':
       return {
@@ -120,10 +136,50 @@ const helpFor = (platform: Platform): Help | undefined => {
         ],
         note: ANDROID_SYSTEM('váš prohlížeč'),
       };
-    case 'other':
-      break;
+    case 'desktop-chrome':
+    case 'desktop-edge': {
+      const app = platform === 'desktop-edge' ? 'Edge' : 'Chrome';
+      return {
+        title: `Jak povolit kameru v ${platform === 'desktop-edge' ? 'Edgi' : 'Chromu'}`,
+        steps: [
+          'Klikněte na ikonu vlevo v adresním řádku (posuvníky nebo zámek).',
+          'U **Kamera** zapněte přepínač, nebo vyberte **Povolit**.',
+          CLICK_RETRY,
+        ],
+        note: desktopNote(app === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'),
+      };
+    }
+    case 'desktop-safari':
+      return {
+        title: 'Jak povolit kameru v Safari',
+        steps: [
+          'V horní liště otevřete menu **Safari → Nastavení pro tento web…**',
+          'U **Kamera** vyberte **Povolit**.',
+          CLICK_RETRY,
+        ],
+        note: desktopNote('Safari'),
+      };
+    case 'desktop-firefox':
+      return {
+        title: 'Jak povolit kameru ve Firefoxu',
+        steps: [
+          'Klikněte na ikonu kamery nebo zámku vlevo v adresním řádku.',
+          'U **Používat kameru** zrušte blokování křížkem.',
+          CLICK_RETRY,
+        ],
+        note: desktopNote('Firefox'),
+      };
+    default:
+      return {
+        title: 'Jak povolit kameru',
+        steps: [
+          'Klepněte na ikonu vlevo v adresním řádku (zámek, posuvníky nebo **aA**).',
+          'V nastavení stránky povolte **Kameru**.',
+          RETRY,
+        ],
+        note: 'Pořád nic? V nastavení zařízení povolte kameru i samotnému prohlížeči.',
+      };
   }
-  return undefined;
 };
 
 /** `**bold**` in a step, the only markup the steps use. */
@@ -142,12 +198,11 @@ const Rich = ({ text }: { text: string }) => (
 );
 
 /**
- * Steps that allow the camera after the player denied it, for the detected phone and browser.
- * Nothing on a computer or an unknown system; the short text above the steps covers that.
+ * Steps that allow the camera after the player denied it, for the detected system and browser;
+ * general steps when neither is known.
  */
 export const CameraHelp = () => {
   const help = helpFor(detectPlatform());
-  if (help === undefined) return null;
   return (
     <div className='flex w-full flex-col gap-3 rounded-xl border bg-muted/40 p-4 text-left text-sm'>
       <h3 className='font-semibold'>{help.title}</h3>
@@ -171,6 +226,3 @@ export const CameraHelp = () => {
     </div>
   );
 };
-
-/** Whether `CameraHelp` has steps for this device. */
-export const hasCameraHelp = () => helpFor(detectPlatform()) !== undefined;
