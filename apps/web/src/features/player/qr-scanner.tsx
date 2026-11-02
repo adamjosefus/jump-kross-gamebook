@@ -97,8 +97,8 @@ const QrScannerView = ({
               <Loader2 className='mx-auto size-8 animate-spin' />
             ) : (
               cameraError !== undefined && (
-                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
-                  <p className='text-sm text-muted-foreground'>{cameraError}</p>
+                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center text-balance'>
+                  <p>{cameraError}</p>
                   <Button variant='secondary' onClick={() => setCameraError(undefined)}>
                     <RotateCw /> Zkusit znovu
                   </Button>
@@ -122,8 +122,8 @@ export const ScanScreen = ({ onCode, busy }: { onCode: (code: string) => void; b
     disabled={busy}
     header={
       <>
-        <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
-        <p className='text-muted-foreground'>Namiřte fotoaparát na QR kód.</p>
+        <h2 className='story-heading'>Naskenujte QR kód</h2>
+        <p>Namiřte fotoaparát na QR kód.</p>
       </>
     }
   />

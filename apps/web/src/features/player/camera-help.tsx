@@ -204,11 +204,11 @@ const Rich = ({ text }: { text: string }) => (
 export const CameraHelp = () => {
   const help = helpFor(detectPlatform());
   return (
-    <div className='flex w-full flex-col gap-3 rounded-xl border bg-muted/40 p-4 text-left text-sm'>
+    <div className='flex w-full flex-col gap-3 rounded-xl border bg-muted/40 p-4 text-left'>
       <h3 className='font-semibold'>{help.title}</h3>
       <ol className='flex flex-col gap-2'>
         {help.steps.map((step, index) => (
-          <li key={index} className='flex gap-3 text-muted-foreground'>
+          <li key={index} className='flex gap-3'>
             <span className='flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background'>
               {index + 1}
             </span>
@@ -219,7 +219,7 @@ export const CameraHelp = () => {
         ))}
       </ol>
       {help.note !== undefined && (
-        <p className='text-muted-foreground'>
+        <p>
           <Rich text={help.note} />
         </p>
       )}
