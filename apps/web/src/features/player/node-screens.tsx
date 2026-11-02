@@ -104,7 +104,7 @@ export const NodeScreens = ({
       onBack={index > 0 ? () => go(index - 1) : undefined}
       aside={aside}
       dark={scanning}
-      className={screen === undefined ? undefined : THEME_PAGE[theme]}
+      className={screen === undefined ? undefined : cn('story-texture', THEME_PAGE[theme])}
     >
       <article
         key={`${node.id}-${step}-${index}`}

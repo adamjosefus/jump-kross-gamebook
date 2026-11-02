@@ -84,7 +84,7 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
             {/* A screen of a phone. */}
             <div
               className={cn(
-                'flex min-h-96 flex-col justify-center rounded-xl border p-5',
+                'story-texture flex min-h-96 flex-col justify-center rounded-xl border p-5',
                 THEME_PAGE[theme],
               )}
             >
