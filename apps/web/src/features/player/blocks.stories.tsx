@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ThemeContext } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-import { THEME_BOX } from './block-look';
+import { THEME_BOX, THEME_PAGE } from './block-look';
 import { StoryText } from './story-text/story-text';
 
 interface Look {
@@ -72,16 +72,24 @@ const Mode = ({ mode, sample }: { mode: 'light' | 'dark'; sample: string | undef
       </h2>
       <div className='flex flex-wrap items-start gap-x-10 gap-y-12'>
         {LOOKS.map(({ name, theme, content }) => (
-          <article key={name} className='flex w-[350px] flex-col gap-4 font-story'>
-            <p className='border-b pb-2 font-sans text-xs text-muted-foreground'>
+          <article key={name} className='flex w-[390px] flex-col gap-2 font-story'>
+            <p className='font-sans text-xs text-muted-foreground'>
               {name} · <code>{theme}</code>
             </p>
-            <StoryText
-              instant
-              content={sample ?? content}
-              theme={theme}
-              className={THEME_BOX[theme]}
-            />
+            {/* A screen of a phone. */}
+            <div
+              className={cn(
+                'flex min-h-96 flex-col justify-center rounded-xl border p-5',
+                THEME_PAGE[theme],
+              )}
+            >
+              <StoryText
+                instant
+                content={sample ?? content}
+                theme={theme}
+                className={THEME_BOX[theme]}
+              />
+            </div>
           </article>
         ))}
       </div>

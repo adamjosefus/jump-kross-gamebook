@@ -6,7 +6,7 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { THEME_BOX } from './block-look';
+import { THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
@@ -100,7 +100,12 @@ export const NodeScreens = ({
   );
 
   return (
-    <PlayerFrame onBack={index > 0 ? () => go(index - 1) : undefined} aside={aside} dark={scanning}>
+    <PlayerFrame
+      onBack={index > 0 ? () => go(index - 1) : undefined}
+      aside={aside}
+      dark={scanning}
+      className={screen === undefined ? undefined : THEME_PAGE[theme]}
+    >
       <article
         key={`${node.id}-${step}-${index}`}
         className='screen-fade-in flex flex-1 flex-col gap-6'

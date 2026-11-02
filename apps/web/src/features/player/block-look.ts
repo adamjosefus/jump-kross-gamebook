@@ -4,8 +4,16 @@ import type { Theme } from '@gamebook/core';
 export const THEME_BOX: Record<Theme, string> = {
   default: '',
   intro: '',
-  outro: 'text-yellow-800 dark:text-amber-200',
-  letter:
-    'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50/90',
-  description: 'opacity-75',
+  outro: '',
+  letter: '',
+  description: 'mx-auto w-[62%] opacity-75',
+};
+
+/** Colors of the whole screen around the block. */
+export const THEME_PAGE: Record<Theme, string> = {
+  default: '',
+  intro: '',
+  outro: 'bg-amber-100 text-amber-950 dark:bg-yellow-950 dark:text-amber-100',
+  letter: '',
+  description: '',
 };

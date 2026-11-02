@@ -13,6 +13,7 @@ export const PlayerFrame = ({
   onBack,
   aside,
   dark = false,
+  className,
   children,
 }: {
   /** Where „Zpět“ leads; its place stays empty without it. */
@@ -20,9 +21,13 @@ export const PlayerFrame = ({
   /** Shown at the right end of the bar. */
   aside?: ReactNode;
   dark?: boolean;
+  /** Colors of the whole screen. */
+  className?: string | undefined;
   children: ReactNode;
 }) => (
-  <div className={cn('flex flex-1 flex-col', dark && 'dark bg-background text-foreground')}>
+  <div
+    className={cn('flex flex-1 flex-col', dark && 'dark bg-background text-foreground', className)}
+  >
     <div className='safe-area-padding mx-auto flex w-full max-w-xl flex-1 flex-col gap-6'>
       <nav className='flex h-8 shrink-0 items-center justify-between text-sm text-muted-foreground'>
         {onBack === undefined ? (

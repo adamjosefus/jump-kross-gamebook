@@ -43,8 +43,8 @@ const THEME_TYPE: Record<Theme, ThemeType> = {
   letter: { ...DEFAULT_TYPE, text: { align: 'justify', wrap: 'normal' } },
   description: {
     ...DEFAULT_TYPE,
-    heading: { align: 'center', wrap: 'balance' },
-    text: { align: 'center', wrap: 'balance' },
+    heading: { align: 'center', wrap: 'pretty' },
+    text: { align: 'center', wrap: 'pretty' },
     italic: true,
   },
 };
