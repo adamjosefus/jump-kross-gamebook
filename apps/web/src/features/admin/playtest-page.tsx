@@ -2,8 +2,16 @@ import type { PlaytestView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronDown, Loader2, QrCode, RotateCcw, SkipForward, Undo2 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  ChevronDown,
+  Keyboard,
+  Loader2,
+  QrCode,
+  RotateCcw,
+  SkipForward,
+  Undo2,
+} from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +22,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { NodeScreens } from '@/features/player/node-screens';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -86,8 +95,8 @@ const introStep = (screens: PlaytestView['view']['screens']): Step => ({
 /**
  * Plays the story as a team would, without a team: nothing is stored, the page keeps the path and
  * sends the position with every move. It begins with the intro and the login scan; QR codes are
- * scanned like in the game, or skipped from the toolbar. The moves and the screen are in the URL,
- * so a reload replays the same path.
+ * scanned like in the game, or typed in or skipped from the toolbar. The moves and the screen are
+ * in the URL, so a reload replays the same path.
  */
 export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
@@ -147,6 +156,16 @@ export const PlaytestPage = () => {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
+  const [typedCode, setTypedCode] = useState('');
+  const canType = current?.view.scan === true && !play.isPending;
+  const submitCode = (event: FormEvent) => {
+    event.preventDefault();
+    const code = typedCode.trim();
+    if (current === undefined || !canType || code === '') return;
+    // A code that does not work stays in the field, so a typo can be fixed.
+    play.mutate({ from: current, move: { code } }, { onSuccess: () => setTypedCode('') });
+  };
+
   /** Keeps the path up to and including the step with this index. */
   const backTo = (index: number) => setMoves(steps.slice(0, index));
 
@@ -179,7 +198,6 @@ export const PlaytestPage = () => {
                   busy={play.isPending}
                   onCode={(code) => take({ code })}
                   requireCamera={current.intro === true}
-                  manualEntry
                   onPick={(choice) => take({ choice: choice.index })}
                   // The screen in the URL belongs to the path in it; after a move it starts over.
                   initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
@@ -252,6 +270,25 @@ export const PlaytestPage = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            <form onSubmit={submitCode} className='flex w-full gap-1'>
+              <Input
+                value={typedCode}
+                onChange={(event) => setTypedCode(event.target.value.toUpperCase())}
+                placeholder='L-12-ABCD'
+                aria-label='Kód z QR'
+                autoCapitalize='characters'
+                autoComplete='off'
+                className='h-8 min-w-0 flex-1 font-mono'
+              />
+              <Button
+                type='submit'
+                variant='ghost'
+                size='sm'
+                disabled={!canType || typedCode.trim() === ''}
+              >
+                <Keyboard /> Zadat kód
+              </Button>
+            </form>
           </div>
         </div>
 
