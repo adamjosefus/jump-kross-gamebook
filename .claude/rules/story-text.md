@@ -1,6 +1,6 @@
 ---
 paths:
-  - "packages/story/src/**"
+  - 'packages/story/src/**'
 ---
 
 # Text příběhu
@@ -33,4 +33,4 @@ Výpustku piš jedním znakem `…` (U+2026), nikdy třemi tečkami `...`. Na v�
 
 ## Zápis ve zdrojovém kódu
 
-Nedělitelnou mezeru i výpustku piš přímo jako znak, ne jako escape `\\u00A0`. V editoru nejsou vidět, proto si je po úpravě ověř hledáním znaku U+00A0.
+Nedělitelnou mezeru i výpustku piš přímo jako znak, ne jako escape `\u00A0`. V editoru nejsou vidět, proto si je po úpravě ověř hledáním znaku U+00A0.
