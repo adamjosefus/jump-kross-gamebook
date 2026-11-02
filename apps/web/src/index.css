@@ -195,19 +195,6 @@
   animation: screen-fade-in 0.3s ease-out;
 }
 
-/* Very fine randomly scattered dots behind the story, in the color of the text so they suit every
-   page. A vector tile used as a mask, so it stays sharp on any display; the frame around it is
-   `isolate`, so it stays above the frame's background. StoryTexture moves it for every block. */
-.story-texture {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: currentColor;
-  opacity: 0.09;
-  mask: url('./assets/story-texture.svg') 0 0 / 320px 320px;
-}
-
 /* The scanner's aiming corners: white with a soft shadow. The library sets their color inline. */
 .scan-region-highlight-svg {
   stroke: white !important;

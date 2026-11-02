@@ -104,7 +104,6 @@ export const NodeScreens = ({
       onBack={index > 0 ? () => go(index - 1) : undefined}
       aside={aside}
       dark={scanning}
-      textureBlock={`${node.id}/${index}`}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
