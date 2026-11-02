@@ -60,12 +60,14 @@ export type StoryNode<S, K extends string, L extends number = number> =
       readonly choices?: never;
       readonly scans?: never;
       readonly scanTitle?: never;
+      readonly scanText?: never;
     })
   | (NodeBase<S> & {
       readonly end?: false;
       readonly choices: readonly [Choice<S, K>, ...Choice<S, K>[]];
       readonly scans?: never;
       readonly scanTitle?: never;
+      readonly scanText?: never;
     })
   | (NodeBase<S> & {
       readonly end?: false;
@@ -73,6 +75,8 @@ export type StoryNode<S, K extends string, L extends number = number> =
       readonly scans: readonly [ScanChoice<S, K, L>, ...ScanChoice<S, K, L>[]];
       /** The heading of the scan screen; the player's default one without it. */
       readonly scanTitle?: string;
+      /** The text under that heading; the player's default one without it. */
+      readonly scanText?: string;
     });
 
 /** A physical place with a QR code; teams scan it to take a QR choice. */
@@ -96,6 +100,8 @@ export interface Story {
   readonly intro: readonly Block[];
   /** The heading of the login scan screen; the player's default one without it. */
   readonly introScanTitle?: string;
+  /** The text under that heading; the player's default one without it. */
+  readonly introScanText?: string;
   /** Node ids in definition order. */
   readonly order: readonly string[];
   readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
@@ -113,6 +119,8 @@ export interface StoryDefinition<S, K extends string, L extends number> {
   readonly intro: readonly Block[];
   /** The heading of the login scan screen; the player's default one without it. */
   readonly introScanTitle?: string;
+  /** The text under that heading; the player's default one without it. */
+  readonly introScanText?: string;
   readonly nodes: Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>;
 }
 
@@ -141,12 +149,14 @@ export const defineStory =
     locations,
     intro,
     introScanTitle,
+    introScanText,
     nodes,
   }: StoryDefinition<S, K, L>): Story => ({
     teams: byId(teams),
     locations: byId(locations),
     intro,
     ...(introScanTitle === undefined ? {} : { introScanTitle }),
+    ...(introScanText === undefined ? {} : { introScanText }),
     order: Object.keys(nodes),
     nodes,
   });

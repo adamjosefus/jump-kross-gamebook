@@ -35,6 +35,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
 
   if (story.intro.length === 0) report('Příběh nemá úvod (intro).');
   if (story.introScanTitle?.trim() === '') report('Úvod má prázdný titulek skeneru.');
+  if (story.introScanText?.trim() === '') report('Úvod má prázdný text skeneru.');
   introScreens(story).forEach((screen, index) => {
     if (screen.content.trim() === '') report(`Úvod má prázdnou obrazovku č. ${index + 1}.`);
   });
@@ -60,6 +61,7 @@ export const validateStory = (story: Story, { maxStates = 10_000 }: ValidateOpti
   for (const id of story.order) {
     const labels = new Set<string>();
     if (story.nodes[id]!.scanTitle?.trim() === '') report(`Uzel ${id} má prázdný titulek skeneru.`);
+    if (story.nodes[id]!.scanText?.trim() === '') report(`Uzel ${id} má prázdný text skeneru.`);
     for (const { location, goto } of story.nodes[id]!.scans ?? []) {
       if (!known.has(location))
         report(`QR volba v uzlu ${id} vede přes neznámé místo ${location}.`);

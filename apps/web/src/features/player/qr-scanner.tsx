@@ -118,11 +118,14 @@ const QrScannerView = ({
  */
 export const ScanScreen = ({
   title = 'Naskenujte QR kód',
+  text = 'Namiřte fotoaparát na QR kód.',
   onCode,
   busy,
 }: {
   /** From the story; a default one without it. */
   readonly title?: string | undefined;
+  /** From the story; a default one without it. */
+  readonly text?: string | undefined;
   readonly onCode: (code: string) => void;
   readonly busy: boolean;
 }) => (
@@ -132,7 +135,7 @@ export const ScanScreen = ({
     header={
       <>
         <h2 className='story-heading'>{title}</h2>
-        <p>Namiřte fotoaparát na QR kód.</p>
+        <p>{text}</p>
       </>
     }
   />

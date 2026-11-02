@@ -94,7 +94,9 @@ export const NodeScreens = ({
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
   const shown = screen === undefined || paging.seen.includes(index);
-  const scanScreen = <ScanScreen title={node.scanTitle} onCode={onCode} busy={busy} />;
+  const scanScreen = (
+    <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
+  );
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );

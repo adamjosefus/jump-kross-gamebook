@@ -89,6 +89,8 @@ export const PlayerView = Schema.Struct({
       scan: Schema.Boolean,
       /** The heading of the scan screen, when the story sets one. */
       scanTitle: Schema.optionalKey(Schema.String),
+      /** The text under that heading, when the story sets one. */
+      scanText: Schema.optionalKey(Schema.String),
     }),
   ),
 });
@@ -111,6 +113,8 @@ export const PlayerIntro = Schema.Struct({
   screens: Schema.Array(PlayerScreen),
   /** The heading of the login scan screen, when the story sets one. */
   scanTitle: Schema.optionalKey(Schema.String),
+  /** The text under that heading, when the story sets one. */
+  scanText: Schema.optionalKey(Schema.String),
 });
 export type PlayerIntro = typeof PlayerIntro.Type;
 
@@ -264,6 +268,7 @@ export const PlaytestView = Schema.Struct({
     choices: Schema.Array(PlayerChoice),
     scan: Schema.Boolean,
     scanTitle: Schema.optionalKey(Schema.String),
+    scanText: Schema.optionalKey(Schema.String),
     scans: Schema.Array(Location),
   }),
 });

@@ -70,6 +70,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const intro = {
       screens: introScreens(story),
       ...(story.introScanTitle === undefined ? {} : { scanTitle: story.introScanTitle }),
+      ...(story.introScanText === undefined ? {} : { scanText: story.introScanText }),
     };
 
     const teamName = (id: number) =>
@@ -101,6 +102,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           choices: node.choices,
           scan: node.scan,
           ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
+          ...(node.scanText === undefined ? {} : { scanText: node.scanText }),
         },
       };
     };

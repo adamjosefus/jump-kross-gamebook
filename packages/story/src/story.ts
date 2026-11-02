@@ -45,6 +45,7 @@ export const story = defineStory<State>()({
     `,
   ],
   introScanTitle: 'Naskenujte kód svého týmu',
+  introScanText: 'Namiřte fotoaparát na přihlašovací QR kód.',
   locations: {
     1: 'Lesní studánka',
     2: 'Starý mlýn',
@@ -92,6 +93,7 @@ export const story = defineStory<State>()({
         'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
       ],
       scanTitle: 'Kam jste došli?',
+      scanText: 'Naskenujte QR kód na místě, kam vás cesta zavedla.',
       scans: [
         { location: 1, goto: 'WELL' },
         { location: 2, goto: 'MILL' },
@@ -113,6 +115,8 @@ export const story = defineStory<State>()({
 
     TO_MILL: {
       blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
+      scanTitle: 'Jste u mlýna?',
+      scanText: 'QR kód najdete u kola.',
       scans: [{ location: 2, goto: 'MILL' }],
     },
 
