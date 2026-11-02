@@ -8,6 +8,7 @@ import {
 import type { Theme } from '@gamebook/core';
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties } from 'react';
 
+import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 import { paragraphsOf, type Paragraph } from './markdown';
@@ -165,15 +166,24 @@ const itemsOf = (paragraph: Paragraph, type: ParagraphType): Item[] => {
   });
 };
 
-const prepare = (paragraphs: readonly Paragraph[], theme: Theme): Prepared[] =>
+const prepare = (
+  paragraphs: readonly Paragraph[],
+  theme: Theme,
+  lightOnDark: boolean,
+): Prepared[] =>
   paragraphs.map((paragraph) => {
-    const type = paragraphType(theme, paragraph.kind);
+    const type = paragraphType(theme, paragraph.kind, lightOnDark);
     const items = itemsOf(paragraph, type);
     const inline = prepareRichInline(
       items.map(({ text, run, gap }) =>
         run.padding > 0
           ? { text, font: run.font, break: 'never' as const, extraWidth: run.padding * 2 }
-          : { text, font: run.font, ...(gap === 0 ? {} : { extraWidth: gap }) },
+          : {
+              text,
+              font: run.font,
+              ...(gap === 0 ? {} : { extraWidth: gap }),
+              ...(run.letterSpacing === 0 ? {} : { letterSpacing: run.letterSpacing }),
+            },
       ),
     );
     return { paragraph, type, items, inline };
@@ -221,7 +231,11 @@ const layOut = (prepared: readonly Prepared[], width: number) => {
 // -----------------------------------------------------------------------------------------------
 // Rendering
 
-const fontStyle = (run: RunType): CSSProperties => ({ font: run.font, lineHeight: 1 });
+const fontStyle = (run: RunType): CSSProperties => ({
+  font: run.font,
+  lineHeight: 1,
+  letterSpacing: run.letterSpacing,
+});
 
 /**
  * One screen of the story: Markdown laid out into lines by Pretext and painted line by line, with
@@ -248,26 +262,29 @@ export const StoryText = ({
   /** Called once every word is fully visible. */
   onRevealed?: () => void;
 }) => {
+  const { resolved } = useTheme();
+  // The night theme has its dark box in the light mode as well.
+  const lightOnDark = theme === 'night' || resolved === 'dark';
   const paragraphs = useMemo(() => paragraphsOf(content), [content]);
   const fonts = useMemo(
     () => [
       ...new Set(
         paragraphs.flatMap((paragraph) =>
           paragraph.runs.map(
-            (run) => runType(paragraphType(theme, paragraph.kind), run.marks).font,
+            (run) => runType(paragraphType(theme, paragraph.kind, lightOnDark), run.marks).font,
           ),
         ),
       ),
     ],
-    [paragraphs, theme],
+    [paragraphs, theme, lightOnDark],
   );
   const loaded = useFontsLoaded(fonts, content);
   const [ref, width] = useWidth();
   const [revealed, setRevealed] = useState(false);
 
   const prepared = useMemo(
-    () => (loaded ? prepare(paragraphs, theme) : undefined),
-    [loaded, paragraphs, theme],
+    () => (loaded ? prepare(paragraphs, theme, lightOnDark) : undefined),
+    [loaded, paragraphs, theme, lightOnDark],
   );
   const layout = useMemo(
     () => (prepared === undefined || width === undefined ? undefined : layOut(prepared, width)),
@@ -296,7 +313,12 @@ export const StoryText = ({
   return (
     <div
       ref={ref}
-      className={cn('story-text', shownAll && 'story-text-revealed', className)}
+      className={cn(
+        'story-text',
+        shownAll && 'story-text-revealed',
+        lightOnDark && 'story-text-on-dark',
+        className,
+      )}
       onClick={() => setRevealed(true)}
     >
       {layout?.paragraphs.map(({ prepared: { paragraph, type }, lines }, index) => (
