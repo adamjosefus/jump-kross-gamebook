@@ -22,6 +22,8 @@ import {
 } from './typography';
 
 interface RevealPace {
+  /** The pause before the first word, while the screen's colors settle. */
+  readonly firstWordDelayMs: number;
   /** Average time per word; long screens go faster so the whole reveal never takes too long. */
   readonly wordStepMs: number;
   readonly maxRevealMs: number;
@@ -32,6 +34,7 @@ interface RevealPace {
 }
 
 const NORMAL_PACE: RevealPace = {
+  firstWordDelayMs: 500,
   wordStepMs: 70,
   maxRevealMs: 4000,
   wordFadeMs: 800,
@@ -39,6 +42,7 @@ const NORMAL_PACE: RevealPace = {
 };
 /** For a text the player has read a moment ago: done in about a quarter of a second. */
 const FAST_PACE: RevealPace = {
+  firstWordDelayMs: 0,
   wordStepMs: 5,
   maxRevealMs: 150,
   wordFadeMs: 100,
@@ -54,7 +58,7 @@ const REVEAL_EASING = 2.5;
  * ones quickly, always one after another.
  */
 const revealDelay = (index: number, words: number, pace: RevealPace) => {
-  if (words <= 1) return 0;
+  if (words <= 1) return pace.firstWordDelayMs;
   const curve = Math.min(words * pace.wordStepMs, pace.maxRevealMs);
   const progress = index / (words - 1);
   // The inverse of the ease-in-out: the time at which this share of the words is shown.
@@ -62,7 +66,7 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
     progress < 0.5
       ? 0.5 * (2 * progress) ** (1 / REVEAL_EASING)
       : 1 - 0.5 * (2 * (1 - progress)) ** (1 / REVEAL_EASING);
-  return Math.round(index * pace.minWordGapMs + curve * time);
+  return Math.round(pace.firstWordDelayMs + index * pace.minWordGapMs + curve * time);
 };
 
 // -----------------------------------------------------------------------------------------------
