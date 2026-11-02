@@ -30,7 +30,9 @@ const Buttons = () => (
       <ActionButton icon={<IconArrowRight className='size-5' />}>Další</ActionButton>
     </Row>
     <Row label='Volby'>
-      <SlideButton onConfirm={() => undefined}>Vyrazit na cestu</SlideButton>
+      <SlideButton onConfirm={() => undefined} chord={['C3', 'G3', 'E4']}>
+        Vyrazit na cestu
+      </SlideButton>
       <SlideButton onConfirm={() => undefined}>Vrátit se domů a zkusit to jindy znovu</SlideButton>
       <SlideButton onConfirm={() => undefined} disabled>
         Vypnutá volba

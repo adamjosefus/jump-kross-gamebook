@@ -16,6 +16,9 @@ type State = {
  * their codes from here. `intro` is what anyone sees before scanning a team's code; then the team
  * continues where it is, or at START when it has not started yet.
  *
+ * `chord` is what the slide buttons play; a choice can bring a chord of its own, like the minor
+ * one of giving up at the mill.
+ *
  * Demo: an intro, a letter, a description, a fork decided by which place the team walks to
  * (locations 1 and 2), a choice that appears only with enough coins, and two endings.
  */
@@ -46,6 +49,8 @@ export const story = defineStory<State>()({
   ],
   introScanTitle: 'Naskenujte kód svého týmu',
   introScanText: 'Namiřte fotoaparát na přihlašovací QR kód.',
+  // Cello notes a slide button plays, entering one by one as the thumb moves.
+  chord: ['C3', 'G3', 'D4', 'E4'],
   locations: {
     1: 'Lesní studánka',
     2: 'Starý mlýn',
@@ -138,7 +143,7 @@ export const story = defineStory<State>()({
           goto: 'TREASURE',
           when: (state) => state.courage > 0 || state.hasMap,
         },
-        { label: 'Vrátit se domů', goto: 'HOME' },
+        { label: 'Vrátit se domů', goto: 'HOME', chord: ['A2', 'E3', 'C4', 'G4'] },
       ],
     },
 

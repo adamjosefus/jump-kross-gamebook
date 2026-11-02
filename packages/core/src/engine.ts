@@ -2,6 +2,7 @@ import {
   dedent,
   type Block,
   type Choice,
+  type Chord,
   type ScanChoice,
   type Story,
   type StoryNode,
@@ -19,6 +20,8 @@ export interface RenderedChoice {
   /** Index into the node's `choices`; sent back by the client when choosing. */
   readonly index: number;
   readonly label: string;
+  /** Notes the button plays while slid, when the story gives any. */
+  readonly chord?: Chord;
 }
 
 export interface RenderedScreen {
@@ -127,10 +130,10 @@ export const renderNode = (story: Story, position: Position): RenderedNode | und
     id: position.node,
     type: nodeType(node),
     screens: screensOf(node, position.state),
-    choices: availableChoices(node, position.state).map(({ choice, index }) => ({
-      index,
-      label: choice.label,
-    })),
+    choices: availableChoices(node, position.state).map(({ choice, index }) => {
+      const chord = choice.chord ?? story.chord;
+      return { index, label: choice.label, ...(chord === undefined ? {} : { chord }) };
+    }),
     scan: node.scans !== undefined,
     ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
     ...(node.scanText === undefined ? {} : { scanText: node.scanText }),

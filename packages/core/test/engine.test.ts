@@ -51,6 +51,31 @@ describe('engine', () => {
     expect(renderNode(titled, { node: 'B', state: { gold: 0 } })).not.toHaveProperty('scanTitle');
   });
 
+  it('gives every choice the chord of the story unless it has its own', () => {
+    const sounding = defineStory<{ gold: number }>()({
+      teams: { 1: 'Tým' },
+      locations: {},
+      intro: ['Úvod'],
+      chord: ['C3', 'G3', 'E4'],
+      nodes: {
+        A: {
+          initialState: { gold: 0 },
+          blocks: ['A'],
+          choices: [
+            { label: 'Dál', goto: 'B' },
+            { label: 'Domů', goto: 'B', chord: ['A2', 'E3', 'C4'] },
+          ],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(renderNode(sounding, startPosition(sounding)!)?.choices).toEqual([
+      { index: 0, label: 'Dál', chord: ['C3', 'G3', 'E4'] },
+      { index: 1, label: 'Domů', chord: ['A2', 'E3', 'C4'] },
+    ]);
+    expect(renderNode(story, start)?.choices[0]).not.toHaveProperty('chord');
+  });
+
   it('renders the intro', () => {
     expect(introScreens(story)).toEqual([
       { theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' },

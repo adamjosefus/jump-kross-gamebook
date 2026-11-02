@@ -16,6 +16,16 @@ export type Block = string | Screen;
 /** Falsy entries are skipped, so blocks can be written as `condition && block`. */
 export type MaybeBlock = Block | false | null | undefined;
 
+/** A note name with its octave, like `C3` or `F#4`; sharps only. The cello plays C2 to C5. */
+export type Note =
+  `${'C' | 'C#' | 'D' | 'D#' | 'E' | 'F' | 'F#' | 'G' | 'G#' | 'A' | 'A#' | 'B'}${2 | 3 | 4 | 5}`;
+
+/**
+ * Notes a slide button plays, from the lowest as the slide starts to the last as it ends, so the
+ * whole chord sounds when the choice is confirmed. Best in the order they should enter.
+ */
+export type Chord = readonly [Note, ...Note[]];
+
 /**
  * A function of the state, checked bivariantly like a method, so a story written for a specific
  * state type is still a `Story` the engine can run with any state.
@@ -30,9 +40,11 @@ interface Transition<S, K extends string> {
   readonly nextState?: StateFn<S, Partial<S>>;
 }
 
-/** A button the team taps. */
+/** A button the team slides. */
 export interface Choice<S, K extends string> extends Transition<S, K> {
   readonly label: string;
+  /** Played while sliding this button; the story's `chord` without it. */
+  readonly chord?: Chord;
 }
 
 /**
@@ -102,6 +114,8 @@ export interface Story {
   readonly introScanTitle?: string;
   /** The text under that heading; the player's default one without it. */
   readonly introScanText?: string;
+  /** Played while sliding a choice that has no `chord` of its own; no sound without it. */
+  readonly chord?: Chord;
   /** Node ids in definition order. */
   readonly order: readonly string[];
   readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
@@ -121,6 +135,11 @@ export interface StoryDefinition<S, K extends string, L extends number> {
   readonly introScanTitle?: string;
   /** The text under that heading; the player's default one without it. */
   readonly introScanText?: string;
+  /**
+   * Notes a slide button plays, entering one by one as the thumb moves and all sounding at the
+   * end: `['C3', 'G3', 'E4']`. A choice can set its own `chord`. Without any, buttons are silent.
+   */
+  readonly chord?: Chord;
   readonly nodes: Readonly<Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>>;
 }
 
@@ -150,6 +169,7 @@ export const defineStory =
     intro,
     introScanTitle,
     introScanText,
+    chord,
     nodes,
   }: StoryDefinition<S, K, L>): Story => ({
     teams: byId(teams),
@@ -157,6 +177,7 @@ export const defineStory =
     intro,
     ...(introScanTitle === undefined ? {} : { introScanTitle }),
     ...(introScanText === undefined ? {} : { introScanText }),
+    ...(chord === undefined ? {} : { chord }),
     order: Object.keys(nodes),
     nodes,
   });

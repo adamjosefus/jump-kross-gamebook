@@ -66,7 +66,13 @@ export class NotFound extends Schema.TaggedError<NotFound>()(
 // ---------------------------------------------------------------------------------------------
 // Player
 
-export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.String });
+export const PlayerChoice = Schema.Struct({
+  index: Schema.Number,
+  label: Schema.String,
+  /** Notes the slide button plays, entering one by one along the track; silent without them. */
+  chord: Schema.optionalKey(Schema.Array(Schema.String)),
+});
+export type PlayerChoice = typeof PlayerChoice.Type;
 
 export const PlayerScreen = Schema.Struct({
   theme: Theme,

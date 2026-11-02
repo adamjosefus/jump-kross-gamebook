@@ -161,7 +161,12 @@ export const NodeScreens = ({
               </p>
             ) : (
               choices.map((choice) => (
-                <SlideButton key={choice.index} onConfirm={() => onPick(choice)} disabled={busy}>
+                <SlideButton
+                  key={choice.index}
+                  onConfirm={() => onPick(choice)}
+                  disabled={busy}
+                  chord={choice.chord}
+                >
                   {choice.label}
                 </SlideButton>
               ))

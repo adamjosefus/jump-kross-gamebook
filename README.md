@@ -44,6 +44,9 @@ export const story = defineStory<State>()({
   locations: { 32: 'Studna na nádvoří', 33: 'Brána' },
   // Úvod před přihlášením, pro všechny stejný. Po něm se skenuje kód týmu.
   intro: [{ theme: 'intro', content: '# Ztracený rukopis' }, 'Pravidla hry…'],
+  // Tóny violoncella, které hraje posuvné tlačítko: první se ozve s dotykem, další postupně
+  // cestou, na konci zní celý akord. Noty C2 až C5, křížky jako `F#3`. Bez `chord` jsou tlačítka tichá.
+  chord: ['C3', 'G3', 'D4', 'E4'],
   nodes: {
     START: {
       initialState: { gold: 100, hatColor: 'red' }, // jediný start, tady začíná každý tým
@@ -77,7 +80,8 @@ export const story = defineStory<State>()({
           when: (s) => s.gold >= 90,
           nextState: (s) => ({ gold: s.gold - 90 }),
         },
-        { label: 'Odejít', goto: 'END' },
+        // Vlastní akord jedné volby, místo toho z `chord` příběhu.
+        { label: 'Odejít', goto: 'END', chord: ['A2', 'E3', 'C4'] },
       ],
     },
     END: { end: true, blocks: ['Konec.'] },

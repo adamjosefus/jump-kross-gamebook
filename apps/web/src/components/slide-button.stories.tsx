@@ -63,3 +63,23 @@ export const Choices: Story = {
     </div>
   ),
 };
+
+/**
+ * Sliding plays a cello chord: the first note with the touch, the next ones along the track, all
+ * of them at the end. Letting go early fades it; confirming lets it ring.
+ */
+export const Chord: Story = {
+  render: () => (
+    <div className='flex flex-col gap-3'>
+      <SlideButton onConfirm={() => {}} chord={['C3', 'G3', 'E4']}>
+        Durový akord
+      </SlideButton>
+      <SlideButton onConfirm={() => {}} chord={['A2', 'E3', 'C4', 'G4']}>
+        Mollový akord
+      </SlideButton>
+      <SlideButton onConfirm={() => {}} chord={['D3', 'A3', 'E4', 'F#4', 'B4']}>
+        Pět tónů
+      </SlideButton>
+    </div>
+  ),
+};
