@@ -15,10 +15,10 @@ interface ThemeType {
 }
 
 const THEME_TYPE: Record<Theme, ThemeType> = {
-  default: { family: SERIF, size: 18, lineHeight: 29 },
-  intro: { family: SERIF, size: 20, lineHeight: 32 },
-  letter: { family: SERIF, size: 18, lineHeight: 29 },
-  night: { family: SERIF, size: 18, lineHeight: 29 },
+  default: { family: SERIF, size: 20, lineHeight: 34 },
+  intro: { family: SERIF, size: 22, lineHeight: 37 },
+  letter: { family: SERIF, size: 20, lineHeight: 34 },
+  night: { family: SERIF, size: 20, lineHeight: 34 },
 };
 
 const KIND_SCALE: Record<ParagraphKind, { size: number; lineHeight: number; weight: number }> = {
