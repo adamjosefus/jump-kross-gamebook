@@ -39,7 +39,8 @@ const THEME_TYPE: Record<Theme, ThemeType> = {
     heading: { align: 'center', wrap: 'pretty' },
     text: { align: 'center', wrap: 'balance' },
   },
-  outro: DEFAULT_TYPE,
+  green: DEFAULT_TYPE,
+  red: DEFAULT_TYPE,
   letter: { ...DEFAULT_TYPE, text: { align: 'justify', wrap: 'normal' } },
   description: {
     ...DEFAULT_TYPE,
@@ -71,6 +72,9 @@ const LIGHT_ON_DARK = {
 };
 
 const quarter = (px: number) => Math.round(px * 4) / 4;
+
+/** Themes with light text on a dark background in the light mode as well. */
+export const isAlwaysDark = (theme: Theme) => theme === 'green' || theme === 'red';
 
 export interface ParagraphType {
   /** One style for the whole text: its marks do not change it. */

@@ -131,14 +131,14 @@ export const story = defineStory<State>()({
     TREASURE: {
       end: true,
       blocks: [
-        { theme: 'outro', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
+        { theme: 'green', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
       ],
     },
 
     HOME: {
       end: true,
       blocks: [
-        { theme: 'outro', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
+        { theme: 'red', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
       ],
     },
   },

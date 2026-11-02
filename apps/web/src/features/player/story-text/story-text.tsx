@@ -12,7 +12,14 @@ import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 import { paragraphsOf, type Paragraph } from './markdown';
-import { paragraphType, QUOTE_LINE, runType, type ParagraphType, type RunType } from './typography';
+import {
+  isAlwaysDark,
+  paragraphType,
+  QUOTE_LINE,
+  runType,
+  type ParagraphType,
+  type RunType,
+} from './typography';
 
 interface RevealPace {
   /** Average time per word; long screens go faster so the whole reveal never takes too long. */
@@ -323,7 +330,7 @@ export const StoryText = ({
   onRevealed?: () => void;
 }) => {
   const { resolved } = useTheme();
-  const lightOnDark = resolved === 'dark';
+  const lightOnDark = isAlwaysDark(theme) || resolved === 'dark';
   const paragraphs = useMemo(() => paragraphsOf(content), [content]);
   const fonts = useMemo(
     () => [

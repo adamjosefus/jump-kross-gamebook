@@ -28,9 +28,14 @@ const LOOKS: readonly Look[] = [
       '# Poklad starého mlýna\n\nHledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?',
   },
   {
-    name: 'Závěr',
-    theme: 'outro',
+    name: 'Zelená',
+    theme: 'green',
     content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.',
+  },
+  {
+    name: 'Červená',
+    theme: 'red',
+    content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.',
   },
   {
     name: 'Dopis',
