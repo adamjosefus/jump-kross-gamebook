@@ -29,6 +29,19 @@ const KIND_SCALE: Record<ParagraphKind, { size: number; lineHeight: number; weig
   quote: { size: 1, lineHeight: 0, weight: 400 },
 };
 
+/**
+ * Optical correction of light text on a dark background, which looks bolder than the same text
+ * dark on light (irradiation). Noto Serif has no grade axis, so the weight changes the widths:
+ * Pretext has to measure with these values too.
+ */
+const LIGHT_ON_DARK = {
+  weightShift: -35,
+  /** In em. */
+  letterSpacing: 0.01,
+  /** Added to the line height of body text, in px. */
+  lineHeight: 1,
+};
+
 const quarter = (px: number) => Math.round(px * 4) / 4;
 
 export interface ParagraphType {
@@ -46,25 +59,37 @@ export interface ParagraphType {
   readonly quoteIndent: number;
   /** Added to every space between words, which is too tight in the default spacing. */
   readonly wordGap: number;
+  /** Added after every character, in px. */
+  readonly letterSpacing: number;
+  /** Added to the weight of a bold run as well. */
+  readonly weightShift: number;
 }
 
 /** Width of the line beside a quote. */
 export const QUOTE_LINE = 2;
 
-export const paragraphType = (theme: Theme, kind: ParagraphKind): ParagraphType => {
+export const paragraphType = (
+  theme: Theme,
+  kind: ParagraphKind,
+  lightOnDark: boolean,
+): ParagraphType => {
   const base = THEME_TYPE[theme];
   const scale = KIND_SCALE[kind];
   const size = Math.round(base.size * scale.size);
+  const weightShift = lightOnDark ? LIGHT_ON_DARK.weightShift : 0;
+  const bodyLineHeight = base.lineHeight + (lightOnDark ? LIGHT_ON_DARK.lineHeight : 0);
   return {
     size,
-    lineHeight: scale.lineHeight === 0 ? base.lineHeight : Math.round(size * scale.lineHeight),
-    weight: scale.weight,
+    lineHeight: scale.lineHeight === 0 ? bodyLineHeight : Math.round(size * scale.lineHeight),
+    weight: scale.weight + weightShift,
     family: base.family,
     gap: base.size,
     listGap: quarter(base.size * 0.4),
     indent: quarter(base.size * 1.25),
     quoteIndent: quarter(base.size + QUOTE_LINE),
     wordGap: quarter(size * 0.15),
+    letterSpacing: lightOnDark ? quarter(size * LIGHT_ON_DARK.letterSpacing) : 0,
+    weightShift,
   };
 };
 
@@ -73,14 +98,20 @@ export interface RunType {
   readonly font: string;
   /** Horizontal padding on each side of inline code. */
   readonly padding: number;
+  /** Added after every character, in px. */
+  readonly letterSpacing: number;
 }
 
 export const runType = (paragraph: ParagraphType, marks: readonly Mark[]): RunType => {
   if (marks.includes('code')) {
     const size = Math.round(paragraph.size * 0.9);
-    return { font: `500 ${size}px ${MONO}`, padding: quarter(size * 0.3) };
+    return { font: `500 ${size}px ${MONO}`, padding: quarter(size * 0.3), letterSpacing: 0 };
   }
-  const weight = marks.includes('strong') ? 650 : paragraph.weight;
+  const weight = marks.includes('strong') ? 650 + paragraph.weightShift : paragraph.weight;
   const style = marks.includes('em') ? 'italic ' : '';
-  return { font: `${style}${weight} ${paragraph.size}px ${paragraph.family}`, padding: 0 };
+  return {
+    font: `${style}${weight} ${paragraph.size}px ${paragraph.family}`,
+    padding: 0,
+    letterSpacing: paragraph.letterSpacing,
+  };
 };

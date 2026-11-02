@@ -21,8 +21,8 @@ const THEME_BOX: Record<Theme, string> = {
   default: '',
   intro: '',
   letter:
-    'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50',
-  night: 'rounded-lg bg-slate-950 p-6 text-slate-100 ring-1 ring-slate-800',
+    'rounded-lg border bg-amber-50 p-6 text-amber-950 shadow-sm dark:bg-amber-950/30 dark:text-amber-50/90',
+  night: 'rounded-lg bg-slate-900 p-6 text-slate-200 ring-1 ring-slate-800',
 };
 
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
