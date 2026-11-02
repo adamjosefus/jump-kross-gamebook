@@ -16,6 +16,8 @@ type CameraAccess = 'checking' | 'prompt' | 'requesting' | 'granted' | 'denied' 
 const useCameraAccess = () => {
   const [state, setState] = useState<CameraAccess>('checking');
   useEffect(() => {
+    // The status arrives asynchronously and the query cannot be aborted, so the cleanup has to
+    // flag the effect as over and the listener has to find the status it was added to.
     let status: PermissionStatus | undefined;
     let cancelled = false;
     const follow = () => {
@@ -56,7 +58,7 @@ const useCameraAccess = () => {
   return { state, request };
 };
 
-const TEXT: Record<CameraAccess, string> = {
+const TEXT: Readonly<Record<CameraAccess, string>> = {
   checking: '',
   granted: '',
   prompt: 'Ve hře budete skenovat QR kódy. Povolte aplikaci přístup ke kameře.',
@@ -71,7 +73,7 @@ const TEXT: Record<CameraAccess, string> = {
  * the permission, and the game does not go on without it. Used before the login scan, so a team
  * finds out at the start, not at the first place.
  */
-export const CameraGate = ({ children }: { children: ReactNode }) => {
+export const CameraGate = ({ children }: { readonly children: ReactNode }) => {
   const insecure = !window.isSecureContext || navigator.mediaDevices === undefined;
   const { state, request } = useCameraAccess();
 

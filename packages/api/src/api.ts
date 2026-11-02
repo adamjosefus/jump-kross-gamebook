@@ -281,7 +281,7 @@ export class AdminAuth extends HttpApiMiddleware.Service<AdminAuth>()('gamebook/
   error: Unauthorized,
 }) {}
 
-const teamParams = { id: Schema.Number };
+const teamParams = { id: Schema.Number } as const;
 
 export class AdminGroup extends HttpApiGroup.make('admin')
   .add(

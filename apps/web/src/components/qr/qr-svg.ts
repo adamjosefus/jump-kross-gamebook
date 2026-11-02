@@ -26,24 +26,35 @@ export interface QrGeometry {
   readonly path: string;
 }
 
+/** A horizontal run of dark modules, in modules from the top left corner. */
+export interface QrRun {
+  readonly column: number;
+  readonly row: number;
+  readonly length: number;
+}
+
 export interface QrRuns {
   /** Width and height in modules, quiet zone and noise included. */
   readonly size: number;
   /** Horizontal runs of dark modules, in modules from the top left corner. */
-  readonly runs: readonly { readonly x: number; readonly y: number; readonly length: number }[];
+  readonly runs: readonly QrRun[];
   /** The code with its quiet zone: where it starts and how wide it is, in the same modules. */
   readonly code: { readonly at: number; readonly size: number; readonly quietZone: number };
 }
 
 /** Deterministic random numbers in [0, 1), so preview and downloads get the same noise. */
 const seededRandom = (seed: string) => {
-  let state = 2166136261;
-  for (let i = 0; i < seed.length; i++) state = Math.imul(state ^ seed.charCodeAt(i), 16777619);
+  // FNV-1a over the UTF-16 code units of the seed.
+  const hashed = seed
+    .split('')
+    .reduce((state, char) => Math.imul(state ^ char.charCodeAt(0), 16777619), 2166136261);
+  // The generator carries its state from one number to the next, so it has to be mutable.
+  let state = hashed;
   return () => {
     state = (state + 0x6d2b79f5) | 0;
-    let t = Math.imul(state ^ (state >>> 15), 1 | state);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    const mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    const scrambled = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+    return ((scrambled ^ (scrambled >>> 14)) >>> 0) / 4294967296;
   };
 };
 
@@ -68,38 +79,45 @@ export const qrRuns = (value: string, style: QrStyle = {}): QrRuns => {
   const size = codeSize + band * 2;
   const centre = size / 2;
   const random = seededRandom(`${value}|${noise?.shape}|${width}|${margin}`);
-  const inCode = (i: number) => i >= band && i < band + codeSize;
+  const inCode = (position: number) => position >= band && position < band + codeSize;
 
-  const dark = (row: number, col: number) => {
-    if (inCode(row) && inCode(col)) {
-      const r = row - band - margin;
-      const c = col - band - margin;
-      return r >= 0 && c >= 0 && r < modules.size && c < modules.size && Boolean(modules.get(r, c));
+  const dark = (row: number, column: number) => {
+    if (inCode(row) && inCode(column)) {
+      const moduleRow = row - band - margin;
+      const moduleColumn = column - band - margin;
+      return (
+        moduleRow >= 0 &&
+        moduleColumn >= 0 &&
+        moduleRow < modules.size &&
+        moduleColumn < modules.size &&
+        Boolean(modules.get(moduleRow, moduleColumn))
+      );
     }
-    if (noise?.shape === 'circle' && Math.hypot(col + 0.5 - centre, row + 0.5 - centre) > radius)
+    if (noise?.shape === 'circle' && Math.hypot(column + 0.5 - centre, row + 0.5 - centre) > radius)
       return false;
     return random() < NOISE_DENSITY;
   };
 
-  const runs: { x: number; y: number; length: number }[] = [];
-  for (let row = 0; row < size; row++) {
-    let start = -1;
-    for (let col = 0; col <= size; col++) {
-      const on = col < size && dark(row, col);
-      if (on && start < 0) start = col;
-      if (!on && start >= 0) {
-        runs.push({ x: start, y: row, length: col - start });
-        start = -1;
-      }
-    }
-  }
+  const positions = [...Array(size).keys()];
+  // Row by row, column by column, so the noise comes out in the same order every time.
+  const rowRuns = (row: number): readonly QrRun[] =>
+    positions.reduce<readonly QrRun[]>((runs, column) => {
+      if (!dark(row, column)) return runs;
+      const last = runs.at(-1);
+      return last !== undefined && last.column + last.length === column
+        ? [...runs.slice(0, -1), { ...last, length: last.length + 1 }]
+        : [...runs, { column, row, length: 1 }];
+    }, []);
+  const runs = positions.flatMap(rowRuns);
   return { size, runs, code: { at: band, size: codeSize, quietZone: margin } };
 };
 
 /** Level-H code geometry shared by the React component and the standalone SVG export. */
 export const qrGeometry = (value: string, style?: QrStyle): QrGeometry => {
   const { size, runs } = qrRuns(value, style);
-  const path = runs.map(({ x, y, length }) => `M${x} ${y}h${length}v1h-${length}z`).join('');
+  const path = runs
+    .map(({ column, row, length }) => `M${column} ${row}h${length}v1h-${length}z`)
+    .join('');
   return { size, path };
 };
 

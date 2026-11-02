@@ -22,7 +22,7 @@ const QrCard = ({
   eyebrow,
   title,
   hint,
-}: QrCardProps & QrCardText & { icon: ReactNode }) => (
+}: QrCardProps & QrCardText & { readonly icon: ReactNode }) => (
   <figure
     className={cn(
       'flex w-[8cm] break-inside-avoid flex-col gap-3 rounded-xl border-2 border-black bg-white p-5 text-black',

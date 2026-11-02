@@ -86,6 +86,20 @@ const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
   return { ...next, via: viaOf(from, move), token: encodeMove(move) };
 };
 
+/**
+ * Replays the moves one after another from `from`. The story may have changed since the path was
+ * written; the path stops where it no longer goes on.
+ */
+const replaySteps = async (from: Step, tokens: readonly string[]): Promise<readonly Step[]> => {
+  const [token, ...rest] = tokens;
+  if (token === undefined) return [];
+  const next = await playFrom(from, decodeMove(token)).catch((error: unknown) => {
+    toast.error(`Cestu z adresy nešlo celou přehrát: ${errorMessage(error)}`);
+    return undefined;
+  });
+  return next === undefined ? [] : [next, ...(await replaySteps(next, rest))];
+};
+
 const introStep = (intro: PlayerIntro): Step => ({
   intro: true,
   node: 'Úvod',
@@ -99,10 +113,10 @@ const CodeEntry = ({
   busy,
   onCode,
 }: {
-  disabled: boolean;
-  busy: boolean;
+  readonly disabled: boolean;
+  readonly busy: boolean;
   /** `done` is called once the code worked; one that did not stays in the field to be fixed. */
-  onCode: (code: string, done: () => void) => void;
+  readonly onCode: (code: string, done: () => void) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -169,21 +183,7 @@ export const PlaytestPage = () => {
   const [opened] = useState(() => search.path ?? '');
   const replay = useQuery({
     queryKey: ['admin', 'playtest', 'replay', opened],
-    queryFn: async () => {
-      const steps: Step[] = [];
-      let from = start!;
-      for (const token of opened.split('.')) {
-        try {
-          from = await playFrom(from, decodeMove(token));
-        } catch (error) {
-          // The story may have changed since; the path stops where it no longer goes on.
-          toast.error(`Cestu z adresy nešlo celou přehrát: ${errorMessage(error)}`);
-          break;
-        }
-        steps.push(from);
-      }
-      return steps;
-    },
+    queryFn: () => replaySteps(start!, opened.split('.')),
     enabled: start !== undefined && opened !== '',
     staleTime: Infinity,
     gcTime: 0,
@@ -207,7 +207,8 @@ export const PlaytestPage = () => {
   };
 
   const play = useMutation({
-    mutationFn: ({ from, move }: { from: Step; move?: Move }) => playFrom(from, move),
+    mutationFn: ({ from, move }: { readonly from: Step; readonly move?: Move }) =>
+      playFrom(from, move),
     onSuccess: (next) => setMoves([...steps, next]),
     onError: (error) => toast.error(errorMessage(error)),
   });

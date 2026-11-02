@@ -9,7 +9,7 @@ export const OPTICAL_CENTER =
   "flex flex-col before:flex-[2] before:content-[''] after:flex-[3] after:content-['']";
 
 /** Look of the block around the text; its typography comes from `StoryText`. */
-export const THEME_BOX: Record<Theme, string> = {
+export const THEME_BOX: Readonly<Record<Theme, string>> = {
   default: '',
   intro: '',
   green: '',
@@ -22,7 +22,7 @@ export const THEME_BOX: Record<Theme, string> = {
  * Colors of the whole screen around the block. The colored screens are dark in the light mode too,
  * and `dark:` applies only when the whole page is.
  */
-export const THEME_PAGE: Record<Theme, string> = {
+export const THEME_PAGE: Readonly<Record<Theme, string>> = {
   default: '',
   intro: '',
   green:

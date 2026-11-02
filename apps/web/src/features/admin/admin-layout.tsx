@@ -19,12 +19,12 @@ const NAV = [
   { to: '/admin/print', label: 'QR kódy' },
 ] as const;
 
-const THEME_NEXT: Record<ThemePreference, ThemePreference> = {
+const THEME_NEXT: Readonly<Record<ThemePreference, ThemePreference>> = {
   system: 'light',
   light: 'dark',
   dark: 'system',
-};
-const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon };
+} as const;
+const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon } as const;
 
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {

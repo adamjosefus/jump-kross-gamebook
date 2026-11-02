@@ -5,7 +5,7 @@ import { GameState } from '../api.ts';
 import { SCHEMA } from './schema.ts';
 import { Store, StoreError, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
-type Row = Record<string, unknown>;
+type Row = Readonly<Record<string, unknown>>;
 
 // Rows come back untyped, so every column is decoded; a mismatch throws and surfaces as StoreError.
 const decodeText = Schema.decodeUnknownSync(Schema.String);
@@ -44,6 +44,8 @@ const toReading = (row: Row): ReadingRow => ({
 /** Neon over HTTP: one round trip per query, no connection to keep warm in a serverless function. */
 export const makePostgresStore = (url: string) => {
   const sql = neon(url);
+  // The migration runs once per instance and is retried after a failure, so its promise is
+  // kept in a `let`.
   let ready: Promise<unknown> | undefined;
   const migrate = () =>
     (ready ??= sql.transaction(

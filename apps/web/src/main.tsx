@@ -22,7 +22,7 @@ const TOAST_OFFSET = {
   top: 'calc(var(--safe-area-inset-top) + 1rem)',
   left: 'calc(var(--safe-area-inset-left) + 1rem)',
   right: 'calc(var(--safe-area-inset-right) + 1rem)',
-};
+} as const;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

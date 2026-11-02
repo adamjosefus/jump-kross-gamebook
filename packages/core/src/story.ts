@@ -121,7 +121,7 @@ export interface StoryDefinition<S, K extends string, L extends number> {
   readonly introScanTitle?: string;
   /** The text under that heading; the player's default one without it. */
   readonly introScanText?: string;
-  readonly nodes: Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>;
+  readonly nodes: Readonly<Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>>;
 }
 
 /**
@@ -164,7 +164,7 @@ export const defineStory =
 const byId = (names: Readonly<Record<number, string>>) =>
   Object.entries<string>(names)
     .map(([id, name]) => ({ id: Number(id), name }))
-    .toSorted((a, b) => a.id - b.id);
+    .toSorted((first, second) => first.id - second.id);
 
 /** Strips the indentation common to all lines, so content can be indented with the code. */
 export const dedent = (text: string): string => {

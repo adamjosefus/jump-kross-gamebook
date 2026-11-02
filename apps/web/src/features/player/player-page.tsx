@@ -3,7 +3,7 @@ import { parseQr } from '@gamebook/core';
 import { IconLoader2 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useState, type ComponentProps } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -64,13 +64,13 @@ export const PlayerPage = () => {
     onError,
   });
   const choose = useMutation({
-    mutationFn: ({ index, step }: { index: number; step: number }) =>
+    mutationFn: ({ index, step }: { readonly index: number; readonly step: number }) =>
       api((client) => client.player.choose({ payload: { index, expectedStep: step } })),
     onSuccess: onResult,
     onError,
   });
   const scan = useMutation({
-    mutationFn: ({ code, step }: { code: string; step: number }) =>
+    mutationFn: ({ code, step }: { readonly code: string; readonly step: number }) =>
       api((client) => client.player.scan({ payload: { code, expectedStep: step } })),
     onSuccess: onResult,
     onError,
@@ -88,7 +88,7 @@ export const PlayerPage = () => {
   };
 
   // The slide button is the confirmation, so a choice is sent right away.
-  const pick = (choice: { index: number }) => {
+  const pick = (choice: { readonly index: number }) => {
     if (view != null) choose.mutate({ index: choice.index, step: view.step });
   };
 
@@ -178,13 +178,13 @@ export const PlayerPage = () => {
 const TeamNodeScreens = ({
   teamId,
   ...props
-}: ComponentProps<typeof NodeScreens> & { teamId: number }) => (
+}: ComponentProps<typeof NodeScreens> & { readonly teamId: number }) => (
   <NodeScreens {...props} onRead={useReadingReport(teamId)} />
 );
 
 const PAGE = 'flex min-h-dvh flex-col font-story';
 
-const Centered = ({ children }: { children: React.ReactNode }) => (
+const Centered = ({ children }: { readonly children: ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
 );
 
@@ -198,10 +198,10 @@ const Intro = ({
   initialIndex,
   onIndexChange,
 }: {
-  onCode: (code: string) => void;
-  busy: boolean;
-  initialIndex: number;
-  onIndexChange: (index: number) => void;
+  readonly onCode: (code: string) => void;
+  readonly busy: boolean;
+  readonly initialIndex: number;
+  readonly onIndexChange: (index: number) => void;
 }) => {
   const intro = useQuery({
     queryKey: ['player', 'intro'],

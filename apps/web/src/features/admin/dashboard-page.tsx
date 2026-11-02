@@ -40,11 +40,11 @@ import { api, errorMessage } from '@/lib/api';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 
-const isState = (value: unknown): value is Record<string, Value> =>
+const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   typeof value === 'object' &&
   value !== null &&
   !Array.isArray(value) &&
-  Object.values(value).every((v) => ['string', 'number', 'boolean'].includes(typeof v));
+  Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
 
@@ -67,11 +67,11 @@ const formatState = (state: Readonly<Record<string, Value>>) =>
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
     .join(', ');
 
-const ACTION_LABELS: Record<string, string> = {
+const ACTION_LABELS: Readonly<Record<string, string>> = {
   start: 'start',
   reset: 'reset',
   admin: 'zásah organizátora',
-};
+} as const;
 const actionLabel = (action: string) =>
   ACTION_LABELS[action] ??
   (action.startsWith('scan:')
@@ -84,9 +84,14 @@ type Panel = 'teams' | 'log';
 
 const PANEL_KEY = 'dashboard-panel';
 
+interface PanelState {
+  readonly panel: Panel | undefined;
+  readonly pinned: boolean;
+}
+
 /** Which floating panel is open and whether it is pinned; remembered per browser. */
 const usePanel = () => {
-  const [value, setValue] = useState<{ panel: Panel | undefined; pinned: boolean }>(() => {
+  const [value, setValue] = useState<PanelState>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(PANEL_KEY) ?? 'null');
       if (typeof stored === 'object' && stored !== null && 'panel' in stored && 'pinned' in stored)
@@ -99,7 +104,7 @@ const usePanel = () => {
     }
     return { panel: undefined, pinned: false };
   });
-  const update = (next: { panel: Panel | undefined; pinned: boolean }) => {
+  const update = (next: PanelState) => {
     setValue(next);
     try {
       localStorage.setItem(PANEL_KEY, JSON.stringify(next));
@@ -121,7 +126,7 @@ export const DashboardPage = () => {
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, log } = overview.data;
-  const names = new Map(teams.map((team) => [team.id, team.name]));
+  const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
   const toggle = (next: Panel) => setPanel({ panel: panel === next ? undefined : next, pinned });
 
   return (
@@ -234,8 +239,8 @@ export const DashboardPage = () => {
               </ul>
             ) : (
               <ol className='flex flex-col gap-1 text-sm'>
-                {log.map((entry, i) => (
-                  <li key={i} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
+                {log.map((entry, index) => (
+                  <li key={index} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
                     <TeamAvatar
                       id={entry.teamId}
                       name={names.get(entry.teamId) ?? `#${entry.teamId}`}
@@ -269,9 +274,9 @@ const MoveDialog = ({
   graph,
   onClose,
 }: {
-  team: TeamStatus;
-  graph: GameGraph;
-  onClose: () => void;
+  readonly team: TeamStatus;
+  readonly graph: GameGraph;
+  readonly onClose: () => void;
 }) => {
   const queryClient = useQueryClient();
   const [node, setNode] = useState(team.node ?? graph.start ?? graph.order[0] ?? '');

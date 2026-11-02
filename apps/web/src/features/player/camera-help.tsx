@@ -51,7 +51,7 @@ const iosAppName = (): string => {
 const RETRY = 'Vraťte se sem a klepněte na **Zkusit znovu**.';
 const RELOAD = 'Pokud se nic nestane, obnovte stránku a zkuste to znovu.';
 
-const IOS_SYSTEM = (app: string) => [
+const IOS_SYSTEM = (app: string): readonly string[] => [
   'Otevřete aplikaci **Nastavení** iPhonu.',
   `Sjeďte dolů na **Aplikace** a najděte **${app}**.`,
   'Zapněte **Kamera**.',
@@ -183,7 +183,7 @@ const helpFor = (platform: Platform): Help => {
 };
 
 /** `**bold**` in a step, the only markup the steps use. */
-const Rich = ({ text }: { text: string }) => (
+const Rich = ({ text }: { readonly text: string }) => (
   <>
     {text.split(/\*\*(.+?)\*\*/).map((part, index) =>
       index % 2 === 1 ? (

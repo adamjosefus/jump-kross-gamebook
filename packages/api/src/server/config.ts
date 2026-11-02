@@ -18,13 +18,15 @@ const DEV_FALLBACKS = {
   ADMIN_PASSWORD: 'admin',
   QR_SECRET: 'dev-qr-secret',
   SESSION_SECRET: 'dev-session-secret',
-};
+} as const;
 
 /**
  * Reads the environment. Any deployment (production or preview) must set every secret; only local
  * development falls back to known values.
  */
-export const configFromEnv = (env: Record<string, string | undefined>): ServerConfigShape => {
+export const configFromEnv = (
+  env: Readonly<Record<string, string | undefined>>,
+): ServerConfigShape => {
   const deployed = env['VERCEL'] !== undefined || env['NODE_ENV'] === 'production';
   const read = (name: keyof typeof DEV_FALLBACKS) => {
     const value = env[name];

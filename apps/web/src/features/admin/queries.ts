@@ -8,7 +8,7 @@ export const adminKeys = {
   story: ['admin', 'story'] as const,
   overview: ['admin', 'overview'] as const,
   codes: ['admin', 'codes'] as const,
-};
+} as const;
 
 export const useOverview = (refetchInterval: number | false = false) =>
   useQuery({
