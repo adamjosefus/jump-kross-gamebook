@@ -87,8 +87,8 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
     <div className='flex flex-1 flex-col items-center justify-center gap-6 text-center'>
       <Camera className='size-12' strokeWidth={1.5} />
       <div className='flex max-w-xs flex-col gap-2'>
-        <h2 className='text-xl font-semibold'>Povolte přístup ke kameře</h2>
-        <p className='text-muted-foreground'>
+        <h2 className='story-heading'>Povolte přístup ke kameře</h2>
+        <p>
           {insecure
             ? 'Kamera funguje jen na zabezpečené adrese (https). Otevřete hru přes ni.'
             : TEXT[state]}

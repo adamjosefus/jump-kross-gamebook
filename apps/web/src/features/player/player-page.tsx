@@ -126,9 +126,7 @@ export const PlayerPage = () => {
       ) : view.status === 'not-ready' || view.node === undefined ? (
         <PlayerFrame aside={aside}>
           <Centered>
-            <p className='text-center text-muted-foreground'>
-              Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
-            </p>
+            <p className='text-center'>Hra ještě nezačala. Vyčkejte na pokyn organizátorů.</p>
           </Centered>
         </PlayerFrame>
       ) : (

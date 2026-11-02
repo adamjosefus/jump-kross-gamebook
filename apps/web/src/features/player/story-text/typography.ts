@@ -5,6 +5,7 @@ import type { Mark, ParagraphKind } from './markdown';
 // Named fonts only: Pretext measures with canvas, and `system-ui` or `ui-serif` resolve
 // differently there than in CSS. The same strings style the painted text, so both agree.
 const SERIF = '"Noto Serif Variable", serif';
+const CONDENSED_SERIF = '"Noto Serif Condensed", serif';
 const MONO = 'Menlo, Consolas, "Liberation Mono", monospace';
 
 interface ThemeType {
@@ -22,9 +23,9 @@ const THEME_TYPE: Record<Theme, ThemeType> = {
 };
 
 const KIND_SCALE: Record<ParagraphKind, { size: number; lineHeight: number; weight: number }> = {
-  h1: { size: 1.6, lineHeight: 1.2, weight: 600 },
-  h2: { size: 1.3, lineHeight: 1.3, weight: 600 },
-  h3: { size: 1.1, lineHeight: 1.4, weight: 600 },
+  h1: { size: 2, lineHeight: 1.05, weight: 720 },
+  h2: { size: 1.45, lineHeight: 1.05, weight: 720 },
+  h3: { size: 1.2, lineHeight: 1.1, weight: 720 },
   p: { size: 1, lineHeight: 0, weight: 400 },
   quote: { size: 1, lineHeight: 0, weight: 400 },
 };
@@ -45,6 +46,8 @@ const LIGHT_ON_DARK = {
 const quarter = (px: number) => Math.round(px * 4) / 4;
 
 export interface ParagraphType {
+  /** One style for the whole text: balanced, and its marks do not change it. */
+  readonly heading: boolean;
   readonly size: number;
   readonly lineHeight: number;
   readonly weight: number;
@@ -78,11 +81,13 @@ export const paragraphType = (
   const size = Math.round(base.size * scale.size);
   const weightShift = lightOnDark ? LIGHT_ON_DARK.weightShift : 0;
   const bodyLineHeight = base.lineHeight + (lightOnDark ? LIGHT_ON_DARK.lineHeight : 0);
+  const heading = kind === 'h1' || kind === 'h2' || kind === 'h3';
   return {
+    heading,
     size,
     lineHeight: scale.lineHeight === 0 ? bodyLineHeight : Math.round(size * scale.lineHeight),
     weight: scale.weight + weightShift,
-    family: base.family,
+    family: heading ? CONDENSED_SERIF : base.family,
     gap: base.size,
     listGap: quarter(base.size * 0.4),
     indent: quarter(base.size * 1.25),
@@ -107,8 +112,10 @@ export const runType = (paragraph: ParagraphType, marks: readonly Mark[]): RunTy
     const size = Math.round(paragraph.size * 0.9);
     return { font: `500 ${size}px ${MONO}`, padding: quarter(size * 0.3), letterSpacing: 0 };
   }
-  const weight = marks.includes('strong') ? 650 + paragraph.weightShift : paragraph.weight;
-  const style = marks.includes('em') ? 'italic ' : '';
+  const { heading } = paragraph;
+  const weight =
+    marks.includes('strong') && !heading ? 650 + paragraph.weightShift : paragraph.weight;
+  const style = marks.includes('em') && !heading ? 'italic ' : '';
   return {
     font: `${style}${weight} ${paragraph.size}px ${paragraph.family}`,
     padding: 0,

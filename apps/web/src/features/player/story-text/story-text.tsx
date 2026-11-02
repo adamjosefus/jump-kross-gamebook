@@ -213,11 +213,27 @@ const gapOf = (paragraph: Paragraph, previous: Paragraph | undefined, type: Para
       ? type.listGap
       : type.gap;
 
+/** The narrowest width with as many lines as `maxWidth`, so the lines come out about even. */
+const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
+  const countLines = (width: number) => walkRichInlineLineRanges(inline, width, () => undefined);
+  const lines = countLines(maxWidth);
+  if (lines <= 1) return maxWidth;
+  let tooNarrow = 0;
+  let wide = maxWidth;
+  while (wide - tooNarrow > 1) {
+    const middle = (wide + tooNarrow) / 2;
+    if (countLines(middle) === lines) wide = middle;
+    else tooNarrow = middle;
+  }
+  return wide;
+};
+
 const layOut = (prepared: readonly Prepared[], width: number) => {
   let words = 0;
   const next = () => words++;
   const paragraphs = prepared.map((item): LaidOut => {
-    const maxWidth = Math.max(width - indentOf(item.paragraph, item.type), 1);
+    const available = Math.max(width - indentOf(item.paragraph, item.type), 1);
+    const maxWidth = item.type.heading ? balancedWidth(item.inline, available) : available;
     const lines: Line[] = [];
     walkRichInlineLineRanges(item.inline, maxWidth, (range) => {
       const line = materializeRichInlineLineRange(item.inline, range);
@@ -324,7 +340,7 @@ export const StoryText = ({
       {layout?.paragraphs.map(({ prepared: { paragraph, type }, lines }, index) => (
         <div
           key={index}
-          className={cn('relative', paragraph.kind === 'quote' && 'text-muted-foreground')}
+          className='relative'
           style={{
             marginTop: gapOf(paragraph, layout.paragraphs[index - 1]?.prepared.paragraph, type),
             paddingLeft: indentOf(paragraph, type),

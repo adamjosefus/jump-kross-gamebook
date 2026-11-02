@@ -147,7 +147,7 @@ export const NodeScreens = ({
                 Další <ChevronRight />
               </Button>
             ) : node.type === 'end' ? (
-              <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
+              <p className='flex items-center justify-center gap-2'>
                 <Flag className='size-4' /> Konec hry
               </p>
             ) : (
