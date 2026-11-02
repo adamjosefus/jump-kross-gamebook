@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils';
 
 /**
  * The frame of every player screen: the same column and a navigation bar of a fixed height above
- * the content, so „Zpět“ is at the same place on all of them. `dark` keeps the frame in the dark
- * palette in the light mode as well, for the scanner.
+ * the content, so „Zpět“ is at the same place on all of them. The colors of the screen blend into
+ * those of the next one. `dark` keeps the frame in the dark palette in the light mode as well, for
+ * the scanner.
  */
 export const PlayerFrame = ({
   onBack,
@@ -26,7 +27,11 @@ export const PlayerFrame = ({
   children: ReactNode;
 }) => (
   <div
-    className={cn('flex flex-1 flex-col', dark && 'dark bg-background text-foreground', className)}
+    className={cn(
+      'flex flex-1 flex-col transition-colors duration-700 ease-in-out motion-reduce:transition-none',
+      dark && 'dark bg-background text-foreground',
+      className,
+    )}
   >
     <div className='safe-area-padding mx-auto flex w-full max-w-xl flex-1 flex-col gap-6'>
       <nav className='flex h-8 shrink-0 items-center justify-between text-sm text-muted-foreground'>

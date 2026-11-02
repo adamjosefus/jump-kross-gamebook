@@ -22,6 +22,8 @@ import {
 } from './typography';
 
 interface RevealPace {
+  /** The pause before the first word, while the screen's colors settle. */
+  readonly firstWordDelayMs: number;
   /** Average time per word; long screens go faster so the whole reveal never takes too long. */
   readonly wordStepMs: number;
   readonly maxRevealMs: number;
@@ -32,6 +34,7 @@ interface RevealPace {
 }
 
 const NORMAL_PACE: RevealPace = {
+  firstWordDelayMs: 500,
   wordStepMs: 70,
   maxRevealMs: 4000,
   wordFadeMs: 800,
@@ -39,6 +42,7 @@ const NORMAL_PACE: RevealPace = {
 };
 /** For a text the player has read a moment ago: done in about a quarter of a second. */
 const FAST_PACE: RevealPace = {
+  firstWordDelayMs: 0,
   wordStepMs: 5,
   maxRevealMs: 150,
   wordFadeMs: 100,
@@ -54,7 +58,7 @@ const REVEAL_EASING = 2.5;
  * ones quickly, always one after another.
  */
 const revealDelay = (index: number, words: number, pace: RevealPace) => {
-  if (words <= 1) return 0;
+  if (words <= 1) return pace.firstWordDelayMs;
   const curve = Math.min(words * pace.wordStepMs, pace.maxRevealMs);
   const progress = index / (words - 1);
   // The inverse of the ease-in-out: the time at which this share of the words is shown.
@@ -62,7 +66,7 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
     progress < 0.5
       ? 0.5 * (2 * progress) ** (1 / REVEAL_EASING)
       : 1 - 0.5 * (2 * (1 - progress)) ** (1 / REVEAL_EASING);
-  return Math.round(index * pace.minWordGapMs + curve * time);
+  return Math.round(pace.firstWordDelayMs + index * pace.minWordGapMs + curve * time);
 };
 
 // -----------------------------------------------------------------------------------------------
@@ -70,27 +74,49 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
 
 const loadedFonts = new Set<string>();
 
+/** How long to wait for the styles with the `@font-face` rules before measuring anyway. */
+const FACE_RETRY_MS = 100;
+const FACE_RETRIES = 20;
+
+/**
+ * Loaded for this text: a font comes in parts by alphabet, so a font loaded for another text may
+ * still miss the part with, say, „ř“.
+ */
+const isMeasurable = (font: string, sample: string) =>
+  loadedFonts.has(font) && document.fonts.check(font, sample);
+
+/** Loads the font; no faces means the styles are not applied yet, so it tries again. */
+const loadFont = async (font: string, sample: string, isCancelled: () => boolean) => {
+  for (let retry = 0; retry < FACE_RETRIES && !isCancelled(); retry++) {
+    const faces = await document.fonts.load(font, sample);
+    if (faces.length > 0) {
+      loadedFonts.add(font);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, FACE_RETRY_MS));
+  }
+};
+
 /**
  * Whether the fonts can be measured: Pretext needs the web font loaded, or it measures the
- * fallback. Fonts loaded once stay loaded, so later screens render at once.
+ * fallback and keeps that measure. Fonts loaded once stay loaded, so later screens render at once.
  */
 const useFontsLoaded = (fonts: readonly string[], sample: string) => {
-  // One string for the list, so the effect reruns only when the fonts change.
-  const key = fonts.join('\n');
+  // One string for the list and the text, so the effect reruns only when they change.
+  const key = `${fonts.join('\n')}\n\n${sample}`;
   const [loaded, setLoaded] = useState<string>();
-  const ready = loaded === key || fonts.every((font) => loadedFonts.has(font));
+  const ready = loaded === key || fonts.every((font) => isMeasurable(font, sample));
   useEffect(() => {
-    const wanted = key.split('\n');
-    if (wanted.every((font) => loadedFonts.has(font))) return undefined;
+    if (ready) return undefined;
     let cancelled = false;
-    void Promise.all(wanted.map((font) => document.fonts.load(font, sample))).then(() => {
-      for (const font of wanted) loadedFonts.add(font);
+    const isCancelled = () => cancelled;
+    void Promise.all(fonts.map((font) => loadFont(font, sample, isCancelled))).then(() => {
       if (!cancelled) setLoaded(key);
     });
     return () => {
       cancelled = true;
     };
-  }, [key, sample]);
+  }, [ready, key, fonts, sample]);
   return ready;
 };
 
