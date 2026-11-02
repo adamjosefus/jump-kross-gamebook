@@ -53,8 +53,8 @@ export const Rules: Story = {
 
 1. Hrajete jako tým.
 2. Někdy vybíráte v aplikaci, jindy musíte dojít na místo a naskenovat tam QR kód.
-   - Kód je vytištěný i pod QR kódem.
-   - Opište ho, když kamera nefunguje.
+   - Namiřte na něj fotoaparát.
+   - Bez kamery se hrát nedá.
 
 > Stejný kód může naskenovat každý telefon v týmu.
 Všechny pak ukazují totéž.`,

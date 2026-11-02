@@ -49,6 +49,7 @@ export const NodeScreens = ({
   initialIndex = 0,
   onIndexChange,
   requireCamera = false,
+  manualEntry = false,
 }: {
   node: PlayerNode;
   step: number;
@@ -59,6 +60,8 @@ export const NodeScreens = ({
   onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
   requireCamera?: boolean;
+  /** The scan screen also takes a typed code (the admin's test run; players can only scan). */
+  manualEntry?: boolean;
   /** A QR code read on the scan screen. */
   onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
@@ -82,6 +85,7 @@ export const NodeScreens = ({
     <ScanScreen
       onCode={onCode}
       busy={busy}
+      manualEntry={manualEntry}
       {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
     />
   );
