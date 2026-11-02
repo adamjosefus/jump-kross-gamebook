@@ -4,6 +4,7 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/noto-serif/wght.css';
 @import '@fontsource-variable/noto-serif/wght-italic.css';
+@import '@fontsource-variable/source-sans-3/wght.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -203,7 +204,8 @@
 
 /* Buttons of the player; the admin keeps its own. */
 .font-story :is([data-slot='button'], [data-slot='slide-button-label']) {
-  font-weight: 700;
+  font-family: 'Source Sans 3 Variable', sans-serif;
+  font-weight: 600;
   letter-spacing: 0.06em;
 }
 
