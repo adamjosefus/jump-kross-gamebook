@@ -4,7 +4,6 @@ import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type React
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 
 const MANUAL = 'Zadejte kód ručně.';
 
@@ -70,7 +69,7 @@ const QrScannerView = ({
     // in development, so that happens on every mount).
     const video = document.createElement('video');
     // Black and white, by CSS only; the scanner reads the stream, not the painted picture.
-    video.className = 'size-full object-cover grayscale';
+    video.className = 'size-full object-cover grayscale contrast-125';
     video.muted = true;
     video.playsInline = true;
     container.append(video);
@@ -100,62 +99,60 @@ const QrScannerView = ({
     setText('');
   };
 
-  // The square sits edge to edge; only the text above and below keeps clear of the screen's edges.
-  const sides =
-    'pr-[calc(var(--safe-area-inset-right)+1.25rem)] pl-[calc(var(--safe-area-inset-left)+1.25rem)]';
+  // The same column as the story text: as wide as the player page and with its padding.
   return (
-    <div className='fixed inset-0 z-40 flex flex-col bg-black text-white'>
-      <div className={cn('flex flex-col gap-2 pt-[calc(var(--safe-area-inset-top)+1rem)]', sides)}>
-        {header}
-      </div>
-      <div className='flex flex-1 items-center justify-center py-6'>
-        {/* Square and as wide as the screen; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden bg-white/5'>
-          {!manual && <div ref={stage} className='absolute inset-0' />}
-          <div className={cn('relative w-full', sides)}>
-            {disabled ? (
-              <Loader2 className='mx-auto size-8 animate-spin' />
-            ) : manual ? (
-              <form onSubmit={submit} className='flex w-full gap-2'>
-                <Input
-                  autoFocus
-                  value={text}
-                  onChange={(event) => setText(event.target.value.toUpperCase())}
-                  placeholder='L-12-ABCD'
-                  autoCapitalize='characters'
-                  autoComplete='off'
-                  className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
-                />
-                <Button type='submit' variant='secondary'>
-                  Potvrdit
-                </Button>
-              </form>
-            ) : (
-              cameraError !== undefined && (
-                <p className='mx-auto max-w-xs text-center text-sm text-white/80'>{cameraError}</p>
-              )
-            )}
+    <div className='fixed inset-0 z-40 bg-black text-white'>
+      <div className='safe-area-padding mx-auto flex size-full max-w-xl flex-col'>
+        <div className='flex flex-col gap-2'>{header}</div>
+        <div className='flex flex-1 items-center justify-center py-6'>
+          {/* Square across the column; capped by the height when the screen lies. */}
+          <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-white/5'>
+            {!manual && <div ref={stage} className='absolute inset-0' />}
+            <div className='relative w-full px-4'>
+              {disabled ? (
+                <Loader2 className='mx-auto size-8 animate-spin' />
+              ) : manual ? (
+                <form onSubmit={submit} className='flex w-full gap-2'>
+                  <Input
+                    autoFocus
+                    value={text}
+                    onChange={(event) => setText(event.target.value.toUpperCase())}
+                    placeholder='L-12-ABCD'
+                    autoCapitalize='characters'
+                    autoComplete='off'
+                    className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
+                  />
+                  <Button type='submit' variant='secondary'>
+                    Potvrdit
+                  </Button>
+                </form>
+              ) : (
+                cameraError !== undefined && (
+                  <p className='mx-auto max-w-xs text-center text-sm text-white/80'>
+                    {cameraError}
+                  </p>
+                )
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      <div
-        className={cn('flex justify-center pb-[calc(var(--safe-area-inset-bottom)+1rem)]', sides)}
-      >
-        <Button
-          variant='ghost'
-          className='text-white hover:bg-white/10 hover:text-white'
-          onClick={() => setManual(!manual)}
-        >
-          {manual ? <Camera /> : <Keyboard />}
-          {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
-        </Button>
+        <div className='flex justify-center'>
+          <Button
+            variant='ghost'
+            className='text-white hover:bg-white/10 hover:text-white'
+            onClick={() => setManual(!manual)}
+          >
+            {manual ? <Camera /> : <Keyboard />}
+            {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
 
 /**
- * The scan screen: the camera as a square across the whole width. It looks the same for every code, so it
+ * The scan screen: the camera as a square across the width of the story text. It looks the same for every code, so it
  * never tells how many codes would work or where they lead.
  */
 export const ScanScreen = ({

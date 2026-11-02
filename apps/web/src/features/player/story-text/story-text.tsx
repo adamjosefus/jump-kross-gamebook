@@ -6,7 +6,7 @@ import {
   type RichInlineFragment,
 } from '@chenglou/pretext/rich-inline';
 import type { Theme } from '@gamebook/core';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -18,6 +18,8 @@ const WORD_STEP_MS = 70;
 const MAX_REVEAL_MS = 4000;
 /** Steepness of the S-curve: the higher, the slower the start and the end against the middle. */
 const REVEAL_EASING = 2.5;
+/** How long one word takes to fade in; the CSS animation gets it from here. */
+const WORD_FADE_MS = 800;
 /** Shortest time between two words, so even in the middle they come one by one. */
 const MIN_WORD_GAP_MS = 30;
 
@@ -214,11 +216,17 @@ export const StoryText = ({
   theme,
   align = 'left',
   className,
+  instant = false,
+  onRevealed,
 }: {
   content: string;
   theme: Theme;
   align?: 'left' | 'center';
   className?: string;
+  /** Show every word at once, e.g. on a screen the player has seen already. */
+  instant?: boolean;
+  /** Called once every word is fully visible. */
+  onRevealed?: () => void;
 }) => {
   const paragraphs = useMemo(() => paragraphsOf(content), [content]);
   const fonts = useMemo(
@@ -246,10 +254,28 @@ export const StoryText = ({
     [prepared, width],
   );
 
+  // When the last word has faded in: at once when shown instantly, tapped, or without motion.
+  const shownAll = revealed || instant;
+  const revealMs =
+    layout === undefined || layout.words === 0
+      ? 0
+      : revealDelay(layout.words - 1, layout.words) + WORD_FADE_MS;
+  const reportRevealed = useEffectEvent(() => onRevealed?.());
+  const laidOut = layout !== undefined;
+  useEffect(() => {
+    if (!laidOut) return undefined;
+    if (shownAll || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      reportRevealed();
+      return undefined;
+    }
+    const timer = setTimeout(reportRevealed, revealMs);
+    return () => clearTimeout(timer);
+  }, [laidOut, shownAll, revealMs]);
+
   return (
     <div
       ref={ref}
-      className={cn('story-text', revealed && 'story-text-revealed', className)}
+      className={cn('story-text', shownAll && 'story-text-revealed', className)}
       onClick={() => setRevealed(true)}
     >
       {layout?.paragraphs.map(({ prepared: { paragraph, type }, lines }, index) => (
@@ -300,6 +326,7 @@ export const StoryText = ({
                       ...(piece.code ? { padding: `0 ${piece.run.padding}px` } : {}),
                       ...(piece.gap === 0 ? {} : { paddingRight: piece.gap }),
                       animationDelay: `${revealDelay(piece.index, layout.words)}ms`,
+                      animationDuration: `${WORD_FADE_MS}ms`,
                     }}
                   >
                     {piece.text}

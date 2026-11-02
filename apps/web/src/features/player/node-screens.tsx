@@ -5,7 +5,9 @@ import { useState } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
+import { CameraGate } from './camera-access';
 import { ScanScreen } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
 
@@ -24,15 +26,18 @@ const THEME_BOX: Record<Theme, string> = {
  * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
  * polling does not reshuffle them.
  */
-const freshPaging = (node: PlayerNode, step: number) => ({
+const freshPaging = (node: PlayerNode, step: number, index: number) => ({
   node: node.id,
   step,
-  index: 0,
+  index,
+  /** Screens whose text has been shown in full; going back to one shows it at once. */
+  seen: [] as readonly number[],
   ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
 });
 
 /**
- * One screen at a time, paged locally with „Další“; every move starts from the first screen. The
+ * One screen at a time, paged locally with „Další“; every move starts from the first screen
+ * (or `initialIndex`, for a reload). The
  * last screen offers the choices, or is the scanner when the node waits for a QR code.
  */
 export const NodeScreens = ({
@@ -41,24 +46,45 @@ export const NodeScreens = ({
   busy,
   onCode,
   onPick,
+  initialIndex = 0,
+  onIndexChange,
+  requireCamera = false,
 }: {
   node: PlayerNode;
   step: number;
   busy: boolean;
+  /** Screen to open the node on, e.g. kept in the URL across a reload. */
+  initialIndex?: number;
+  /** Called when the player pages, to keep the screen in the URL. */
+  onIndexChange?: (index: number) => void;
+  /** The scan screen waits for camera access and offers no way around it (the login scan). */
+  requireCamera?: boolean;
   /** A QR code read on the scan screen. */
   onCode: (code: string) => void;
   onPick: (choice: { index: number; label: string }) => void;
 }) => {
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
-  const [paging, setPaging] = useState(() => freshPaging(node, step));
-  if (paging.node !== node.id || paging.step !== step) setPaging(freshPaging(node, step));
-  const index = Math.min(paging.index, count - 1);
-  const go = (to: number) => setPaging({ ...paging, index: to });
+  const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex));
+  if (paging.node !== node.id || paging.step !== step)
+    setPaging(freshPaging(node, step, initialIndex));
+  const index = Math.max(Math.min(paging.index, count - 1), 0);
+  const go = (to: number) => {
+    setPaging({ ...paging, index: to });
+    onIndexChange?.(to);
+  };
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
+  const shown = screen === undefined || paging.seen.includes(index);
+  const scanScreen = (
+    <ScanScreen
+      onCode={onCode}
+      busy={busy}
+      {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
+    />
+  );
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );
@@ -78,13 +104,7 @@ export const NodeScreens = ({
           <ChevronLeft /> Zpět
         </Button>
       )}
-      {scanning && (
-        <ScanScreen
-          onCode={onCode}
-          busy={busy}
-          {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
-        />
-      )}
+      {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
       {/* The block sits in the middle of the space between the top and the buttons. */}
       {screen !== undefined && (
         <div className='flex flex-1 flex-col justify-center'>
@@ -93,11 +113,22 @@ export const NodeScreens = ({
             theme={theme}
             align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
             className={THEME_BOX[theme]}
+            instant={shown}
+            onRevealed={() => {
+              if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+            }}
           />
         </div>
       )}
 
-      <div className='mt-auto flex flex-col gap-3'>
+      {/* Buttons wait for the whole text, so nobody goes on before reading it. They keep their
+          room meanwhile, so the text does not move when they appear. */}
+      <div
+        className={cn(
+          'mt-auto flex flex-col gap-3',
+          shown ? 'animate-in duration-500 fade-in' : 'invisible',
+        )}
+      >
         {!last ? (
           <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
             Další <ChevronRight />
