@@ -3,6 +3,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 
+import { CameraHelp, hasCameraHelp } from './camera-help';
+
 type CameraAccess = 'checking' | 'prompt' | 'requesting' | 'granted' | 'denied' | 'missing';
 
 /**
@@ -59,8 +61,9 @@ const TEXT: Record<CameraAccess, string> = {
   granted: '',
   prompt: 'Ve hře budete skenovat QR kódy. Povolte aplikaci přístup ke kameře.',
   requesting: 'Potvrďte přístup ke kameře v dotazu prohlížeče.',
-  denied:
-    'Prohlížeč přístup ke kameře nepovolil. Povolte ho v nastavení stránky (u adresy nahoře) a zkuste to znovu.',
+  denied: hasCameraHelp()
+    ? 'Prohlížeč přístup ke kameře nepovolil. Bez kamery se hrát nedá, povolte ji podle návodu.'
+    : 'Prohlížeč přístup ke kameře nepovolil. Povolte ho v nastavení stránky (u adresy nahoře) a zkuste to znovu.',
   missing: 'Telefon nemá kameru, kterou by šlo použít. Bez ní se hrát nedá.',
 };
 
@@ -92,6 +95,11 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
             : TEXT[state]}
         </p>
       </div>
+      {!insecure && state === 'denied' && (
+        <div className='w-full max-w-sm'>
+          <CameraHelp />
+        </div>
+      )}
       {!insecure && state !== 'missing' && (
         <Button
           size='lg'
