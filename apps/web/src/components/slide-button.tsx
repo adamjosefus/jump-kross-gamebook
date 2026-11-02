@@ -10,8 +10,9 @@ type Stage = 'idle' | 'confirmed' | 'pending';
 
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
- * never made by a stray tap. After confirming, the thumb stays at the end while `disabled` (the
- * move is being sent) and returns when it is enabled again.
+ * never made by a stray tap. The thumb grows with the slide until it fills the track. After
+ * confirming, it stays full while `disabled` (the move is being sent) and returns when it is
+ * enabled again. The label is always one line in the middle of the track.
  */
 export const SlideButton = ({
   children,
@@ -64,14 +65,14 @@ export const SlideButton = ({
     <div
       ref={track}
       className={cn(
-        'relative flex min-h-14 items-center rounded-xl border bg-muted/40 py-1 pr-4 pl-16 select-none',
+        'relative flex min-h-14 items-center rounded-full border bg-muted/40 px-14 py-1 select-none',
         disabled && stage === 'idle' && 'opacity-50',
         className,
       )}
     >
       <span
         data-slot='slide-button-label'
-        className='flex-1 py-2 text-center text-base font-medium'
+        className='min-w-0 flex-1 truncate py-2 text-center text-base font-medium'
         style={{ opacity: Math.max(1 - progress * 1.5, 0) }}
       >
         {children}
@@ -81,10 +82,10 @@ export const SlideButton = ({
         aria-label='Posuňte doprava pro potvrzení'
         disabled={disabled && stage === 'idle'}
         className={cn(
-          'absolute top-1 bottom-1 flex w-12 cursor-grab touch-none items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
-          drag === undefined && 'transition-[left] duration-300 ease-out',
+          'absolute top-1 bottom-1 left-1 flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
+          drag === undefined && 'transition-[width] duration-300 ease-out',
         )}
-        style={{ left: `calc(0.25rem + ${progress} * (100% - 3.5rem))` }}
+        style={{ width: `calc(3rem + ${progress} * (100% - 3.5rem))` }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

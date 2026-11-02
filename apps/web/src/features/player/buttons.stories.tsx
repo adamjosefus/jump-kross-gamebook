@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
+import { ActionButton } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,9 +27,7 @@ const Row = ({ label, children }: { label: string; children: ReactNode }) => (
 const Buttons = () => (
   <div className='flex flex-col gap-6'>
     <Row label='Další'>
-      <Button size='lg' className='h-14 text-base'>
-        Další <IconChevronRight />
-      </Button>
+      <ActionButton icon={<IconChevronRight className='size-5' />}>Další</ActionButton>
     </Row>
     <Row label='Volby'>
       <SlideButton onConfirm={() => undefined}>Vyrazit na cestu</SlideButton>
@@ -38,12 +37,16 @@ const Buttons = () => (
       </SlideButton>
     </Row>
     <Row label='Povolení kamery'>
-      <Button size='lg' className='h-14 w-full text-base'>
-        <IconCamera /> Povolit kameru
-      </Button>
-      <Button size='lg' className='h-14 w-full text-base' disabled>
-        <IconLoader2 className='animate-spin' /> Povolit kameru
-      </Button>
+      <ActionButton iconSide='start' icon={<IconCamera className='size-5' />}>
+        Povolit kameru
+      </ActionButton>
+      <ActionButton
+        iconSide='start'
+        icon={<IconLoader2 className='size-5 animate-spin' />}
+        disabled
+      >
+        Povolit kameru
+      </ActionButton>
     </Row>
     <Row label='Skener'>
       <div>
