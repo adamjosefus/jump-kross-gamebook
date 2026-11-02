@@ -1,5 +1,5 @@
 import type { TeamStatus } from '@gamebook/api';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { IconLoader2, IconRotate } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +32,7 @@ export const GamePage = () => {
     setResetOpen(true);
   };
 
-  if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
+  if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, locations } = overview.data;
@@ -50,7 +50,7 @@ export const GamePage = () => {
             </CardDescription>
           </div>
           <Button variant='destructive' size='sm' onClick={() => openReset(null)}>
-            <RotateCcw /> Nová hra
+            <IconRotate /> Nová hra
           </Button>
         </CardHeader>
         <CardContent>
@@ -88,7 +88,7 @@ export const GamePage = () => {
                       disabled={team.node === undefined}
                       onClick={() => openReset(team)}
                     >
-                      <RotateCcw />
+                      <IconRotate />
                     </Button>
                   </TableCell>
                 </TableRow>

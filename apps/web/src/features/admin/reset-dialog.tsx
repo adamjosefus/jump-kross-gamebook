@@ -1,5 +1,5 @@
+import { IconAlertTriangle, IconLoader2 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -69,7 +69,7 @@ export const ResetDialog = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2 text-destructive'>
-            <AlertTriangle className='size-5' />
+            <IconAlertTriangle className='size-5' />
             {team === undefined ? 'Nová hra pro všechny týmy' : `Vrátit tým ${team.name} na start`}
           </DialogTitle>
           <DialogDescription>
@@ -104,7 +104,7 @@ export const ResetDialog = ({
               variant='destructive'
               disabled={typed !== word || reset.isPending}
             >
-              {reset.isPending && <Loader2 className='animate-spin' />}
+              {reset.isPending && <IconLoader2 className='animate-spin' />}
               {team === undefined ? 'Začít novou hru' : 'Vrátit na start'}
             </Button>
           </DialogFooter>

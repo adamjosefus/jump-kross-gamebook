@@ -1,6 +1,6 @@
 import type { PrintableCode } from '@gamebook/api';
+import { IconDownload, IconLoader2 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Download, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
@@ -28,7 +28,7 @@ const CodeCard = ({ entry }: { entry: PrintableCode }) => {
         onClick={() => setOpen(true)}
         className='absolute top-3 right-3 border-black/20 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/20 dark:bg-white dark:hover:bg-black/5'
       >
-        <Download />
+        <IconDownload />
       </Button>
       <ExportDialog entry={entry} open={open} onOpenChange={setOpen} />
     </div>
@@ -42,7 +42,7 @@ export const PrintPage = () => {
     queryFn: ({ signal }) => api((client) => client.admin.codes(), { signal }),
   });
 
-  if (codes.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
+  if (codes.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (codes.isError) return <p className='p-8 text-destructive'>{errorMessage(codes.error)}</p>;
 
   return (

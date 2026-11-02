@@ -1,4 +1,4 @@
-import { ChevronRight } from 'lucide-react';
+import { IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -91,7 +91,7 @@ export const SlideButton = ({
         onPointerCancel={() => setDrag(undefined)}
         onKeyDown={onKeyDown}
       >
-        <ChevronRight className='size-5' />
+        <IconChevronRight className='size-5' />
       </button>
     </div>
   );

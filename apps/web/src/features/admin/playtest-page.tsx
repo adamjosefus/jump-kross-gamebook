@@ -1,16 +1,16 @@
 import type { PlaytestView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
+import {
+  IconArrowBackUp,
+  IconChevronDown,
+  IconKeyboard,
+  IconLoader2,
+  IconPlayerSkipForward,
+  IconQrcode,
+  IconRotate,
+} from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import {
-  ChevronDown,
-  Keyboard,
-  Loader2,
-  QrCode,
-  RotateCcw,
-  SkipForward,
-  Undo2,
-} from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 
@@ -119,7 +119,7 @@ const CodeEntry = ({
     <Popover open={open && !disabled} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant='ghost' size='sm' disabled={disabled} title='Zadat kód ručně'>
-          <Keyboard /> Kód
+          <IconKeyboard /> Kód
         </Button>
       </PopoverTrigger>
       <PopoverContent side='top' align='end'>
@@ -139,7 +139,7 @@ const CodeEntry = ({
               className='min-w-0 flex-1 font-mono'
             />
             <Button type='submit' disabled={code === '' || busy}>
-              {busy ? <Loader2 className='animate-spin' /> : 'Potvrdit'}
+              {busy ? <IconLoader2 className='animate-spin' /> : 'Potvrdit'}
             </Button>
           </div>
         </form>
@@ -221,13 +221,13 @@ export const PlaytestPage = () => {
   };
 
   if (intro.isPending || (opened !== '' && replay.isPending))
-    return <Loader2 className='m-8 size-6 animate-spin' />;
+    return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (intro.isError) return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
 
   return (
     <div className='flex h-full flex-col'>
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
-        {play.isPending && <Loader2 className='size-4 animate-spin' />}
+        {play.isPending && <IconLoader2 className='size-4 animate-spin' />}
         <span>Test se nikam neukládá.</span>
       </div>
 
@@ -267,7 +267,7 @@ export const PlaytestPage = () => {
               disabled={path.length < 2 || play.isPending}
               onClick={() => backTo(path.length - 2)}
             >
-              <Undo2 /> Krok zpět
+              <IconArrowBackUp /> Krok zpět
             </Button>
             <Button
               variant='ghost'
@@ -275,7 +275,7 @@ export const PlaytestPage = () => {
               disabled={steps.length === 0 || play.isPending}
               onClick={() => setMoves([])}
             >
-              <RotateCcw /> Znovu
+              <IconRotate /> Znovu
             </Button>
             <span className='flex-1' />
             <CodeEntry
@@ -294,7 +294,7 @@ export const PlaytestPage = () => {
                 title='Přeskočit přihlášení'
                 onClick={() => take(undefined)}
               >
-                <SkipForward /> Přeskočit
+                <IconPlayerSkipForward /> Přeskočit
               </Button>
             ) : (
               <DropdownMenu>
@@ -309,7 +309,7 @@ export const PlaytestPage = () => {
                         : undefined
                     }
                   >
-                    <SkipForward /> Přeskočit <ChevronDown />
+                    <IconPlayerSkipForward /> Přeskočit <IconChevronDown />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
@@ -319,7 +319,7 @@ export const PlaytestPage = () => {
                       key={location.id}
                       onSelect={() => take({ scan: location.id })}
                     >
-                      <QrCode /> {location.name}
+                      <IconQrcode /> {location.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
