@@ -70,6 +70,7 @@ export const SlideButton = ({
       )}
     >
       <span
+        data-slot='slide-button-label'
         className='flex-1 py-2 text-center text-base font-medium'
         style={{ opacity: Math.max(1 - progress * 1.5, 0) }}
       >
