@@ -19,6 +19,7 @@ import {
 import { api, errorMessage, isApiError } from '@/lib/api';
 
 import { NodeScreens } from './node-screens';
+import { PlayerFrame } from './player-frame';
 import { useReadingReport } from './reading';
 
 const STATE_KEY = ['player', 'state'] as const;
@@ -95,13 +96,26 @@ export const PlayerPage = () => {
 
   if (state.isPending)
     return (
-      <Centered>
-        <Loader2 className='size-6 animate-spin' />
-      </Centered>
+      <main className={PAGE}>
+        <PlayerFrame>
+          <Centered>
+            <Loader2 className='size-6 animate-spin' />
+          </Centered>
+        </PlayerFrame>
+      </main>
     );
 
+  const aside = view != null && (
+    <div className='flex items-center gap-2'>
+      <span>
+        Tým <strong className='text-foreground'>{view.team.name}</strong>
+      </span>
+      {busy && <Loader2 className='size-4 animate-spin' />}
+    </div>
+  );
+
   return (
-    <main className='safe-area-padding mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-6 font-story'>
+    <main className={PAGE}>
       {view == null ? (
         <Intro
           onCode={onCode}
@@ -109,38 +123,30 @@ export const PlayerPage = () => {
           initialIndex={search.step === undefined ? (search.screen ?? 0) : 0}
           onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
         />
+      ) : view.status === 'not-ready' || view.node === undefined ? (
+        <PlayerFrame aside={aside}>
+          <Centered>
+            <p className='text-center text-muted-foreground'>
+              Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
+            </p>
+          </Centered>
+        </PlayerFrame>
       ) : (
-        <>
-          <header className='flex items-center justify-between text-sm text-muted-foreground'>
-            <span>
-              Tým <strong className='text-foreground'>{view.team.name}</strong>
-            </span>
-            {busy && <Loader2 className='size-4 animate-spin' />}
-          </header>
-
-          {view.status === 'not-ready' || view.node === undefined ? (
-            <Centered>
-              <p className='text-center text-muted-foreground'>
-                Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
-              </p>
-            </Centered>
-          ) : (
-            <TeamNodeScreens
-              teamId={view.team.id}
-              node={view.node}
-              step={view.step}
-              visitScope={`team-${view.team.id}`}
-              busy={busy}
-              onCode={onCode}
-              onPick={pick}
-              // The screen in the URL belongs to one step; after a move the node opens at its start.
-              initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
-              onIndexChange={(screen) =>
-                void navigate({ to: '/', search: { step: view.step, screen }, replace: true })
-              }
-            />
-          )}
-        </>
+        <TeamNodeScreens
+          teamId={view.team.id}
+          node={view.node}
+          step={view.step}
+          visitScope={`team-${view.team.id}`}
+          aside={aside}
+          busy={busy}
+          onCode={onCode}
+          onPick={pick}
+          // The screen in the URL belongs to one step; after a move the node opens at its start.
+          initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
+          onIndexChange={(screen) =>
+            void navigate({ to: '/', search: { step: view.step, screen }, replace: true })
+          }
+        />
       )}
 
       <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
@@ -176,6 +182,8 @@ const TeamNodeScreens = ({
   <NodeScreens {...props} onRead={useReadingReport(teamId)} />
 );
 
+const PAGE = 'flex min-h-dvh flex-col font-story';
+
 const Centered = ({ children }: { children: React.ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
 );
@@ -202,15 +210,19 @@ const Intro = ({
   });
   if (intro.isPending)
     return (
-      <Centered>
-        <Loader2 className='size-6 animate-spin' />
-      </Centered>
+      <PlayerFrame>
+        <Centered>
+          <Loader2 className='size-6 animate-spin' />
+        </Centered>
+      </PlayerFrame>
     );
   if (intro.isError)
     return (
-      <Centered>
-        <p className='text-center text-destructive'>{errorMessage(intro.error)}</p>
-      </Centered>
+      <PlayerFrame>
+        <Centered>
+          <p className='text-center text-destructive'>{errorMessage(intro.error)}</p>
+        </Centered>
+      </PlayerFrame>
     );
   return (
     <NodeScreens

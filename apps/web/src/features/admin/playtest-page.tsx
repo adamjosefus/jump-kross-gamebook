@@ -170,7 +170,7 @@ export const PlaytestPage = () => {
         <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
           {/* Exactly what the players see; test tools are in the toolbar under it. */}
           <div className='phone-preview relative h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-sm'>
-            <div className='safe-area-padding flex size-full flex-col overflow-auto font-story'>
+            <div className='flex size-full flex-col overflow-auto font-story'>
               {current !== undefined && (
                 <NodeScreens
                   node={current.view}

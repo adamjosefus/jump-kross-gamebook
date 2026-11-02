@@ -1,13 +1,14 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import type { Theme } from '@gamebook/core';
-import { ChevronLeft, ChevronRight, Flag } from 'lucide-react';
-import { useState, type ComponentProps } from 'react';
+import { ChevronRight, Flag } from 'lucide-react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 import { CameraGate } from './camera-access';
+import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
 import { useReadingTime } from './reading';
 import { StoryText } from './story-text/story-text';
@@ -66,6 +67,7 @@ export const NodeScreens = ({
   onIndexChange,
   requireCamera = false,
   manualEntry = false,
+  aside,
   onRead,
 }: {
   node: PlayerNode;
@@ -81,6 +83,8 @@ export const NodeScreens = ({
   requireCamera?: boolean;
   /** The scan screen also takes a typed code (the admin's test run; players can only scan). */
   manualEntry?: boolean;
+  /** Shown at the right end of the navigation bar. */
+  aside?: ReactNode;
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
   onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
@@ -102,76 +106,67 @@ export const NodeScreens = ({
   const last = index >= count - 1;
   const scanning = node.scan && index === node.screens.length;
   const shown = screen === undefined || paging.seen.includes(index);
-  const scanScreen = (
-    <ScanScreen
-      onCode={onCode}
-      busy={busy}
-      manualEntry={manualEntry}
-      {...(index > 0 ? { onBack: () => go(index - 1) } : {})}
-    />
-  );
+  const scanScreen = <ScanScreen onCode={onCode} busy={busy} manualEntry={manualEntry} />;
   const choices = node.choices.toSorted(
     (a, b) => (paging.ranks[a.index] ?? 0) - (paging.ranks[b.index] ?? 0),
   );
 
   return (
-    <article
-      key={`${node.id}-${step}-${index}`}
-      className='screen-fade-in flex flex-1 flex-col gap-6'
+    <PlayerFrame
+      onBack={index > 0 ? () => go(index - 1) : undefined}
+      aside={aside}
+      camera={scanning}
     >
-      {index > 0 && (
-        <Button
-          variant='ghost'
-          size='sm'
-          className='-mt-2 -ml-3 self-start text-muted-foreground'
-          onClick={() => go(index - 1)}
-        >
-          <ChevronLeft /> Zpět
-        </Button>
-      )}
-      {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
-      {/* The block sits in the middle of the space between the top and the buttons. */}
-      {screen !== undefined && (
-        <div className='flex flex-1 flex-col justify-center'>
-          <VisitedStoryText
-            block={`${visitScope}/${node.id}/${index}`}
-            onRead={onRead}
-            content={screen.content}
-            theme={theme}
-            align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
-            className={THEME_BOX[theme]}
-            instant={shown}
-            onRevealed={() => {
-              if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
-            }}
-          />
-        </div>
-      )}
-
-      {/* Buttons wait for the whole text, so nobody goes on before reading it. They keep their
-          room meanwhile, so the text does not move when they appear. */}
-      <div
-        className={cn(
-          'mt-auto flex flex-col gap-3',
-          shown ? 'animate-in duration-500 fade-in' : 'invisible',
-        )}
+      <article
+        key={`${node.id}-${step}-${index}`}
+        className='screen-fade-in flex flex-1 flex-col gap-6'
       >
-        {!last ? (
-          <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
-            Další <ChevronRight />
-          </Button>
-        ) : scanning ? null : node.type === 'end' ? (
-          <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
-            <Flag className='size-4' /> Konec hry
-          </p>
-        ) : (
-          choices.map((choice) => (
-            <SlideButton key={choice.index} onConfirm={() => onPick(choice)} disabled={busy}>
-              {choice.label}
-            </SlideButton>
-          ))
+        {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
+        {/* The block sits in the middle of the space between the top and the buttons. */}
+        {screen !== undefined && (
+          <div className='flex flex-1 flex-col justify-center'>
+            <VisitedStoryText
+              block={`${visitScope}/${node.id}/${index}`}
+              onRead={onRead}
+              content={screen.content}
+              theme={theme}
+              align={theme === 'intro' || node.type === 'end' ? 'center' : 'left'}
+              className={THEME_BOX[theme]}
+              instant={shown}
+              onRevealed={() => {
+                if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+              }}
+            />
+          </div>
         )}
-      </div>
-    </article>
+
+        {/* Buttons wait for the whole text, so nobody goes on before reading it. They keep their
+          room meanwhile, so the text does not move when they appear. */}
+        {!scanning && (
+          <div
+            className={cn(
+              'mt-auto flex flex-col gap-3',
+              shown ? 'animate-in duration-500 fade-in' : 'invisible',
+            )}
+          >
+            {!last ? (
+              <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
+                Další <ChevronRight />
+              </Button>
+            ) : node.type === 'end' ? (
+              <p className='flex items-center justify-center gap-2 text-sm text-muted-foreground'>
+                <Flag className='size-4' /> Konec hry
+              </p>
+            ) : (
+              choices.map((choice) => (
+                <SlideButton key={choice.index} onConfirm={() => onPick(choice)} disabled={busy}>
+                  {choice.label}
+                </SlideButton>
+              ))
+            )}
+          </div>
+        )}
+      </article>
+    </PlayerFrame>
   );
 };

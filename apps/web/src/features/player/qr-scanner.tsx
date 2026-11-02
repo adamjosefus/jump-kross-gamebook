@@ -1,4 +1,4 @@
-import { Camera, ChevronLeft, Keyboard, Loader2, RotateCw } from 'lucide-react';
+import { Camera, Keyboard, Loader2, RotateCw } from 'lucide-react';
 import QrScanner from 'qr-scanner';
 import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
@@ -99,62 +99,59 @@ const QrScannerView = ({
     setText('');
   };
 
-  // The same column as the story text: as wide as the player page and with its padding.
   return (
-    <div className='fixed inset-0 z-40 bg-black text-white'>
-      <div className='safe-area-padding mx-auto flex size-full max-w-xl flex-col'>
-        <div className='flex flex-col gap-2'>{header}</div>
-        <div className='flex flex-1 items-center justify-center py-6'>
-          {/* Square across the column; capped by the height when the screen lies. */}
-          <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-white/5'>
-            {!manual && <div ref={stage} className='absolute inset-0' />}
-            <div className='relative w-full px-4'>
-              {disabled ? (
-                <Loader2 className='mx-auto size-8 animate-spin' />
-              ) : manual ? (
-                <form onSubmit={submit} className='flex w-full gap-2'>
-                  <Input
-                    autoFocus
-                    value={text}
-                    onChange={(event) => setText(event.target.value.toUpperCase())}
-                    placeholder='L-12-ABCD'
-                    autoCapitalize='characters'
-                    autoComplete='off'
-                    className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
-                  />
-                  <Button type='submit' variant='secondary'>
-                    Potvrdit
+    <div className='flex flex-1 flex-col'>
+      <div className='flex flex-col gap-2'>{header}</div>
+      <div className='flex flex-1 items-center justify-center py-6'>
+        {/* Square across the column; capped by the height when the screen lies. */}
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-white/5'>
+          {!manual && <div ref={stage} className='absolute inset-0' />}
+          <div className='relative w-full px-4'>
+            {disabled ? (
+              <Loader2 className='mx-auto size-8 animate-spin' />
+            ) : manual ? (
+              <form onSubmit={submit} className='flex w-full gap-2'>
+                <Input
+                  autoFocus
+                  value={text}
+                  onChange={(event) => setText(event.target.value.toUpperCase())}
+                  placeholder='L-12-ABCD'
+                  autoCapitalize='characters'
+                  autoComplete='off'
+                  className='border-white/20 bg-white/10 font-mono text-white placeholder:text-white/40'
+                />
+                <Button type='submit' variant='secondary'>
+                  Potvrdit
+                </Button>
+              </form>
+            ) : (
+              cameraError !== undefined && (
+                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
+                  <p className='text-sm text-white/80'>{cameraError}</p>
+                  <Button variant='secondary' onClick={() => setCameraError(undefined)}>
+                    <RotateCw /> Zkusit znovu
                   </Button>
-                </form>
-              ) : (
-                cameraError !== undefined && (
-                  <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center'>
-                    <p className='text-sm text-white/80'>{cameraError}</p>
-                    <Button variant='secondary' onClick={() => setCameraError(undefined)}>
-                      <RotateCw /> Zkusit znovu
-                    </Button>
-                  </div>
-                )
-              )}
-            </div>
+                </div>
+              )
+            )}
           </div>
         </div>
-        {manualEntry && (
-          <div className='flex justify-center'>
-            <Button
-              variant='ghost'
-              className='text-white hover:bg-white/10 hover:text-white'
-              onClick={() => {
-                setManual(!manual);
-                setCameraError(undefined);
-              }}
-            >
-              {manual ? <Camera /> : <Keyboard />}
-              {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
-            </Button>
-          </div>
-        )}
       </div>
+      {manualEntry && (
+        <div className='flex justify-center'>
+          <Button
+            variant='ghost'
+            className='text-white hover:bg-white/10 hover:text-white'
+            onClick={() => {
+              setManual(!manual);
+              setCameraError(undefined);
+            }}
+          >
+            {manual ? <Camera /> : <Keyboard />}
+            {manual ? 'Použít fotoaparát' : 'Zadat kód ručně'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
@@ -167,14 +164,11 @@ export const ScanScreen = ({
   onCode,
   busy,
   manualEntry = false,
-  onBack,
 }: {
   onCode: (code: string) => void;
   busy: boolean;
   /** Offers typing the code in instead of scanning it. */
   manualEntry?: boolean;
-  /** Back to the last screen of text; missing when there is none. */
-  onBack?: () => void;
 }) => (
   <QrScannerView
     onCode={onCode}
@@ -182,16 +176,6 @@ export const ScanScreen = ({
     manualEntry={manualEntry}
     header={
       <>
-        {onBack !== undefined && (
-          <Button
-            variant='ghost'
-            size='sm'
-            className='-ml-3 self-start text-white/80 hover:bg-white/10 hover:text-white'
-            onClick={onBack}
-          >
-            <ChevronLeft /> Zpět
-          </Button>
-        )}
         <h2 className='text-xl font-semibold'>Naskenujte QR kód</h2>
         <p className='text-white/70'>Namiřte fotoaparát na QR kód.</p>
       </>
