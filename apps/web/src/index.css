@@ -154,13 +154,9 @@
 .phone-preview {
   --safe-area-inset-top: 2.75rem;
   --safe-area-inset-bottom: 1.25rem;
-  /* Full-screen (fixed) parts of the player, like the camera, fill the phone, not the window. */
-  contain: paint;
 }
 
-/* A new screen of the player fades in. Opacity only: an animated transform (as in `animate-in`)
-   would make the screen the box of the full-screen camera inside it until the animation ends,
-   and the camera would jump to the full size then. */
+/* A new screen of the player fades in; nothing moves. */
 @keyframes screen-fade-in {
   from {
     opacity: 0;
