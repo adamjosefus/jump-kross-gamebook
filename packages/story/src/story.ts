@@ -1,9 +1,9 @@
 import { defineStory } from '@gamebook/core';
 
 type State = {
-  coins: number;
-  hasMap: boolean;
-  courage: number;
+  readonly coins: number;
+  readonly hasMap: boolean;
+  readonly courage: number;
 };
 
 /**
