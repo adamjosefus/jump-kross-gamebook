@@ -1,5 +1,13 @@
 import type { Theme } from '@gamebook/core';
 
+/**
+ * Places the block at the optical center, a little above the middle: of the free space, 2/5 are
+ * above it and 3/5 under it. A block too long for the screen has no free space and starts at the
+ * top.
+ */
+export const OPTICAL_CENTER =
+  "flex flex-col before:flex-[2] before:content-[''] after:flex-[3] after:content-['']";
+
 /** Look of the block around the text; its typography comes from `StoryText`. */
 export const THEME_BOX: Record<Theme, string> = {
   default: '',

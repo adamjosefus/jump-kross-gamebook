@@ -6,7 +6,7 @@ import { ActionButton } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
 import { cn } from '@/lib/utils';
 
-import { THEME_BOX, THEME_PAGE } from './block-look';
+import { OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
@@ -111,9 +111,9 @@ export const NodeScreens = ({
         className='screen-fade-in flex flex-1 flex-col gap-6'
       >
         {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
-        {/* The block sits in the middle of the space between the top and the buttons. */}
+        {/* The block sits at the optical center of the space between the top and the buttons. */}
         {screen !== undefined && (
-          <div className='flex flex-1 flex-col justify-center'>
+          <div className={cn('flex-1', OPTICAL_CENTER)}>
             <VisitedStoryText
               block={`${visitScope}/${node.id}/${index}`}
               onRead={onRead}
