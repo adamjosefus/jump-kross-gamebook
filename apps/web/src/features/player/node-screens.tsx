@@ -108,7 +108,7 @@ export const NodeScreens = ({
   return (
     <article
       key={`${node.id}-${step}-${index}`}
-      className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in slide-in-from-bottom-2'
+      className='flex flex-1 animate-in flex-col gap-6 duration-300 fade-in'
     >
       {index > 0 && (
         <Button
