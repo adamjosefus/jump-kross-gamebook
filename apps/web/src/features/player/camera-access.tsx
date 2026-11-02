@@ -1,7 +1,7 @@
 import { IconCamera, IconLoader2 } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { ActionButton } from '@/components/action-button';
 
 import { CameraHelp } from './camera-help';
 
@@ -100,15 +100,21 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
         </div>
       )}
       {!insecure && state !== 'missing' && (
-        <Button
-          size='lg'
-          className='h-14 w-full max-w-xs text-base'
+        <ActionButton
+          className='w-full max-w-xs'
+          iconSide='start'
+          icon={
+            state === 'requesting' ? (
+              <IconLoader2 className='size-5 animate-spin' />
+            ) : (
+              <IconCamera className='size-5' />
+            )
+          }
           disabled={state === 'requesting'}
           onClick={() => void request()}
         >
-          {state === 'requesting' ? <IconLoader2 className='animate-spin' /> : <IconCamera />}
           {state === 'denied' ? 'Zkusit znovu' : 'Povolit kameru'}
-        </Button>
+        </ActionButton>
       )}
     </div>
   );

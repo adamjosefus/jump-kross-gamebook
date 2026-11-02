@@ -1,9 +1,9 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import { IconChevronRight, IconFlag } from '@tabler/icons-react';
+import { IconArrowRight, IconFlag } from '@tabler/icons-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
+import { ActionButton } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 import { THEME_BOX, THEME_PAGE } from './block-look';
@@ -138,9 +138,12 @@ export const NodeScreens = ({
             )}
           >
             {!last ? (
-              <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
-                Další <IconChevronRight />
-              </Button>
+              <ActionButton
+                icon={<IconArrowRight className='size-5' />}
+                onClick={() => go(index + 1)}
+              >
+                Další
+              </ActionButton>
             ) : node.type === 'end' ? (
               <p className='flex items-center justify-center gap-2'>
                 <IconFlag className='size-4' /> Konec hry

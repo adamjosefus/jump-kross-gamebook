@@ -1,4 +1,4 @@
-import { IconChevronRight } from '@tabler/icons-react';
+import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -8,10 +8,31 @@ const THRESHOLD = 0.9;
 
 type Stage = 'idle' | 'confirmed' | 'pending';
 
+const Label = ({ children }: { readonly children: ReactNode }) => (
+  <span
+    data-slot='slide-button-label'
+    className='absolute inset-x-14 top-1/2 -translate-y-1/2 truncate text-center text-base font-medium'
+  >
+    {children}
+  </span>
+);
+
+const TargetArrow = ({ visible }: { readonly visible: boolean }) => (
+  <IconArrowRight
+    className={cn(
+      'absolute top-1/2 right-5 size-5 -translate-y-1/2 transition-opacity duration-150',
+      !visible && 'opacity-0',
+    )}
+  />
+);
+
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
- * never made by a stray tap. After confirming, the thumb stays at the end while `disabled` (the
- * move is being sent) and returns when it is enabled again.
+ * never made by a stray tap. While sliding, the thumb is as high as the track and grows until it
+ * fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
+ * when it is enabled again. The label is always one line in the middle of the track and stays
+ * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb. A touch
+ * swaps the thumb's chevron for an arrow at the end of the track, where the slide leads.
  */
 export const SlideButton = ({
   children,
@@ -60,39 +81,55 @@ export const SlideButton = ({
       confirm();
   };
 
+  const active = drag !== undefined || stage !== 'idle';
+  // Where the thumb ends, from the left edge of the track; a sliding thumb covers its border too.
+  const thumbEnd = `(3.25rem + ${progress} * (100% + 1px - 3.25rem))`;
+
   return (
     <div
       ref={track}
       className={cn(
-        'relative flex min-h-14 items-center rounded-xl border bg-muted/40 py-1 pr-4 pl-16 select-none',
+        'relative h-14 rounded-full border bg-muted/40 select-none',
         disabled && stage === 'idle' && 'opacity-50',
         className,
       )}
     >
-      <span
-        data-slot='slide-button-label'
-        className='flex-1 py-2 text-center text-base font-medium'
-        style={{ opacity: Math.max(1 - progress * 1.5, 0) }}
-      >
-        {children}
-      </span>
+      <Label>{children}</Label>
+      <TargetArrow visible={active} />
       <button
         type='button'
         aria-label='Posuňte doprava pro potvrzení'
         disabled={disabled && stage === 'idle'}
         className={cn(
-          'absolute top-1 bottom-1 flex w-12 cursor-grab touch-none items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
-          drag === undefined && 'transition-[left] duration-300 ease-out',
+          'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
+          active ? '-top-px -bottom-px -left-px' : 'top-1 bottom-1 left-1',
+          drag === undefined
+            ? 'transition-[top,bottom,left,right] duration-300 ease-out'
+            : 'transition-[top,bottom,left] duration-150 ease-out',
         )}
-        style={{ left: `calc(0.25rem + ${progress} * (100% - 3.5rem))` }}
+        // The end is set directly, so a touch moves only the other three sides, not this one.
+        style={{ right: `calc(100% - ${thumbEnd})` }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => setDrag(undefined)}
         onKeyDown={onKeyDown}
       >
-        <IconChevronRight className='size-5' />
+        <IconChevronRight
+          className={cn('size-5 transition-opacity duration-150', active && 'opacity-0')}
+        />
       </button>
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 text-primary-foreground',
+          drag === undefined && 'transition-[clip-path] duration-300 ease-out',
+        )}
+        style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
+      >
+        <Label>{children}</Label>
+        <TargetArrow visible={active} />
+      </div>
     </div>
   );
 };
