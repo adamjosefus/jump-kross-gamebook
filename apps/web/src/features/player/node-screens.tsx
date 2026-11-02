@@ -1,5 +1,5 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
-import { ChevronRight, Flag } from 'lucide-react';
+import { IconChevronRight, IconFlag } from '@tabler/icons-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { SlideButton } from '@/components/slide-button';
@@ -139,11 +139,11 @@ export const NodeScreens = ({
           >
             {!last ? (
               <Button size='lg' className='h-14 text-base' onClick={() => go(index + 1)}>
-                Další <ChevronRight />
+                Další <IconChevronRight />
               </Button>
             ) : node.type === 'end' ? (
               <p className='flex items-center justify-center gap-2'>
-                <Flag className='size-4' /> Konec hry
+                <IconFlag className='size-4' /> Konec hry
               </p>
             ) : (
               choices.map((choice) => (

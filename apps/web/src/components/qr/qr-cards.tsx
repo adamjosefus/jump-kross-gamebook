@@ -1,4 +1,4 @@
-import { LogIn, MapPin } from 'lucide-react';
+import { IconLogin, IconMapPin } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -49,7 +49,7 @@ export const TeamLoginQr = ({
   teamName,
   ...props
 }: QrCardProps & { readonly teamName: string }) => (
-  <QrCard {...props} {...qrCardText('T', teamName)} icon={<LogIn className='size-3.5' />} />
+  <QrCard {...props} {...qrCardText('T', teamName)} icon={<IconLogin className='size-3.5' />} />
 );
 
 /** Moves any team on at a location. The name is for organisers placing the code. */
@@ -57,5 +57,9 @@ export const ProgressQr = ({
   locationName,
   ...props
 }: QrCardProps & { readonly locationName?: string }) => (
-  <QrCard {...props} {...qrCardText('L', locationName)} icon={<MapPin className='size-3.5' />} />
+  <QrCard
+    {...props}
+    {...qrCardText('L', locationName)}
+    icon={<IconMapPin className='size-3.5' />}
+  />
 );

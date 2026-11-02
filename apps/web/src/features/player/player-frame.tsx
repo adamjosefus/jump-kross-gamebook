@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react';
+import { IconChevronLeft } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ export const PlayerFrame = ({
             className='-ml-3 text-muted-foreground'
             onClick={onBack}
           >
-            <ChevronLeft /> Zpět
+            <IconChevronLeft /> Zpět
           </Button>
         )}
         {aside}

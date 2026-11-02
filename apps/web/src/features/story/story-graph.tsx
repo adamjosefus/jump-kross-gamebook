@@ -1,5 +1,6 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
+import { IconFlag, IconQrcode, IconWalk } from '@tabler/icons-react';
 import {
   Background,
   BaseEdge,
@@ -17,7 +18,6 @@ import {
 } from '@xyflow/react';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import ELK from 'elkjs/lib/elk.bundled.js';
-import { Flag, Footprints, QrCode } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
@@ -191,7 +191,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
               height: label.height,
             }}
           >
-            {data.qr === true && <QrCode className='mr-0.5 inline size-3 align-[-2px]' />}
+            {data.qr === true && <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />}
             {data.text}
           </div>
         </EdgeLabelRenderer>
@@ -246,7 +246,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
           </Badge>
           {node.type === 'end' && (
             <Badge variant='outline' title='Konec'>
-              <Flag />
+              <IconFlag />
             </Badge>
           )}
           <span className='flex-1' />
@@ -256,7 +256,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
               className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
               title={`Klany sem dorazily ${visits}×`}
             >
-              <Footprints /> {visits}
+              <IconWalk /> {visits}
             </Badge>
           )}
         </div>

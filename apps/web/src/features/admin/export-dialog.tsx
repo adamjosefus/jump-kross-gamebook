@@ -1,5 +1,5 @@
 import type { PrintableCode } from '@gamebook/api';
-import { Check, Copy, Download, Loader2 } from 'lucide-react';
+import { IconCheck, IconCopy, IconDownload, IconLoader2 } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -393,10 +393,10 @@ export const ExportDialog = ({
             disabled={busy || format !== 'svg'}
             title={format === 'svg' ? 'Zkopírovat SVG do schránky' : 'Kopírovat jde jen SVG'}
           >
-            {copied ? <Check /> : <Copy />} {copied ? 'Zkopírováno' : 'Kopírovat'}
+            {copied ? <IconCheck /> : <IconCopy />} {copied ? 'Zkopírováno' : 'Kopírovat'}
           </Button>
           <Button onClick={() => void download()} disabled={busy}>
-            {busy ? <Loader2 className='animate-spin' /> : <Download />} Stáhnout
+            {busy ? <IconLoader2 className='animate-spin' /> : <IconDownload />} Stáhnout
           </Button>
         </DialogFooter>
       </DialogContent>

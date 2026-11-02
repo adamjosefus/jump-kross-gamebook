@@ -1,17 +1,17 @@
 import type { TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  AlertTriangle,
-  History,
-  Loader2,
-  MoveRight,
-  Pin,
-  PinOff,
-  RotateCcw,
-  Users,
-  X,
-} from 'lucide-react';
+  IconAlertTriangle,
+  IconArrowNarrowRight,
+  IconHistory,
+  IconLoader2,
+  IconPin,
+  IconPinnedOff,
+  IconRotate,
+  IconUsers,
+  IconX,
+} from '@tabler/icons-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -117,7 +117,7 @@ export const DashboardPage = () => {
   const [moving, setMoving] = useState<TeamStatus>();
   const [{ panel, pinned }, setPanel] = usePanel();
 
-  if (overview.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
+  if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, log } = overview.data;
@@ -127,7 +127,7 @@ export const DashboardPage = () => {
   return (
     <div className='relative h-full'>
       {graph === undefined ? (
-        <Loader2 className='m-8 size-6 animate-spin' />
+        <IconLoader2 className='m-8 size-6 animate-spin' />
       ) : (
         <StoryGraph
           graph={graph}
@@ -145,14 +145,14 @@ export const DashboardPage = () => {
           size='sm'
           onClick={() => toggle('teams')}
         >
-          <Users /> Klany <span className='text-muted-foreground'>{teams.length}</span>
+          <IconUsers /> Klany <span className='text-muted-foreground'>{teams.length}</span>
         </Button>
         <Button
           variant={panel === 'log' ? 'secondary' : 'ghost'}
           size='sm'
           onClick={() => toggle('log')}
         >
-          <History /> Kroky
+          <IconHistory /> Kroky
         </Button>
       </div>
 
@@ -169,7 +169,7 @@ export const DashboardPage = () => {
               aria-pressed={pinned}
               onClick={() => setPanel({ panel, pinned: !pinned })}
             >
-              {pinned ? <PinOff /> : <Pin />}
+              {pinned ? <IconPinnedOff /> : <IconPin />}
             </Button>
             <Button
               variant='ghost'
@@ -177,7 +177,7 @@ export const DashboardPage = () => {
               title='Zavřít'
               onClick={() => setPanel({ panel: undefined, pinned })}
             >
-              <X />
+              <IconX />
             </Button>
           </header>
           <div className='min-h-0 flex-1 overflow-y-auto p-2'>
@@ -196,7 +196,7 @@ export const DashboardPage = () => {
                           {team.node ?? '—'}
                         </span>
                         {!team.nodeExists && (
-                          <AlertTriangle
+                          <IconAlertTriangle
                             className='size-3.5 text-destructive'
                             aria-label='Uzel v příběhu chybí'
                           />
@@ -224,7 +224,7 @@ export const DashboardPage = () => {
                       title='Přesunout tým'
                       onClick={() => setMoving(team)}
                     >
-                      <MoveRight />
+                      <IconArrowNarrowRight />
                     </Button>
                   </li>
                 ))}
@@ -332,7 +332,7 @@ const MoveDialog = ({
         />
         <DialogFooter className='sm:justify-between'>
           <Button variant='outline' onClick={() => setResetting(true)}>
-            <RotateCcw /> Na start
+            <IconRotate /> Na start
           </Button>
           <Button
             onClick={() => move.mutate()}

@@ -1,4 +1,4 @@
-import { Camera, Loader2 } from 'lucide-react';
+import { IconCamera, IconLoader2 } from '@tabler/icons-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -79,13 +79,13 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
   if (!insecure && state === 'checking')
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <Loader2 className='size-6 animate-spin' />
+        <IconLoader2 className='size-6 animate-spin' />
       </div>
     );
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-6 text-center'>
-      <Camera className='size-12' strokeWidth={1.5} />
+      <IconCamera className='size-12' stroke={1.5} />
       <div className='flex max-w-xs flex-col gap-2 text-balance'>
         <h2 className='story-heading'>Povolte přístup ke kameře</h2>
         <p>
@@ -106,7 +106,7 @@ export const CameraGate = ({ children }: { children: ReactNode }) => {
           disabled={state === 'requesting'}
           onClick={() => void request()}
         >
-          {state === 'requesting' ? <Loader2 className='animate-spin' /> : <Camera />}
+          {state === 'requesting' ? <IconLoader2 className='animate-spin' /> : <IconCamera />}
           {state === 'denied' ? 'Zkusit znovu' : 'Povolit kameru'}
         </Button>
       )}

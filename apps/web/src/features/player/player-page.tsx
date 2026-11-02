@@ -1,8 +1,8 @@
 import type { PlayerView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
+import { IconLoader2 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Loader2 } from 'lucide-react';
 import { useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 
@@ -99,7 +99,7 @@ export const PlayerPage = () => {
       <main className={PAGE}>
         <PlayerFrame>
           <Centered>
-            <Loader2 className='size-6 animate-spin' />
+            <IconLoader2 className='size-6 animate-spin' />
           </Centered>
         </PlayerFrame>
       </main>
@@ -110,7 +110,7 @@ export const PlayerPage = () => {
       <span>
         Tým <strong className='text-foreground'>{view.team.name}</strong>
       </span>
-      {busy && <Loader2 className='size-4 animate-spin' />}
+      {busy && <IconLoader2 className='size-4 animate-spin' />}
     </div>
   );
 
@@ -212,7 +212,7 @@ const Intro = ({
     return (
       <PlayerFrame>
         <Centered>
-          <Loader2 className='size-6 animate-spin' />
+          <IconLoader2 className='size-6 animate-spin' />
         </Centered>
       </PlayerFrame>
     );

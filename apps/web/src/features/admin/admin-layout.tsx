@@ -1,6 +1,6 @@
+import { IconDeviceDesktop, IconLoader2, IconLogout, IconMoon, IconSun } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet } from '@tanstack/react-router';
-import { Loader2, LogOut, Monitor, Moon, Sun } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ const THEME_NEXT: Record<ThemePreference, ThemePreference> = {
   light: 'dark',
   dark: 'system',
 };
-const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
+const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon };
 
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {
@@ -51,7 +51,7 @@ export const AdminLayout = () => {
   if (me.isPending) {
     return (
       <div className='flex min-h-dvh items-center justify-center'>
-        <Loader2 className='size-6 animate-spin' />
+        <IconLoader2 className='size-6 animate-spin' />
       </div>
     );
   }
@@ -80,7 +80,7 @@ export const AdminLayout = () => {
           <ThemeIcon />
         </Button>
         <Button variant='ghost' size='icon' onClick={() => logout.mutate()} title='Odhlásit'>
-          <LogOut />
+          <IconLogout />
         </Button>
       </header>
       <div className='min-h-0 flex-1 overflow-auto'>
@@ -122,7 +122,7 @@ const AdminLogin = () => {
               <p className='text-sm text-destructive'>{errorMessage(login.error)}</p>
             )}
             <Button type='submit' disabled={login.isPending || password === ''}>
-              {login.isPending && <Loader2 className='animate-spin' />} Přihlásit
+              {login.isPending && <IconLoader2 className='animate-spin' />} Přihlásit
             </Button>
           </form>
         </CardContent>

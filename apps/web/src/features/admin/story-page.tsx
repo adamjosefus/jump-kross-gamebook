@@ -1,5 +1,5 @@
 import { graphProblems } from '@gamebook/core';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { IconAlertTriangle, IconLoader2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
 
 import { StoryGraph } from '@/features/story/story-graph';
@@ -18,7 +18,7 @@ export const StoryPage = () => {
     [graph.data],
   );
 
-  if (graph.isPending) return <Loader2 className='m-8 size-6 animate-spin' />;
+  if (graph.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (graph.isError) return <p className='p-8 text-destructive'>{errorMessage(graph.error)}</p>;
 
   return (
@@ -30,7 +30,7 @@ export const StoryPage = () => {
         </span>
         {problems.map((problem) => (
           <span key={problem} className='flex items-center gap-1.5 text-destructive'>
-            <AlertTriangle className='size-4' /> {problem}
+            <IconAlertTriangle className='size-4' /> {problem}
           </span>
         ))}
       </div>
