@@ -1,6 +1,7 @@
 import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
+import { hapticLight, hapticStrong } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
 /** Part of the track the thumb has to travel before letting go confirms. */
@@ -44,6 +45,8 @@ export const SlideButton = ({
     readonly offset: number;
   }>();
   const [stage, setStage] = useState<Stage>('idle');
+  // So the click at the end comes once per arrival, not on every move past the threshold.
+  const atEnd = useRef(false);
   // Waits for the move to start and to finish; then the thumb can return.
   if (stage === 'confirmed' && disabled) setStage('pending');
   if (stage === 'pending' && !disabled) setStage('idle');
@@ -61,10 +64,16 @@ export const SlideButton = ({
     event.currentTarget.setPointerCapture(event.pointerId);
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
     setDrag({ from: event.clientX, max, offset: 0 });
+    atEnd.current = false;
+    hapticLight();
   };
   const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
-    if (drag !== undefined)
-      setDrag({ ...drag, offset: Math.min(Math.max(event.clientX - drag.from, 0), drag.max) });
+    if (drag === undefined) return;
+    const offset = Math.min(Math.max(event.clientX - drag.from, 0), drag.max);
+    setDrag({ ...drag, offset });
+    const arrived = offset >= drag.max * THRESHOLD;
+    if (arrived && !atEnd.current) hapticStrong();
+    atEnd.current = arrived;
   };
   const onPointerUp = () => {
     if (drag === undefined) return;
@@ -73,8 +82,10 @@ export const SlideButton = ({
   };
   // Keyboards cannot slide; the right arrow or End is the deliberate equivalent.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if ((event.key === 'ArrowRight' || event.key === 'End') && !disabled && stage === 'idle')
+    if ((event.key === 'ArrowRight' || event.key === 'End') && !disabled && stage === 'idle') {
+      hapticStrong();
       confirm();
+    }
   };
 
   const active = drag !== undefined || stage !== 'idle';
