@@ -1,7 +1,7 @@
 /**
  * Plays a chord on a sampled cello, one note after another, as a slide button is dragged: the
- * first note sounds when the drag starts, the others join as the thumb passes their share of the
- * track, and the whole chord rings at the end. Everything runs on the Web Audio API with a few
+ * first note sounds, very softly, when the drag starts, the others join as the thumb passes their
+ * share of the track, the whole swells with the thumb, and the full chord rings at the end. Everything runs on the Web Audio API with a few
  * cello samples (see `public/audio/cello/ATTRIBUTION.md`), pitched to the notes the story asks for
  * and looped while the thumb is held.
  */
@@ -36,7 +36,14 @@ const LOOP_END_SECONDS = 2.2;
 /** Blended across the loop point, so the jump back is inaudible. */
 const LOOP_CROSSFADE_SECONDS = 0.4;
 /** Every note starts a touch late and soft, so one voice never clicks or jumps out. */
-const ATTACK_SECONDS = 0.08;
+const ATTACK_SECONDS = 0.18;
+/**
+ * How loud the chord is where the slide starts, as a share of its full level; it swells from there
+ * to the end of the track in equal steps of loudness (decibels), like a bow pressing harder.
+ */
+const QUIET_LEVEL = 0.06;
+/** How quickly the loudness follows the thumb. */
+const SWELL_SECONDS = 0.06;
 
 /** MIDI number of a note like `C#3`; undefined for anything that is not a note. */
 const midiOf = (note: string): number | undefined => {
@@ -196,7 +203,8 @@ export const preloadChord = (chord: ChordNotes): void => {
 export interface ChordPlayer {
   /**
    * How far the thumb is, 0 to 1. Note `k` of `n` sounds from `k * end / (n - 1)` on, the first one
-   * from the start; sliding back silences the notes passed on the way.
+   * from the start; sliding back silences the notes passed on the way. The chord also swells with
+   * the thumb: barely there at the start, full at `end`.
    */
   readonly setProgress: (progress: number) => void;
   /** Lets the chord ring out over `seconds` and stops; a longer release for a confirmed slide. */
@@ -208,7 +216,13 @@ interface Voice {
   readonly source: AudioBufferSourceNode;
 }
 
-const startVoice = (audio: Graph, buffer: AudioBuffer, semitones: number, level: number): Voice => {
+const startVoice = (
+  audio: Graph,
+  into: AudioNode,
+  buffer: AudioBuffer,
+  semitones: number,
+  level: number,
+): Voice => {
   const { context } = audio;
   const source = context.createBufferSource();
   source.buffer = buffer;
@@ -220,7 +234,7 @@ const startVoice = (audio: Graph, buffer: AudioBuffer, semitones: number, level:
   gain.gain.setValueAtTime(0, context.currentTime);
   gain.gain.linearRampToValueAtTime(level, context.currentTime + ATTACK_SECONDS);
   source.connect(gain);
-  gain.connect(audio.input);
+  gain.connect(into);
   source.start();
   return { gain, source };
 };
@@ -246,6 +260,15 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
 
   // Quieter voices in a fuller chord, so chords of any size are about as loud.
   const level = 0.9 / Math.sqrt(voices.length);
+  // The whole chord passes through this: the thumb's position sets how loud it is.
+  const swell = audio.context.createGain();
+  swell.gain.value = QUIET_LEVEL;
+  swell.connect(audio.input);
+  const swellTo = (progress: number) => {
+    const share = Math.min(Math.max(progress / end, 0), 1);
+    const target = QUIET_LEVEL * (1 / QUIET_LEVEL) ** share;
+    swell.gain.setTargetAtTime(target, audio.context.currentTime, SWELL_SECONDS);
+  };
   const thresholds = voices.map((_voice, index) =>
     voices.length === 1 ? 0 : (index * end) / (voices.length - 1),
   );
@@ -259,7 +282,7 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
     pending.add(index);
     void loadSample(voices[index]!.sample).then((buffer) => {
       if (!pending.delete(index) || buffer === undefined) return;
-      playing.set(index, startVoice(audio, buffer, voices[index]!.semitones, level));
+      playing.set(index, startVoice(audio, swell, buffer, voices[index]!.semitones, level));
     });
   };
   const stopNote = (index: number, seconds: number) => {
@@ -273,6 +296,7 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
   return {
     setProgress: (progress) => {
       if (released) return;
+      swellTo(progress);
       thresholds.forEach((threshold, index) => {
         // A little hysteresis, so a thumb resting on a threshold does not flutter.
         if (progress >= threshold) startNote(index);

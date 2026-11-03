@@ -45,9 +45,10 @@ const TargetArrow = ({ visible }: { readonly visible: boolean }) => (
  * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb. A touch
  * swaps the thumb's chevron for an arrow at the end of the track, where the slide leads.
  *
- * With a `chord`, the slide is heard too: its first note starts with the touch, the others join
- * as the thumb passes their share of the track, and the whole chord sounds where letting go
- * confirms. A confirmed slide lets it ring out; a slide given up fades quickly.
+ * With a `chord`, the slide is heard too: its first note starts, very softly, with the touch, the
+ * others join as the thumb passes their share of the track, the chord swells with the thumb, and
+ * the whole of it sounds at full loudness where letting go confirms. A confirmed slide lets it ring
+ * out; a slide given up fades quickly.
  */
 export const SlideButton = ({
   children,
