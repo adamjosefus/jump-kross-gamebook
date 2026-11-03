@@ -14,8 +14,9 @@ export interface Screen {
   readonly svg?: string;
   readonly content: string;
   /**
-   * Text of the button leading from this screen to the next one, „Další“ when missing. The last
-   * screen of a node has such a button only when a scan follows.
+   * Text of the button leading from this screen to the next one, „Další“ when missing; an empty
+   * text makes it a round button with only an arrow. The last screen of a node has such a button
+   * only when a scan follows.
    */
   readonly next?: string;
 }

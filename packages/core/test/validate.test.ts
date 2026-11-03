@@ -46,7 +46,7 @@ describe('validateStory', () => {
     );
   });
 
-  it('reports a next button that would never show, or has no text', () => {
+  it('reports a next button that would never show; an empty one is just an arrow', () => {
     const story = define({
       teams: { 1: 'Tým' },
       intro: [{ content: 'Úvod', next: ' ' }],
@@ -71,8 +71,6 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Úvod má prázdné next na obrazovce č. 1.',
-      'Uzel B má prázdné next na obrazovce č. 1.',
       'Uzel B má next „Nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
       'Uzel C má next „Taky nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
     ]);

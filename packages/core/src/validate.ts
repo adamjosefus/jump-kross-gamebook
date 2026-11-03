@@ -57,8 +57,6 @@ const SVG_ELEMENT = /^\s*<svg[\s>][\s\S]*<\/svg>\s*$/;
 
 const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
 
-const hasEmptyNext = ({ next }: RenderedScreen) => next !== undefined && next.trim() === '';
-
 const introProblems = (story: Story): readonly string[] => [
   ...problemIf(story.intro.length === 0, 'Příběh nemá úvod (intro).'),
   ...problemIf(story.introScanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
@@ -66,7 +64,6 @@ const introProblems = (story: Story): readonly string[] => [
   ...introScreens(story).flatMap((screen, index) => [
     ...problemIf(screen.content.trim() === '', `Úvod má prázdnou obrazovku č. ${index + 1}.`),
     ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
-    ...problemIf(hasEmptyNext(screen), `Úvod má prázdné next na obrazovce č. ${index + 1}.`),
   ]),
 ];
 
@@ -172,10 +169,6 @@ const contentProblemsOf = (
           ...problemIf(
             hasBadSvg(screen),
             `Uzel ${id} má neplatné svg na obrazovce č. ${index + 1}.`,
-          ),
-          ...problemIf(
-            hasEmptyNext(screen),
-            `Uzel ${id} má prázdné next na obrazovce č. ${index + 1}.`,
           ),
           // After the last screen only a scan follows; buttons and the end have no „Další“.
           ...problemIf(

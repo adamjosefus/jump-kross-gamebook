@@ -4,6 +4,7 @@ import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { ActionButton } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 import { BLOCK_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
@@ -152,12 +153,24 @@ export const NodeScreens = ({
             )}
           >
             {!last ? (
-              <ActionButton
-                icon={<IconArrowRight className='size-5' />}
-                onClick={() => go(index + 1)}
-              >
-                {screen?.next ?? 'Další'}
-              </ActionButton>
+              screen?.next?.trim() === '' ? (
+                // Empty text in the story: only the arrow, in a circle as tall as the wide button.
+                <Button
+                  size='icon'
+                  aria-label='Další'
+                  className='size-14 self-center rounded-full'
+                  onClick={() => go(index + 1)}
+                >
+                  <IconArrowRight className='size-5' />
+                </Button>
+              ) : (
+                <ActionButton
+                  icon={<IconArrowRight className='size-5' />}
+                  onClick={() => go(index + 1)}
+                >
+                  {screen?.next ?? 'Další'}
+                </ActionButton>
+              )
             ) : node.type === 'end' ? (
               <p className='flex items-center justify-center gap-2'>
                 <IconFlag className='size-4' /> Konec hry

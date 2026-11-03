@@ -29,6 +29,11 @@ const Buttons = () => (
     <Row label='Další'>
       <ActionButton icon={<IconArrowRight className='size-5' />}>Další</ActionButton>
     </Row>
+    <Row label='Další bez textu'>
+      <Button size='icon' aria-label='Další' className='size-14 self-center rounded-full'>
+        <IconArrowRight className='size-5' />
+      </Button>
+    </Row>
     <Row label='Volby'>
       <SlideButton onConfirm={() => undefined}>Vyrazit na cestu</SlideButton>
       <SlideButton onConfirm={() => undefined}>Vrátit se domů a zkusit to jindy znovu</SlideButton>
