@@ -68,7 +68,41 @@ V následující hře budete rozhodnovat o svém příběhu.
 
 Vybrání možnosti na displeji je ale pouze technikálie.
 
-Zkutečné rozhodnutí musíte dělat vy. Musíte se shodnout mezi sebou.
+Zkutečné rozhodnutí musíte dělat vy. Musíte se **shodnout mezi sebou**.
+      `,
+    },
+    {
+      theme: 'intro',
+      content: `Zkusme si to…`,
+      next: 'O čem máme rozhodnout?',
+    },
+    {
+      theme: 'intro',
+      content: `
+Určete ve vašem klanu roli čtenáře, či čtenářky.
+
+Popřípadě pravidlo jak se bude tato pozice mezi vámi střídat.
+      `,
+      next: 'Dohodli jsem se',
+    },
+    {
+      theme: 'intro',
+      content: `
+*To rád slyším.*
+
+Ne všechny rozhodnutí budeou takto snadná.
+
+Čekají na vás volby nepříjemné, plné dilemat.
+      `,
+    },
+    {
+      theme: 'intro',
+      content: `
+Pro případ, že byste se snad s rozhodnováním zasekli, mlčky zvedněte ruku.
+
+V případě, že většina bude držet paži vzhůru, postupně hlasujte.
+
+A hlasování se podřiďte a přijměte ho za své.
       `,
     },
     {
