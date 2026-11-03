@@ -8,12 +8,12 @@ import { Api } from '../api.ts';
 import { configFromEnv, ServerConfig, type ServerConfigShape } from './config.ts';
 import { CurrentStory } from './game.ts';
 import { HandlersLayer } from './handlers.ts';
-import { MemoryStoreLayer } from './store-memory.ts';
+import { MemoryStoreLayer, type MemoryData } from './store-memory.ts';
 import { PostgresStoreLayer } from './store-postgres.ts';
 import type { Store } from './store.ts';
 
 export { configFromEnv, type ServerConfigShape } from './config.ts';
-export { MemoryStoreLayer } from './store-memory.ts';
+export { emptyMemoryData, MemoryStoreLayer, type MemoryData } from './store-memory.ts';
 export { PostgresStoreLayer } from './store-postgres.ts';
 export { toNodeHandler } from './node.ts';
 
@@ -34,9 +34,16 @@ export const makeHandler = (
     { disableLogger: true },
   );
 
-/** Handler configured from environment variables; without `DATABASE_URL` it keeps data in memory. */
-export const handlerFromEnv = (env: Readonly<Record<string, string | undefined>>) => {
+/**
+ * Handler configured from environment variables; without `DATABASE_URL` it keeps data in memory,
+ * in `memory` when given, so the data can outlive this handler.
+ */
+export const handlerFromEnv = (
+  env: Readonly<Record<string, string | undefined>>,
+  memory?: MemoryData,
+) => {
   const url = env['DATABASE_URL'];
-  const store = url === undefined || url === '' ? MemoryStoreLayer() : PostgresStoreLayer(url);
+  const store =
+    url === undefined || url === '' ? MemoryStoreLayer(memory) : PostgresStoreLayer(url);
   return makeHandler(configFromEnv(env), store);
 };

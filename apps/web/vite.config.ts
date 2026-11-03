@@ -4,21 +4,26 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin, type ViteDevServer } from 'vite';
 
-type ApiServer = Pick<typeof import('@gamebook/api/server'), 'toNodeHandler' | 'handlerFromEnv'>;
+type ApiServer = Pick<
+  typeof import('@gamebook/api/server'),
+  'toNodeHandler' | 'handlerFromEnv' | 'emptyMemoryData'
+>;
 interface LoadedApi {
   readonly handle: ReturnType<ApiServer['toNodeHandler']>;
   readonly dispose: () => Promise<void>;
 }
 
 /**
- * Serves `/api/*` in development with the same Web handler the Vercel function uses. Without
- * `DATABASE_URL` the data lives in memory, so a change in the packages (the story, say) starts over
- * with empty data: the handler is built again from the new code and the open pages reload.
+ * Serves `/api/*` in development with the same Web handler the Vercel function uses. A change in
+ * the packages (the story, say) builds the handler again from the new code and reloads the open
+ * pages. Without `DATABASE_URL` the data lives in memory, kept here so that it survives that;
+ * it is gone only when the dev server restarts.
  */
 const apiDevServer = (): Plugin => {
   // Lazily loaded once and dropped again on failure or a code change so the next request loads it
   // anew; a cache like this has to be reassigned.
   let api: Promise<LoadedApi> | undefined;
+  let memory: ReturnType<ApiServer['emptyMemoryData']> | undefined;
   const load = async (server: ViteDevServer): Promise<LoadedApi> => {
     const env = {
       ...process.env,
@@ -26,11 +31,13 @@ const apiDevServer = (): Plugin => {
     };
     // ssrLoadModule is untyped; the annotation pins the exports this plugin relies on.
     const loaded = await server.ssrLoadModule('@gamebook/api/server');
-    const { toNodeHandler, handlerFromEnv }: ApiServer = {
+    const { toNodeHandler, handlerFromEnv, emptyMemoryData }: ApiServer = {
       toNodeHandler: loaded['toNodeHandler'],
       handlerFromEnv: loaded['handlerFromEnv'],
+      emptyMemoryData: loaded['emptyMemoryData'],
     };
-    const { handler, dispose } = handlerFromEnv(env);
+    memory ??= emptyMemoryData();
+    const { handler, dispose } = handlerFromEnv(env, memory);
     return { handle: toNodeHandler(handler), dispose };
   };
 
@@ -53,6 +60,9 @@ const apiDevServer = (): Plugin => {
         api
           .then(({ handle }) => handle(req, res))
           .catch((error: unknown) => {
+            // The client left, as a page does when it reloads: nobody waits for an answer, and
+            // the error overlay would only cover the reloaded page.
+            if (req.socket.destroyed) return;
             api = undefined;
             next(error);
           });

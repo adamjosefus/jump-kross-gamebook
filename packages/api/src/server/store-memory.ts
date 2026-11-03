@@ -13,14 +13,28 @@ const countBy = <K>(keys: readonly K[]): ReadonlyMap<K, number> =>
     [...new Set(keys)].map((key) => [key, keys.filter((candidate) => candidate === key).length]),
   );
 
+/**
+ * What the memory store holds. It is the one place with state, so these collections are replaced or
+ * updated in place on purpose; the rows themselves are never changed, only swapped for new ones.
+ * It stands apart from the store, so the data can outlive a reload of the code in development.
+ */
+export interface MemoryData {
+  readonly teams: Map<number, TeamRow>;
+  readonly sessions: Map<string, SessionRow>;
+  log: readonly LogRow[];
+  reading: readonly ReadingRow[];
+}
+
+export const emptyMemoryData = (): MemoryData => ({
+  teams: new Map(),
+  sessions: new Map(),
+  log: [],
+  reading: [],
+});
+
 /** In-process store for local development without a database and for tests. */
-export const makeMemoryStore = () => {
-  // The store is the one place that holds state, so these collections are replaced or updated in
-  // place on purpose; the rows themselves are never changed, only swapped for new ones.
-  const teams = new Map<number, TeamRow>();
-  const sessions = new Map<string, SessionRow>();
-  let log: readonly LogRow[] = [];
-  let reading: readonly ReadingRow[] = [];
+export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
+  const { teams, sessions } = data;
 
   return Store.of({
     listTeams: () =>
@@ -56,8 +70,8 @@ export const makeMemoryStore = () => {
           updatedAt: now,
         };
         teams.set(id, updated);
-        log = [
-          ...log,
+        data.log = [
+          ...data.log,
           {
             teamId: id,
             at: now,
@@ -79,13 +93,13 @@ export const makeMemoryStore = () => {
       Effect.sync(() => {
         const team = teams.get(id);
         if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
-        reading = reading.filter((row) => row.teamId !== id);
+        data.reading = data.reading.filter((row) => row.teamId !== id);
       }),
     addReading: (rows) =>
       Effect.sync(() => {
-        reading = [...reading, ...rows];
+        data.reading = [...data.reading, ...rows];
       }),
-    listReading: () => Effect.sync(() => reading),
+    listReading: () => Effect.sync(() => data.reading),
 
     createSession: (id, teamId) =>
       Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
@@ -106,12 +120,13 @@ export const makeMemoryStore = () => {
         ),
       ),
 
-    recentLog: (limit) => Effect.sync(() => log.slice(-limit).toReversed()),
+    recentLog: (limit) => Effect.sync(() => data.log.slice(-limit).toReversed()),
     visitCounts: () =>
       Effect.sync(() =>
-        countBy(log.flatMap((row) => (row.toNode === undefined ? [] : [row.toNode]))),
+        countBy(data.log.flatMap((row) => (row.toNode === undefined ? [] : [row.toNode]))),
       ),
   });
 };
 
-export const MemoryStoreLayer = () => Layer.sync(Store, makeMemoryStore);
+export const MemoryStoreLayer = (data?: MemoryData) =>
+  Layer.sync(Store, () => makeMemoryStore(data));

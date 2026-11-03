@@ -2,7 +2,12 @@ import { encodeQr } from '@gamebook/core';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { SAMPLE } from '../../core/test/fixtures.ts';
-import { makeHandler, MemoryStoreLayer, type ServerConfigShape } from '../src/server/index.ts';
+import {
+  emptyMemoryData,
+  makeHandler,
+  MemoryStoreLayer,
+  type ServerConfigShape,
+} from '../src/server/index.ts';
 
 const config: ServerConfigShape = {
   adminPassword: 'heslo',
@@ -269,5 +274,39 @@ describe('api', () => {
       { id: 1, node: 'A1', state: { gold: 100 } },
       { id: 2, node: 'A1', state: { gold: 100 } },
     ]);
+  });
+});
+
+describe('memory data', () => {
+  it('outlives the handler, as when the code reloads in development', async () => {
+    const memory = emptyMemoryData();
+    const login = async (send: (request: Request) => Promise<Response>) => {
+      const code = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+      return send(
+        new Request('http://localhost/api/player/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ code }),
+        }),
+      );
+    };
+    const before = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
+    const response = await login(before.handler);
+    const cookie = response.headers.getSetCookie()[0]!.split(';')[0]!;
+    await before.handler(
+      new Request('http://localhost/api/player/choose', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ index: 1, expectedStep: 1 }),
+      }),
+    );
+    await before.dispose();
+
+    const after = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
+    const state = await after.handler(
+      new Request('http://localhost/api/player/state', { headers: { cookie } }),
+    );
+    expect(await state.json()).toMatchObject({ team: { id: 1 }, node: { id: 'A2' } });
+    await after.dispose();
   });
 });
