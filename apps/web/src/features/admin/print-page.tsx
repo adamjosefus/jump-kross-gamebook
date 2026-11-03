@@ -11,10 +11,6 @@ import { api, errorMessage } from '@/lib/api';
 import { ExportDialog } from './export-dialog';
 import { adminKeys } from './queries';
 
-/** The cards are white in both color modes, so their buttons are too. */
-const CARD_BUTTON =
-  'border-black/20 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/20 dark:bg-white dark:hover:bg-black/5';
-
 /**
  * A card with buttons in its top right corner: one copies the code's text, to type it in when
  * testing without a camera, the other opens every export option.
@@ -41,7 +37,6 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
           title='Zkopírovat text kódu'
           aria-label={`Zkopírovat text kódu ${entry.label}`}
           onClick={copy}
-          className={CARD_BUTTON}
         >
           <IconCopy />
         </Button>
@@ -51,7 +46,6 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
           title='Stáhnout'
           aria-label={`Stáhnout ${entry.label}`}
           onClick={() => setOpen(true)}
-          className={CARD_BUTTON}
         >
           <IconDownload />
         </Button>
