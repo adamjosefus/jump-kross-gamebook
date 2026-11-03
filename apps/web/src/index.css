@@ -208,6 +208,10 @@
   font-weight: 600;
   letter-spacing: 0.06em;
 }
+/* The big ones are heavy enough by their size. */
+.font-story :is([data-slot='button'][data-size='lg'], [data-slot='slide-button-label']) {
+  font-weight: 500;
+}
 
 /* A heading of a player screen outside StoryText, in the look of its h2 (typography.ts). */
 .story-heading {
