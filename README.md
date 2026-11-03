@@ -16,7 +16,7 @@ pnpm lint
 pnpm storybook      # QR komponenty na http://localhost:6006
 ```
 
-Data v paměti zmizí s restartem dev serveru. Pro práci s databází nastavte `DATABASE_URL` v `.env` (vzor je v [.env.example](.env.example)).
+Data v paměti přežijí uložení souboru a zmizí až s restartem dev serveru. Když při úpravě příběhu zmizí uzel, na kterém tým stojí, vraťte tým na start na stránce Hra. Pro práci s databází nastavte `DATABASE_URL` v `.env` (vzor je v [.env.example](.env.example)).
 
 ## Struktura
 
