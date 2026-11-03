@@ -67,7 +67,7 @@ export const Choices: Story = {
 /**
  * Sliding plays a cello chord: the first note with the touch, the next ones along the track, all
  * of them at the end, swelling from barely audible to full on the way. Letting go early fades it;
- * confirming lets it ring.
+ * confirming lets it ring under a chime.
  */
 export const Chord: Story = {
   render: () => (

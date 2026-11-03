@@ -1,7 +1,8 @@
 /**
  * Plays a chord on a sampled cello, one note after another, as a slide button is dragged: the
  * first note sounds, very softly, when the drag starts, the others join as the thumb passes their
- * share of the track, the whole swells with the thumb, and the full chord rings at the end. Everything runs on the Web Audio API with a few
+ * share of the track, the whole swells with the thumb, and the full chord rings at the end, where a
+ * chime marks the confirmed choice. Everything runs on the Web Audio API with a few
  * cello samples (see `public/audio/cello/ATTRIBUTION.md`), pitched to the notes the story asks for
  * and looped while the thumb is held.
  */
@@ -35,15 +36,31 @@ const LOOP_START_SECONDS = 0.9;
 const LOOP_END_SECONDS = 2.2;
 /** Blended across the loop point, so the jump back is inaudible. */
 const LOOP_CROSSFADE_SECONDS = 0.4;
-/** Every note starts a touch late and soft, so one voice never clicks or jumps out. */
-const ATTACK_SECONDS = 0.18;
+/** Every note blooms in slowly, so no entry is a surprise. */
+const ATTACK_SECONDS = 0.35;
 /**
  * How loud the chord is where the slide starts, as a share of its full level; it swells from there
- * to the end of the track in equal steps of loudness (decibels), like a bow pressing harder.
+ * to the end of the track in steps of loudness (decibels), like a bow pressing harder.
  */
-const QUIET_LEVEL = 0.06;
+const QUIET_LEVEL = 0.03;
+/** Above 1 the swell lingers in the quiet and gathers most of its loudness near the end. */
+const SWELL_CURVE = 1.7;
 /** How quickly the loudness follows the thumb. */
-const SWELL_SECONDS = 0.06;
+const SWELL_SECONDS = 0.12;
+/** How long the chord rings after a confirmed slide, and after a slide given up halfway. */
+const CONFIRM_RELEASE_SECONDS = 1.8;
+const CANCEL_RELEASE_SECONDS = 0.3;
+/**
+ * The chime of a confirmed slide: a struck bar, like a glockenspiel, two octaves above the chord's
+ * top note. Partials of a bar are inharmonic, which is what makes it ring like metal.
+ */
+const CHIME_PARTIALS = [
+  { ratio: 1, level: 1, decaySeconds: 1.4 },
+  { ratio: 2.756, level: 0.3, decaySeconds: 0.5 },
+  { ratio: 5.404, level: 0.12, decaySeconds: 0.2 },
+] as const;
+const CHIME_LEVEL = 0.32;
+const CHIME_MAX_HZ = 2200;
 
 /** MIDI number of a note like `C#3`; undefined for anything that is not a note. */
 const midiOf = (note: string): number | undefined => {
@@ -192,7 +209,7 @@ export type ChordNotes = readonly string[];
 const voicesOf = (chord: ChordNotes) =>
   chord.flatMap((note) => {
     const midi = midiOf(note);
-    return midi === undefined ? [] : [nearestSample(midi)];
+    return midi === undefined ? [] : [{ ...nearestSample(midi), midi }];
   });
 
 /** Fetches and decodes the samples a chord needs, so the first slide does not wait for them. */
@@ -207,9 +224,32 @@ export interface ChordPlayer {
    * the thumb: barely there at the start, full at `end`.
    */
   readonly setProgress: (progress: number) => void;
-  /** Lets the chord ring out over `seconds` and stops; a longer release for a confirmed slide. */
-  readonly release: (seconds: number) => void;
+  /** The slide reached the end: the chord rings out and a chime marks the choice. */
+  readonly confirm: () => void;
+  /** The slide was given up: the chord fades quickly. */
+  readonly cancel: () => void;
 }
+
+const frequencyOf = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
+
+/** A short struck tone at `hertz`, into the same room as the chord. */
+const chime = (audio: Graph, hertz: number) => {
+  const { context } = audio;
+  const now = context.currentTime;
+  for (const partial of CHIME_PARTIALS) {
+    const oscillator = context.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = hertz * partial.ratio;
+    const envelope = context.createGain();
+    envelope.gain.setValueAtTime(0, now);
+    envelope.gain.linearRampToValueAtTime(CHIME_LEVEL * partial.level, now + 0.004);
+    envelope.gain.exponentialRampToValueAtTime(0.0005, now + partial.decaySeconds);
+    oscillator.connect(envelope);
+    envelope.connect(audio.input);
+    oscillator.start(now);
+    oscillator.stop(now + partial.decaySeconds + 0.05);
+  }
+};
 
 interface Voice {
   readonly gain: GainNode;
@@ -255,7 +295,7 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
   const audio = getGraph();
   const voices = voicesOf(chord);
   if (audio === undefined || voices.length === 0)
-    return { setProgress: () => undefined, release: () => undefined };
+    return { setProgress: () => undefined, confirm: () => undefined, cancel: () => undefined };
   void audio.context.resume();
 
   // Quieter voices in a fuller chord, so chords of any size are about as loud.
@@ -266,9 +306,12 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
   swell.connect(audio.input);
   const swellTo = (progress: number) => {
     const share = Math.min(Math.max(progress / end, 0), 1);
-    const target = QUIET_LEVEL * (1 / QUIET_LEVEL) ** share;
+    const target = QUIET_LEVEL * (1 / QUIET_LEVEL) ** (share ** SWELL_CURVE);
     swell.gain.setTargetAtTime(target, audio.context.currentTime, SWELL_SECONDS);
   };
+  // The chime sits two octaves over the chord's highest note, within a glockenspiel's range.
+  const topMidi = Math.max(...voices.map((voice) => voice.midi));
+  const chimeHertz = Math.min(frequencyOf(topMidi + 24), CHIME_MAX_HZ);
   const thresholds = voices.map((_voice, index) =>
     voices.length === 1 ? 0 : (index * end) / (voices.length - 1),
   );
@@ -292,6 +335,10 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
     playing.delete(index);
     stopVoice(audio, voice, seconds);
   };
+  const release = (seconds: number) => {
+    released = true;
+    for (const index of thresholds.keys()) stopNote(index, seconds);
+  };
 
   return {
     setProgress: (progress) => {
@@ -303,9 +350,11 @@ export const startChord = (chord: ChordNotes, end = 1): ChordPlayer => {
         else if (progress < threshold - 0.04) stopNote(index, 0.25);
       });
     },
-    release: (seconds) => {
-      released = true;
-      for (const index of thresholds.keys()) stopNote(index, seconds);
+    confirm: () => {
+      if (released) return;
+      release(CONFIRM_RELEASE_SECONDS);
+      chime(audio, chimeHertz);
     },
+    cancel: () => release(CANCEL_RELEASE_SECONDS),
   };
 };

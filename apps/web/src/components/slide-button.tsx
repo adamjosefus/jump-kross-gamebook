@@ -13,9 +13,6 @@ import { cn } from '@/lib/utils';
 
 /** Part of the track the thumb has to travel before letting go confirms. */
 const THRESHOLD = 0.9;
-/** How long the chord rings after a confirmed slide, and after a slide let go halfway. */
-const RELEASE_SECONDS = 1.8;
-const CANCEL_SECONDS = 0.3;
 
 type Stage = 'idle' | 'confirmed' | 'pending';
 
@@ -48,7 +45,7 @@ const TargetArrow = ({ visible }: { readonly visible: boolean }) => (
  * With a `chord`, the slide is heard too: its first note starts, very softly, with the touch, the
  * others join as the thumb passes their share of the track, the chord swells with the thumb, and
  * the whole of it sounds at full loudness where letting go confirms. A confirmed slide lets it ring
- * out; a slide given up fades quickly.
+ * out under a chime; a slide given up fades quickly.
  */
 export const SlideButton = ({
   children,
@@ -87,8 +84,8 @@ export const SlideButton = ({
     setStage('confirmed');
     onConfirm();
   };
-  const silence = (seconds: number) => {
-    sound.current?.release(seconds);
+  const silence = (how: 'confirm' | 'cancel') => {
+    sound.current?.[how]();
     sound.current = undefined;
   };
 
@@ -98,7 +95,7 @@ export const SlideButton = ({
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
     setDrag({ from: event.clientX, max, offset: 0 });
     if (chord !== undefined) {
-      silence(CANCEL_SECONDS);
+      silence('cancel');
       // Started here, in the gesture, which is when a browser lets a page make sound.
       sound.current = startChord(chord, THRESHOLD);
       sound.current.setProgress(0);
@@ -114,12 +111,12 @@ export const SlideButton = ({
     if (drag === undefined) return;
     setDrag(undefined);
     const confirmed = drag.offset >= drag.max * THRESHOLD;
-    silence(confirmed ? RELEASE_SECONDS : CANCEL_SECONDS);
+    silence(confirmed ? 'confirm' : 'cancel');
     if (confirmed) confirm();
   };
   const onPointerCancel = () => {
     setDrag(undefined);
-    silence(CANCEL_SECONDS);
+    silence('cancel');
   };
   // Keyboards cannot slide; the right arrow or End is the deliberate equivalent, with the whole
   // chord at once.
@@ -128,7 +125,7 @@ export const SlideButton = ({
     if (chord !== undefined) {
       const player = startChord(chord, THRESHOLD);
       player.setProgress(1);
-      player.release(RELEASE_SECONDS);
+      player.confirm();
     }
     confirm();
   };
