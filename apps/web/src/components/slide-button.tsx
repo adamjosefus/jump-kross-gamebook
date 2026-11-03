@@ -1,6 +1,7 @@
 import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
+import { hapticLight, hapticStrong } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
 /** Part of the track the thumb has to travel before letting go confirms. */
@@ -17,22 +18,14 @@ const Label = ({ children }: { readonly children: ReactNode }) => (
   </span>
 );
 
-const TargetArrow = ({ visible }: { readonly visible: boolean }) => (
-  <IconArrowRight
-    className={cn(
-      'absolute top-1/2 right-5 size-5 -translate-y-1/2 transition-opacity duration-150',
-      !visible && 'opacity-0',
-    )}
-  />
-);
-
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
  * never made by a stray tap. While sliding, the thumb is as high as the track and grows until it
  * fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
  * when it is enabled again. The label is always one line in the middle of the track and stays
  * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb. A touch
- * swaps the thumb's chevron for an arrow at the end of the track, where the slide leads.
+ * hides the thumb's chevron; the arrow at the end of the track is clipped the same way, so the
+ * thumb uncovers it only when it gets there.
  */
 export const SlideButton = ({
   children,
@@ -52,6 +45,8 @@ export const SlideButton = ({
     readonly offset: number;
   }>();
   const [stage, setStage] = useState<Stage>('idle');
+  // So the click at the end comes once per arrival, not on every move past the threshold.
+  const atEnd = useRef(false);
   // Waits for the move to start and to finish; then the thumb can return.
   if (stage === 'confirmed' && disabled) setStage('pending');
   if (stage === 'pending' && !disabled) setStage('idle');
@@ -69,10 +64,16 @@ export const SlideButton = ({
     event.currentTarget.setPointerCapture(event.pointerId);
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
     setDrag({ from: event.clientX, max, offset: 0 });
+    atEnd.current = false;
+    hapticLight();
   };
   const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
-    if (drag !== undefined)
-      setDrag({ ...drag, offset: Math.min(Math.max(event.clientX - drag.from, 0), drag.max) });
+    if (drag === undefined) return;
+    const offset = Math.min(Math.max(event.clientX - drag.from, 0), drag.max);
+    setDrag({ ...drag, offset });
+    const arrived = offset >= drag.max * THRESHOLD;
+    if (arrived && !atEnd.current) hapticStrong();
+    atEnd.current = arrived;
   };
   const onPointerUp = () => {
     if (drag === undefined) return;
@@ -81,8 +82,10 @@ export const SlideButton = ({
   };
   // Keyboards cannot slide; the right arrow or End is the deliberate equivalent.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if ((event.key === 'ArrowRight' || event.key === 'End') && !disabled && stage === 'idle')
+    if ((event.key === 'ArrowRight' || event.key === 'End') && !disabled && stage === 'idle') {
+      hapticStrong();
       confirm();
+    }
   };
 
   const active = drag !== undefined || stage !== 'idle';
@@ -99,7 +102,6 @@ export const SlideButton = ({
       )}
     >
       <Label>{children}</Label>
-      <TargetArrow visible={active} />
       <button
         type='button'
         aria-label='Posuňte doprava pro potvrzení'
@@ -132,7 +134,7 @@ export const SlideButton = ({
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
       >
         <Label>{children}</Label>
-        <TargetArrow visible={active} />
+        <IconArrowRight className='absolute top-1/2 right-5 size-5 -translate-y-1/2' />
       </div>
     </div>
   );
