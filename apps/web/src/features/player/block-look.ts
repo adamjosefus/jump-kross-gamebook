@@ -8,6 +8,10 @@ import type { Theme } from '@gamebook/core';
 export const OPTICAL_CENTER =
   "flex flex-col before:flex-[2] before:content-[''] after:flex-[3] after:content-['']";
 
+/** The picture above a block's text: as wide as the block, but never taking the whole screen. */
+export const BLOCK_SVG =
+  'mb-6 [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-h-[35svh] [&>svg]:max-w-full';
+
 /** Look of the block around the text; its typography comes from `StoryText`. */
 export const THEME_BOX: Readonly<Record<Theme, string>> = {
   default: '',

@@ -5,6 +5,7 @@ import {
   type ScanChoice,
   type Story,
   type StoryNode,
+  type Team,
   type Theme,
 } from './story.ts';
 import type { NodeType, State, Value } from './types.ts';
@@ -23,6 +24,7 @@ export interface RenderedChoice {
 
 export interface RenderedScreen {
   readonly theme: Theme;
+  readonly svg?: string;
   readonly content: string;
 }
 
@@ -61,8 +63,8 @@ type AnyScan = ScanChoice<State, string>;
 export const nodeType = (node: AnyNode): NodeType =>
   node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
 
-export const blocksOf = (node: AnyNode, state: State): readonly Block[] =>
-  (typeof node.blocks === 'function' ? node.blocks(state) : node.blocks).filter(
+export const blocksOf = (node: AnyNode, state: State, team: Team): readonly Block[] =>
+  (typeof node.blocks === 'function' ? node.blocks(state, team) : node.blocks).filter(
     (block): block is Block => block !== false && block !== null && block !== undefined,
   );
 
@@ -79,11 +81,18 @@ export const mergeState = (state: State, changes: Partial<State> | undefined): S
 const screenOf = (block: Block): RenderedScreen =>
   typeof block === 'string'
     ? { theme: 'default', content: dedent(block) }
-    : { theme: block.theme ?? 'default', content: dedent(block.content) };
+    : {
+        theme: block.theme ?? 'default',
+        ...(block.svg === undefined ? {} : { svg: block.svg }),
+        content: dedent(block.content),
+      };
 
 /** Every screen of the node with its content dedented. */
-export const screensOf = (node: AnyNode, state: State): readonly RenderedScreen[] =>
-  blocksOf(node, state).map(screenOf);
+export const screensOf = (node: AnyNode, state: State, team: Team): readonly RenderedScreen[] =>
+  blocksOf(node, state, team).map(screenOf);
+
+/** The team to show content with where no real one plays, as in previews and test runs. */
+export const sampleTeam = (story: Story): Team => story.teams[0] ?? { id: 0, name: 'Tým' };
 
 /** Screens shown before login. */
 export const introScreens = (story: Story): readonly RenderedScreen[] => story.intro.map(screenOf);
@@ -120,13 +129,17 @@ export const availableScans = (
 ): readonly { readonly scan: AnyScan; readonly index: number }[] =>
   offered(node.scans ?? [], state).map(({ transition, index }) => ({ scan: transition, index }));
 
-export const renderNode = (story: Story, position: Position): RenderedNode | undefined => {
+export const renderNode = (
+  story: Story,
+  position: Position,
+  team: Team,
+): RenderedNode | undefined => {
   const node = story.nodes[position.node];
   if (node === undefined) return undefined;
   return {
     id: position.node,
     type: nodeType(node),
-    screens: screensOf(node, position.state),
+    screens: screensOf(node, position.state, team),
     choices: availableChoices(node, position.state).map(({ choice, index }) => ({
       index,
       label: choice.label,

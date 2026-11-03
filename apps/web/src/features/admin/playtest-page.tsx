@@ -78,7 +78,9 @@ const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
   const next = await api((client) =>
     client.admin.playtest({
       payload: {
-        ...(from.intro === true ? {} : { position: { node: from.node, state: from.state } }),
+        ...(from.intro === true
+          ? {}
+          : { position: { node: from.node, state: from.state }, team: from.team.id }),
         ...(move === undefined ? {} : { move }),
       },
     }),
@@ -102,6 +104,7 @@ const replaySteps = async (from: Step, tokens: readonly string[]): Promise<reado
 
 const introStep = (intro: PlayerIntro): Step => ({
   intro: true,
+  team: { id: 0, name: '' },
   node: 'Úvod',
   state: {},
   view: { ...intro, id: 'intro', type: 'passage', choices: [], scan: true, scans: [] },
@@ -332,7 +335,9 @@ export const PlaytestPage = () => {
         <div className='flex min-w-0 flex-1 flex-col gap-6 text-sm'>
           {current !== undefined && current.intro !== true && (
             <section className='flex flex-col gap-2'>
-              <h2 className='font-medium'>Stav</h2>
+              <h2 className='font-medium'>Tým</h2>
+              <p>{current.team.name}</p>
+              <h2 className='mt-4 font-medium'>Stav</h2>
               <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
                 {Object.entries(current.state).map(([key, value]) => (
                   <div key={key} className='contents'>

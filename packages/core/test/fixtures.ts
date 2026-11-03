@@ -66,7 +66,7 @@ export const SAMPLE = defineStory<State>()({
         },
       ],
     },
-    C1: { end: true, blocks: ['Prohráli jste.'] },
+    C1: { end: true, blocks: (_state, team) => [`Prohráli jste, týme ${team.name}.`] },
     C2: { end: true, blocks: ['Vyhráli jste.'] },
   },
 });

@@ -46,6 +46,23 @@ describe('validateStory', () => {
     );
   });
 
+  it('checks the content for every team', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: (_state, team) => [team.id === 1 && 'Jen pro Vlky'],
+          choices: [{ label: 'Dál', goto: 'B' }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(validateStory(story)).toEqual(['Uzel A nemá ve stavu {"n":0} žádný obsah.']);
+  });
+
   it('reports unreachable nodes and choices nobody can take', () => {
     const story = define({
       teams: { 1: 'Tým' },
@@ -149,6 +166,30 @@ describe('validateStory', () => {
       'Uzel A má prázdnou obrazovku č. 2.',
       'Uzel A má prázdnou obrazovku č. 3.',
       'Uzel B nemá ve stavu {"n":0} žádný obsah.',
+    ]);
+  });
+
+  it('reports an svg that is not one svg element', () => {
+    const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: [{ svg: 'obrázek.svg', content: 'Úvod' }],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: [
+            { svg, content: 'A' },
+            { svg: `\n  ${svg}\n`, content: 'B' },
+            { svg: '<svg>', content: 'C' },
+          ],
+          end: true,
+        },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Úvod má neplatné svg na obrazovce č. 1.',
+      'Uzel A má neplatné svg na obrazovce č. 3.',
     ]);
   });
 

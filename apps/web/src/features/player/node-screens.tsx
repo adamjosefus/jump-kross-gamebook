@@ -6,7 +6,7 @@ import { ActionButton } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
 import { cn } from '@/lib/utils';
 
-import { OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
+import { BLOCK_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen } from './qr-scanner';
@@ -124,17 +124,21 @@ export const NodeScreens = ({
         {/* The block sits at the optical center of the space between the top and the buttons. */}
         {screen !== undefined && (
           <div className={cn('flex-1', OPTICAL_CENTER)}>
-            <VisitedStoryText
-              block={`${visitScope}/${node.id}/${index}`}
-              onRead={onRead}
-              content={screen.content}
-              theme={theme}
-              className={THEME_BOX[theme]}
-              instant={shown}
-              onRevealed={() => {
-                if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
-              }}
-            />
+            <div className={THEME_BOX[theme]}>
+              {screen.svg !== undefined && (
+                <div className={BLOCK_SVG} dangerouslySetInnerHTML={{ __html: screen.svg }} />
+              )}
+              <VisitedStoryText
+                block={`${visitScope}/${node.id}/${index}`}
+                onRead={onRead}
+                content={screen.content}
+                theme={theme}
+                instant={shown}
+                onRevealed={() => {
+                  if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+                }}
+              />
+            </div>
           </div>
         )}
 

@@ -45,6 +45,12 @@
   ],
   "overrides": [
     {
+      "files": ["packages/story/src/story.ts"],
+      "rules": {
+        "no-irregular-whitespace": "off"
+      }
+    },
+    {
       "files": ["scripts/**"],
       "rules": {
         "no-console": "off"

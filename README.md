@@ -52,9 +52,10 @@ export const story = defineStory<State>()({
     },
     A1: {
       // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko „Další“.
-      blocks: (s) => [
-        `Máte ${s.gold} zlaťáků.`,
-        s.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
+      // Funkce dostane stav a tým (`team.id`, `team.name`); v `intro` tým ještě není.
+      blocks: (state, team) => [
+        `Tým ${team.name} má ${state.gold} zlaťáků.`,
+        state.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
         'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
       ],
       // Titulek a text obrazovky skeneru; bez nich se ukážou výchozí.
