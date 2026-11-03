@@ -26,6 +26,7 @@ export interface RenderedScreen {
   readonly theme: Theme;
   readonly svg?: string;
   readonly content: string;
+  readonly next?: string;
 }
 
 /** A node resolved for one team: blocks evaluated, hidden choices removed. */
@@ -85,6 +86,7 @@ const screenOf = (block: Block): RenderedScreen =>
         theme: block.theme ?? 'default',
         ...(block.svg === undefined ? {} : { svg: block.svg }),
         content: dedent(block.content),
+        ...(block.next === undefined ? {} : { next: block.next }),
       };
 
 /** Every screen of the node with its content dedented. */

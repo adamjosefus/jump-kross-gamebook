@@ -55,7 +55,8 @@ export const story = defineStory<State>()({
       // Funkce dostane stav a tým (`team.id`, `team.name`); v `intro` tým ještě není.
       blocks: (state, team) => [
         `Tým ${team.name} má ${state.gold} zlaťáků.`,
-        state.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…' }, // false se vynechá
+        // false se vynechá; `next` je text tlačítka na další obrazovku, jinak „Další“
+        state.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…', next: 'Dočíst dopis' },
         'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
       ],
       // Titulek a text obrazovky skeneru; bez nich se ukážou výchozí.

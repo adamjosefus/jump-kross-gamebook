@@ -33,3 +33,19 @@ const meta = {
 export default meta;
 
 export const WithSvg: StoryObj<typeof meta> = {};
+
+/** The first screen's button has the story's own text; without one it would say „Další“. */
+export const CustomNextButton: StoryObj<typeof meta> = {
+  args: {
+    node: {
+      id: 'LETTER',
+      type: 'passage',
+      scan: false,
+      choices: [{ index: 0, label: 'Vyrazit na cestu' }],
+      screens: [
+        { theme: 'default', content: 'Na stole leží zapečetěný dopis.', next: 'Otevřít dopis' },
+        { theme: 'letter', content: '*Milí hledači,* poklad je blízko.' },
+      ],
+    },
+  },
+};

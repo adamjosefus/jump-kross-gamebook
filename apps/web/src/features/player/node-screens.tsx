@@ -156,7 +156,7 @@ export const NodeScreens = ({
                 icon={<IconArrowRight className='size-5' />}
                 onClick={() => go(index + 1)}
               >
-                Další
+                {screen?.next ?? 'Další'}
               </ActionButton>
             ) : node.type === 'end' ? (
               <p className='flex items-center justify-center gap-2'>
