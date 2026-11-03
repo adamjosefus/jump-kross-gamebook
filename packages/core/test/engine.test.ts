@@ -73,6 +73,19 @@ describe('engine', () => {
     ]);
   });
 
+  it('passes the text of the next button on', () => {
+    const texts = defineStory<{ n: number }>()({
+      teams: { 1: 'Tým' },
+      intro: [{ content: 'Úvod', next: 'Začít' }, 'Pravidla'],
+      locations: {},
+      nodes: { A: { initialState: { n: 0 }, end: true, blocks: ['A'] } },
+    });
+    expect(introScreens(texts)).toEqual([
+      { theme: 'default', content: 'Úvod', next: 'Začít' },
+      { theme: 'default', content: 'Pravidla' },
+    ]);
+  });
+
   it('gives blocks the team, each team its own text', () => {
     const position = { node: 'C1', state: start.state };
     expect(renderNode(story, position, VLCI)!.screens[0]!.content).toBe(

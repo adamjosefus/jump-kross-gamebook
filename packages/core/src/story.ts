@@ -13,6 +13,12 @@ export interface Screen {
    */
   readonly svg?: string;
   readonly content: string;
+  /**
+   * Text of the button leading from this screen to the next one; when missing or empty, it is a
+   * round button with only an arrow. The last screen of a node has such a button only when a scan
+   * follows.
+   */
+  readonly next?: string;
 }
 
 /** A plain string is a markdown screen in the default theme. */

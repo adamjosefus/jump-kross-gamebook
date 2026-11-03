@@ -33,3 +33,35 @@ const meta = {
 export default meta;
 
 export const WithSvg: StoryObj<typeof meta> = {};
+
+/** No text in the story, missing or empty: a round button with only the arrow. */
+export const ArrowOnlyNextButton: StoryObj<typeof meta> = {
+  args: {
+    node: {
+      id: 'LETTER',
+      type: 'passage',
+      scan: false,
+      choices: [{ index: 0, label: 'Vyrazit na cestu' }],
+      screens: [
+        { theme: 'default', content: 'Na stole leží zapečetěný dopis.' },
+        { theme: 'letter', content: '*Milí hledači,* poklad je blízko.' },
+      ],
+    },
+  },
+};
+
+/** The first screen's button has the story's own text. */
+export const CustomNextButton: StoryObj<typeof meta> = {
+  args: {
+    node: {
+      id: 'LETTER',
+      type: 'passage',
+      scan: false,
+      choices: [{ index: 0, label: 'Vyrazit na cestu' }],
+      screens: [
+        { theme: 'default', content: 'Na stole leží zapečetěný dopis.', next: 'Otevřít dopis' },
+        { theme: 'letter', content: '*Milí hledači,* poklad je blízko.' },
+      ],
+    },
+  },
+};

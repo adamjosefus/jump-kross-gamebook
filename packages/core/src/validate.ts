@@ -170,6 +170,13 @@ const contentProblemsOf = (
             hasBadSvg(screen),
             `Uzel ${id} má neplatné svg na obrazovce č. ${index + 1}.`,
           ),
+          // After the last screen only a scan follows; buttons and the end have no „Další“.
+          ...problemIf(
+            screen.next !== undefined &&
+              index === screens.value.length - 1 &&
+              node.scans === undefined,
+            `Uzel ${id} má next „${screen.next}“ na poslední obrazovce, kde žádné takové tlačítko není.`,
+          ),
         ]),
       ]
     : [`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(screens.error)}`];

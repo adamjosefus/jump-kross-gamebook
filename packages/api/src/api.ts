@@ -72,6 +72,8 @@ export const PlayerScreen = Schema.Struct({
   theme: Theme,
   svg: Schema.optionalKey(Schema.String),
   content: Schema.String,
+  /** Text of the button to the next screen, when the story sets one. */
+  next: Schema.optionalKey(Schema.String),
 });
 export type PlayerScreen = typeof PlayerScreen.Type;
 

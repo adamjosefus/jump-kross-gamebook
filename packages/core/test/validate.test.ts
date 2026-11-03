@@ -46,6 +46,36 @@ describe('validateStory', () => {
     );
   });
 
+  it('reports a next button that would never show; an empty one is just an arrow', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: [{ content: 'Úvod', next: ' ' }],
+      locations: { 1: 'Místo' },
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: [
+            { content: 'A', next: 'Dál' },
+            { content: 'A2', next: 'Ke kódu' },
+          ],
+          scans: [{ location: 1, goto: 'B' }],
+        },
+        B: {
+          blocks: [
+            { content: 'B', next: ' ' },
+            { content: 'B2', next: 'Nikam' },
+          ],
+          choices: [{ label: 'Konec', goto: 'C' }],
+        },
+        C: { end: true, blocks: [{ content: 'C', next: 'Taky nikam' }] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel B má next „Nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
+      'Uzel C má next „Taky nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
+    ]);
+  });
+
   it('checks the content for every team', () => {
     const story = define({
       teams: { 1: 'Vlci', 2: 'Lišky' },
