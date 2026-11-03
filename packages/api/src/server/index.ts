@@ -35,7 +35,7 @@ export const makeHandler = (
   );
 
 /** Handler configured from environment variables; without `DATABASE_URL` it keeps data in memory. */
-export const handlerFromEnv = (env: Record<string, string | undefined>) => {
+export const handlerFromEnv = (env: Readonly<Record<string, string | undefined>>) => {
   const url = env['DATABASE_URL'];
   const store = url === undefined || url === '' ? MemoryStoreLayer() : PostgresStoreLayer(url);
   return makeHandler(configFromEnv(env), store);

@@ -61,17 +61,20 @@ type AnyScan = ScanChoice<State, string>;
 export const nodeType = (node: AnyNode): NodeType =>
   node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
 
-export const blocksOf = (node: AnyNode, state: State): Block[] =>
+export const blocksOf = (node: AnyNode, state: State): readonly Block[] =>
   (typeof node.blocks === 'function' ? node.blocks(state) : node.blocks).filter(
     (block): block is Block => block !== false && block !== null && block !== undefined,
   );
 
-export const mergeState = (state: State, changes: Partial<State> | undefined): State => {
-  const next: Record<string, Value> = { ...state };
-  for (const [key, value] of Object.entries(changes ?? {}))
-    if (value !== undefined) next[key] = value;
-  return next;
-};
+/** Merges `changes` into `state`; undefined values leave the state as it is. */
+export const mergeState = (state: State, changes: Partial<State> | undefined): State => ({
+  ...state,
+  ...Object.fromEntries(
+    Object.entries(changes ?? {}).filter(
+      (entry): entry is [string, Value] => entry[1] !== undefined,
+    ),
+  ),
+});
 
 const screenOf = (block: Block): RenderedScreen =>
   typeof block === 'string'
@@ -79,11 +82,11 @@ const screenOf = (block: Block): RenderedScreen =>
     : { theme: block.theme ?? 'default', content: dedent(block.content) };
 
 /** Every screen of the node with its content dedented. */
-export const screensOf = (node: AnyNode, state: State): RenderedScreen[] =>
+export const screensOf = (node: AnyNode, state: State): readonly RenderedScreen[] =>
   blocksOf(node, state).map(screenOf);
 
 /** Screens shown before login. */
-export const introScreens = (story: Story): RenderedScreen[] => story.intro.map(screenOf);
+export const introScreens = (story: Story): readonly RenderedScreen[] => story.intro.map(screenOf);
 
 /** The node every team starts at: the first one with `initialState`. */
 export const startNode = (story: Story): string | undefined =>
@@ -104,14 +107,17 @@ const offered = <T extends AnyChoice | AnyScan>(transitions: readonly T[], state
 export const availableChoices = (
   node: AnyNode,
   state: State,
-): { choice: AnyChoice; index: number }[] =>
+): readonly { readonly choice: AnyChoice; readonly index: number }[] =>
   offered(node.choices ?? [], state).map(({ transition, index }) => ({
     choice: transition,
     index,
   }));
 
 /** QR choices offered in `state`, with their index in `scans`. */
-export const availableScans = (node: AnyNode, state: State): { scan: AnyScan; index: number }[] =>
+export const availableScans = (
+  node: AnyNode,
+  state: State,
+): readonly { readonly scan: AnyScan; readonly index: number }[] =>
   offered(node.scans ?? [], state).map(({ transition, index }) => ({ scan: transition, index }));
 
 export const renderNode = (story: Story, position: Position): RenderedNode | undefined => {
@@ -148,7 +154,9 @@ export const applyChoice = (story: Story, position: Position, index: number): Mo
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (node.end === true) return { ok: false, error: 'finished' };
   if (node.scans !== undefined) return { ok: false, error: 'scan-required' };
-  const available = availableChoices(node, position.state).find((c) => c.index === index);
+  const available = availableChoices(node, position.state).find(
+    (candidate) => candidate.index === index,
+  );
   if (available === undefined) return { ok: false, error: 'unavailable-choice' };
   return take(story, position, available.choice);
 };

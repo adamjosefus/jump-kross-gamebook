@@ -57,7 +57,7 @@ describe('validateStory', () => {
           blocks: ['A'],
           choices: [
             { label: 'Dál', goto: 'B' },
-            { label: 'Nikdy', goto: 'C', when: (s) => s.n > 5 },
+            { label: 'Nikdy', goto: 'C', when: (state) => state.n > 5 },
           ],
         },
         B: { end: true, blocks: ['B'] },
@@ -82,14 +82,14 @@ describe('validateStory', () => {
           initialState: { n: 0 },
           blocks: ['A'],
           choices: [
-            { label: 'Plus', goto: 'B', nextState: (s) => ({ n: s.n + 1 }) },
+            { label: 'Plus', goto: 'B', nextState: (state) => ({ n: state.n + 1 }) },
             { label: 'Rovně', goto: 'B' },
           ],
         },
         B: {
-          blocks: (s) => [`n = ${s.n}`],
+          blocks: (state) => [`n = ${state.n}`],
           choices: [
-            { label: 'Odměna', goto: 'C', when: (s) => s.n > 0 },
+            { label: 'Odměna', goto: 'C', when: (state) => state.n > 0 },
             { label: 'Konec', goto: 'C' },
           ],
         },
@@ -109,8 +109,8 @@ describe('validateStory', () => {
           initialState: { n: 0 },
           blocks: ['A'],
           choices: [
-            { label: 'Jen s jedničkou', goto: 'B', when: (s) => s.n === 1 },
-            { label: 'Jindy', goto: 'B', when: (s) => s.n === 2 },
+            { label: 'Jen s jedničkou', goto: 'B', when: (state) => state.n === 1 },
+            { label: 'Jindy', goto: 'B', when: (state) => state.n === 2 },
           ],
         },
         B: { end: true, blocks: ['B'] },
@@ -139,7 +139,7 @@ describe('validateStory', () => {
             { label: 'Dál', goto: 'C' },
           ],
         },
-        B: { end: true, blocks: (s) => [s.n > 0 && 'nikdy'] },
+        B: { end: true, blocks: (state) => [state.n > 0 && 'nikdy'] },
         C: { end: true, blocks: ['C'] },
       },
     });
@@ -213,7 +213,7 @@ describe('validateStory', () => {
           initialState: { n: 0 },
           blocks: ['A'],
           choices: [
-            { label: 'Znovu', goto: 'A', nextState: (s) => ({ n: s.n + 1 }) },
+            { label: 'Znovu', goto: 'A', nextState: (state) => ({ n: state.n + 1 }) },
             { label: 'Konec', goto: 'B' },
           ],
         },

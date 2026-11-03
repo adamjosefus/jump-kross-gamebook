@@ -39,27 +39,32 @@ import { copySvg, fileName, saveBlob } from './download';
 
 type Format = 'svg' | PaperFormat;
 
-const FORMATS: { value: Format; label: string }[] = [
+interface Option<T extends string> {
+  readonly value: T;
+  readonly label: string;
+}
+
+const FORMATS: readonly Option<Format>[] = [
   { value: 'svg', label: 'SVG' },
   { value: 'A4', label: 'PDF A4' },
   { value: 'A5', label: 'PDF A5' },
-];
+] as const;
 
-const SIDES: { value: ViewerSide; label: string }[] = [
+const SIDES: readonly Option<ViewerSide>[] = [
   { value: 'bottom', label: 'U spodního okraje' },
   { value: 'top', label: 'U horního okraje' },
   { value: 'left', label: 'U levého okraje' },
   { value: 'right', label: 'U pravého okraje' },
-];
+] as const;
 
 const isSide = (value: string): value is ViewerSide => SIDES.some((side) => side.value === value);
 
 const MAX_DISTANCE = 20;
 
-const NOISE_SHAPES: { value: NoiseShape; label: string }[] = [
+const NOISE_SHAPES: readonly Option<NoiseShape>[] = [
   { value: 'square', label: 'Čtverec' },
   { value: 'circle', label: 'Kruh' },
-];
+] as const;
 
 const MAX_NOISE = 24;
 
@@ -75,9 +80,9 @@ const Segmented = <T extends string>({
   options,
   onChange,
 }: {
-  value: T;
-  options: readonly { value: T; label: string }[];
-  onChange: (value: T) => void;
+  readonly value: T;
+  readonly options: readonly Option<T>[];
+  readonly onChange: (value: T) => void;
 }) => (
   <div className='flex rounded-lg border p-0.5'>
     {options.map((option) => (
@@ -100,9 +105,9 @@ const Checkbox = ({
   onChange,
   children,
 }: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  children: React.ReactNode;
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+  readonly children: React.ReactNode;
 }) => (
   <label className='flex items-center gap-2 text-sm'>
     <input
@@ -125,9 +130,9 @@ export const ExportDialog = ({
   open,
   onOpenChange,
 }: {
-  entry: PrintableCode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  readonly entry: PrintableCode;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }) => {
   const [format, setFormat] = useState<Format>('svg');
   const [warp, setWarp] = useState(false);

@@ -23,8 +23,11 @@ export interface Paragraph {
   readonly continued?: true;
 }
 
-const inline = (nodes: readonly PhrasingContent[], marks: readonly Mark[]): (Run | 'break')[] =>
-  nodes.flatMap((node): (Run | 'break')[] => {
+const inline = (
+  nodes: readonly PhrasingContent[],
+  marks: readonly Mark[],
+): readonly (Run | 'break')[] =>
+  nodes.flatMap((node): readonly (Run | 'break')[] => {
     switch (node.type) {
       case 'text':
         return [{ text: node.value, marks }];
@@ -50,23 +53,25 @@ const lines = (
   nodes: readonly PhrasingContent[],
   kind: ParagraphKind,
   depth: number,
-): Paragraph[] => {
-  const groups: Run[][] = [[]];
-  for (const item of inline(nodes, [])) {
-    if (item === 'break') groups.push([]);
-    else groups.at(-1)!.push(item);
-  }
-  return groups
+): readonly Paragraph[] =>
+  inline(nodes, [])
+    // A break starts a new group; a run joins the last one.
+    .reduce<readonly (readonly Run[])[]>(
+      (groups, item) =>
+        item === 'break'
+          ? [...groups, []]
+          : [...groups.slice(0, -1), [...(groups.at(-1) ?? []), item]],
+      [[]],
+    )
     .filter((runs) => runs.some((run) => run.text.trim() !== ''))
     .map((runs, index) => ({ kind, runs, depth, ...(index === 0 ? {} : { continued: true }) }));
-};
 
 const blocks = (
   nodes: readonly (RootContent | BlockContent | DefinitionContent)[],
   depth: number,
   quote: boolean,
-): Paragraph[] =>
-  nodes.flatMap((node): Paragraph[] => {
+): readonly Paragraph[] =>
+  nodes.flatMap((node): readonly Paragraph[] => {
     switch (node.type) {
       case 'heading':
         return lines(
@@ -93,5 +98,5 @@ const blocks = (
  * The Markdown of one screen as paragraphs for Pretext: headings, paragraphs, quotes and list
  * items with bold, italic and code. Links keep only their text; images and tables are left out.
  */
-export const paragraphsOf = (markdown: string): Paragraph[] =>
+export const paragraphsOf = (markdown: string): readonly Paragraph[] =>
   blocks(fromMarkdown(markdown).children, 0, false);

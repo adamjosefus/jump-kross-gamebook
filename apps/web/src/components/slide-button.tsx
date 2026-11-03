@@ -40,13 +40,17 @@ export const SlideButton = ({
   disabled = false,
   className,
 }: {
-  children: ReactNode;
-  onConfirm: () => void;
-  disabled?: boolean;
-  className?: string;
+  readonly children: ReactNode;
+  readonly onConfirm: () => void;
+  readonly disabled?: boolean;
+  readonly className?: string;
 }) => {
   const track = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ from: number; max: number; offset: number }>();
+  const [drag, setDrag] = useState<{
+    readonly from: number;
+    readonly max: number;
+    readonly offset: number;
+  }>();
   const [stage, setStage] = useState<Stage>('idle');
   // Waits for the move to start and to finish; then the thumb can return.
   if (stage === 'confirmed' && disabled) setStage('pending');

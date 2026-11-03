@@ -74,18 +74,32 @@ const fromBottom = (angle: number, distance: number) => {
   const theta = radians(angle);
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
-  return ([a, b]: Point): Point => {
-    const depth = distance * cos - b * sin;
-    return [(distance * cos * a) / depth, (distance * b) / depth];
+  return ([pointX, pointY]: Point): Point => {
+    const depth = distance * cos - pointY * sin;
+    return [(distance * cos * pointX) / depth, (distance * pointY) / depth];
   };
 };
 
+interface Frame {
+  readonly to: (point: Point) => Point;
+  readonly back: (point: Point) => Point;
+}
+
 /** Rotations into the frame of a viewer at the bottom edge and back. */
-const FRAMES: Record<ViewerSide, { to: (p: Point) => Point; back: (p: Point) => Point }> = {
-  bottom: { to: (p) => p, back: (p) => p },
-  top: { to: ([a, b]) => [-a, -b], back: ([a, b]) => [-a, -b] },
-  left: { to: ([a, b]) => [-b, a], back: ([a, b]) => [b, -a] },
-  right: { to: ([a, b]) => [b, -a], back: ([a, b]) => [-b, a] },
+const FRAMES: Readonly<Record<ViewerSide, Frame>> = {
+  bottom: { to: (point) => point, back: (point) => point },
+  top: {
+    to: ([pointX, pointY]) => [-pointX, -pointY],
+    back: ([pointX, pointY]) => [-pointX, -pointY],
+  },
+  left: {
+    to: ([pointX, pointY]) => [-pointY, pointX],
+    back: ([pointX, pointY]) => [pointY, -pointX],
+  },
+  right: {
+    to: ([pointX, pointY]) => [pointY, -pointX],
+    back: ([pointX, pointY]) => [-pointY, pointX],
+  },
 };
 
 export interface WarpedQr {
@@ -118,15 +132,17 @@ export const warpedQr = (
   const project = fromBottom(Math.min(Math.max(angle, 0), MAX_ANGLE), distance);
   // Module coordinates (y down, origin top left) to the sheet, in modules (y down), mirrored first.
   const map = (column: number, row: number): Point => {
-    const x = mirrorX ? size - column : column;
-    const y = mirrorY ? size - row : row;
-    const [a, b] = frame.back(project(frame.to([(x - size / 2) / unit, (size / 2 - y) / unit])));
-    return [a * unit, -b * unit];
+    const mirroredColumn = mirrorX ? size - column : column;
+    const mirroredRow = mirrorY ? size - row : row;
+    const [sheetX, sheetY] = frame.back(
+      project(frame.to([(mirroredColumn - size / 2) / unit, (size / 2 - mirroredRow) / unit])),
+    );
+    return [sheetX * unit, -sheetY * unit];
   };
   const box = (from: number, to: number) => {
     const corners = [map(from, from), map(to, from), map(to, to), map(from, to)];
-    const xs = corners.map(([x]) => x);
-    const ys = corners.map(([, y]) => y);
+    const xs = corners.map(([cornerX]) => cornerX);
+    const ys = corners.map(([, cornerY]) => cornerY);
     return {
       left: Math.min(...xs),
       top: Math.min(...ys),
@@ -142,23 +158,23 @@ export const warpedQr = (
     codeArea.at + codeArea.quietZone,
     codeArea.at + codeArea.size - codeArea.quietZone,
   );
-  const cx = (code.left + code.right) / 2;
-  const cy = (code.top + code.bottom) / 2;
-  const halfWidth = Math.max(cx - zone.left, zone.right - cx);
-  const halfHeight = Math.max(cy - zone.top, zone.bottom - cy);
-  const left = cx - halfWidth;
-  const right = cx + halfWidth;
-  const top = cy - halfHeight;
-  const bottom = cy + halfHeight;
-  const place = ([x, y]: Point): Point => [x - left, y - top];
-  const point = (p: Point) => {
-    const [x, y] = place(p);
-    return `${round(x)} ${round(y)}`;
+  const centreX = (code.left + code.right) / 2;
+  const centreY = (code.top + code.bottom) / 2;
+  const halfWidth = Math.max(centreX - zone.left, zone.right - centreX);
+  const halfHeight = Math.max(centreY - zone.top, zone.bottom - centreY);
+  const left = centreX - halfWidth;
+  const right = centreX + halfWidth;
+  const top = centreY - halfHeight;
+  const bottom = centreY + halfHeight;
+  const place = ([pointX, pointY]: Point): Point => [pointX - left, pointY - top];
+  const point = (sheetPoint: Point) => {
+    const [placedX, placedY] = place(sheetPoint);
+    return `${round(placedX)} ${round(placedY)}`;
   };
   const path = runs
     .map(
-      ({ x, y, length }) =>
-        `M${point(map(x, y))}L${point(map(x + length, y))}L${point(map(x + length, y + 1))}L${point(map(x, y + 1))}Z`,
+      ({ column, row, length }) =>
+        `M${point(map(column, row))}L${point(map(column + length, row))}L${point(map(column + length, row + 1))}L${point(map(column, row + 1))}Z`,
     )
     .join('');
   return {
@@ -170,7 +186,7 @@ export const warpedQr = (
   };
 };
 
-const SIDE_TEXT: Record<ViewerSide, string> = {
+const SIDE_TEXT: Readonly<Record<ViewerSide, string>> = {
   bottom: 'spodního',
   top: 'horního',
   left: 'levého',
@@ -203,11 +219,11 @@ export const viewerHint = (
 /** Self-contained SVG file of the mirrored and stretched code. */
 export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis, style?: QrStyle): string => {
   const { width, height, path } = warpedQr(value, anamorphosis, style);
-  const w = round(width);
-  const h = round(height);
+  const viewWidth = round(width);
+  const viewHeight = round(height);
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${round(w * 10)}" height="${round(h * 10)}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewWidth} ${viewHeight}" width="${round(viewWidth * 10)}" height="${round(viewHeight * 10)}">` +
     `<title>${escapeAttribute(`${value} – ${viewerHint(anamorphosis)}`)}</title>` +
-    `<rect width="${w}" height="${h}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`
+    `<rect width="${viewWidth}" height="${viewHeight}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`
   );
 };

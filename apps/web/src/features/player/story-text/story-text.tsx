@@ -72,6 +72,7 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
 // -----------------------------------------------------------------------------------------------
 // Fonts
 
+// A cache shared by every text on the page, so it is filled in place.
 const loadedFonts = new Set<string>();
 
 /** How long to wait for the styles with the `@font-face` rules before measuring anyway. */
@@ -86,15 +87,20 @@ const isMeasurable = (font: string, sample: string) =>
   loadedFonts.has(font) && document.fonts.check(font, sample);
 
 /** Loads the font; no faces means the styles are not applied yet, so it tries again. */
-const loadFont = async (font: string, sample: string, isCancelled: () => boolean) => {
-  for (let retry = 0; retry < FACE_RETRIES && !isCancelled(); retry++) {
-    const faces = await document.fonts.load(font, sample);
-    if (faces.length > 0) {
-      loadedFonts.add(font);
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, FACE_RETRY_MS));
+const loadFont = async (
+  font: string,
+  sample: string,
+  isCancelled: () => boolean,
+  retry = 0,
+): Promise<void> => {
+  if (retry >= FACE_RETRIES || isCancelled()) return;
+  const faces = await document.fonts.load(font, sample);
+  if (faces.length > 0) {
+    loadedFonts.add(font);
+    return;
   }
+  await new Promise((resolve) => setTimeout(resolve, FACE_RETRY_MS));
+  return loadFont(font, sample, isCancelled, retry + 1);
 };
 
 /**
@@ -108,6 +114,7 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
   const ready = loaded === key || fonts.every((font) => isMeasurable(font, sample));
   useEffect(() => {
     if (ready) return undefined;
+    // Loading cannot be aborted, so the cleanup flags the effect as over instead.
     let cancelled = false;
     const isCancelled = () => cancelled;
     void Promise.all(fonts.map((font) => loadFont(font, sample, isCancelled))).then(() => {
@@ -198,7 +205,7 @@ const SPACE_AT_END = /[ \t\r\n]$/;
 const SPACES_AROUND = /^[ \t\r\n]+|[ \t\r\n]+$/g;
 const NON_BREAKING_SPACES = /\u00A0/g;
 
-const itemsOf = (paragraph: Paragraph, type: ParagraphType): Item[] => {
+const itemsOf = (paragraph: Paragraph, type: ParagraphType): readonly Item[] => {
   const tokens = paragraph.runs.flatMap((run) => {
     const looks = runType(type, run.marks);
     return looks.padding > 0
@@ -222,7 +229,7 @@ const prepare = (
   paragraphs: readonly Paragraph[],
   theme: Theme,
   lightOnDark: boolean,
-): Prepared[] =>
+): readonly Prepared[] =>
   paragraphs.map((paragraph) => {
     const type = paragraphType(theme, paragraph.kind, lightOnDark);
     const items = itemsOf(paragraph, type);
@@ -246,14 +253,16 @@ const piecesOf = (
   fragment: RichInlineFragment,
   prepared: Prepared,
   next: () => number,
-): Piece[] => {
+): readonly Piece[] => {
   const { run, gap, glueGap } = prepared.items[fragment.itemIndex]!;
-  const pieces: Piece[] = [];
-  if (fragment.gapBefore > 0)
-    pieces.push({ space: ' ', run: prepared.items[fragment.gapItemIndex]?.run ?? run });
+  const space: readonly Piece[] =
+    fragment.gapBefore > 0
+      ? [{ space: ' ', run: prepared.items[fragment.gapItemIndex]?.run ?? run }]
+      : [];
   const text = run.padding > 0 ? fragment.text : fragment.text.replace(SPACES_AROUND, '');
-  if (text !== '') pieces.push({ text, run, gap, glueGap, code: run.padding > 0, index: next() });
-  return pieces;
+  const word: readonly Piece[] =
+    text === '' ? [] : [{ text, run, gap, glueGap, code: run.padding > 0, index: next() }];
+  return [...space, ...word];
 };
 
 const indentOf = (paragraph: Paragraph, type: ParagraphType) =>
@@ -271,19 +280,19 @@ const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
   const countLines = (width: number) => walkRichInlineLineRanges(inline, width, () => undefined);
   const lines = countLines(maxWidth);
   if (lines <= 1) return maxWidth;
-  let tooNarrow = 0;
-  let wide = maxWidth;
-  while (wide - tooNarrow > 1) {
+  // Halves the range between a width with more lines and one with as many, down to a pixel.
+  const narrow = (tooNarrow: number, wide: number): number => {
+    if (wide - tooNarrow <= 1) return wide;
     const middle = (wide + tooNarrow) / 2;
-    if (countLines(middle) === lines) wide = middle;
-    else tooNarrow = middle;
-  }
-  return wide;
+    return countLines(middle) === lines ? narrow(tooNarrow, middle) : narrow(middle, wide);
+  };
+  return narrow(0, maxWidth);
 };
 
 /** Narrowed only as much as it takes to bring more words to a short last line. */
 const prettyWidth = (inline: PreparedRichInline, maxWidth: number) => {
   const measure = (width: number) => {
+    // Pretext reports the lines through a callback, so the last one is kept as it comes.
     let lastLine = 0;
     const lines = walkRichInlineLineRanges(inline, width, (line) => {
       lastLine = line.width;
@@ -293,12 +302,15 @@ const prettyWidth = (inline: PreparedRichInline, maxWidth: number) => {
   const wide = measure(maxWidth);
   const longEnough = maxWidth / 3;
   if (wide.lines <= 1 || wide.lastLine >= longEnough) return maxWidth;
-  for (let width = maxWidth - 4; width > 0; width -= 4) {
+  // Four pixels narrower at a time, until the last line is long enough or a line is added.
+  const narrowed = (width: number): number => {
+    if (width <= 0) return maxWidth;
     const narrower = measure(width);
-    if (narrower.lines > wide.lines) break;
+    if (narrower.lines > wide.lines) return maxWidth;
     if (narrower.lastLine >= longEnough) return width;
-  }
-  return maxWidth;
+    return narrowed(width - 4);
+  };
+  return narrowed(maxWidth - 4);
 };
 
 const wrapWidth = (item: Prepared, available: number) => {
@@ -317,11 +329,14 @@ const justifyGapOf = (pieces: readonly Piece[], lineWidth: number, available: nu
 };
 
 const layOut = (prepared: readonly Prepared[], width: number) => {
+  // Words are numbered across the whole screen as they are laid out, so a counter is simpler
+  // than threading the count through the paragraphs and lines.
   let words = 0;
   const next = () => words++;
   const paragraphs = prepared.map((item): LaidOut => {
     const available = Math.max(width - indentOf(item.paragraph, item.type), 1);
-    const measured: { pieces: Piece[]; width: number }[] = [];
+    // Pretext reports the lines through a callback, so they are collected as they come.
+    const measured: { readonly pieces: readonly Piece[]; readonly width: number }[] = [];
     walkRichInlineLineRanges(item.inline, wrapWidth(item, available), (range) => {
       const line = materializeRichInlineLineRange(item.inline, range);
       measured.push({
@@ -363,15 +378,15 @@ export const StoryText = ({
   fast = false,
   onRevealed,
 }: {
-  content: string;
-  theme: Theme;
-  className?: string;
+  readonly content: string;
+  readonly theme: Theme;
+  readonly className?: string;
   /** Show every word at once, e.g. on a screen the player has seen already. */
-  instant?: boolean;
+  readonly instant?: boolean;
   /** Show the words very quickly, e.g. on a screen the player has visited a moment ago. */
-  fast?: boolean;
+  readonly fast?: boolean;
   /** Called once every word is fully visible. */
-  onRevealed?: () => void;
+  readonly onRevealed?: () => void;
 }) => {
   const { resolved } = useTheme();
   const lightOnDark = isAlwaysDark(theme) || resolved === 'dark';

@@ -5,7 +5,7 @@ const STORAGE_KEY = 'block-visits';
 const RECENT_MS = 10 * 60 * 1000;
 
 /** When each block was last visited; survives a reload, so it lives in the browser's storage. */
-const readVisits = (): Record<string, unknown> => {
+const readVisits = (): Readonly<Record<string, unknown>> => {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
     return typeof stored === 'object' && stored !== null ? { ...stored } : {};

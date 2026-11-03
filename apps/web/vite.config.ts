@@ -12,6 +12,8 @@ type NodeHandler = ReturnType<ApiServer['toNodeHandler']>;
  * `DATABASE_URL` the data lives in memory.
  */
 const apiDevServer = (): Plugin => {
+  // Lazily loaded once and dropped again on failure so the next request retries; a cache like this
+  // has to be reassigned.
   let handler: Promise<NodeHandler> | undefined;
   const load = async (server: ViteDevServer): Promise<NodeHandler> => {
     const env = {

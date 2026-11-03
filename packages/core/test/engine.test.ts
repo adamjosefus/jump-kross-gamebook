@@ -121,7 +121,7 @@ describe('engine', () => {
           blocks: ['A'],
           scans: [
             { location: 1, goto: 'B' },
-            { location: 2, goto: 'B', when: (s) => s.key },
+            { location: 2, goto: 'B', when: (state) => state.key },
           ],
         },
         B: { end: true, blocks: ['B'] },
@@ -141,13 +141,13 @@ describe('engine', () => {
       { theme: 'default', content: 'Pohodlně si nosil svoji červenou čepici.' },
       { theme: 'letter', content: 'Drahý poutníku…' },
     ]);
-    expect(red.choices.map((c) => c.label)).toEqual(['Bojovat', 'Koupit meč']);
+    expect(red.choices.map((choice) => choice.label)).toEqual(['Bojovat', 'Koupit meč']);
 
     const poor = { node: 'B1', state: { hatColor: 'green', gold: 80 } };
     expect(renderNode(story, poor)!.screens).toEqual([
       { theme: 'default', content: 'Pohodlně si nosil svoji chudou pokrývku hlavy.' },
     ]);
-    expect(renderNode(story, poor)!.choices.map((c) => c.label)).toEqual(['Bojovat']);
+    expect(renderNode(story, poor)!.choices.map((choice) => choice.label)).toEqual(['Bojovat']);
     expect(applyChoice(story, poor, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
   });
 
@@ -208,8 +208,8 @@ describe('graph', () => {
         nodes: {
           A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
           B: { blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
-          C: { end: true, blocks: (s) => [`n = ${s.n}`] },
-          D: { end: true, blocks: (s) => [`d = ${s.n}`] },
+          C: { end: true, blocks: (state) => [`n = ${state.n}`] },
+          D: { end: true, blocks: (state) => [`d = ${state.n}`] },
         },
       }),
     );

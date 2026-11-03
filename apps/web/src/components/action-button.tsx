@@ -12,8 +12,8 @@ export const ActionButton = ({
   ...props
 }: Readonly<
   Omit<ComponentProps<typeof Button>, 'size' | 'variant'> & {
-    icon: ReactNode;
-    iconSide?: 'start' | 'end';
+    readonly icon: ReactNode;
+    readonly iconSide?: 'start' | 'end';
   }
 >) => (
   <Button

@@ -15,6 +15,7 @@ afterAll(() => dispose());
 
 /** Minimal client with its own cookie jar, like one phone. */
 const device = () => {
+  // The jar is updated in place as cookies arrive, like a browser's.
   const jar = new Map<string, string>();
   return async (method: string, path: string, body?: unknown) => {
     const response = await handler(
@@ -22,7 +23,7 @@ const device = () => {
         method,
         headers: {
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-          cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+          cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
@@ -62,7 +63,10 @@ describe('api', () => {
 
   it('plays a test run without storing anything', async () => {
     const play = (body: unknown) => admin('POST', '/api/admin/playtest', body);
-    const at = (step: { node: string; state: unknown }) => ({ node: step.node, state: step.state });
+    const at = (step: { readonly node: string; readonly state: unknown }) => ({
+      node: step.node,
+      state: step.state,
+    });
     // From the intro a team's login code (or skipping it) leads to the start.
     const start = (await play({})).body;
     expect(start).toMatchObject({ node: 'A1', state: { gold: 100 }, view: { choices: [{}, {}] } });
@@ -85,7 +89,7 @@ describe('api', () => {
     );
     const b1 = (await play({ position: at(a2), move: { scan: 33 } })).body;
     expect(b1).toMatchObject({ node: 'B1', state: { gold: 130 } });
-    expect(b1.view.choices.map((c: { label: string }) => c.label)).toEqual([
+    expect(b1.view.choices.map((choice: { readonly label: string }) => choice.label)).toEqual([
       'Bojovat',
       'Koupit meč',
     ]);
@@ -103,14 +107,13 @@ describe('api', () => {
     ]);
     expect(before[0].node).toBeUndefined();
 
-    const codes: { kind: string; id: number; code: string }[] = (
-      await admin('GET', '/api/admin/codes')
-    ).body;
-    const login = codes.find((c) => c.kind === 'T')!.code;
-    const studna = codes.find((c) => c.kind === 'L' && c.id === 32)!.code;
+    const codes: readonly { readonly kind: string; readonly id: number; readonly code: string }[] =
+      (await admin('GET', '/api/admin/codes')).body;
+    const login = codes.find((entry) => entry.kind === 'T')!.code;
+    const studna = codes.find((entry) => entry.kind === 'L' && entry.id === 32)!.code;
     // Places come from the story; a valid code of a place it does not have is refused.
-    expect(codes.filter((c) => c.kind === 'L').map((c) => c.id)).toEqual([32, 33]);
-    expect(codes.filter((c) => c.kind === 'T').map((c) => c.id)).toEqual([1, 2]);
+    expect(codes.filter((entry) => entry.kind === 'L').map((entry) => entry.id)).toEqual([32, 33]);
+    expect(codes.filter((entry) => entry.kind === 'T').map((entry) => entry.id)).toEqual([1, 2]);
     const gone = await encodeQr(config.qrSecret, { kind: 'T', id: 3 });
     const sklep = await encodeQr(config.qrSecret, { kind: 'L', id: 34 });
     expect(studna).toBe(await encodeQr(config.qrSecret, { kind: 'L', id: 32 }));
@@ -183,7 +186,7 @@ describe('api', () => {
       state: { gold: 80 },
     });
     expect(overview.visits).toEqual({ A1: 1, A2: 1, B1: 1, C1: 1 });
-    expect(overview.log.map((e: { action: string }) => e.action)).toEqual([
+    expect(overview.log.map((entry: { readonly action: string }) => entry.action)).toEqual([
       'choice:0',
       'scan:32',
       'choice:1',

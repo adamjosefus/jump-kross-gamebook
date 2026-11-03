@@ -51,19 +51,23 @@ const transitionsOf = (story: Story, node: AnyNode) => [
   ...(node.scans ?? []).map((scan) => ({
     ...scan,
     // QR edges are labelled with the place, the team never sees a label for them.
-    label: story.locations.find((l) => l.id === scan.location)?.name ?? `Místo ${scan.location}`,
+    label:
+      story.locations.find((location) => location.id === scan.location)?.name ??
+      `Místo ${scan.location}`,
     location: scan.location,
   })),
 ];
 
 /** State on arrival at every node reachable from `start`, along the shortest path. */
-const arrivalStates = (story: Story, start: string): Map<string, State> => {
-  const states = new Map<string, State>();
+const arrivalStates = (story: Story, start: string): ReadonlyMap<string, State> => {
   const initial = story.nodes[start]?.initialState;
-  if (initial === undefined) return states;
-  states.set(start, initial);
+  if (initial === undefined) return new Map();
+  // Breadth-first search: the map and the queue are filled in place, an immutable version would
+  // copy both on every step.
+  const states = new Map([[start, initial]]);
   const queue = [start];
-  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+  // for...of reads the array's length on every step, so ids pushed while iterating are visited too.
+  for (const id of queue) {
     const state = states.get(id)!;
     for (const choice of transitionsOf(story, story.nodes[id]!)) {
       if (states.has(choice.goto) || !Object.hasOwn(story.nodes, choice.goto)) continue;
@@ -123,12 +127,15 @@ export const toGraph = (story: Story): GameGraph => {
 };
 
 /** Structural mistakes the type checker cannot see. */
-export const graphProblems = (graph: GameGraph): string[] => {
+export const graphProblems = (graph: GameGraph): readonly string[] => {
   const starts = graph.order.filter((id) => graph.nodes[id]!.type === 'start');
   if (starts.length === 0) return ['Příběh nemá start (uzel s initialState).'];
+  // Breadth-first search: the set and the queue are filled in place, an immutable version would
+  // copy both on every step.
   const reached = new Set(starts);
   const queue = [...starts];
-  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
+  // for...of reads the array's length on every step, so ids pushed while iterating are visited too.
+  for (const id of queue) {
     for (const { target } of graph.nodes[id]?.choices ?? []) {
       if (reached.has(target)) continue;
       reached.add(target);

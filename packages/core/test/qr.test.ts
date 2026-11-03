@@ -29,9 +29,9 @@ describe('qr', () => {
   });
 
   it('gives different checks to different codes', async () => {
-    const checks = new Set<string>();
-    for (let id = 1; id <= 200; id++)
-      checks.add(parseQr(await encodeQr(SECRET, { kind: 'L', id }))!.check);
+    const ids = Array.from({ length: 200 }, (_, index) => index + 1);
+    const codes = await Promise.all(ids.map((id) => encodeQr(SECRET, { kind: 'L', id })));
+    const checks = new Set(codes.map((code) => parseQr(code)!.check));
     expect(checks.size).toBeGreaterThan(195);
   });
 });

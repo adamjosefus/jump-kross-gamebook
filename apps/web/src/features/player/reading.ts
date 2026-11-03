@@ -19,7 +19,7 @@ const isQueued = (value: unknown): value is QueuedReading =>
   'endedAt' in value &&
   'ms' in value;
 
-const readQueue = (): QueuedReading[] => {
+const readQueue = (): readonly QueuedReading[] => {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]');
     return Array.isArray(stored) ? stored.filter(isQueued) : [];

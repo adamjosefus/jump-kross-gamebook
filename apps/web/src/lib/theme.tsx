@@ -27,7 +27,7 @@ export const ThemeContext = createContext<ThemeContextValue>({
 });
 
 /** Dark mode via the `dark` class on <html>, following the system unless overridden. */
-export const ThemeProvider = ({ children }: { children: ReactNode }) => {
+export const ThemeProvider = ({ children }: { readonly children: ReactNode }) => {
   const [preference, setPreferenceState] = useState(readPreference);
   const [systemDark, setSystemDark] = useState(() => query().matches);
 

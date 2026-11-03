@@ -28,7 +28,7 @@ export const LongLabel: Story = {
 
 export const Disabled: Story = { args: { disabled: true } };
 
-const SendingDemo = ({ children }: { children: string }) => {
+const SendingDemo = ({ children }: { readonly children: string }) => {
   const [busy, setBusy] = useState(false);
   const [count, setCount] = useState(0);
   return (
@@ -39,7 +39,7 @@ const SendingDemo = ({ children }: { children: string }) => {
           setBusy(true);
           setTimeout(() => {
             setBusy(false);
-            setCount((n) => n + 1);
+            setCount((previous) => previous + 1);
           }, 1000);
         }}
       >

@@ -1,6 +1,6 @@
 import { defineStory } from '../src/index.ts';
 
-type State = { gold: number; hatColor: 'red' | 'blue' | 'green' };
+type State = { readonly gold: number; readonly hatColor: 'red' | 'blue' | 'green' };
 
 /** Small story covering QR choices, conditional blocks and choices, and both kinds of end. */
 export const SAMPLE = defineStory<State>()({
@@ -34,7 +34,7 @@ export const SAMPLE = defineStory<State>()({
         {
           label: 'Možnost dvě',
           goto: 'A2',
-          nextState: (s) => ({ hatColor: 'green', gold: s.gold - 20 }),
+          nextState: (state) => ({ hatColor: 'green', gold: state.gold - 20 }),
         },
       ],
     },
@@ -45,12 +45,12 @@ export const SAMPLE = defineStory<State>()({
       ],
       scans: [
         { location: 32, goto: 'B1' },
-        { location: 33, goto: 'B1', nextState: (s) => ({ gold: s.gold + 50 }) },
+        { location: 33, goto: 'B1', nextState: (state) => ({ gold: state.gold + 50 }) },
       ],
     },
     B1: {
-      blocks: (s) => {
-        const rich = s.hatColor === 'red' && s.gold >= 34;
+      blocks: (state) => {
+        const rich = state.hatColor === 'red' && state.gold >= 34;
         return [
           `Pohodlně si nosil svoji ${rich ? 'červenou čepici' : 'chudou pokrývku hlavy'}.`,
           rich && { theme: 'letter', content: 'Drahý poutníku…' },
@@ -61,8 +61,8 @@ export const SAMPLE = defineStory<State>()({
         {
           label: 'Koupit meč',
           goto: 'C2',
-          when: (s) => s.gold >= 90,
-          nextState: (s) => ({ gold: s.gold - 90 }),
+          when: (state) => state.gold >= 90,
+          nextState: (state) => ({ gold: state.gold - 90 }),
         },
       ],
     },

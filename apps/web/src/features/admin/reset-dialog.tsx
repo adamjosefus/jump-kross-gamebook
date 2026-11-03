@@ -31,10 +31,10 @@ export const ResetDialog = ({
   onDone,
 }: {
   /** Missing: every team, as for a new game. */
-  team?: { readonly id: number; readonly name: string };
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onDone?: () => void;
+  readonly team?: { readonly id: number; readonly name: string };
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onDone?: () => void;
 }) => {
   const queryClient = useQueryClient();
   const [typed, setTyped] = useState('');

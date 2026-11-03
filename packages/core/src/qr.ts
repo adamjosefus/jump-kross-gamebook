@@ -38,14 +38,12 @@ const hmac = async (secret: string, message: string): Promise<Uint8Array> => {
 
 const checkOf = async (secret: string, { kind, id }: QrPayload): Promise<string> => {
   const digest = await hmac(secret, `${kind}:${id}`);
-  // First 20 bits of the digest, 5 bits per character.
-  let bits = ((digest[0]! << 16) | (digest[1]! << 8) | digest[2]!) >>> 4;
-  let check = '';
-  for (let i = 0; i < CHECK_LENGTH; i++) {
-    check = ALPHABET[bits & 31] + check;
-    bits >>>= 5;
-  }
-  return check;
+  // First 20 bits of the digest, 5 bits per character, most significant first.
+  const bits = ((digest[0]! << 16) | (digest[1]! << 8) | digest[2]!) >>> 4;
+  return Array.from(
+    { length: CHECK_LENGTH },
+    (_, index) => ALPHABET[(bits >>> (5 * (CHECK_LENGTH - 1 - index))) & 31]!,
+  ).join('');
 };
 
 export const encodeQr = async (secret: string, payload: QrPayload): Promise<string> =>

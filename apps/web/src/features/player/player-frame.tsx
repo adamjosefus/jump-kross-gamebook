@@ -18,13 +18,13 @@ export const PlayerFrame = ({
   children,
 }: {
   /** Where „Zpět“ leads; its place stays empty without it. */
-  onBack?: (() => void) | undefined;
+  readonly onBack?: (() => void) | undefined;
   /** Shown at the right end of the bar. */
-  aside?: ReactNode;
-  dark?: boolean;
+  readonly aside?: ReactNode;
+  readonly dark?: boolean;
   /** Colors of the whole screen. */
-  className?: string | undefined;
-  children: ReactNode;
+  readonly className?: string | undefined;
+  readonly children: ReactNode;
 }) => (
   <div
     className={cn(
