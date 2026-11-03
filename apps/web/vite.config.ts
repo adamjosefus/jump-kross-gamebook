@@ -53,6 +53,9 @@ const apiDevServer = (): Plugin => {
         api
           .then(({ handle }) => handle(req, res))
           .catch((error: unknown) => {
+            // The client left, as a page does when it reloads: nobody waits for an answer, and
+            // the error overlay would only cover the reloaded page.
+            if (req.socket.destroyed) return;
             api = undefined;
             next(error);
           });
