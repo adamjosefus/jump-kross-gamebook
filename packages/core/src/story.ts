@@ -27,6 +27,9 @@ export type MaybeBlock = Block | false | null | undefined;
  */
 type StateFn<S, R> = { fn(state: S): R }['fn'];
 
+/** Blocks written for the team's state and the team itself, e.g. to use its name. */
+type BlocksFn<S> = { fn(state: S, team: Team): readonly MaybeBlock[] }['fn'];
+
 interface Transition<S, K extends string> {
   readonly goto: K;
   /** Offered only when this returns true. */
@@ -55,7 +58,7 @@ interface NodeBase<S> {
   /** Makes the node the start, where every team begins with this state; a story has one. */
   readonly initialState?: S;
   /** Evaluated once per render; the state does not change while a node is shown. */
-  readonly blocks: readonly MaybeBlock[] | StateFn<S, readonly MaybeBlock[]>;
+  readonly blocks: readonly MaybeBlock[] | BlocksFn<S>;
 }
 
 /** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */
@@ -142,7 +145,7 @@ export interface StoryDefinition<S, K extends string, L extends number> {
  *   intro: ['# Hra\n\nNaskenujte kód svého týmu.'],
  *   nodes: {
  *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'B' }] },
- *     B: { end: true, blocks: ['Konec'] },
+ *     B: { end: true, blocks: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
  *   },
  * })
  * ```

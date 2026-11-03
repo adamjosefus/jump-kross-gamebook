@@ -247,6 +247,8 @@ export type PrintableCode = typeof PrintableCode.Type;
  */
 export const PlaytestInput = Schema.Struct({
   position: Schema.optionalKey(Schema.Struct({ node: Schema.String, state: GameState })),
+  /** The team the content is shown for; the first one of the story when missing. */
+  team: Schema.optionalKey(Schema.Number),
   move: Schema.optionalKey(
     Schema.Union([
       Schema.Struct({ choice: Schema.Number }),
@@ -259,6 +261,8 @@ export const PlaytestInput = Schema.Struct({
 });
 
 export const PlaytestView = Schema.Struct({
+  /** The team the content is shown for: the one whose code was scanned at the intro. */
+  team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
   node: Schema.String,
   state: GameState,
   /** What the players see; unlike `PlayerView` it names the locations the node can be left by. */

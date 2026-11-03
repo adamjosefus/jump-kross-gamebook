@@ -3,10 +3,11 @@ import {
   availableScans,
   introScreens,
   mergeState,
+  sampleTeam,
   screensOf,
   type RenderedScreen,
 } from './engine.ts';
-import type { Story, StoryNode } from './story.ts';
+import type { Story, StoryNode, Team } from './story.ts';
 import type { State } from './types.ts';
 
 export interface ValidateOptions {
@@ -147,11 +148,14 @@ interface Step {
   readonly next: readonly Visit[];
 }
 
-/** Checks one (node, state) pair and lists the pairs it leads to. */
-const step = (story: Story, { node: id, state }: Visit): Step => {
-  const node = story.nodes[id]!;
-  const screens = attempt(() => screensOf(node, state));
-  const contentProblems = screens.ok
+const contentProblemsOf = (
+  id: string,
+  node: AnyNode,
+  state: State,
+  team: Team,
+): readonly string[] => {
+  const screens = attempt(() => screensOf(node, state, team));
+  return screens.ok
     ? [
         ...problemIf(
           screens.value.length === 0,
@@ -169,6 +173,16 @@ const step = (story: Story, { node: id, state }: Visit): Step => {
         ]),
       ]
     : [`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(screens.error)}`];
+};
+
+/** Checks one (node, state) pair and lists the pairs it leads to. */
+const step = (story: Story, { node: id, state }: Visit): Step => {
+  const node = story.nodes[id]!;
+  // Content may depend on the team, so every team's version has to be sound.
+  const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
+  const contentProblems = [
+    ...new Set(teams.flatMap((team) => contentProblemsOf(id, node, state, team))),
+  ];
   if (node.end === true) return { problems: contentProblems, used: [], next: [] };
 
   const offered = attempt(() => offeredAt(node, id, state));

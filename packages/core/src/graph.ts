@@ -1,5 +1,5 @@
-import { mergeState, nodeType, screensOf, startNode } from './engine.ts';
-import type { Story, StoryNode } from './story.ts';
+import { mergeState, nodeType, sampleTeam, screensOf, startNode } from './engine.ts';
+import type { Story, StoryNode, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -78,10 +78,14 @@ const arrivalStates = (story: Story, start: string): ReadonlyMap<string, State> 
   return states;
 };
 
-const previewOf = (node: AnyNode, state: State | undefined): NodePreview | undefined => {
+const previewOf = (
+  node: AnyNode,
+  state: State | undefined,
+  team: Team,
+): NodePreview | undefined => {
   if (typeof node.blocks === 'function' && state === undefined) return undefined;
   try {
-    const screens = screensOf(node, state ?? {});
+    const screens = screensOf(node, state ?? {}, team);
     return {
       ...(state === undefined ? {} : { state }),
       content: screens[0]?.content ?? '',
@@ -103,7 +107,7 @@ export const toGraph = (story: Story): GameGraph => {
       story.order.map((id) => {
         const node = story.nodes[id]!;
         const state = states.get(id);
-        const preview = previewOf(node, state);
+        const preview = previewOf(node, state, sampleTeam(story));
         const graphNode: GraphNode = {
           id,
           type: nodeType(node),

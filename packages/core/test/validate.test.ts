@@ -46,6 +46,23 @@ describe('validateStory', () => {
     );
   });
 
+  it('checks the content for every team', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: (_state, team) => [team.id === 1 && 'Jen pro Vlky'],
+          choices: [{ label: 'Dál', goto: 'B' }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(validateStory(story)).toEqual(['Uzel A nemá ve stavu {"n":0} žádný obsah.']);
+  });
+
   it('reports unreachable nodes and choices nobody can take', () => {
     const story = define({
       teams: { 1: 'Tým' },

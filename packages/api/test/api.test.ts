@@ -71,7 +71,14 @@ describe('api', () => {
     const start = (await play({})).body;
     expect(start).toMatchObject({ node: 'A1', state: { gold: 100 }, view: { choices: [{}, {}] } });
     const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
-    expect((await play({ move: { code: lisky } })).body).toEqual(start);
+    // The login code decides the team the content is shown for; skipping it means the first one.
+    expect(start.team).toEqual({ id: 1, name: 'Vlci' });
+    const asLisky = (await play({ move: { code: lisky } })).body;
+    expect(asLisky).toEqual({ ...start, team: { id: 2, name: 'Lišky' } });
+    const b1Path = (await play({ position: at(start), team: 2, move: { choice: 0 } })).body;
+    expect(b1Path.team.name).toBe('Lišky');
+    const c1 = await play({ position: at(b1Path), team: 2, move: { choice: 0 } });
+    expect(c1.body.view.screens[0].content).toBe('Prohráli jste, týme Lišky.');
     const place = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
     expect((await play({ move: { code: place } })).body._tag).toBe('InvalidCode');
 
@@ -177,6 +184,7 @@ describe('api', () => {
 
     const end = await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
     expect(end.body).toMatchObject({ status: 'finished', node: { id: 'C1', type: 'end' } });
+    expect(end.body.node.screens[0].content).toBe('Prohráli jste, týme Vlci.');
 
     const overview = (await admin('GET', '/api/admin/overview')).body;
     expect(overview.teams[0]).toMatchObject({

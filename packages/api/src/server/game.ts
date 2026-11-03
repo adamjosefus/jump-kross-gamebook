@@ -5,6 +5,7 @@ import {
   encodeQr,
   introScreens,
   renderNode,
+  sampleTeam,
   startPosition,
   toGraph,
   verifyQr,
@@ -87,11 +88,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const view = (team: TeamRow): PlayerView => {
-      const base = { team: { id: team.id, name: teamName(team.id) }, step: team.step };
+      const identity = { id: team.id, name: teamName(team.id) };
+      const base = { team: identity, step: team.step };
       const node =
         team.node === undefined
           ? undefined
-          : renderNode(story, { node: team.node, state: team.state });
+          : renderNode(story, { node: team.node, state: team.state }, identity);
       if (node === undefined) return { ...base, status: 'not-ready' };
       return {
         ...base,
@@ -368,14 +370,19 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     /** A test run: the same rules as the game, but the position comes from the client. */
     const playtest = Effect.fn('Game.playtest')(function* (input: {
       readonly position?: { readonly node: string; readonly state: TeamRow['state'] };
+      readonly team?: number;
       readonly move?:
         | { readonly choice: number }
         | { readonly scan: number }
         | { readonly code: string };
     }) {
       // At the intro only a team's login code (or no move, which skips it) goes on, to the start.
-      if (input.position === undefined && input.move !== undefined && 'code' in input.move)
-        yield* teamOf(input.move.code);
+      const scanned =
+        input.position === undefined && input.move !== undefined && 'code' in input.move
+          ? yield* teamOf(input.move.code)
+          : undefined;
+      const team =
+        scanned ?? story.teams.find((known) => known.id === input.team) ?? sampleTeam(story);
       const start = input.position ?? startPosition(story);
       if (start === undefined) return yield* notFound('Start');
       const result: MoveResult =
@@ -395,10 +402,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         });
       const { position } = result;
       const node = story.nodes[position.node];
-      const rendered = renderNode(story, position);
+      const rendered = renderNode(story, position, team);
       if (node === undefined || rendered === undefined)
         return yield* notFound(`Uzel ${position.node}`);
       const step: PlaytestView = {
+        team,
         node: position.node,
         state: position.state,
         view: {

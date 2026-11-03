@@ -14,6 +14,7 @@ import {
 import { SAMPLE } from './fixtures.ts';
 
 const story = SAMPLE;
+const VLCI = { id: 1, name: 'Vlci' };
 
 describe('engine', () => {
   const start = startPosition(story)!;
@@ -44,11 +45,13 @@ describe('engine', () => {
       introScanTitle: 'Kód týmu',
       introScanText: 'Namiřte na kód týmu.',
     });
-    expect(renderNode(titled, startPosition(titled)!)).toMatchObject({
+    expect(renderNode(titled, startPosition(titled)!, VLCI)).toMatchObject({
       scanTitle: 'Kde jste?',
       scanText: 'Namiřte na kód místa.',
     });
-    expect(renderNode(titled, { node: 'B', state: { gold: 0 } })).not.toHaveProperty('scanTitle');
+    expect(renderNode(titled, { node: 'B', state: { gold: 0 } }, VLCI)).not.toHaveProperty(
+      'scanTitle',
+    );
   });
 
   it('renders the intro', () => {
@@ -70,8 +73,18 @@ describe('engine', () => {
     ]);
   });
 
+  it('gives blocks the team, each team its own text', () => {
+    const position = { node: 'C1', state: start.state };
+    expect(renderNode(story, position, VLCI)!.screens[0]!.content).toBe(
+      'Prohráli jste, týme Vlci.',
+    );
+    expect(renderNode(story, position, { id: 2, name: 'Lišky' })!.screens[0]!.content).toBe(
+      'Prohráli jste, týme Lišky.',
+    );
+  });
+
   it('renders screens with themes and dedented markdown', () => {
-    expect(renderNode(story, start)).toEqual({
+    expect(renderNode(story, start, VLCI)).toEqual({
       id: 'A1',
       type: 'start',
       screens: [{ theme: 'intro', content: '# Začátek\n\nAdipisicing commodo veniam **aliqua**.' }],
@@ -97,7 +110,7 @@ describe('engine', () => {
     const atWell = moved.position;
     expect(atWell.state).toEqual({ gold: 80, hatColor: 'green' });
 
-    expect(renderNode(story, atWell)).toEqual({
+    expect(renderNode(story, atWell, VLCI)).toEqual({
       id: 'A2',
       type: 'passage',
       screens: [
@@ -146,10 +159,14 @@ describe('engine', () => {
   });
 
   it('evaluates blocks from the state and hides unavailable choices', () => {
-    const red = renderNode(story, {
-      node: 'B1',
-      state: { hatColor: 'red', gold: 100 },
-    })!;
+    const red = renderNode(
+      story,
+      {
+        node: 'B1',
+        state: { hatColor: 'red', gold: 100 },
+      },
+      VLCI,
+    )!;
     expect(red.screens).toEqual([
       { theme: 'default', content: 'Pohodlně si nosil svoji červenou čepici.' },
       { theme: 'letter', content: 'Drahý poutníku…' },
@@ -157,19 +174,21 @@ describe('engine', () => {
     expect(red.choices.map((choice) => choice.label)).toEqual(['Bojovat', 'Koupit meč']);
 
     const poor = { node: 'B1', state: { hatColor: 'green', gold: 80 } };
-    expect(renderNode(story, poor)!.screens).toEqual([
+    expect(renderNode(story, poor, VLCI)!.screens).toEqual([
       { theme: 'default', content: 'Pohodlně si nosil svoji chudou pokrývku hlavy.' },
     ]);
-    expect(renderNode(story, poor)!.choices.map((choice) => choice.label)).toEqual(['Bojovat']);
+    expect(renderNode(story, poor, VLCI)!.choices.map((choice) => choice.label)).toEqual([
+      'Bojovat',
+    ]);
     expect(applyChoice(story, poor, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
   });
 
   it('stops at end nodes', () => {
     const end = { node: 'C1', state: {} };
-    expect(renderNode(story, end)).toMatchObject({ type: 'end', choices: [], scan: false });
+    expect(renderNode(story, end, VLCI)).toMatchObject({ type: 'end', choices: [], scan: false });
     expect(applyChoice(story, end, 0)).toEqual({ ok: false, error: 'finished' });
     expect(applyScan(story, end, 32)).toEqual({ ok: false, error: 'finished' });
-    expect(renderNode(story, { ...end, node: 'X' })).toBeUndefined();
+    expect(renderNode(story, { ...end, node: 'X' }, VLCI)).toBeUndefined();
   });
 });
 
@@ -275,6 +294,8 @@ const _typeErrors = () => {
             { label: 'Špatný typ', goto: 'B', nextState: () => ({ gold: 'hodně' }) },
           ],
         },
+        // @ts-expect-error: a team has only its id and name
+        C: { end: true, blocks: (_state, team) => [team.color] },
         // @ts-expect-error: unknown theme
         B: { end: true, blocks: [{ theme: 'neon', content: 'B' }] },
       },
