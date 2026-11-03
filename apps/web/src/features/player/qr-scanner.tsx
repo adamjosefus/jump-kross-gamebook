@@ -91,7 +91,7 @@ const QrScannerView = ({
       <div className='flex flex-col gap-2'>{header}</div>
       <div className='flex flex-1 items-center justify-center py-6'>
         {/* Square across the column; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-card'>
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-muted'>
           <div ref={stage} className='absolute inset-0' />
           <div className='relative w-full px-4'>
             {disabled ? (
