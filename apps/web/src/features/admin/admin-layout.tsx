@@ -16,7 +16,7 @@ const NAV = [
   { to: '/admin/playtest', label: 'Test' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Živě' },
-  { to: '/admin/print', label: 'QR kódy' },
+  { to: '/admin/qr-codes', label: 'QR kódy' },
 ] as const;
 
 const THEME_NEXT: Readonly<Record<ThemePreference, ThemePreference>> = {

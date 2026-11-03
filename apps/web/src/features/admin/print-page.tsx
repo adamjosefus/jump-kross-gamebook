@@ -1,7 +1,8 @@
 import type { PrintableCode } from '@gamebook/api';
-import { IconDownload, IconLoader2 } from '@tabler/icons-react';
+import { IconCopy, IconDownload, IconLoader2 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
 import { Button } from '@/components/ui/button';
@@ -10,9 +11,22 @@ import { api, errorMessage } from '@/lib/api';
 import { ExportDialog } from './export-dialog';
 import { adminKeys } from './queries';
 
-/** A card with a download button in its top right corner, opening every export option. */
+/** The cards are white in both color modes, so their buttons are too. */
+const CARD_BUTTON =
+  'border-black/20 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/20 dark:bg-white dark:hover:bg-black/5';
+
+/**
+ * A card with buttons in its top right corner: one copies the code's text, to type it in when
+ * testing without a camera, the other opens every export option.
+ */
 const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
   const [open, setOpen] = useState(false);
+  const copy = () => {
+    navigator.clipboard.writeText(entry.code).then(
+      () => toast.success(`Zkopírováno: ${entry.code}`),
+      () => toast.error('Kód se nepodařilo zkopírovat.'),
+    );
+  };
   return (
     <div className='relative'>
       {entry.kind === 'T' ? (
@@ -20,16 +34,28 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
       ) : (
         <ProgressQr value={entry.code} locationName={entry.label} />
       )}
-      <Button
-        variant='outline'
-        size='icon'
-        title='Stáhnout'
-        aria-label={`Stáhnout ${entry.label}`}
-        onClick={() => setOpen(true)}
-        className='absolute top-3 right-3 border-black/20 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/20 dark:bg-white dark:hover:bg-black/5'
-      >
-        <IconDownload />
-      </Button>
+      <div className='absolute top-3 right-3 flex gap-1'>
+        <Button
+          variant='outline'
+          size='icon'
+          title='Zkopírovat text kódu'
+          aria-label={`Zkopírovat text kódu ${entry.label}`}
+          onClick={copy}
+          className={CARD_BUTTON}
+        >
+          <IconCopy />
+        </Button>
+        <Button
+          variant='outline'
+          size='icon'
+          title='Stáhnout'
+          aria-label={`Stáhnout ${entry.label}`}
+          onClick={() => setOpen(true)}
+          className={CARD_BUTTON}
+        >
+          <IconDownload />
+        </Button>
+      </div>
       <ExportDialog entry={entry} open={open} onOpenChange={setOpen} />
     </div>
   );
@@ -50,7 +76,7 @@ export const PrintPage = () => {
       <div className='flex items-center gap-4'>
         <p className='text-sm text-muted-foreground'>
           {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, kód místa platí pro
-          všechny týmy. Týmy se zakládají na stránce Hra, místa jsou součástí příběhu.
+          všechny týmy. Týmy i místa jsou součástí příběhu.
         </p>
       </div>
       <div className='flex flex-wrap gap-4'>

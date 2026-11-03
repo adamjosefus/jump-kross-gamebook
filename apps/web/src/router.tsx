@@ -84,7 +84,7 @@ const dashboard = createRoute({
 });
 const print = createRoute({
   getParentRoute: () => admin,
-  path: '/print',
+  path: '/qr-codes',
   component: lazyRouteComponent(() => import('@/features/admin/print-page'), 'PrintPage'),
 });
 
