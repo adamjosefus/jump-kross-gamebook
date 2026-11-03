@@ -26,8 +26,8 @@ const Row = ({ label, children }: { readonly label: string; readonly children: R
 /** All the buttons of the player, as its screens use them. */
 const Buttons = () => (
   <div className='flex flex-col gap-6'>
-    <Row label='Další'>
-      <ActionButton icon={<IconArrowRight className='size-5' />}>Další</ActionButton>
+    <Row label='Další s textem z příběhu'>
+      <ActionButton icon={<IconArrowRight className='size-5' />}>Otevřít dopis</ActionButton>
     </Row>
     <Row label='Další bez textu'>
       <Button size='icon' aria-label='Další' className='size-14 self-center rounded-full'>

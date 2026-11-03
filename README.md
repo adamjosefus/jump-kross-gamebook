@@ -51,11 +51,11 @@ export const story = defineStory<State>()({
       choices: [{ label: 'Začít', goto: 'A1' }],
     },
     A1: {
-      // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko „Další“.
+      // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko se šipkou.
       // Funkce dostane stav a tým (`team.id`, `team.name`); v `intro` tým ještě není.
       blocks: (state, team) => [
         `Tým ${team.name} má ${state.gold} zlaťáků.`,
-        // false se vynechá; `next` je text tlačítka na další obrazovku, jinak „Další“
+        // false se vynechá; `next` je text tlačítka na další obrazovku, jinak je tlačítko jen šipka
         state.gold > 50 && { theme: 'letter', content: 'Drahý poutníku…', next: 'Dočíst dopis' },
         'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
       ],

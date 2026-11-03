@@ -102,6 +102,7 @@ export const NodeScreens = ({
   const screen: PlayerScreen | undefined = node.screens[index];
   const theme = screen?.theme ?? 'default';
   const last = index >= count - 1;
+  const nextText = screen?.next?.trim() ?? '';
   const scanning = node.scan && index === node.screens.length;
   const shown = screen === undefined || paging.seen.includes(index);
   const scanScreen = (
@@ -153,8 +154,8 @@ export const NodeScreens = ({
             )}
           >
             {!last ? (
-              screen?.next?.trim() === '' ? (
-                // Empty text in the story: only the arrow, in a circle as tall as the wide button.
+              nextText === '' ? (
+                // No text in the story: only the arrow, in a circle as tall as the wide button.
                 <Button
                   size='icon'
                   aria-label='Další'
@@ -168,7 +169,7 @@ export const NodeScreens = ({
                   icon={<IconArrowRight className='size-5' />}
                   onClick={() => go(index + 1)}
                 >
-                  {screen?.next ?? 'Další'}
+                  {nextText}
                 </ActionButton>
               )
             ) : node.type === 'end' ? (
