@@ -1,9 +1,7 @@
 import { defineStory } from '@gamebook/core';
 
 type State = {
-  readonly coins: number;
-  readonly hasMap: boolean;
-  readonly courage: number;
+
 };
 
 /**
@@ -21,15 +19,27 @@ type State = {
  */
 export const story = defineStory<State>()({
   teams: {
-    1: 'Vlci',
-    2: 'Lišky',
-    3: 'Sovy',
+    1: 'Klan I',
+    2: 'Klan II',
+    3: 'Klan III',
+    4: 'Klan IV',
+    5: 'Klan V',
+    6: 'Klan VI',
+    7: 'Klan VII',
+    8: 'Klan VIII',
+    9: 'Klan IX',
+    10: 'Klan X',
+    11: 'Klan XI',
+    12: 'Klan XII',
+    13: 'Klan XIII',
+    14: 'Klan XIV',
+    15: 'Klan XV',
   },
   intro: [
     {
       theme: 'intro',
       content: `
-      # Poklad starého mlýna
+      # JUMP Kross
 
       Hledá se ztracený poklad mlynáře Matěje. Kdo ho najde dřív?
     `,
@@ -51,109 +61,100 @@ export const story = defineStory<State>()({
     2: 'Starý mlýn',
   },
   nodes: {
-    START: {
-      initialState: { coins: 30, hasMap: false, courage: 0 },
-      blocks: [
-        {
-          theme: 'letter',
-          content: `
-          *Milí hledači,*
-
-          poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
-
-          — **Matěj**
-        `,
-        },
-      ],
-      choices: [{ label: 'Vyrazit na cestu', goto: 'MARKET' }],
-    },
-
-    MARKET: {
-      blocks: (state) => [
-        `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${state.coins} mincí**.`,
-        { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
-      ],
-      choices: [
-        {
-          label: 'Koupit mapu',
-          goto: 'FOREST',
-          when: (state) => state.coins >= 20,
-          nextState: (state) => ({ coins: state.coins - 20, hasMap: true }),
-        },
-        { label: 'Jít bez mapy', goto: 'FOREST' },
-      ],
-    },
-
-    // The team picks the path by walking: the code it scans decides the next node.
-    FOREST: {
-      blocks: (state) => [
-        state.hasMap
-          ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
-          : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
-        'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
-      ],
-      scanTitle: 'Kam jste došli?',
-      scanText: 'Naskenujte QR kód na místě, kam vás cesta zavedla.',
-      scans: [
-        { location: 1, goto: 'WELL' },
-        { location: 2, goto: 'MILL' },
-      ],
-    },
-
-    WELL: {
-      blocks: [
-        {
-          theme: 'description',
-          content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
-        },
-      ],
-      choices: [
-        {
-          label: 'Jít potmě dál',
-          goto: 'TO_MILL',
-          nextState: (state) => ({ courage: state.courage + 1 }),
-        },
-        { label: 'Počkat na ráno', goto: 'TO_MILL' },
-      ],
-    },
-
-    TO_MILL: {
-      blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
-      scanTitle: 'Jste u mlýna?',
-      scanText: 'QR kód najdete u kola.',
-      scans: [{ location: 2, goto: 'MILL' }],
-    },
-
-    MILL: {
-      blocks: (state) => [
-        'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
-        state.courage > 0 && {
-          theme: 'description',
-          content: 'Ve tmě si všimnete slabého světla pod deskou.',
-        },
-      ],
-      choices: [
-        {
-          label: 'Zvednout desku',
-          goto: 'TREASURE',
-          when: (state) => state.courage > 0 || state.hasMap,
-        },
-        { label: 'Vrátit se domů', goto: 'HOME' },
-      ],
-    },
-
-    TREASURE: {
-      end: true,
-      blocks: [
-        { theme: 'green', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
-      ],
-    },
-
-    HOME: {
-      end: true,
-      blocks: [
-        { theme: 'red', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
-      ],
-    },
+    // START: {
+    //   initialState: { coins: 30, hasMap: false, courage: 0 },
+    //   blocks: [
+    //     {
+    //       theme: 'letter',
+    //       content: `
+    //       *Milí hledači,*
+    //       poklad jsem ukryl tam, kde se kdysi točilo kolo. Cestu vám ukáže jen ten, kdo se nebojí tmy.
+    //       — **Matěj**
+    //     `,
+    //     },
+    //   ],
+    //   choices: [{ label: 'Vyrazit na cestu', goto: 'MARKET' }],
+    // },
+    // MARKET: {
+    //   blocks: (state) => [
+    //     `Na tržišti prodává stará kořenářka mapu okolí. Máte u sebe **${state.coins} mincí**.`,
+    //     { theme: 'letter', content: '„Mapa za dvacet. A k ní rada zdarma: v lese nespěchejte.“' },
+    //   ],
+    //   choices: [
+    //     {
+    //       label: 'Koupit mapu',
+    //       goto: 'FOREST',
+    //       when: (state) => state.coins >= 20,
+    //       nextState: (state) => ({ coins: state.coins - 20, hasMap: true }),
+    //     },
+    //     { label: 'Jít bez mapy', goto: 'FOREST' },
+    //   ],
+    // },
+    // // The team picks the path by walking: the code it scans decides the next node.
+    // FOREST: {
+    //   blocks: (state) => [
+    //     state.hasMap
+    //       ? 'Podle mapy vidíte, že se pěšina dělí: jedna vede ke **studánce**, druhá rovnou ke **mlýnu**.'
+    //       : 'Bez mapy bloudíte, až dojdete k rozcestí. Jedna cesta voní vodou, druhá vede z kopce.',
+    //     'Vydejte se jednou z cest a naskenujte QR kód tam, kam dojdete.',
+    //   ],
+    //   scanTitle: 'Kam jste došli?',
+    //   scanText: 'Naskenujte QR kód na místě, kam vás cesta zavedla.',
+    //   scans: [
+    //     { location: 1, goto: 'WELL' },
+    //     { location: 2, goto: 'MILL' },
+    //   ],
+    // },
+    // WELL: {
+    //   blocks: [
+    //     {
+    //       theme: 'description',
+    //       content: 'U studánky se setmělo. Za ní slyšíte šumění vody. Mlýn musí být blízko.',
+    //     },
+    //   ],
+    //   choices: [
+    //     {
+    //       label: 'Jít potmě dál',
+    //       goto: 'TO_MILL',
+    //       nextState: (state) => ({ courage: state.courage + 1 }),
+    //     },
+    //     { label: 'Počkat na ráno', goto: 'TO_MILL' },
+    //   ],
+    // },
+    // TO_MILL: {
+    //   blocks: ['Najděte **starý mlýn** a naskenujte QR kód u kola.'],
+    //   scanTitle: 'Jste u mlýna?',
+    //   scanText: 'QR kód najdete u kola.',
+    //   scans: [{ location: 2, goto: 'MILL' }],
+    // },
+    // MILL: {
+    //   blocks: (state) => [
+    //     'Mlýnské kolo je zarostlé mechem. Pod ním je kamenná deska.',
+    //     state.courage > 0 && {
+    //       theme: 'description',
+    //       content: 'Ve tmě si všimnete slabého světla pod deskou.',
+    //     },
+    //   ],
+    //   choices: [
+    //     {
+    //       label: 'Zvednout desku',
+    //       goto: 'TREASURE',
+    //       when: (state) => state.courage > 0 || state.hasMap,
+    //     },
+    //     { label: 'Vrátit se domů', goto: 'HOME' },
+    //   ],
+    // },
+    // TREASURE: {
+    //   end: true,
+    //   blocks: [
+    //     { theme: 'green', content: '# Poklad je váš!\n\nPod deskou leží truhla plná mincí.' },
+    //   ],
+    // },
+    // HOME: {
+    //   end: true,
+    //   blocks: [
+    //     { theme: 'red', content: 'Vracíte se domů s prázdnou. Poklad na vás ve mlýně počká.' },
+    //   ],
+    // },
   },
 });
