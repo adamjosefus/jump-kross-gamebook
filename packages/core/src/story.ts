@@ -7,6 +7,11 @@ export type Theme = (typeof THEMES)[number];
 /** One screen of markdown. */
 export interface Screen {
   readonly theme?: Theme;
+  /**
+   * A picture above the text, as the source of one `<svg>` element. `currentColor` takes the color
+   * of the screen's text. Inserted into the page as it is, so it must come from the story's author.
+   */
+  readonly svg?: string;
   readonly content: string;
 }
 

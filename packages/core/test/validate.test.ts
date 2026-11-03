@@ -152,6 +152,30 @@ describe('validateStory', () => {
     ]);
   });
 
+  it('reports an svg that is not one svg element', () => {
+    const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: [{ svg: 'obrázek.svg', content: 'Úvod' }],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: [
+            { svg, content: 'A' },
+            { svg: `\n  ${svg}\n`, content: 'B' },
+            { svg: '<svg>', content: 'C' },
+          ],
+          end: true,
+        },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Úvod má neplatné svg na obrazovce č. 1.',
+      'Uzel A má neplatné svg na obrazovce č. 3.',
+    ]);
+  });
+
   it('reports bad locations, two QR choices for one location and blocks that throw', () => {
     const story = define({
       teams: { 1: 'Tým' },

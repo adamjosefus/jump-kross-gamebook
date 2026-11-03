@@ -57,6 +57,19 @@ describe('engine', () => {
     ]);
   });
 
+  it('keeps the svg of a screen', () => {
+    const withSvg = defineStory<{ readonly n: number }>()({
+      teams: { 1: 'Tým' },
+      locations: {},
+      intro: [{ svg: '<svg></svg>', content: 'Úvod' }, 'Pravidla'],
+      nodes: { A: { initialState: { n: 0 }, end: true, blocks: ['Konec'] } },
+    });
+    expect(introScreens(withSvg)).toEqual([
+      { theme: 'default', svg: '<svg></svg>', content: 'Úvod' },
+      { theme: 'default', content: 'Pravidla' },
+    ]);
+  });
+
   it('renders screens with themes and dedented markdown', () => {
     expect(renderNode(story, start)).toEqual({
       id: 'A1',

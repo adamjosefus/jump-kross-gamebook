@@ -70,6 +70,7 @@ export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.
 
 export const PlayerScreen = Schema.Struct({
   theme: Theme,
+  svg: Schema.optionalKey(Schema.String),
   content: Schema.String,
 });
 export type PlayerScreen = typeof PlayerScreen.Type;

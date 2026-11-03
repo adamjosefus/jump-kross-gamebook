@@ -1,4 +1,11 @@
-import { availableChoices, availableScans, introScreens, mergeState, screensOf } from './engine.ts';
+import {
+  availableChoices,
+  availableScans,
+  introScreens,
+  mergeState,
+  screensOf,
+  type RenderedScreen,
+} from './engine.ts';
 import type { Story, StoryNode } from './story.ts';
 import type { State } from './types.ts';
 
@@ -44,13 +51,19 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const problemIf = (condition: boolean, problem: string): readonly string[] =>
   condition ? [problem] : [];
 
+/** One whole `<svg>` element; a mistake here would otherwise show only as a missing picture. */
+const SVG_ELEMENT = /^\s*<svg[\s>][\s\S]*<\/svg>\s*$/;
+
+const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
+
 const introProblems = (story: Story): readonly string[] => [
   ...problemIf(story.intro.length === 0, 'Příběh nemá úvod (intro).'),
   ...problemIf(story.introScanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
   ...problemIf(story.introScanText?.trim() === '', 'Úvod má prázdný text skeneru.'),
-  ...introScreens(story).flatMap((screen, index) =>
-    problemIf(screen.content.trim() === '', `Úvod má prázdnou obrazovku č. ${index + 1}.`),
-  ),
+  ...introScreens(story).flatMap((screen, index) => [
+    ...problemIf(screen.content.trim() === '', `Úvod má prázdnou obrazovku č. ${index + 1}.`),
+    ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
+  ]),
 ];
 
 const teamProblems = (story: Story): readonly string[] => [
@@ -144,12 +157,16 @@ const step = (story: Story, { node: id, state }: Visit): Step => {
           screens.value.length === 0,
           `Uzel ${id} nemá ve stavu ${show(state)} žádný obsah.`,
         ),
-        ...screens.value.flatMap((screen, index) =>
-          problemIf(
+        ...screens.value.flatMap((screen, index) => [
+          ...problemIf(
             screen.content.trim() === '',
             `Uzel ${id} má prázdnou obrazovku č. ${index + 1}.`,
           ),
-        ),
+          ...problemIf(
+            hasBadSvg(screen),
+            `Uzel ${id} má neplatné svg na obrazovce č. ${index + 1}.`,
+          ),
+        ]),
       ]
     : [`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(screens.error)}`];
   if (node.end === true) return { problems: contentProblems, used: [], next: [] };

@@ -23,6 +23,7 @@ export interface RenderedChoice {
 
 export interface RenderedScreen {
   readonly theme: Theme;
+  readonly svg?: string;
   readonly content: string;
 }
 
@@ -79,7 +80,11 @@ export const mergeState = (state: State, changes: Partial<State> | undefined): S
 const screenOf = (block: Block): RenderedScreen =>
   typeof block === 'string'
     ? { theme: 'default', content: dedent(block) }
-    : { theme: block.theme ?? 'default', content: dedent(block.content) };
+    : {
+        theme: block.theme ?? 'default',
+        ...(block.svg === undefined ? {} : { svg: block.svg }),
+        content: dedent(block.content),
+      };
 
 /** Every screen of the node with its content dedented. */
 export const screensOf = (node: AnyNode, state: State): readonly RenderedScreen[] =>
