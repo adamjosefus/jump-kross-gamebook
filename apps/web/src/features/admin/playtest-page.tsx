@@ -349,11 +349,11 @@ export const PlaytestPage = () => {
             <div className='pointer-events-none absolute bottom-2 left-1/2 z-50 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
           </div>
           <div className='flex items-center gap-1 rounded-xl border bg-muted/40 p-1'>
-            <Hint text='Krok zpět'>
+            <Hint text='Uzel zpět'>
               <Button
                 variant='ghost'
                 size='icon-sm'
-                aria-label='Krok zpět'
+                aria-label='Uzel zpět'
                 disabled={path.length < 2 || play.isPending}
                 onClick={() => backTo(path.length - 2)}
               >
