@@ -1,17 +1,16 @@
-import type { PlayerIntro, PlaytestView } from '@gamebook/api';
+import type { PlayerIntro, PlaytestView, PrintableCode } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import {
   IconArrowBackUp,
-  IconChevronDown,
-  IconKeyboard,
   IconLoader2,
   IconPlayerSkipForward,
   IconQrcode,
   IconRotate,
+  IconSparkles,
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -24,10 +23,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NodeScreens } from '@/features/player/node-screens';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+import { adminKeys } from './queries';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
 
@@ -134,12 +137,25 @@ const introStep = (intro: PlayerIntro): Step => ({
   view: { ...intro, id: 'intro', type: 'passage', choices: [], scan: true, scans: [] },
 });
 
-/** A QR code typed in, for when the test run has no camera or no printed code at hand. */
+/** A tooltip over a tool; the wrapper lets it show on a disabled button too. */
+const Hint = ({ text, children }: { readonly text: string; readonly children: ReactNode }) => (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className='inline-flex'>{children}</span>
+    </TooltipTrigger>
+    <TooltipContent sideOffset={6}>{text}</TooltipContent>
+  </Tooltip>
+);
+
+/** A QR code picked from the story's codes or typed in, for a test run without a printed one. */
 const CodeEntry = ({
+  kind,
   disabled,
   busy,
   onCode,
 }: {
+  /** The codes that make sense here: teams at the login, places in the story. */
+  readonly kind: PrintableCode['kind'];
   readonly disabled: boolean;
   readonly busy: boolean;
   /** `done` is called once the code worked; one that did not stays in the field to be fixed. */
@@ -147,28 +163,62 @@ const CodeEntry = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
+  const codes = useQuery({
+    queryKey: adminKeys.codes,
+    queryFn: ({ signal }) => api((client) => client.admin.codes(), { signal }),
+    enabled: open,
+  });
+  const offered = codes.data?.filter((entry) => entry.kind === kind);
   const code = text.trim();
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (code === '' || busy) return;
-    onCode(code, () => {
+  const send = (value: string) =>
+    onCode(value, () => {
       setText('');
       setOpen(false);
     });
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (code !== '' && !busy) send(code);
   };
   return (
     <Popover open={open && !disabled} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant='ghost' size='sm' disabled={disabled} title='Zadat kód ručně'>
-          <IconKeyboard /> Kód
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent side='top' align='end'>
-        <form onSubmit={submit} className='flex flex-col gap-3'>
-          <div className='flex flex-col gap-0.5'>
-            <h3 className='text-sm font-medium'>Zadat kód ručně</h3>
-            <p className='text-xs text-muted-foreground'>Kód je vytištěný pod QR kódem.</p>
-          </div>
+      <Hint text='Kód'>
+        <PopoverTrigger asChild>
+          <Button variant='ghost' size='icon-sm' disabled={disabled} aria-label='Kód'>
+            <IconQrcode />
+          </Button>
+        </PopoverTrigger>
+      </Hint>
+      <PopoverContent side='top' align='end' className='flex flex-col gap-3'>
+        <section className='flex flex-col gap-1'>
+          <h3 className='text-sm font-medium'>{kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}</h3>
+          {codes.isError ? (
+            <p className='text-xs text-destructive'>{errorMessage(codes.error)}</p>
+          ) : offered === undefined ? (
+            <IconLoader2 className='size-4 animate-spin' />
+          ) : offered.length === 0 ? (
+            <p className='text-xs text-muted-foreground'>Příběh žádné nemá.</p>
+          ) : (
+            <ul className='-mx-1 flex max-h-56 flex-col overflow-y-auto'>
+              {offered.map((entry) => (
+                <li key={entry.code}>
+                  <button
+                    type='button'
+                    disabled={busy}
+                    onClick={() => send(entry.code)}
+                    className='flex w-full items-baseline justify-between gap-3 rounded-md px-1 py-1 text-left text-sm hover:bg-accent disabled:opacity-50'
+                  >
+                    <span className='truncate'>{entry.label}</span>
+                    <span className='shrink-0 font-mono text-xs text-muted-foreground'>
+                      {entry.code}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <form onSubmit={submit} className='flex flex-col gap-2 border-t pt-3'>
+          <h3 className='text-sm font-medium'>Zadat ručně</h3>
           <div className='flex gap-2'>
             <Input
               value={text}
@@ -295,28 +345,32 @@ export const PlaytestPage = () => {
             <div className='pointer-events-none absolute top-2.5 left-1/2 z-50 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
             <div className='pointer-events-none absolute bottom-2 left-1/2 z-50 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
           </div>
-          <div className='flex flex-wrap items-center gap-1 rounded-xl border bg-muted/40 p-1'>
-            <Button
-              variant='ghost'
-              size='sm'
-              disabled={path.length < 2 || play.isPending}
-              onClick={() => backTo(path.length - 2)}
-            >
-              <IconArrowBackUp /> Krok zpět
-            </Button>
-            <Button
-              variant='ghost'
-              size='sm'
-              disabled={steps.length === 0 || play.isPending}
-              onClick={() => setMoves([])}
-            >
-              <IconRotate /> Znovu
-            </Button>
-            <label className='flex h-7 cursor-pointer items-center gap-1.5 px-2 text-[0.8rem] font-medium'>
-              <Switch checked={animated} onCheckedChange={setAnimated} /> Animace
-            </label>
+          <div className='flex items-center gap-1 rounded-xl border bg-muted/40 p-1'>
+            <Hint text='Krok zpět'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label='Krok zpět'
+                disabled={path.length < 2 || play.isPending}
+                onClick={() => backTo(path.length - 2)}
+              >
+                <IconArrowBackUp />
+              </Button>
+            </Hint>
+            <Hint text='Znovu od začátku'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label='Znovu od začátku'
+                disabled={steps.length === 0 || play.isPending}
+                onClick={() => setMoves([])}
+              >
+                <IconRotate />
+              </Button>
+            </Hint>
             <span className='flex-1' />
             <CodeEntry
+              kind={current?.intro === true ? 'T' : 'L'}
               disabled={current?.view.scan !== true}
               busy={play.isPending}
               onCode={(code, done) => {
@@ -325,31 +379,37 @@ export const PlaytestPage = () => {
               }}
             />
             {current?.intro === true ? (
-              <Button
-                variant='ghost'
-                size='sm'
-                disabled={play.isPending}
-                title='Přeskočit přihlášení'
-                onClick={() => take(undefined)}
-              >
-                <IconPlayerSkipForward /> Přeskočit
-              </Button>
+              <Hint text='Přeskočit přihlášení'>
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  aria-label='Přeskočit přihlášení'
+                  disabled={play.isPending}
+                  onClick={() => take(undefined)}
+                >
+                  <IconPlayerSkipForward />
+                </Button>
+              </Hint>
             ) : (
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
-                    title={
-                      current?.view.scan === true && scans.length === 0
-                        ? 'V tomto stavu nevede žádný QR kód dál.'
-                        : undefined
-                    }
-                  >
-                    <IconPlayerSkipForward /> Přeskočit <IconChevronDown />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Hint
+                  text={
+                    current?.view.scan === true && scans.length === 0
+                      ? 'V tomto stavu nevede žádný QR kód dál.'
+                      : 'Přeskočit sken'
+                  }
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon-sm'
+                      aria-label='Přeskočit sken'
+                      disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
+                    >
+                      <IconPlayerSkipForward />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Hint>
                 <DropdownMenuContent align='end'>
                   <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
                   {scans.map((location) => (
@@ -363,6 +423,13 @@ export const PlaytestPage = () => {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
+            <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
+              <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
+                <IconSparkles className='size-4 text-muted-foreground' />
+                <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
+              </label>
+            </Hint>
           </div>
         </div>
 
