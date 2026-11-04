@@ -12,7 +12,7 @@ type Stage = 'idle' | 'confirmed' | 'pending';
 const Label = ({ children }: { readonly children: ReactNode }) => (
   <span
     data-slot='slide-button-label'
-    className='absolute inset-x-14 top-1/2 -translate-y-1/2 truncate text-center text-base font-medium'
+    className='flex-1 px-14 py-2 text-center text-xl leading-tight font-medium text-pretty'
   >
     {children}
   </span>
@@ -22,10 +22,10 @@ const Label = ({ children }: { readonly children: ReactNode }) => (
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
  * never made by a stray tap. While sliding, the thumb is as high as the track and grows until it
  * fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
- * when it is enabled again. The label is always one line in the middle of the track and stays
- * readable over the thumb: a second copy in the thumb's text color is clipped to the thumb. A touch
- * hides the thumb's chevron; the arrow at the end of the track is clipped the same way, so the
- * thumb uncovers it only when it gets there.
+ * when it is enabled again. A long label wraps and the track grows with it; at rest the thumb stays
+ * a circle in the middle of its height. The label stays readable over the thumb: a second copy in
+ * the thumb's text color is clipped to the thumb. A touch hides the thumb's chevron; the arrow at
+ * the end of the track is clipped the same way, so the thumb uncovers it only when it gets there.
  */
 export const SlideButton = ({
   children,
@@ -96,7 +96,7 @@ export const SlideButton = ({
     <div
       ref={track}
       className={cn(
-        'relative h-14 rounded-full border bg-muted/40 select-none',
+        'relative flex min-h-14 items-center rounded-full border bg-muted/40 select-none',
         disabled && stage === 'idle' && 'opacity-50',
         className,
       )}
@@ -108,7 +108,9 @@ export const SlideButton = ({
         disabled={disabled && stage === 'idle'}
         className={cn(
           'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
-          active ? '-top-px -bottom-px -left-px' : 'top-1 bottom-1 left-1',
+          active
+            ? '-top-px -bottom-px -left-px'
+            : 'top-[calc(50%-1.5rem)] bottom-[calc(50%-1.5rem)] left-1',
           drag === undefined
             ? 'transition-[top,bottom,left,right] duration-300 ease-out'
             : 'transition-[top,bottom,left] duration-150 ease-out',
@@ -128,7 +130,7 @@ export const SlideButton = ({
       <div
         aria-hidden
         className={cn(
-          'pointer-events-none absolute inset-0 text-primary-foreground',
+          'pointer-events-none absolute inset-0 flex items-center text-primary-foreground',
           drag === undefined && 'transition-[clip-path] duration-300 ease-out',
         )}
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
