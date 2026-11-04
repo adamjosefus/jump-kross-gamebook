@@ -22,7 +22,7 @@ export const ActionButton = ({
   <Button
     size='lg'
     className={cn(
-      'relative h-auto min-h-14 rounded-full px-12 py-2 text-xl leading-tight text-balance whitespace-normal',
+      'relative h-auto min-h-14 rounded-full px-12 py-2 text-xl leading-tight text-pretty whitespace-normal',
       className,
     )}
     {...props}
