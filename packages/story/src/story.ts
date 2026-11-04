@@ -34,16 +34,16 @@ export const story = defineStory<State>()({
   introNode: 'INTRO',
   outroNode: 'OUTRO',
   locations: {
-    '1': 'Místo 1',
-    '2': 'Místo 2',
-    '3': 'Místo 3',
-    '4': 'Místo 4',
-    '5': 'Místo 5',
-    '6': 'Místo 6',
-    '7': 'Místo 7',
-    '8': 'Místo 8',
-    '9': 'Místo 9',
-    '10': 'Místo 10',
+    1: 'Místo 1',
+    2: 'Místo 2',
+    3: 'Místo 3',
+    4: 'Místo 4',
+    5: 'Místo 5',
+    6: 'Místo 6',
+    7: 'Místo 7',
+    8: 'Místo 8',
+    9: 'Místo 9',
+    10: 'Místo 10',
   },
   nodes: {
     INTRO: {
@@ -162,31 +162,57 @@ Rozhoduje totiž celý klan.
       },
     },
     PROLOG_1: {
-      scans: [
-        {
-          location: 1,
-          goto: 'PROLOG_1',
-        },
-      ],
+      scans: [{ location: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 1'],
     },
     PROLOG_2: {
-      scans: [
-        {
-          location: 1,
-          goto: 'PROLOG_2',
-        },
-      ],
+      scans: [{ location: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 2'],
     },
     PROLOG_3: {
-      scans: [
-        {
-          location: 1,
-          goto: 'OUTRO',
-        },
-      ],
+      scans: [{ location: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 3'],
+    },
+    // Placeholder trail through every place with a QR code, one after another.
+    MISTO_1: {
+      scans: [{ location: 2, goto: 'MISTO_2' }],
+      blocks: [`Jste na místě 1. Pokračujte na místo 2.`],
+    },
+    MISTO_2: {
+      scans: [{ location: 3, goto: 'MISTO_3' }],
+      blocks: [`Jste na místě 2. Pokračujte na místo 3.`],
+    },
+    MISTO_3: {
+      scans: [{ location: 4, goto: 'MISTO_4' }],
+      blocks: [`Jste na místě 3. Pokračujte na místo 4.`],
+    },
+    MISTO_4: {
+      scans: [{ location: 5, goto: 'MISTO_5' }],
+      blocks: [`Jste na místě 4. Pokračujte na místo 5.`],
+    },
+    MISTO_5: {
+      scans: [{ location: 6, goto: 'MISTO_6' }],
+      blocks: [`Jste na místě 5. Pokračujte na místo 6.`],
+    },
+    MISTO_6: {
+      scans: [{ location: 7, goto: 'MISTO_7' }],
+      blocks: [`Jste na místě 6. Pokračujte na místo 7.`],
+    },
+    MISTO_7: {
+      scans: [{ location: 8, goto: 'MISTO_8' }],
+      blocks: [`Jste na místě 7. Pokračujte na místo 8.`],
+    },
+    MISTO_8: {
+      scans: [{ location: 9, goto: 'MISTO_9' }],
+      blocks: [`Jste na místě 8. Pokračujte na místo 9.`],
+    },
+    MISTO_9: {
+      scans: [{ location: 10, goto: 'MISTO_10' }],
+      blocks: [`Jste na místě 9. Pokračujte na místo 10.`],
+    },
+    MISTO_10: {
+      choices: [{ label: 'Dokončit hru', goto: 'OUTRO' }],
+      blocks: [`Jste na místě 10, posledním na trase.`],
     },
     OUTRO: {
       blocks: (_state, team) => [`Konec hry, ${team.name}.`],
