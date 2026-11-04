@@ -109,27 +109,36 @@ export const startPosition = (story: Story): Position | undefined => {
   return id === undefined || state === undefined ? undefined : { node: id, state };
 };
 
-const offered = <T extends AnyChoice | AnyScan>(transitions: readonly T[], state: State) =>
+const offered = <T extends AnyChoice | AnyScan>(
+  transitions: readonly T[],
+  state: State,
+  team: Team,
+) =>
   transitions.flatMap((transition, index) =>
-    transition.when === undefined || transition.when(state) ? [{ transition, index }] : [],
+    transition.when === undefined || transition.when(state, team) ? [{ transition, index }] : [],
   );
 
-/** Buttons offered in `state`, with their index in `choices`. */
+/** Buttons offered to `team` in `state`, with their index in `choices`. */
 export const availableChoices = (
   node: AnyNode,
   state: State,
+  team: Team,
 ): readonly { readonly choice: AnyChoice; readonly index: number }[] =>
-  offered(node.choices ?? [], state).map(({ transition, index }) => ({
+  offered(node.choices ?? [], state, team).map(({ transition, index }) => ({
     choice: transition,
     index,
   }));
 
-/** QR choices offered in `state`, with their index in `scans`. */
+/** QR choices offered to `team` in `state`, with their index in `scans`. */
 export const availableScans = (
   node: AnyNode,
   state: State,
+  team: Team,
 ): readonly { readonly scan: AnyScan; readonly index: number }[] =>
-  offered(node.scans ?? [], state).map(({ transition, index }) => ({ scan: transition, index }));
+  offered(node.scans ?? [], state, team).map(({ transition, index }) => ({
+    scan: transition,
+    index,
+  }));
 
 export const renderNode = (
   story: Story,
@@ -142,7 +151,7 @@ export const renderNode = (
     id: position.node,
     type: nodeType(node),
     screens: screensOf(node, position.state, team),
-    choices: availableChoices(node, position.state).map(({ choice, index }) => ({
+    choices: availableChoices(node, position.state, team).map(({ choice, index }) => ({
       index,
       label: choice.label,
     })),
@@ -164,12 +173,17 @@ const take = (
       }
     : { ok: false, error: 'missing-target' };
 
-export const applyChoice = (story: Story, position: Position, index: number): MoveResult => {
+export const applyChoice = (
+  story: Story,
+  position: Position,
+  team: Team,
+  index: number,
+): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (node.end === true) return { ok: false, error: 'finished' };
   if (node.scans !== undefined) return { ok: false, error: 'scan-required' };
-  const available = availableChoices(node, position.state).find(
+  const available = availableChoices(node, position.state, team).find(
     (candidate) => candidate.index === index,
   );
   if (available === undefined) return { ok: false, error: 'unavailable-choice' };
@@ -177,12 +191,17 @@ export const applyChoice = (story: Story, position: Position, index: number): Mo
 };
 
 /** Takes the QR choice of the scanned location, if the node offers one. */
-export const applyScan = (story: Story, position: Position, location: number): MoveResult => {
+export const applyScan = (
+  story: Story,
+  position: Position,
+  team: Team,
+  location: number,
+): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (node.end === true) return { ok: false, error: 'finished' };
   if (node.scans === undefined) return { ok: false, error: 'no-scan' };
-  const available = availableScans(node, position.state).find(
+  const available = availableScans(node, position.state, team).find(
     ({ scan }) => scan.location === location,
   );
   if (available === undefined) return { ok: false, error: 'wrong-location' };

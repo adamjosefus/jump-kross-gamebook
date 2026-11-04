@@ -33,13 +33,13 @@ export type MaybeBlock = Block | false | null | undefined;
  */
 type StateFn<S, R> = { fn(state: S): R }['fn'];
 
-/** Blocks written for the team's state and the team itself, e.g. to use its name. */
-type BlocksFn<S> = { fn(state: S, team: Team): readonly MaybeBlock[] }['fn'];
+/** Like `StateFn`, written for the team's state and the team itself, e.g. to use its name. */
+type TeamFn<S, R> = { fn(state: S, team: Team): R }['fn'];
 
 interface Transition<S, K extends string> {
   readonly goto: K;
-  /** Offered only when this returns true. */
-  readonly when?: StateFn<S, boolean>;
+  /** Offered only when this returns true for the team's state and the team. */
+  readonly when?: TeamFn<S, boolean>;
   /** Merged into the state when taken. */
   readonly nextState?: StateFn<S, Partial<S>>;
 }
@@ -64,7 +64,7 @@ interface NodeBase<S> {
   /** Makes the node the start, where every team begins with this state; a story has one. */
   readonly initialState?: S;
   /** Evaluated once per render; the state does not change while a node is shown. */
-  readonly blocks: readonly MaybeBlock[] | BlocksFn<S>;
+  readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
 }
 
 /** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */

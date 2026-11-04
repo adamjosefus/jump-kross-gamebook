@@ -87,8 +87,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       action,
     });
 
+    const identityOf = (team: TeamRow) => ({ id: team.id, name: teamName(team.id) });
+
     const view = (team: TeamRow): PlayerView => {
-      const identity = { id: team.id, name: teamName(team.id) };
+      const identity = identityOf(team);
       const base = { team: identity, step: team.step };
       const node =
         team.node === undefined
@@ -173,7 +175,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       expectedStep: number,
     ) {
       const { team, position } = yield* prepareMove(teamId, expectedStep);
-      return yield* commit(team, applyChoice(story, position, index), `choice:${index}`);
+      return yield* commit(
+        team,
+        applyChoice(story, position, identityOf(team), index),
+        `choice:${index}`,
+      );
     });
 
     /** The story's team whose login code was scanned. */
@@ -218,7 +224,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const { team, position } = yield* prepareMove(teamId, expectedStep);
       // After a reset the phones stay logged in, so the first scan is at a location.
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
-      return yield* commit(team, applyScan(story, position, location.id), `scan:${location.id}`);
+      return yield* commit(
+        team,
+        applyScan(story, position, identityOf(team), location.id),
+        `scan:${location.id}`,
+      );
     });
 
     /** Any device joins a team by its code and continues where the team is. */
@@ -389,10 +399,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         input.move === undefined || input.position === undefined
           ? { ok: true, position: start }
           : 'choice' in input.move
-            ? applyChoice(story, start, input.move.choice)
+            ? applyChoice(story, start, team, input.move.choice)
             : applyScan(
                 story,
                 start,
+                team,
                 'scan' in input.move ? input.move.scan : (yield* locationOf(input.move.code)).id,
               );
       if (!result.ok)
@@ -411,7 +422,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         state: position.state,
         view: {
           ...rendered,
-          scans: availableScans(node, position.state).flatMap(
+          scans: availableScans(node, position.state, team).flatMap(
             (option) =>
               story.locations.find((location) => location.id === option.scan.location) ?? [],
           ),

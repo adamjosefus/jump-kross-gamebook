@@ -130,13 +130,13 @@ const nodeProblems = (
 };
 
 /** Buttons and QR choices offered at `id` in `state`, with a usage key and a name for messages. */
-const offeredAt = (node: AnyNode, id: string, state: State) => [
-  ...availableChoices(node, state).map(({ choice, index }) => ({
+const offeredAt = (node: AnyNode, id: string, state: State, team: Team) => [
+  ...availableChoices(node, state, team).map(({ choice, index }) => ({
     transition: choice,
     key: `${id}#${index}`,
     name: `volby „${choice.label}“`,
   })),
-  ...availableScans(node, state).map(({ scan, index }) => ({
+  ...availableScans(node, state, team).map(({ scan, index }) => ({
     transition: scan,
     key: `${id}@${index}`,
     name: `QR volby místa ${scan.location}`,
@@ -183,16 +183,12 @@ const contentProblemsOf = (
 };
 
 /** Checks one (node, state) pair and lists the pairs it leads to. */
-const step = (story: Story, { node: id, state }: Visit): Step => {
+const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
   const node = story.nodes[id]!;
-  // Content may depend on the team, so every team's version has to be sound.
-  const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
-  const contentProblems = [
-    ...new Set(teams.flatMap((team) => contentProblemsOf(id, node, state, team))),
-  ];
+  const contentProblems = contentProblemsOf(id, node, state, team);
   if (node.end === true) return { problems: contentProblems, used: [], next: [] };
 
-  const offered = attempt(() => offeredAt(node, id, state));
+  const offered = attempt(() => offeredAt(node, id, state, team));
   if (!offered.ok)
     return {
       problems: [
@@ -249,8 +245,11 @@ interface Exploration {
   readonly used: ReadonlySet<string>;
 }
 
-/** Plays every reachable (node, state) pair from `start`, breadth first, at most `maxStates` of them. */
-const explore = (story: Story, start: Visit, maxStates: number): Exploration => {
+/**
+ * Plays every (node, state) pair `team` can reach from `start`, breadth first, at most `maxStates`
+ * of them.
+ */
+const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exploration => {
   // Breadth-first search: the queue, the seen keys and the problems are filled in place, an
   // immutable version would copy them on every step.
   const queue: Visit[] = [start];
@@ -265,7 +264,7 @@ const explore = (story: Story, start: Visit, maxStates: number): Exploration => 
       );
       break;
     }
-    const result = step(story, visit);
+    const result = step(story, team, visit);
     problems.push(...result.problems);
     for (const key of result.used) used.add(key);
     for (const next of result.next) {
@@ -298,9 +297,22 @@ const unusedProblems = (
   ),
 ];
 
+/** Each problem once, in the order found; one that not every team has names the teams it has. */
+const mergeTeamProblems = (
+  explored: readonly { readonly team: Team; readonly exploration: Exploration }[],
+): readonly string[] => {
+  const problems = [...new Set(explored.flatMap(({ exploration }) => exploration.problems))];
+  return problems.map((problem) => {
+    const teams = explored.filter(({ exploration }) => exploration.problems.includes(problem));
+    return teams.length === explored.length
+      ? problem
+      : `${problem} (týká se: ${teams.map(({ team }) => team.name).join(', ')})`;
+  });
+};
+
 /**
- * Mistakes the type checker cannot see. Plays every reachable (node, state) pair from the start
- * and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
+ * Mistakes the type checker cannot see. Plays every (node, state) pair each team can reach from the
+ * start and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
  * blocks that throw, bad team and location numbers and two QR choices for one location.
  */
 export const validateStory = (
@@ -312,11 +324,19 @@ export const validateStory = (
   if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
 
   const known = new Set(story.locations.map((location) => location.id));
-  const exploration = explore(
-    story,
-    { node: start, state: story.nodes[start]!.initialState! },
-    maxStates,
-  );
+  // Content and conditions may depend on the team, so every team plays the story on its own.
+  const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
+  const explored = teams.map((team) => ({
+    team,
+    exploration: explore(
+      story,
+      team,
+      { node: start, state: story.nodes[start]!.initialState! },
+      maxStates,
+    ),
+  }));
+  const reached = new Set(explored.flatMap(({ exploration }) => [...exploration.reached]));
+  const used = new Set(explored.flatMap(({ exploration }) => [...exploration.used]));
   const problems = [
     ...problemIf(
       starts.length > 1,
@@ -326,10 +346,10 @@ export const validateStory = (
     ...teamProblems(story),
     ...locationProblems(story),
     ...story.order.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
-    ...exploration.problems,
+    ...mergeTeamProblems(explored),
     ...story.order.flatMap((id) =>
-      exploration.reached.has(id)
-        ? unusedProblems(story.nodes[id]!, id, exploration.used)
+      reached.has(id)
+        ? unusedProblems(story.nodes[id]!, id, used)
         : [`Uzel ${id} je nedosažitelný ze startu.`],
     ),
   ];

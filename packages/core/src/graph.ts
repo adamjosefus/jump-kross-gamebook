@@ -10,7 +10,7 @@ export interface GraphChoice {
   readonly target: string;
   /** The choice has a `when` and may be hidden. */
   readonly conditional: boolean;
-  /** Whether the choice is offered in the node's preview state; unknown without one. */
+  /** Whether any team is offered the choice in the node's preview state; unknown without one. */
   readonly available?: boolean;
 }
 
@@ -109,6 +109,7 @@ export const toGraph = (story: Story): GameGraph => {
   const from = startNode(story);
   const states = from === undefined ? new Map<string, State>() : arrivalStates(story, from);
   const intro = introScreens(story);
+  const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
   return {
     intro: {
       content: intro.find((screen) => screen.content.trim() !== '')?.content ?? '',
@@ -134,7 +135,7 @@ export const toGraph = (story: Story): GameGraph => {
             conditional: choice.when !== undefined,
             ...(state === undefined || choice.when === undefined
               ? {}
-              : { available: choice.when(state) }),
+              : { available: teams.some((team) => choice.when?.(state, team)) }),
           })),
         };
         return [id, graphNode];
