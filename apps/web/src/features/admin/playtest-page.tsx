@@ -13,7 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -82,6 +82,36 @@ const useAnimations = () => {
     }
   };
   return [animated, change] as const;
+};
+
+/** The share of the page's width the preview may take; on a narrower page it shrinks early. */
+const PREVIEW_WIDTH_SHARE = 0.3;
+
+/**
+ * Shrinks the preview on a narrow or low page: the scale that keeps the block in its natural size
+ * within its share of the width, and between the top edge and the graph's zoom buttons in the
+ * bottom left corner. The page and the block are measured again whenever either changes size.
+ */
+const usePreviewScale = () => {
+  // Kept in state, because the page first renders only a spinner, without these elements.
+  const [page, pageRef] = useState<HTMLElement | null>(null);
+  const [block, blockRef] = useState<HTMLElement | null>(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    if (page === null || block === null) return undefined;
+    const measure = () => {
+      // The offset sizes ignore the transform, so these are the block's natural size.
+      if (block.offsetWidth === 0 || block.offsetHeight === 0) return;
+      const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
+      const width = (page.clientWidth * PREVIEW_WIDTH_SHARE) / block.offsetWidth;
+      setScale(Math.min(1, height, width));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(page);
+    observer.observe(block);
+    return () => observer.disconnect();
+  }, [page, block]);
+  return [pageRef, blockRef, scale] as const;
 };
 
 type Move = { readonly choice: number } | { readonly scan: number } | { readonly code: string };
@@ -282,6 +312,7 @@ export const PlaytestPage = () => {
   const navigate = useNavigate();
   const [animated, setAnimated] = useAnimations();
   const [logOpen, setLogOpen] = useLogPanel();
+  const [pageRef, blockRef, scale] = usePreviewScale();
   const graph = useStoryGraph();
   const problems = useMemo(
     () => (graph.data === undefined ? [] : graphProblems(graph.data)),
@@ -342,7 +373,7 @@ export const PlaytestPage = () => {
   if (intro.isError) return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
 
   return (
-    <div className='relative h-full overflow-hidden'>
+    <div ref={pageRef} className='relative h-full overflow-hidden'>
       {/* The story map over the whole page; the node the run stands on is highlighted. */}
       {graph.isError ? (
         <p className='p-8 text-center text-destructive'>{errorMessage(graph.error)}</p>
@@ -354,17 +385,21 @@ export const PlaytestPage = () => {
           {...(current === undefined
             ? {}
             : { focus: current.intro === true ? GRAPH_INTRO : current.node })}
-          // The preview is 22rem wide, the log 20rem, both 1rem from the edge.
-          inset={{ left: remPx(23), right: logOpen ? remPx(21) : 0 }}
+          // The preview is 22rem wide before scaling, the log 20rem, both 1rem from the edge.
+          inset={{ left: remPx(22) * scale + remPx(1), right: logOpen ? remPx(21) : 0 }}
         />
       )}
 
-      {/* Ends above the graph's zoom buttons in the bottom left corner, even on a low screen. */}
-      <aside className='absolute top-4 left-4 flex max-h-[calc(100%-8rem)] w-[22rem] max-w-[calc(100%-2rem)] flex-col gap-2'>
+      {/* The whole block shrinks on a narrow or low page, with its proportions kept. */}
+      <aside
+        ref={blockRef}
+        className='absolute top-4 left-4 flex w-[22rem] origin-top-left flex-col gap-2'
+        style={{ scale }}
+      >
         {/* Exactly what the players see; test tools are in the toolbar under it. */}
         <div
           className={cn(
-            'phone-preview relative h-[44rem] min-h-0 overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-lg',
+            'phone-preview relative h-[44rem] shrink-0 overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-lg',
             !animated && 'no-animations',
           )}
         >
