@@ -3,16 +3,16 @@ import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
   IconArrowNarrowRight,
+  IconChevronsRight,
   IconHistory,
   IconLoader2,
   IconPin,
   IconPinnedOff,
   IconRotate,
   IconUsers,
-  IconX,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -82,32 +83,38 @@ const actionLabel = (action: string) =>
 
 type Panel = 'teams' | 'log';
 
-const PANEL_KEY = 'dashboard-panel';
+const PANELS_KEY = 'dashboard-panels';
 
 interface PanelState {
-  readonly panel: Panel | undefined;
+  readonly open: boolean;
   readonly pinned: boolean;
 }
 
-/** Which floating panel is open and whether it is pinned; remembered per browser. */
-const usePanel = () => {
-  const [value, setValue] = useState<PanelState>(() => {
+type PanelStates = Readonly<Record<Panel, PanelState>>;
+
+const CLOSED: PanelState = { open: false, pinned: false };
+
+const readPanel = (stored: unknown): PanelState =>
+  typeof stored === 'object' && stored !== null && 'open' in stored && 'pinned' in stored
+    ? { open: stored.open === true, pinned: stored.pinned === true }
+    : CLOSED;
+
+/** Which floating panels are open and pinned; remembered per browser. */
+const usePanels = () => {
+  const [value, setValue] = useState<PanelStates>(() => {
     try {
-      const stored: unknown = JSON.parse(localStorage.getItem(PANEL_KEY) ?? 'null');
-      if (typeof stored === 'object' && stored !== null && 'panel' in stored && 'pinned' in stored)
-        return {
-          panel: stored.panel === 'teams' || stored.panel === 'log' ? stored.panel : undefined,
-          pinned: stored.pinned === true,
-        };
+      const stored: unknown = JSON.parse(localStorage.getItem(PANELS_KEY) ?? 'null');
+      if (typeof stored === 'object' && stored !== null && 'teams' in stored && 'log' in stored)
+        return { teams: readPanel(stored.teams), log: readPanel(stored.log) };
     } catch {
       // Storage may be unavailable or hold something else; start with the graph alone.
     }
-    return { panel: undefined, pinned: false };
+    return { teams: CLOSED, log: CLOSED };
   });
-  const update = (next: PanelState) => {
+  const update = (next: PanelStates) => {
     setValue(next);
     try {
-      localStorage.setItem(PANEL_KEY, JSON.stringify(next));
+      localStorage.setItem(PANELS_KEY, JSON.stringify(next));
     } catch {
       // The choice then lasts for this visit only.
     }
@@ -115,19 +122,67 @@ const usePanel = () => {
   return [value, update] as const;
 };
 
+/** A panel on the right of the graph, or the button that opens it when it is closed. */
+const FloatingPanel = ({
+  title,
+  label,
+  icon,
+  state,
+  onChange,
+  children,
+}: {
+  readonly title: string;
+  /** The button's text next to the icon. */
+  readonly label: ReactNode;
+  readonly icon: ReactNode;
+  readonly state: PanelState;
+  readonly onChange: (next: PanelState) => void;
+  readonly children: ReactNode;
+}) =>
+  state.open ? (
+    <aside className='pointer-events-auto flex min-h-0 w-full flex-1 animate-in flex-col rounded-lg border bg-background/80 shadow-lg backdrop-blur-md fade-in slide-in-from-right-2'>
+      <header className='flex items-center gap-1 border-b py-2 pr-2 pl-4'>
+        <h2 className='flex-1 font-semibold'>{title}</h2>
+        <Button
+          variant={state.pinned ? 'secondary' : 'ghost'}
+          size='icon'
+          title={state.pinned ? 'Odepnout' : 'Připnout, aby panel zůstal otevřený'}
+          aria-pressed={state.pinned}
+          onClick={() => onChange({ ...state, pinned: !state.pinned })}
+        >
+          {state.pinned ? <IconPinnedOff /> : <IconPin />}
+        </Button>
+        <Button
+          variant='ghost'
+          size='icon'
+          title='Skrýt'
+          onClick={() => onChange({ ...state, open: false })}
+        >
+          <IconChevronsRight />
+        </Button>
+      </header>
+      <div className='min-h-0 flex-1 overflow-y-auto p-2'>{children}</div>
+    </aside>
+  ) : (
+    <div className='pointer-events-auto shrink-0 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
+      <Button variant='ghost' size='sm' onClick={() => onChange({ ...state, open: true })}>
+        {icon} {label}
+      </Button>
+    </div>
+  );
+
 /** Live view: the story graph with every clan on its node, teams and steps in floating panels. */
 export const DashboardPage = () => {
   const overview = useOverview(POLL_MS);
   const graph = useStoryGraph().data;
   const [moving, setMoving] = useState<TeamStatus>();
-  const [{ panel, pinned }, setPanel] = usePanel();
+  const [panels, setPanels] = usePanels();
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (overview.isError)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, log } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
-  const toggle = (next: Panel) => setPanel({ panel: panel === next ? undefined : next, pinned });
 
   return (
     <div className='relative h-full'>
@@ -138,129 +193,107 @@ export const DashboardPage = () => {
           graph={graph}
           teams={teams}
           visits={overview.data.visits}
-          onPaneClick={() => {
-            if (!pinned && panel !== undefined) setPanel({ panel: undefined, pinned });
-          }}
+          onPaneClick={() =>
+            setPanels({
+              teams: { ...panels.teams, open: panels.teams.open && panels.teams.pinned },
+              log: { ...panels.log, open: panels.log.open && panels.log.pinned },
+            })
+          }
         />
       )}
 
-      <div className='absolute top-4 left-4 flex items-center gap-1 rounded-lg border bg-background/90 p-1 shadow-md backdrop-blur'>
-        <Button
-          variant={panel === 'teams' ? 'secondary' : 'ghost'}
-          size='sm'
-          onClick={() => toggle('teams')}
+      {/* Only the panels catch the mouse, the graph goes on under the empty rest of the column. */}
+      <div className='pointer-events-none absolute top-4 right-4 bottom-4 flex w-96 max-w-[calc(100%-2rem)] flex-col items-end gap-2'>
+        <FloatingPanel
+          title='Klany'
+          icon={<IconUsers />}
+          label={
+            <>
+              Klany <span className='text-muted-foreground'>{teams.length}</span>
+            </>
+          }
+          state={panels.teams}
+          onChange={(teamsPanel) => setPanels({ ...panels, teams: teamsPanel })}
         >
-          <IconUsers /> Klany <span className='text-muted-foreground'>{teams.length}</span>
-        </Button>
-        <Button
-          variant={panel === 'log' ? 'secondary' : 'ghost'}
-          size='sm'
-          onClick={() => toggle('log')}
-        >
-          <IconHistory /> Kroky
-        </Button>
-      </div>
-
-      {panel !== undefined && (
-        <aside className='absolute top-4 right-4 bottom-4 flex w-96 max-w-[calc(100%-2rem)] animate-in flex-col rounded-lg border bg-background/95 shadow-lg backdrop-blur fade-in slide-in-from-right-2'>
-          <header className='flex items-center gap-1 border-b py-2 pr-2 pl-4'>
-            <h2 className='flex-1 font-semibold'>
-              {panel === 'teams' ? 'Klany' : 'Poslední kroky'}
-            </h2>
-            <Button
-              variant={pinned ? 'secondary' : 'ghost'}
-              size='icon'
-              title={pinned ? 'Odepnout' : 'Připnout, aby panel zůstal otevřený'}
-              aria-pressed={pinned}
-              onClick={() => setPanel({ panel, pinned: !pinned })}
-            >
-              {pinned ? <IconPinnedOff /> : <IconPin />}
-            </Button>
-            <Button
-              variant='ghost'
-              size='icon'
-              title='Zavřít'
-              onClick={() => setPanel({ panel: undefined, pinned })}
-            >
-              <IconX />
-            </Button>
-          </header>
-          <div className='min-h-0 flex-1 overflow-y-auto p-2'>
-            {panel === 'teams' ? (
-              <ul className='flex flex-col'>
-                {teams.map((team) => (
-                  <li
-                    key={team.id}
-                    className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
+          <ul className='flex flex-col'>
+            {teams.map((team) => (
+              <li
+                key={team.id}
+                className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
+              >
+                <TeamAvatar id={team.id} name={team.name} />
+                <div className='min-w-0 flex-1'>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='truncate font-medium'>{team.name}</span>
+                    <span className='font-mono text-xs text-muted-foreground'>
+                      {team.node ?? '—'}
+                    </span>
+                    {!team.nodeExists && (
+                      <IconAlertTriangle
+                        className='size-3.5 text-destructive'
+                        aria-label='Uzel v příběhu chybí'
+                      />
+                    )}
+                    {team.finished && <Badge variant='secondary'>cíl</Badge>}
+                  </div>
+                  <div
+                    className='truncate font-mono text-xs text-muted-foreground'
+                    title={formatState(team.state)}
                   >
-                    <TeamAvatar id={team.id} name={team.name} />
-                    <div className='min-w-0 flex-1'>
-                      <div className='flex items-center gap-1.5'>
-                        <span className='truncate font-medium'>{team.name}</span>
-                        <span className='font-mono text-xs text-muted-foreground'>
-                          {team.node ?? '—'}
-                        </span>
-                        {!team.nodeExists && (
-                          <IconAlertTriangle
-                            className='size-3.5 text-destructive'
-                            aria-label='Uzel v příběhu chybí'
-                          />
-                        )}
-                        {team.finished && <Badge variant='secondary'>cíl</Badge>}
-                      </div>
-                      <div
-                        className='truncate font-mono text-xs text-muted-foreground'
-                        title={formatState(team.state)}
-                      >
-                        {formatState(team.state)}
-                      </div>
-                      <div className='text-xs text-muted-foreground'>
-                        {team.devices} zař. · {timeAgo(team.updatedAt)}
-                      </div>
-                      {team.playMs !== undefined && (
-                        <div className='text-xs text-muted-foreground'>
-                          Hra {formatDuration(team.playMs)} · čtení {formatDuration(team.readingMs)}
-                        </div>
-                      )}
+                    {formatState(team.state)}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>
+                    {team.devices} zař. · {timeAgo(team.updatedAt)}
+                  </div>
+                  {team.playMs !== undefined && (
+                    <div className='text-xs text-muted-foreground'>
+                      Hra {formatDuration(team.playMs)} · čtení {formatDuration(team.readingMs)}
                     </div>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      title='Přesunout tým'
-                      onClick={() => setMoving(team)}
-                    >
-                      <IconArrowNarrowRight />
-                    </Button>
-                  </li>
-                ))}
-                {teams.length === 0 && (
-                  <li className='p-2 text-sm text-muted-foreground'>Zatím žádné klany.</li>
-                )}
-              </ul>
-            ) : (
-              <ol className='flex flex-col gap-1 text-sm'>
-                {log.map((entry, index) => (
-                  <li key={index} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
-                    <TeamAvatar
-                      id={entry.teamId}
-                      name={names.get(entry.teamId) ?? `#${entry.teamId}`}
-                    />
-                    <div className='min-w-0 flex-1'>
-                      <div className='font-mono text-xs'>
-                        {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
-                      </div>
-                      <div className='text-xs text-muted-foreground'>
-                        {actionLabel(entry.action)} · {timeAgo(entry.at)}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-                {log.length === 0 && <li className='p-2 text-muted-foreground'>Zatím nic.</li>}
-              </ol>
+                  )}
+                </div>
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  title='Přesunout tým'
+                  onClick={() => setMoving(team)}
+                >
+                  <IconArrowNarrowRight />
+                </Button>
+              </li>
+            ))}
+            {teams.length === 0 && (
+              <li className='p-2 text-sm text-muted-foreground'>Zatím žádné klany.</li>
             )}
-          </div>
-        </aside>
-      )}
+          </ul>
+        </FloatingPanel>
+        <FloatingPanel
+          title='Poslední kroky'
+          icon={<IconHistory />}
+          label='Kroky'
+          state={panels.log}
+          onChange={(logPanel) => setPanels({ ...panels, log: logPanel })}
+        >
+          <ol className='flex flex-col gap-1 text-sm'>
+            {log.map((entry, index) => (
+              <li key={index} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
+                <TeamAvatar
+                  id={entry.teamId}
+                  name={names.get(entry.teamId) ?? `#${entry.teamId}`}
+                />
+                <div className='min-w-0 flex-1'>
+                  <div className='font-mono text-xs'>
+                    {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
+                  </div>
+                  <div className='text-xs text-muted-foreground'>
+                    {actionLabel(entry.action)} · {timeAgo(entry.at)}
+                  </div>
+                </div>
+              </li>
+            ))}
+            {log.length === 0 && <li className='p-2 text-muted-foreground'>Zatím nic.</li>}
+          </ol>
+        </FloatingPanel>
+      </div>
 
       {moving !== undefined && graph !== undefined && (
         <MoveDialog team={moving} graph={graph} onClose={() => setMoving(undefined)} />
@@ -269,6 +302,10 @@ export const DashboardPage = () => {
   );
 };
 
+/**
+ * Changes the node and state of a team in the running game. It reaches the team's phones at once
+ * and can break their game, so the dialog warns loudly and the admin has to type the team's name.
+ */
 const MoveDialog = ({
   team,
   graph,
@@ -281,6 +318,7 @@ const MoveDialog = ({
   const queryClient = useQueryClient();
   const [node, setNode] = useState(team.node ?? graph.start ?? graph.order[0] ?? '');
   const [resetting, setResetting] = useState(false);
+  const [typed, setTyped] = useState('');
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2));
 
   const parsedState = (() => {
@@ -291,6 +329,8 @@ const MoveDialog = ({
       return undefined;
     }
   })();
+
+  const confirmed = parsedState !== undefined && typed === team.name;
 
   const done = () => {
     void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
@@ -310,42 +350,78 @@ const MoveDialog = ({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className='flex max-h-[85dvh] flex-col ring-2 ring-destructive'>
         <DialogHeader>
-          <DialogTitle>Tým {team.name}</DialogTitle>
-          <DialogDescription>
-            Přesun i úprava stavu se okamžitě projeví na všech zařízeních týmu.
-          </DialogDescription>
+          <DialogTitle className='flex items-center gap-2 pr-6 text-destructive'>
+            <IconAlertTriangle className='size-5 shrink-0' /> Zásah do živé hry: {team.name}
+          </DialogTitle>
+          <DialogDescription>Přesun týmu na jiný uzel a úprava jeho stavu.</DialogDescription>
         </DialogHeader>
-        <Select value={node} onValueChange={setNode}>
-          <SelectTrigger className='w-full'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {graph.order.map((id) => (
-              <SelectItem key={id} value={id}>
-                {id}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Textarea
-          value={stateText}
-          onChange={(event) => setStateText(event.target.value)}
-          className='min-h-32 font-mono text-xs'
-          aria-invalid={parsedState === undefined}
-        />
-        <DialogFooter className='sm:justify-between'>
-          <Button variant='outline' onClick={() => setResetting(true)}>
-            <IconRotate /> Na start
-          </Button>
-          <Button
-            onClick={() => move.mutate()}
-            disabled={parsedState === undefined || move.isPending}
-          >
-            Uložit
-          </Button>
-        </DialogFooter>
+        <form
+          className='flex min-h-0 flex-col gap-4'
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (confirmed) move.mutate();
+          }}
+        >
+          <div className='-mx-4 flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-1'>
+            <div role='alert' className='rounded-lg bg-red-700 p-3 text-white'>
+              <p className='font-semibold'>Pozor, měníte živou hru!</p>
+              <ul className='mt-1 list-disc pl-4'>
+                <li>Změna se okamžitě projeví na všech telefonech týmu, i uprostřed hraní.</li>
+                <li>Špatný uzel nebo stav může tým zaseknout nebo mu pokazit postup.</li>
+                <li>Automaticky ji vrátit nejde.</li>
+              </ul>
+            </div>
+            <Select value={node} onValueChange={setNode}>
+              <SelectTrigger className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {graph.order.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Textarea
+              value={stateText}
+              onChange={(event) => setStateText(event.target.value)}
+              className='min-h-32 font-mono text-xs'
+              aria-invalid={parsedState === undefined}
+            />
+            <div className='flex flex-col gap-2'>
+              <label htmlFor='move-confirm' className='text-sm'>
+                Pro potvrzení napište <strong className='font-mono'>{team.name}</strong>
+              </label>
+              <Input
+                id='move-confirm'
+                autoComplete='off'
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className='sm:justify-between'>
+            <Button type='button' variant='outline' onClick={() => setResetting(true)}>
+              <IconRotate /> Na start
+            </Button>
+            <div className='flex flex-col-reverse gap-2 sm:flex-row'>
+              <Button type='button' variant='outline' onClick={onClose}>
+                Zrušit
+              </Button>
+              <Button
+                type='submit'
+                className='bg-red-700 text-white hover:bg-red-800'
+                disabled={!confirmed || move.isPending}
+              >
+                {move.isPending && <IconLoader2 className='animate-spin' />}
+                Provést zásah
+              </Button>
+            </div>
+          </DialogFooter>
+        </form>
         <ResetDialog team={team} open={resetting} onOpenChange={setResetting} onDone={onClose} />
       </DialogContent>
     </Dialog>
