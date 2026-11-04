@@ -199,6 +199,17 @@ describe('validateStory', () => {
     ]);
   });
 
+  it('accepts a screen with a picture and no text', () => {
+    const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: [{ svg, content: '' }],
+      locations: {},
+      nodes: { A: { initialState: { n: 0 }, end: true, blocks: [{ svg, content: ' ' }] } },
+    });
+    expect(validateStory(story)).toEqual([]);
+  });
+
   it('reports an svg that is not one svg element', () => {
     const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
     const story = define({

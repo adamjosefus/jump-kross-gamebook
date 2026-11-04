@@ -158,6 +158,8 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // Admin
 
 export const StoryGraph = Schema.Struct({
+  /** What anyone sees before scanning a team's code. */
+  intro: Schema.Struct({ content: Schema.String, screens: Schema.Number }),
   order: Schema.Array(Schema.String),
   /** The node every team starts at; the previews are computed from it. */
   start: Schema.optionalKey(Schema.String),

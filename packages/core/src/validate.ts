@@ -56,13 +56,16 @@ const problemIf = (condition: boolean, problem: string): readonly string[] =>
 const SVG_ELEMENT = /^\s*<svg[\s>][\s\S]*<\/svg>\s*$/;
 
 const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
+/** A picture is enough for a screen, it does not need text too. */
+const isEmptyScreen = ({ content, svg }: RenderedScreen) =>
+  content.trim() === '' && svg === undefined;
 
 const introProblems = (story: Story): readonly string[] => [
   ...problemIf(story.intro.length === 0, 'Příběh nemá úvod (intro).'),
   ...problemIf(story.introScanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
   ...problemIf(story.introScanText?.trim() === '', 'Úvod má prázdný text skeneru.'),
   ...introScreens(story).flatMap((screen, index) => [
-    ...problemIf(screen.content.trim() === '', `Úvod má prázdnou obrazovku č. ${index + 1}.`),
+    ...problemIf(isEmptyScreen(screen), `Úvod má prázdnou obrazovku č. ${index + 1}.`),
     ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
   ]),
 ];
@@ -162,10 +165,7 @@ const contentProblemsOf = (
           `Uzel ${id} nemá ve stavu ${show(state)} žádný obsah.`,
         ),
         ...screens.value.flatMap((screen, index) => [
-          ...problemIf(
-            screen.content.trim() === '',
-            `Uzel ${id} má prázdnou obrazovku č. ${index + 1}.`,
-          ),
+          ...problemIf(isEmptyScreen(screen), `Uzel ${id} má prázdnou obrazovku č. ${index + 1}.`),
           ...problemIf(
             hasBadSvg(screen),
             `Uzel ${id} má neplatné svg na obrazovce č. ${index + 1}.`,
