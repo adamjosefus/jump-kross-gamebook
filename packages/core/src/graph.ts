@@ -1,4 +1,4 @@
-import { mergeState, nodeType, sampleTeam, screensOf, startNode } from './engine.ts';
+import { introScreens, mergeState, nodeType, sampleTeam, screensOf, startNode } from './engine.ts';
 import type { Story, StoryNode, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
@@ -34,8 +34,16 @@ export interface GraphNode {
   readonly choices: readonly GraphChoice[];
 }
 
+/** What anyone sees before scanning a team's code. */
+export interface GraphIntro {
+  /** First screen with text, markdown; empty when no screen has any. */
+  readonly content: string;
+  readonly screens: number;
+}
+
 /** The shape of a story: serializable, for the admin. */
 export interface GameGraph {
+  readonly intro: GraphIntro;
   /** Node ids in definition order. */
   readonly order: readonly string[];
   /** The node every team starts at; the previews are computed from it. */
@@ -100,7 +108,12 @@ const previewOf = (
 export const toGraph = (story: Story): GameGraph => {
   const from = startNode(story);
   const states = from === undefined ? new Map<string, State>() : arrivalStates(story, from);
+  const intro = introScreens(story);
   return {
+    intro: {
+      content: intro.find((screen) => screen.content.trim() !== '')?.content ?? '',
+      screens: intro.length,
+    },
     order: story.order,
     ...(from === undefined ? {} : { start: from }),
     nodes: Object.fromEntries(

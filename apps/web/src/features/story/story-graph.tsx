@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 136;
-/** Filled dot with an arrow into every start node, like the initial state of a state machine. */
+/** Filled dot with an arrow into the intro, like the initial state of a state machine. */
 const INITIAL_SIZE = 14;
 
 const elk = new ELK();
@@ -65,7 +65,10 @@ const structureOf = (graph: GameGraph) =>
     .join(';');
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
-const initialId = (start: string) => `initial:${start}`;
+const INITIAL_ID = 'graph:initial';
+const INTRO_ID = 'graph:intro';
+const INITIAL_EDGE_ID = 'graph:initial-intro';
+const loginEdgeId = (start: string) => `graph:login:${start}`;
 
 /** Teams reach the start by scanning their login code after the intro. */
 const LOGIN_LABEL = 'Kód týmu';
@@ -96,11 +99,8 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
     },
     children: [
       ...graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
-      ...startsOf(graph).map((id) => ({
-        id: initialId(id),
-        width: INITIAL_SIZE,
-        height: INITIAL_SIZE,
-      })),
+      { id: INTRO_ID, width: NODE_WIDTH, height: NODE_HEIGHT },
+      { id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE },
     ],
     edges: [
       ...graph.order.flatMap((id) =>
@@ -122,9 +122,10 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
             : [],
         ),
       ),
+      { id: INITIAL_EDGE_ID, sources: [INITIAL_ID], targets: [INTRO_ID] },
       ...startsOf(graph).map((id) => ({
-        id: initialId(id),
-        sources: [initialId(id)],
+        id: loginEdgeId(id),
+        sources: [INTRO_ID],
         targets: [id],
         labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL, true) }],
       })),
@@ -228,14 +229,31 @@ type StoryFlowNode = Node<
   },
   'story'
 >;
-type InitialFlowNode = Node<{ readonly dimmed: boolean }, 'initial'>;
+type InitialFlowNode = Node<Record<string, never>, 'initial'>;
+type IntroFlowNode = Node<{ readonly intro: GameGraph['intro'] }, 'intro'>;
 
-const InitialDot = ({ data: { dimmed } }: NodeProps<InitialFlowNode>) => (
+const InitialDot = () => (
   <div
     title='Start'
-    className={cn('rounded-full bg-foreground', dimmed && 'opacity-40')}
+    className='rounded-full bg-foreground'
     style={{ width: INITIAL_SIZE, height: INITIAL_SIZE }}
   >
+    <Handle type='source' position={Position.Bottom} className='opacity-0' />
+  </div>
+);
+
+/** The intro, which is not a node of the story: everyone sees it before the team's code. */
+const IntroCard = ({ data: { intro } }: NodeProps<IntroFlowNode>) => (
+  <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
+    <Handle type='target' position={Position.Top} className='opacity-0' />
+    <div className='flex size-full flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm'>
+      <div className='flex items-center gap-1'>
+        <Badge variant='secondary'>Úvod</Badge>
+      </div>
+      <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
+        {intro.content === '' ? <em>Úvod nemá text.</em> : <Markdown>{intro.content}</Markdown>}
+      </div>
+    </div>
     <Handle type='source' position={Position.Bottom} className='opacity-0' />
   </div>
 );
@@ -295,7 +313,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
   );
 };
 
-const nodeTypes = { story: StoryNodeCard, initial: InitialDot } as const;
+const nodeTypes = { story: StoryNodeCard, initial: InitialDot, intro: IntroCard } as const;
 
 export interface StoryGraphProps {
   readonly graph: GameGraph;
@@ -337,7 +355,7 @@ export const StoryGraph = ({
   }, [graph, structure]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
-  const nodes = useMemo<(StoryFlowNode | InitialFlowNode)[]>(() => {
+  const nodes = useMemo<(StoryFlowNode | InitialFlowNode | IntroFlowNode)[]>(() => {
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
     return [
       ...graph.order.map((id): StoryFlowNode => ({
@@ -351,14 +369,21 @@ export const StoryGraph = ({
         },
         draggable: false,
       })),
-      ...startsOf(graph).map((id): InitialFlowNode => ({
-        id: initialId(id),
+      {
+        id: INITIAL_ID,
         type: 'initial',
-        position: position(initialId(id)),
-        data: { dimmed: !graph.nodes[id]!.reached },
+        position: position(INITIAL_ID),
+        data: {},
         draggable: false,
         selectable: false,
-      })),
+      },
+      {
+        id: INTRO_ID,
+        type: 'intro',
+        position: position(INTRO_ID),
+        data: { intro: graph.intro },
+        draggable: false,
+      },
     ];
   }, [graph, laidOut, teams, visits]);
 
@@ -385,12 +410,23 @@ export const StoryGraph = ({
           };
         }),
       ),
+      {
+        id: INITIAL_EDGE_ID,
+        type: 'route',
+        source: INITIAL_ID,
+        target: INTRO_ID,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        data: {
+          points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
+          dimmed: false,
+        },
+      },
       ...startsOf(graph).map((id): RouteEdge => {
-        const route = laidOut?.layout.edges.get(initialId(id));
+        const route = laidOut?.layout.edges.get(loginEdgeId(id));
         return {
-          id: initialId(id),
+          id: loginEdgeId(id),
           type: 'route',
-          source: initialId(id),
+          source: INTRO_ID,
           target: id,
           markerEnd: { type: MarkerType.ArrowClosed },
           data: {

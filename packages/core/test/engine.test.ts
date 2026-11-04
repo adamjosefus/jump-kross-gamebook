@@ -243,6 +243,18 @@ describe('graph', () => {
     expect(graphProblems(graph)).toEqual([]);
   });
 
+  it('previews the intro by its first screen with text', () => {
+    const graph = toGraph(
+      defineStory<{ n: number }>()({
+        teams: { 1: 'Tým' },
+        intro: [{ svg: '<svg />', content: '' }, 'První text', 'Druhý text'],
+        locations: {},
+        nodes: { A: { initialState: { n: 1 }, end: true, blocks: ['A'] } },
+      }),
+    );
+    expect(graph.intro).toEqual({ content: 'První text', screens: 3 });
+  });
+
   it('leaves unreached dynamic nodes without text', () => {
     const define = defineStory<{ n: number }>();
     const graph = toGraph(
