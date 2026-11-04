@@ -1,5 +1,14 @@
-import { introScreens, mergeState, nodeType, sampleTeam, screensOf, startNode } from './engine.ts';
-import type { Story, StoryNode, Team } from './story.ts';
+import {
+  availableChoices,
+  introScreens,
+  mergeState,
+  nodeType,
+  sampleTeam,
+  screensOf,
+  startNode,
+  stateKey,
+} from './engine.ts';
+import type { Choice, Story, StoryNode, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -8,7 +17,7 @@ export interface GraphChoice {
   /** Set on QR choices: the location whose code takes the choice. */
   readonly location?: number;
   readonly target: string;
-  /** The choice has a `when` and may be hidden. */
+  /** The choice has a `when` or comes from a `choices` function, so it may be hidden. */
   readonly conditional: boolean;
   /** Whether any team is offered the choice in the node's preview state; unknown without one. */
   readonly available?: boolean;
@@ -53,9 +62,12 @@ export interface GameGraph {
 
 type AnyNode = StoryNode<State, string>;
 
-/** Buttons and QR choices of a node, in definition order, as one list of edges. */
+/** Fixed buttons and QR choices of a node, in definition order, as one list of edges. */
 const transitionsOf = (story: Story, node: AnyNode) => [
-  ...(node.choices ?? []).map((choice) => ({ ...choice, location: undefined })),
+  ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).map((choice) => ({
+    ...choice,
+    location: undefined,
+  })),
   ...(node.scans ?? []).map((scan) => ({
     ...scan,
     // QR edges are labelled with the place, the team never sees a label for them.
@@ -66,24 +78,76 @@ const transitionsOf = (story: Story, node: AnyNode) => [
   })),
 ];
 
-/** State on arrival at every node reachable from `start`, along the shortest path. */
-const arrivalStates = (story: Story, start: string): ReadonlyMap<string, State> => {
+/** Upper bound on explored (node, state) pairs; stories with counters could otherwise explode. */
+const MAX_VISITS = 10_000;
+
+/** Choices a `choices` function gives in `state`, for every team; none when it throws. */
+const choicesFromFunction = (node: AnyNode, state: State, teams: readonly Team[]) =>
+  typeof node.choices !== 'function'
+    ? []
+    : teams.flatMap((team) => {
+        try {
+          return availableChoices(node, state, team);
+        } catch {
+          return [];
+        }
+      });
+
+interface Exploration {
+  /** State on arrival at every reachable node, along the shortest path. */
+  readonly states: ReadonlyMap<string, State>;
+  /**
+   * Choices of `choices` functions per node, over all states and teams. One edge per position and
+   * target, so a label with the team's name does not draw one edge per team.
+   */
+  readonly choices: ReadonlyMap<string, ReadonlyMap<string, Choice<State, string>>>;
+}
+
+/**
+ * Walks the (node, state) pairs reachable from `start`, because what a `choices` function gives can
+ * depend on the state. Fixed choices are followed even when their `when` is false, so a preview
+ * exists for every node they lead to.
+ */
+const explore = (story: Story, start: string, teams: readonly Team[]): Exploration => {
   const initial = story.nodes[start]?.initialState;
-  if (initial === undefined) return new Map();
-  // Breadth-first search: the map and the queue are filled in place, an immutable version would
-  // copy both on every step.
+  if (initial === undefined) return { states: new Map(), choices: new Map() };
+  // Breadth-first search: the maps, the set and the queue are filled in place, an immutable version
+  // would copy them on every step.
   const states = new Map([[start, initial]]);
-  const queue = [start];
-  // for...of reads the array's length on every step, so ids pushed while iterating are visited too.
-  for (const id of queue) {
-    const state = states.get(id)!;
-    for (const choice of transitionsOf(story, story.nodes[id]!)) {
-      if (states.has(choice.goto) || !Object.hasOwn(story.nodes, choice.goto)) continue;
-      states.set(choice.goto, mergeState(state, choice.nextState?.(state)));
-      queue.push(choice.goto);
+  const choices = new Map<string, Map<string, Choice<State, string>>>();
+  const queue = [{ node: start, state: initial }];
+  const seen = new Set([JSON.stringify([start, stateKey(initial)])]);
+  // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
+  for (const [visited, { node: id, state }] of queue.entries()) {
+    if (visited >= MAX_VISITS) break;
+    const node = story.nodes[id]!;
+    const fromFunction = choicesFromFunction(node, state, teams);
+    for (const { choice, index } of fromFunction) {
+      const known = choices.get(id) ?? new Map<string, Choice<State, string>>();
+      const key = JSON.stringify([index, choice.goto]);
+      if (!known.has(key)) known.set(key, choice);
+      choices.set(id, known);
+    }
+    const transitions = [
+      ...transitionsOf(story, node),
+      ...fromFunction.map(({ choice }) => choice),
+    ];
+    for (const { goto, nextState } of transitions) {
+      if (!Object.hasOwn(story.nodes, goto)) continue;
+      let next: State;
+      try {
+        next = mergeState(state, nextState?.(state));
+      } catch {
+        continue;
+      }
+      if (!states.has(goto)) states.set(goto, next);
+      const key = JSON.stringify([goto, stateKey(next)]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      queue.push({ node: goto, state: next });
     }
   }
-  return states;
+  return { states, choices };
 };
 
 const previewOf = (
@@ -107,9 +171,13 @@ const previewOf = (
 /** Graph with previews computed from the start. */
 export const toGraph = (story: Story): GameGraph => {
   const from = startNode(story);
-  const states = from === undefined ? new Map<string, State>() : arrivalStates(story, from);
-  const intro = introScreens(story);
   const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
+  const explored =
+    from === undefined
+      ? { states: new Map<string, State>(), choices: new Map<string, never>() }
+      : explore(story, from, teams);
+  const { states } = explored;
+  const intro = introScreens(story);
   return {
     intro: {
       content: intro.find((screen) => screen.content.trim() !== '')?.content ?? '',
@@ -128,15 +196,22 @@ export const toGraph = (story: Story): GameGraph => {
           dynamic: typeof node.blocks === 'function',
           reached: state !== undefined,
           ...(preview === undefined ? {} : { preview }),
-          choices: transitionsOf(story, node).map((choice) => ({
-            label: choice.label,
-            ...(choice.location === undefined ? {} : { location: choice.location }),
-            target: choice.goto,
-            conditional: choice.when !== undefined,
-            ...(state === undefined || choice.when === undefined
-              ? {}
-              : { available: teams.some((team) => choice.when?.(state, team)) }),
-          })),
+          choices: [
+            ...transitionsOf(story, node).map((choice) => ({
+              label: choice.label,
+              ...(choice.location === undefined ? {} : { location: choice.location }),
+              target: choice.goto,
+              conditional: choice.when !== undefined,
+              ...(state === undefined || choice.when === undefined
+                ? {}
+                : { available: teams.some((team) => choice.when?.(state, team)) }),
+            })),
+            ...[...(explored.choices.get(id)?.values() ?? [])].map((choice) => ({
+              label: choice.label,
+              target: choice.goto,
+              conditional: true,
+            })),
+          ],
         };
         return [id, graphNode];
       }),

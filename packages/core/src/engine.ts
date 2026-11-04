@@ -17,7 +17,7 @@ export interface Position {
 }
 
 export interface RenderedChoice {
-  /** Index into the node's `choices`; sent back by the client when choosing. */
+  /** Index into the node's choices for this state and team; sent back when choosing. */
   readonly index: number;
   readonly label: string;
 }
@@ -61,12 +61,26 @@ type AnyNode = StoryNode<State, string>;
 type AnyChoice = Choice<State, string>;
 type AnyScan = ScanChoice<State, string>;
 
+/** A state as a text, the same whatever order its keys are in. */
+export const stateKey = (state: State) =>
+  JSON.stringify(
+    Object.keys(state)
+      .toSorted()
+      .map((key) => [key, state[key]]),
+  );
+
 export const nodeType = (node: AnyNode): NodeType =>
   node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
 
 export const blocksOf = (node: AnyNode, state: State, team: Team): readonly Block[] =>
   (typeof node.blocks === 'function' ? node.blocks(state, team) : node.blocks).filter(
     (block): block is Block => block !== false && block !== null && block !== undefined,
+  );
+
+/** The node's buttons for `team` in `state`, before their `when`. */
+export const choicesOf = (node: AnyNode, state: State, team: Team): readonly AnyChoice[] =>
+  (typeof node.choices === 'function' ? node.choices(state, team) : (node.choices ?? [])).filter(
+    (choice): choice is AnyChoice => choice !== false && choice !== null && choice !== undefined,
   );
 
 /** Merges `changes` into `state`; undefined values leave the state as it is. */
@@ -118,13 +132,13 @@ const offered = <T extends AnyChoice | AnyScan>(
     transition.when === undefined || transition.when(state, team) ? [{ transition, index }] : [],
   );
 
-/** Buttons offered to `team` in `state`, with their index in `choices`. */
+/** Buttons offered to `team` in `state`, with their index among the node's choices. */
 export const availableChoices = (
   node: AnyNode,
   state: State,
   team: Team,
 ): readonly { readonly choice: AnyChoice; readonly index: number }[] =>
-  offered(node.choices ?? [], state, team).map(({ transition, index }) => ({
+  offered(choicesOf(node, state, team), state, team).map(({ transition, index }) => ({
     choice: transition,
     index,
   }));

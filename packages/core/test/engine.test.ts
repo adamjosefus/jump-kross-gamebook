@@ -257,6 +257,85 @@ describe('`when` with a team', () => {
   });
 });
 
+describe('`choices` as a function', () => {
+  const LISKY = { id: 2, name: 'Lišky' };
+  const dynamic = defineStory<{ gold: number }>()({
+    teams: { 1: 'Vlci', 2: 'Lišky' },
+    intro: ['Úvod'],
+    locations: {},
+    nodes: {
+      A: {
+        initialState: { gold: 1 },
+        blocks: ['A'],
+        choices: (state, team) => [
+          { label: `Dál, ${team.name}`, goto: 'B' },
+          team.id === 2 && { label: 'Lišky', goto: 'C' },
+          state.gold > 5 && { label: 'Bohatí', goto: 'D' },
+          { label: 'Zlato', goto: 'E', when: () => false },
+        ],
+      },
+      B: {
+        blocks: ['B'],
+        choices: [{ label: 'Zlato', goto: 'F', nextState: () => ({ gold: 9 }) }],
+      },
+      C: { end: true, blocks: ['C'] },
+      D: { end: true, blocks: ['D'] },
+      E: { end: true, blocks: ['E'] },
+      F: {
+        blocks: ['F'],
+        choices: (state) => (state.gold > 5 ? [{ label: 'Konec', goto: 'D' }] : []),
+      },
+    },
+  });
+  const at = startPosition(dynamic)!;
+
+  it('types `goto` inside the function too', () => {
+    const typed = defineStory<{ gold: number }>()({
+      teams: { 1: 'Vlci' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { gold: 1 },
+          blocks: ['A'],
+          // @ts-expect-error a target that is not a node of the story
+          choices: () => [{ label: 'Pryč', goto: 'NIKDE' }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(typed.order).toEqual(['A', 'B']);
+  });
+
+  it('renders the choices for the state and the team, skipping falsy ones', () => {
+    expect(renderNode(dynamic, at, VLCI)!.choices).toEqual([{ index: 0, label: 'Dál, Vlci' }]);
+    expect(renderNode(dynamic, at, LISKY)!.choices).toEqual([
+      { index: 0, label: 'Dál, Lišky' },
+      { index: 1, label: 'Lišky' },
+    ]);
+    expect(renderNode(dynamic, { ...at, state: { gold: 9 } }, VLCI)!.choices).toEqual([
+      { index: 0, label: 'Dál, Vlci' },
+      { index: 1, label: 'Bohatí' },
+    ]);
+  });
+
+  it('takes a choice by its position in the list of that team', () => {
+    expect(applyChoice(dynamic, at, LISKY, 1)).toMatchObject({ ok: true, position: { node: 'C' } });
+    expect(applyChoice(dynamic, at, VLCI, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
+  });
+
+  it('draws the edges of all reachable states in the graph', () => {
+    const graph = toGraph(dynamic);
+    expect(graph.nodes['A']!.choices).toEqual([
+      { label: 'Dál, Vlci', target: 'B', conditional: true },
+      { label: 'Lišky', target: 'C', conditional: true },
+    ]);
+    // F offers its only choice just in the state B sets.
+    expect(graph.nodes['F']!.choices).toEqual([{ label: 'Konec', target: 'D', conditional: true }]);
+    expect(graph.nodes['D']!.reached).toBe(true);
+  });
+});
+
 describe('graph', () => {
   it('describes nodes, edges and previews from the first start', () => {
     const graph = toGraph(story);

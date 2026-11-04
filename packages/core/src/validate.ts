@@ -1,13 +1,15 @@
 import {
   availableChoices,
   availableScans,
+  choicesOf,
   introScreens,
   mergeState,
   sampleTeam,
   screensOf,
+  stateKey,
   type RenderedScreen,
 } from './engine.ts';
-import type { Story, StoryNode, Team } from './story.ts';
+import type { Choice, Story, StoryNode, Team } from './story.ts';
 import type { State } from './types.ts';
 
 export interface ValidateOptions {
@@ -35,13 +37,6 @@ const attempt = <T>(compute: () => T): Attempt<T> => {
     return { ok: false, error };
   }
 };
-
-const stateKey = (state: State) =>
-  JSON.stringify(
-    Object.keys(state)
-      .toSorted()
-      .map((key) => [key, state[key]]),
-  );
 
 const visitKey = ({ node, state }: Visit) => JSON.stringify([node, stateKey(state)]);
 
@@ -93,41 +88,49 @@ const locationProblems = (story: Story): readonly string[] => {
   ];
 };
 
-/** Problems of one node visible without playing: scan texts, labels and targets. */
+/** Labels and targets of a node's buttons. */
+const choiceProblems = (
+  story: Story,
+  id: string,
+  choices: readonly Choice<State, string>[],
+): readonly string[] =>
+  choices.flatMap(({ label, goto }, index) => [
+    ...(label.trim() === ''
+      ? [`Uzel ${id} má volbu bez popisku.`]
+      : problemIf(
+          choices.slice(0, index).some((earlier) => earlier.label === label),
+          `Uzel ${id} má dvě volby „${label}“.`,
+        )),
+    ...problemIf(
+      !Object.hasOwn(story.nodes, goto),
+      `Volba „${label}“ v uzlu ${id} vede na neexistující uzel ${goto}.`,
+    ),
+  ]);
+
+/**
+ * Problems of one node visible without playing: scan texts, labels and targets. Choices from a
+ * function are known only when played, so `step` checks them.
+ */
 const nodeProblems = (
   story: Story,
   known: ReadonlySet<number>,
   id: string,
   node: AnyNode,
-): readonly string[] => {
-  const choices = node.choices ?? [];
-  return [
-    ...problemIf(node.scanTitle?.trim() === '', `Uzel ${id} má prázdný titulek skeneru.`),
-    ...problemIf(node.scanText?.trim() === '', `Uzel ${id} má prázdný text skeneru.`),
-    ...(node.scans ?? []).flatMap(({ location, goto }) => [
-      ...problemIf(
-        !known.has(location),
-        `QR volba v uzlu ${id} vede přes neznámé místo ${location}.`,
-      ),
-      ...problemIf(
-        !Object.hasOwn(story.nodes, goto),
-        `QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`,
-      ),
-    ]),
-    ...choices.flatMap(({ label, goto }, index) => [
-      ...(label.trim() === ''
-        ? [`Uzel ${id} má volbu bez popisku.`]
-        : problemIf(
-            choices.slice(0, index).some((earlier) => earlier.label === label),
-            `Uzel ${id} má dvě volby „${label}“.`,
-          )),
-      ...problemIf(
-        !Object.hasOwn(story.nodes, goto),
-        `Volba „${label}“ v uzlu ${id} vede na neexistující uzel ${goto}.`,
-      ),
-    ]),
-  ];
-};
+): readonly string[] => [
+  ...problemIf(node.scanTitle?.trim() === '', `Uzel ${id} má prázdný titulek skeneru.`),
+  ...problemIf(node.scanText?.trim() === '', `Uzel ${id} má prázdný text skeneru.`),
+  ...(node.scans ?? []).flatMap(({ location, goto }) => [
+    ...problemIf(
+      !known.has(location),
+      `QR volba v uzlu ${id} vede přes neznámé místo ${location}.`,
+    ),
+    ...problemIf(
+      !Object.hasOwn(story.nodes, goto),
+      `QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`,
+    ),
+  ]),
+  ...(typeof node.choices === 'function' ? [] : choiceProblems(story, id, node.choices ?? [])),
+];
 
 /** Buttons and QR choices offered at `id` in `state`, with a usage key and a name for messages. */
 const offeredAt = (node: AnyNode, id: string, state: State, team: Team) => [
@@ -216,6 +219,9 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
   return {
     problems: [
       ...contentProblems,
+      ...(typeof node.choices === 'function'
+        ? choiceProblems(story, id, choicesOf(node, state, team))
+        : []),
       ...problemIf(
         available.length === 0,
         `Uzel ${id} je ve stavu ${show(state)} slepá ulička: žádná volba není dostupná.`,
@@ -277,13 +283,13 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
   return { problems, reached: new Set(queue.map((visit) => visit.node)), used };
 };
 
-/** Choices of a reached node that no reached state offers. */
+/** Choices of a reached node that no reached state offers; a function's list has no fixed ones. */
 const unusedProblems = (
   node: AnyNode,
   id: string,
   used: ReadonlySet<string>,
 ): readonly string[] => [
-  ...(node.choices ?? []).flatMap((choice, index) =>
+  ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).flatMap((choice, index) =>
     problemIf(
       !used.has(`${id}#${index}`),
       `Volba „${choice.label}“ v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,

@@ -60,6 +60,9 @@ export interface ScanChoice<S, K extends string, L extends number = number> exte
   readonly location: L;
 }
 
+/** Falsy entries are skipped, so choices can be written as `condition && choice`. */
+export type MaybeChoice<S, K extends string> = Choice<S, K> | false | null | undefined;
+
 interface NodeBase<S> {
   /** Makes the node the start, where every team begins with this state; a story has one. */
   readonly initialState?: S;
@@ -78,7 +81,13 @@ export type StoryNode<S, K extends string, L extends number = number> =
     })
   | (NodeBase<S> & {
       readonly end?: false;
-      readonly choices: readonly [Choice<S, K>, ...Choice<S, K>[]];
+      /**
+       * Evaluated once per render, like `blocks`, so a function has to give the same list for the
+       * same state and team: a chosen button is found by its position in the list.
+       */
+      readonly choices:
+        | readonly [Choice<S, K>, ...Choice<S, K>[]]
+        | TeamFn<S, readonly MaybeChoice<S, K>[]>;
       readonly scans?: never;
       readonly scanTitle?: never;
       readonly scanText?: never;

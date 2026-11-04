@@ -245,6 +245,52 @@ describe('validateStory', () => {
     ]);
   });
 
+  it('checks `choices` functions when played', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: (_state, team) =>
+            team.id === 1
+              ? [
+                  { label: 'Dál', goto: 'B' },
+                  { label: 'Dál', goto: 'B' },
+                ]
+              : [],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel A má dvě volby „Dál“. (týká se: Vlci)',
+      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
+    ]);
+  });
+
+  it('reports a `choices` function that throws', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: () => {
+            throw new Error('chyba');
+          },
+        },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Podmínka volby v uzlu A ve stavu {"n":0} spadla: chyba',
+    ]);
+  });
+
   it('accepts a screen with a picture and no text', () => {
     const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
     const story = define({
