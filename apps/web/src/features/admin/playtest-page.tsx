@@ -24,9 +24,33 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
 import { NodeScreens } from '@/features/player/node-screens';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+const ANIMATIONS_KEY = 'gamebook.playtest.animations';
+
+/** Whether the preview animates; off is remembered in this browser for the next test run. */
+const useAnimations = () => {
+  const [animated, setAnimated] = useState(() => {
+    try {
+      return localStorage.getItem(ANIMATIONS_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const change = (next: boolean) => {
+    setAnimated(next);
+    try {
+      if (next) localStorage.removeItem(ANIMATIONS_KEY);
+      else localStorage.setItem(ANIMATIONS_KEY, 'off');
+    } catch {
+      // Storage may be blocked; the switch then holds only until a reload.
+    }
+  };
+  return [animated, change] as const;
+};
 
 type Move = { readonly choice: number } | { readonly scan: number } | { readonly code: string };
 
@@ -174,6 +198,7 @@ const CodeEntry = ({
 export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
   const navigate = useNavigate();
+  const [animated, setAnimated] = useAnimations();
   const intro = useQuery({
     queryKey: ['player', 'intro'],
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
@@ -238,7 +263,12 @@ export const PlaytestPage = () => {
       <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-4 md:flex-row md:items-start'>
         <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
           {/* Exactly what the players see; test tools are in the toolbar under it. */}
-          <div className='phone-preview relative h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-sm'>
+          <div
+            className={cn(
+              'phone-preview relative h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-sm',
+              !animated && 'no-animations',
+            )}
+          >
             <div className='flex size-full flex-col overflow-auto font-story'>
               {current !== undefined && (
                 <NodeScreens
@@ -248,6 +278,7 @@ export const PlaytestPage = () => {
                   busy={play.isPending}
                   onCode={(code) => take({ code })}
                   requireCamera={current.intro === true}
+                  animated={animated}
                   onPick={(choice) => take({ choice: choice.index })}
                   // The screen in the URL belongs to the path in it; after a move it starts over.
                   initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
@@ -281,6 +312,9 @@ export const PlaytestPage = () => {
             >
               <IconRotate /> Znovu
             </Button>
+            <label className='flex h-7 cursor-pointer items-center gap-1.5 px-2 text-[0.8rem] font-medium'>
+              <Switch checked={animated} onCheckedChange={setAnimated} /> Animace
+            </label>
             <span className='flex-1' />
             <CodeEntry
               disabled={current?.view.scan !== true}
