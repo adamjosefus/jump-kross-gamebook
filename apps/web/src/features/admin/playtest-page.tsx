@@ -188,7 +188,7 @@ const CodeEntry = ({
           </Button>
         </PopoverTrigger>
       </Hint>
-      <PopoverContent side='top' sideOffset={0} className='flex flex-col gap-3'>
+      <PopoverContent side='top' sideOffset={6} className='flex flex-col gap-3'>
         <PopoverArrow />
         <section className='flex flex-col gap-1'>
           <h3 className='text-sm font-medium'>{kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}</h3>

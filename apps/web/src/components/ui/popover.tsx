@@ -43,7 +43,7 @@ function PopoverArrow({
     <PopoverPrimitive.Arrow
       data-slot='popover-arrow'
       className={cn(
-        'z-50 size-2.5 translate-y-[calc(-50%_-_1px)] rotate-45 rounded-[2px] border-r border-b border-foreground/10 bg-popover fill-popover',
+        'z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] border-r border-b border-foreground/10 bg-popover fill-popover',
         className,
       )}
       {...props}
