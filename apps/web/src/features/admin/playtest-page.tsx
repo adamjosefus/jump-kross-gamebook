@@ -188,20 +188,20 @@ const CodeEntry = ({
           </Button>
         </PopoverTrigger>
       </Hint>
-      <PopoverContent side='top' sideOffset={6} className='flex flex-col gap-3'>
+      <PopoverContent side='top' sideOffset={6} className='flex flex-col'>
         <PopoverArrow />
-        <section className='flex flex-col gap-1'>
+        <section className='flex flex-col'>
           <h3 className='-mx-3 border-b px-3 pb-2 text-sm font-medium'>
             {kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}
           </h3>
           {codes.isError ? (
-            <p className='text-xs text-destructive'>{errorMessage(codes.error)}</p>
+            <p className='my-3 text-xs text-destructive'>{errorMessage(codes.error)}</p>
           ) : offered === undefined ? (
-            <IconLoader2 className='size-4 animate-spin' />
+            <IconLoader2 className='my-3 size-4 animate-spin' />
           ) : offered.length === 0 ? (
-            <p className='text-xs text-muted-foreground'>Příběh žádné nemá.</p>
+            <p className='my-3 text-xs text-muted-foreground'>Příběh žádné nemá.</p>
           ) : (
-            <ul className='-mx-3 flex max-h-56 flex-col overflow-y-auto px-2'>
+            <ul className='-mx-3 flex max-h-56 flex-col overflow-y-auto p-2'>
               {offered.map((entry) => (
                 <li key={entry.code}>
                   <button
@@ -220,7 +220,7 @@ const CodeEntry = ({
             </ul>
           )}
         </section>
-        <form onSubmit={submit} className='flex flex-col gap-2 border-t pt-3'>
+        <form onSubmit={submit} className='-mx-3 flex flex-col gap-2 border-t px-3 pt-3'>
           <h3 className='text-sm font-medium'>Zadat ručně</h3>
           <div className='flex gap-2'>
             <Input
