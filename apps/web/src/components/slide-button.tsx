@@ -12,7 +12,7 @@ type Stage = 'idle' | 'confirmed' | 'pending';
 const Label = ({ children }: { readonly children: ReactNode }) => (
   <span
     data-slot='slide-button-label'
-    className='absolute inset-x-14 top-1/2 -translate-y-1/2 truncate text-center text-base font-medium'
+    className='absolute inset-x-14 top-1/2 -translate-y-1/2 truncate text-center text-xl font-medium'
   >
     {children}
   </span>
