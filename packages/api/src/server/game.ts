@@ -69,17 +69,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     // admin request; the cache has to be a `let` for that.
     let cachedGraph: GameGraph | undefined;
     const graph = () => (cachedGraph ??= toGraph(story));
+    const introNode = story.nodes[story.introNode];
     const intro = {
       screens: introScreens(story),
-      ...(story.introScanTitle === undefined ? {} : { scanTitle: story.introScanTitle }),
-      ...(story.introScanText === undefined ? {} : { scanText: story.introScanText }),
+      ...(introNode?.scanTitle === undefined ? {} : { scanTitle: introNode.scanTitle }),
+      ...(introNode?.scanText === undefined ? {} : { scanText: introNode.scanText }),
     };
 
     const teamName = (id: number) =>
       story.teams.find((team) => team.id === id)?.name ?? `Tým ${id}`;
 
-    const isEnd = (node: string | undefined) =>
-      node !== undefined && story.nodes[node]?.end === true;
+    const isEnd = (node: string | undefined) => node === story.outroNode;
 
     const moveOf = (result: Extract<MoveResult, { ok: true }>, action: string): TeamMove => ({
       ...result.position,

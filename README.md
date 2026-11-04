@@ -32,7 +32,7 @@ Data v paměti přežijí uložení souboru a zmizí až s restartem dev serveru
 
 Příběh je kód v [packages/story/src/story.ts](packages/story/src/story.ts) a mění se s deployem. Patří k němu i týmy a místa s QR kódy, admin z nich tiskne kódy. Překlep v `goto`, neznámé místo ve `scans`, špatný typ stavu nebo neznámé `theme` jsou chyby kompilace. Co typy nevidí (nedosažitelné uzly, víc startů, nepoužité volby a místa, prázdný obsah), hlídá test `validateStory`.
 
-Hra začíná úvodem (`intro`), který vidí kdokoli bez přihlášení. Na jeho konci hráč naskenuje kód svého týmu. Tým, kterému hra ještě nezačala, začne na startu (jediný uzel s `initialState`) s výchozím stavem. Jinak se telefon přenese tam, kde tým právě je, takže všechny telefony týmu ukazují totéž.
+Hra začíná úvodem (uzel `introNode`), který vidí kdokoli bez přihlášení; nemá proto tým ani stav. Na jeho konci hráč naskenuje kód svého týmu. Tým, kterému hra ještě nezačala, začne na startu (jediný uzel s `initialState`) s výchozím stavem. Jinak se telefon přenese tam, kde tým právě je, takže všechny telefony týmu ukazují totéž. Hra končí příchodem na konec (uzel `outroNode`), který nemá žádné volby; různé konce se píší jako jeho bloky podle stavu a týmu.
 
 ```ts
 type State = { gold: number; hatColor: 'red' | 'blue' };
@@ -42,9 +42,16 @@ export const story = defineStory<State>()({
   teams: { 1: 'Vlci', 2: 'Lišky' },
   // Místa s QR kódy: číslo → název. Ve `scans` smí být jen tato čísla.
   locations: { 32: 'Studna na nádvoří', 33: 'Brána' },
-  // Úvod před přihlášením, pro všechny stejný. Po něm se skenuje kód týmu.
-  intro: [{ theme: 'intro', content: '# Ztracený rukopis' }, 'Pravidla hry…'],
+  introNode: 'INTRO', // úvod před přihlášením, pro všechny stejný
+  outroNode: 'END', // tady hra končí
   nodes: {
+    INTRO: {
+      // Bloky úvodu jsou prostý seznam, tým ani stav tu ještě není. Po úvodu se skenuje kód týmu.
+      blocks: [{ theme: 'intro', content: '# Ztracený rukopis' }, 'Pravidla hry…'],
+      // Titulek a text přihlašovacího skeneru; bez nich se ukážou výchozí.
+      scanTitle: 'Představte se',
+      scanText: 'Naskenujte kód svého týmu.',
+    },
     START: {
       initialState: { gold: 100, hatColor: 'red' }, // jediný start, tady začíná každý tým
       blocks: ['Stojíte před branou kláštera.'],
@@ -52,7 +59,7 @@ export const story = defineStory<State>()({
     },
     A1: {
       // Každý blok je jedna obrazovka v Markdownu, mezi nimi je tlačítko se šipkou.
-      // Funkce dostane stav a tým (`team.id`, `team.name`); v `intro` tým ještě není.
+      // Funkce dostane stav a tým (`team.id`, `team.name`).
       blocks: (state, team) => [
         `Tým ${team.name} má ${state.gold} zlaťáků.`,
         // false se vynechá; `next` je text tlačítka na další obrazovku, jinak je tlačítko jen šipka
@@ -60,7 +67,6 @@ export const story = defineStory<State>()({
         'Jděte ke **studni**, nebo k **bráně**, a naskenujte tam QR kód.',
       ],
       // Titulek a text obrazovky skeneru; bez nich se ukážou výchozí.
-      // Pro přihlašovací sken jsou `introScanTitle` a `introScanText` vedle `intro`.
       scanTitle: 'Kam jste došli?',
       scanText: 'Naskenujte QR kód na místě, kam vás cesta zavedla.',
       // QR volby: kam tým pokračuje, rozhodne naskenované místo. Hráč vidí jen tlačítko Naskenovat.
@@ -82,7 +88,8 @@ export const story = defineStory<State>()({
         { label: 'Odejít', goto: 'END' },
       ],
     },
-    END: { end: true, blocks: ['Konec.'] },
+    // Konec; bloky smí záviset na stavu a týmu, volby tu nejsou.
+    END: { blocks: (s, team) => [`Konec, týme ${team.name}. Máte ${s.gold} zlaťáků.`] },
   },
 });
 ```

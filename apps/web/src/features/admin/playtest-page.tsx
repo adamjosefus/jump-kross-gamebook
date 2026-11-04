@@ -30,7 +30,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NodeScreens } from '@/features/player/node-screens';
-import { GRAPH_INTRO, StoryGraph } from '@/features/story/story-graph';
+import { StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -384,7 +384,7 @@ export const PlaytestPage = () => {
           graph={graph.data}
           {...(current === undefined
             ? {}
-            : { focus: current.intro === true ? GRAPH_INTRO : current.node })}
+            : { focus: current.intro === true ? graph.data.introNode : current.node })}
           // The preview is 22rem wide before scaling, the log 20rem, both 1rem from the edge.
           inset={{ left: remPx(22) * scale + remPx(1), right: logOpen ? remPx(21) : 0 }}
         />

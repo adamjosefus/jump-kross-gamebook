@@ -9,15 +9,13 @@ import {
   stateKey,
   type RenderedScreen,
 } from './engine.ts';
-import type { Choice, Story, StoryNode, Team } from './story.ts';
+import type { AnyNode, Choice, Story, Team } from './story.ts';
 import type { State } from './types.ts';
 
 export interface ValidateOptions {
   /** Upper bound on explored (node, state) pairs; stories with counters could otherwise explode. */
   readonly maxStates?: number;
 }
-
-type AnyNode = StoryNode<State, string>;
 
 /** A team at a node with a state: one explored pair. */
 interface Visit {
@@ -55,15 +53,44 @@ const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT
 const isEmptyScreen = ({ content, svg }: RenderedScreen) =>
   content.trim() === '' && svg === undefined;
 
-const introProblems = (story: Story): readonly string[] => [
-  ...problemIf(story.intro.length === 0, 'Příběh nemá úvod (intro).'),
-  ...problemIf(story.introScanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
-  ...problemIf(story.introScanText?.trim() === '', 'Úvod má prázdný text skeneru.'),
-  ...introScreens(story).flatMap((screen, index) => [
-    ...problemIf(isEmptyScreen(screen), `Úvod má prázdnou obrazovku č. ${index + 1}.`),
-    ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
-  ]),
-];
+/** The intro has no team and no state and leads on by the login, not by choices. */
+const introProblems = (story: Story): readonly string[] => {
+  const id = story.introNode;
+  const intro = story.nodes[id];
+  if (intro === undefined) return [`Příběh nemá uzel úvodu ${id}.`];
+  return [
+    ...problemIf(id === story.outroNode, `Úvod a konec je tentýž uzel ${id}.`),
+    ...problemIf(intro.initialState !== undefined, `Úvod ${id} nesmí být start.`),
+    ...problemIf(
+      typeof intro.blocks === 'function',
+      `Úvod ${id} nemá tým ani stav, jeho blocks nesmí být funkce.`,
+    ),
+    ...problemIf(
+      intro.choices !== undefined || intro.scans !== undefined,
+      `Úvod ${id} nesmí mít volby ani QR volby, dál vede kód týmu.`,
+    ),
+    ...problemIf(intro.scanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
+    ...problemIf(intro.scanText?.trim() === '', 'Úvod má prázdný text skeneru.'),
+    ...introScreens(story).flatMap((screen, index) => [
+      ...problemIf(isEmptyScreen(screen), `Úvod má prázdnou obrazovku č. ${index + 1}.`),
+      ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
+    ]),
+  ];
+};
+
+/** The outro ends the game, so nothing leads on from it. */
+const outroProblems = (story: Story): readonly string[] => {
+  const id = story.outroNode;
+  const outro = story.nodes[id];
+  if (outro === undefined) return [`Příběh nemá uzel konce ${id}.`];
+  return [
+    ...problemIf(outro.initialState !== undefined, `Konec ${id} nesmí být start.`),
+    ...problemIf(
+      outro.choices !== undefined || outro.scans !== undefined,
+      `Konec ${id} nesmí mít volby ani QR volby.`,
+    ),
+  ];
+};
 
 const teamProblems = (story: Story): readonly string[] => [
   ...problemIf(story.teams.length === 0, 'Příběh nemá žádný tým.'),
@@ -105,6 +132,7 @@ const choiceProblems = (
       !Object.hasOwn(story.nodes, goto),
       `Volba „${label}“ v uzlu ${id} vede na neexistující uzel ${goto}.`,
     ),
+    ...problemIf(goto === story.introNode, `Volba „${label}“ v uzlu ${id} vede na úvod.`),
   ]);
 
 /**
@@ -128,6 +156,7 @@ const nodeProblems = (
       !Object.hasOwn(story.nodes, goto),
       `QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`,
     ),
+    ...problemIf(goto === story.introNode, `QR volba místa ${location} v uzlu ${id} vede na úvod.`),
   ]),
   ...(typeof node.choices === 'function' ? [] : choiceProblems(story, id, node.choices ?? [])),
 ];
@@ -189,7 +218,7 @@ const contentProblemsOf = (
 const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
   const node = story.nodes[id]!;
   const contentProblems = contentProblemsOf(id, node, state, team);
-  if (node.end === true) return { problems: contentProblems, used: [], next: [] };
+  if (id === story.outroNode) return { problems: contentProblems, used: [], next: [] };
 
   const offered = attempt(() => offeredAt(node, id, state, team));
   if (!offered.ok)
@@ -330,6 +359,8 @@ export const validateStory = (
   if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
 
   const known = new Set(story.locations.map((location) => location.id));
+  // The intro is played by nobody: the login leads from it to the start.
+  const played = story.order.filter((id) => id !== story.introNode);
   // Content and conditions may depend on the team, so every team plays the story on its own.
   const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
   const explored = teams.map((team) => ({
@@ -349,11 +380,12 @@ export const validateStory = (
       `Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`,
     ),
     ...introProblems(story),
+    ...outroProblems(story),
     ...teamProblems(story),
     ...locationProblems(story),
-    ...story.order.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
+    ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
-    ...story.order.flatMap((id) =>
+    ...played.flatMap((id) =>
       reached.has(id)
         ? unusedProblems(story.nodes[id]!, id, used)
         : [`Uzel ${id} je nedosažitelný ze startu.`],

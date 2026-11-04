@@ -13,7 +13,7 @@ import {
 
 export const Value = Schema.Union([Schema.String, Schema.Number, Schema.Boolean]);
 export const GameState = Schema.Record(Schema.String, Value);
-export const NodeType = Schema.Literals(['start', 'passage', 'end']);
+export const NodeType = Schema.Literals(['intro', 'start', 'passage', 'end']);
 export const Theme = Schema.Literals(THEMES);
 
 // ---------------------------------------------------------------------------------------------
@@ -158,8 +158,10 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // Admin
 
 export const StoryGraph = Schema.Struct({
-  /** What anyone sees before scanning a team's code. */
-  intro: Schema.Struct({ blocks: Schema.Array(Schema.String) }),
+  /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
+  introNode: Schema.String,
+  /** The node the game ends at. */
+  outroNode: Schema.String,
   order: Schema.Array(Schema.String),
   /** The node every team starts at; the previews are computed from it. */
   start: Schema.optionalKey(Schema.String),

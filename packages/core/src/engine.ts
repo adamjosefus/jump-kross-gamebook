@@ -1,10 +1,10 @@
 import {
   dedent,
+  type AnyNode,
   type Block,
   type Choice,
   type ScanChoice,
   type Story,
-  type StoryNode,
   type Team,
   type Theme,
 } from './story.ts';
@@ -57,7 +57,6 @@ export type MoveResult =
   | { readonly ok: true; readonly position: Position }
   | { readonly ok: false; readonly error: MoveError };
 
-type AnyNode = StoryNode<State, string>;
 type AnyChoice = Choice<State, string>;
 type AnyScan = ScanChoice<State, string>;
 
@@ -69,8 +68,14 @@ export const stateKey = (state: State) =>
       .map((key) => [key, state[key]]),
   );
 
-export const nodeType = (node: AnyNode): NodeType =>
-  node.end === true ? 'end' : node.initialState === undefined ? 'passage' : 'start';
+export const nodeType = (story: Story, id: string): NodeType =>
+  id === story.introNode
+    ? 'intro'
+    : id === story.outroNode
+      ? 'end'
+      : story.nodes[id]?.initialState === undefined
+        ? 'passage'
+        : 'start';
 
 export const blocksOf = (node: AnyNode, state: State, team: Team): readonly Block[] =>
   (typeof node.blocks === 'function' ? node.blocks(state, team) : node.blocks).filter(
@@ -110,8 +115,11 @@ export const screensOf = (node: AnyNode, state: State, team: Team): readonly Ren
 /** The team to show content with where no real one plays, as in previews and test runs. */
 export const sampleTeam = (story: Story): Team => story.teams[0] ?? { id: 0, name: 'Tým' };
 
-/** Screens shown before login. */
-export const introScreens = (story: Story): readonly RenderedScreen[] => story.intro.map(screenOf);
+/** Screens shown before login: the intro node, which has no team and no state. */
+export const introScreens = (story: Story): readonly RenderedScreen[] => {
+  const intro = story.nodes[story.introNode];
+  return intro === undefined ? [] : screensOf(intro, {}, sampleTeam(story));
+};
 
 /** The node every team starts at: the first one with `initialState`. */
 export const startNode = (story: Story): string | undefined =>
@@ -163,7 +171,7 @@ export const renderNode = (
   if (node === undefined) return undefined;
   return {
     id: position.node,
-    type: nodeType(node),
+    type: nodeType(story, position.node),
     screens: screensOf(node, position.state, team),
     choices: availableChoices(node, position.state, team).map(({ choice, index }) => ({
       index,
@@ -195,7 +203,7 @@ export const applyChoice = (
 ): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
-  if (node.end === true) return { ok: false, error: 'finished' };
+  if (position.node === story.outroNode) return { ok: false, error: 'finished' };
   if (node.scans !== undefined) return { ok: false, error: 'scan-required' };
   const available = availableChoices(node, position.state, team).find(
     (candidate) => candidate.index === index,
@@ -213,7 +221,7 @@ export const applyScan = (
 ): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
-  if (node.end === true) return { ok: false, error: 'finished' };
+  if (position.node === story.outroNode) return { ok: false, error: 'finished' };
   if (node.scans === undefined) return { ok: false, error: 'no-scan' };
   const available = availableScans(node, position.state, team).find(
     ({ scan }) => scan.location === location,

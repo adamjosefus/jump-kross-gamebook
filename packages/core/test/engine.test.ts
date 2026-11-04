@@ -27,10 +27,10 @@ describe('engine', () => {
     const titled = defineStory<{ gold: number }>()({
       teams: { 1: 'Tým' },
       locations: { 1: 'Studna' },
-      intro: ['Úvod'],
-      introScanTitle: 'Kód týmu',
-      introScanText: 'Namiřte na kód týmu.',
+      introNode: 'INTRO',
+      outroNode: 'B',
       nodes: {
+        INTRO: { blocks: ['Úvod'], scanTitle: 'Kód týmu', scanText: 'Namiřte na kód týmu.' },
         A: {
           initialState: { gold: 0 },
           blocks: ['A'],
@@ -38,12 +38,12 @@ describe('engine', () => {
           scanText: 'Namiřte na kód místa.',
           scans: [{ location: 1, goto: 'B' }],
         },
-        B: { end: true, blocks: ['B'] },
+        B: { blocks: ['B'] },
       },
     });
-    expect(titled).toMatchObject({
-      introScanTitle: 'Kód týmu',
-      introScanText: 'Namiřte na kód týmu.',
+    expect(titled.nodes['INTRO']).toMatchObject({
+      scanTitle: 'Kód týmu',
+      scanText: 'Namiřte na kód týmu.',
     });
     expect(renderNode(titled, startPosition(titled)!, VLCI)).toMatchObject({
       scanTitle: 'Kde jste?',
@@ -64,8 +64,13 @@ describe('engine', () => {
     const withSvg = defineStory<{ readonly n: number }>()({
       teams: { 1: 'Tým' },
       locations: {},
-      intro: [{ svg: '<svg></svg>', content: 'Úvod' }, 'Pravidla'],
-      nodes: { A: { initialState: { n: 0 }, end: true, blocks: ['Konec'] } },
+      introNode: 'INTRO',
+      outroNode: 'B',
+      nodes: {
+        INTRO: { blocks: [{ svg: '<svg></svg>', content: 'Úvod' }, 'Pravidla'] },
+        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Konec', goto: 'B' }] },
+        B: { blocks: ['Konec'] },
+      },
     });
     expect(introScreens(withSvg)).toEqual([
       { theme: 'default', svg: '<svg></svg>', content: 'Úvod' },
@@ -76,9 +81,14 @@ describe('engine', () => {
   it('passes the text of the next button on', () => {
     const texts = defineStory<{ n: number }>()({
       teams: { 1: 'Tým' },
-      intro: [{ content: 'Úvod', next: 'Začít' }, 'Pravidla'],
       locations: {},
-      nodes: { A: { initialState: { n: 0 }, end: true, blocks: ['A'] } },
+      introNode: 'INTRO',
+      outroNode: 'B',
+      nodes: {
+        INTRO: { blocks: [{ content: 'Úvod', next: 'Začít' }, 'Pravidla'] },
+        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Konec', goto: 'B' }] },
+        B: { blocks: ['B'] },
+      },
     });
     expect(introScreens(texts)).toEqual([
       { theme: 'default', content: 'Úvod', next: 'Začít' },
@@ -87,7 +97,7 @@ describe('engine', () => {
   });
 
   it('gives blocks the team, each team its own text', () => {
-    const position = { node: 'C1', state: start.state };
+    const position = { node: 'OUTRO', state: start.state };
     expect(renderNode(story, position, VLCI)!.screens[0]!.content).toBe(
       'Prohráli jste, týme Vlci.',
     );
@@ -152,9 +162,11 @@ describe('engine', () => {
   it('offers only QR choices whose condition holds', () => {
     const gated = defineStory<{ key: boolean }>()({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
+      introNode: 'INTRO',
+      outroNode: 'B',
       locations: { 1: 'Místo 1', 2: 'Místo 2' },
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { key: false },
           blocks: ['A'],
@@ -163,7 +175,7 @@ describe('engine', () => {
             { location: 2, goto: 'B', when: (state) => state.key },
           ],
         },
-        B: { end: true, blocks: ['B'] },
+        B: { blocks: ['B'] },
       },
     });
     const locked = { node: 'A', state: { key: false } };
@@ -199,7 +211,7 @@ describe('engine', () => {
   });
 
   it('stops at end nodes', () => {
-    const end = { node: 'C1', state: {} };
+    const end = { node: 'OUTRO', state: {} };
     expect(renderNode(story, end, VLCI)).toMatchObject({ type: 'end', choices: [], scan: false });
     expect(applyChoice(story, end, VLCI, 0)).toEqual({ ok: false, error: 'finished' });
     expect(applyScan(story, end, VLCI, 32)).toEqual({ ok: false, error: 'finished' });
@@ -218,9 +230,11 @@ describe('`when` with a team', () => {
   const LISKY = { id: 2, name: 'Lišky' };
   const teamStory = defineStory<{ n: number }>()({
     teams: { 1: 'Vlci', 2: 'Lišky' },
-    intro: ['Úvod'],
+    introNode: 'INTRO',
+    outroNode: 'B',
     locations: { 1: 'Studna' },
     nodes: {
+      INTRO: { blocks: ['Úvod'] },
       A: {
         initialState: { n: 0 },
         blocks: ['A'],
@@ -233,7 +247,7 @@ describe('`when` with a team', () => {
         blocks: ['S'],
         scans: [{ location: 1, goto: 'B', when: (_state, team) => team.id === 2 }],
       },
-      B: { end: true, blocks: ['B'] },
+      B: { blocks: ['B'] },
     },
   });
   const atStart = startPosition(teamStory)!;
@@ -261,9 +275,11 @@ describe('`choices` as a function', () => {
   const LISKY = { id: 2, name: 'Lišky' };
   const dynamic = defineStory<{ gold: number }>()({
     teams: { 1: 'Vlci', 2: 'Lišky' },
-    intro: ['Úvod'],
     locations: {},
+    introNode: 'INTRO',
+    outroNode: 'OUTRO',
     nodes: {
+      INTRO: { blocks: ['Úvod'] },
       A: {
         initialState: { gold: 1 },
         blocks: ['A'],
@@ -278,13 +294,14 @@ describe('`choices` as a function', () => {
         blocks: ['B'],
         choices: [{ label: 'Zlato', goto: 'F', nextState: () => ({ gold: 9 }) }],
       },
-      C: { end: true, blocks: ['C'] },
-      D: { end: true, blocks: ['D'] },
-      E: { end: true, blocks: ['E'] },
+      C: { blocks: ['C'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
+      D: { blocks: ['D'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
+      E: { blocks: ['E'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
       F: {
         blocks: ['F'],
         choices: (state) => (state.gold > 5 ? [{ label: 'Konec', goto: 'D' }] : []),
       },
+      OUTRO: { blocks: ['Konec'] },
     },
   });
   const at = startPosition(dynamic)!;
@@ -292,19 +309,21 @@ describe('`choices` as a function', () => {
   it('types `goto` inside the function too', () => {
     const typed = defineStory<{ gold: number }>()({
       teams: { 1: 'Vlci' },
-      intro: ['Úvod'],
+      introNode: 'INTRO',
+      outroNode: 'B',
       locations: {},
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { gold: 1 },
           blocks: ['A'],
           // @ts-expect-error a target that is not a node of the story
           choices: () => [{ label: 'Pryč', goto: 'NIKDE' }],
         },
-        B: { end: true, blocks: ['B'] },
+        B: { blocks: ['B'] },
       },
     });
-    expect(typed.order).toEqual(['A', 'B']);
+    expect(typed.order).toEqual(['INTRO', 'A', 'B']);
   });
 
   it('renders the choices for the state and the team, skipping falsy ones', () => {
@@ -339,7 +358,9 @@ describe('`choices` as a function', () => {
 describe('graph', () => {
   it('describes nodes, edges and previews from the first start', () => {
     const graph = toGraph(story);
-    expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
+    expect(graph.order).toEqual(['INTRO', 'A1', 'A2', 'B1', 'OUTRO']);
+    expect(graph).toMatchObject({ introNode: 'INTRO', outroNode: 'OUTRO' });
+    expect(graph.nodes['INTRO']).toMatchObject({ type: 'intro', reached: true, choices: [] });
     expect(graph.start).toBe('A1');
     // B1 is first reached through „Možnost jedna“, which turns the hat blue.
     expect(graph.nodes['B1']).toEqual({
@@ -352,8 +373,8 @@ describe('graph', () => {
         blocks: ['Pohodlně si nosil svoji chudou pokrývku hlavy.'],
       },
       choices: [
-        { label: 'Bojovat', target: 'C1', conditional: false },
-        { label: 'Koupit meč', target: 'C2', conditional: true, available: true },
+        { label: 'Bojovat', target: 'OUTRO', conditional: false },
+        { label: 'Koupit meč', target: 'OUTRO', conditional: true, available: true },
       ],
     });
     expect(graph.nodes['A2']!.preview?.blocks).toHaveLength(2);
@@ -371,9 +392,11 @@ describe('graph', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Vlci', 2: 'Lišky' },
-        intro: ['Úvod'],
+        introNode: 'INTRO',
+        outroNode: 'B',
         locations: {},
         nodes: {
+          INTRO: { blocks: ['Úvod'] },
           A: {
             initialState: { n: 0 },
             blocks: ['A'],
@@ -382,7 +405,7 @@ describe('graph', () => {
               { label: 'Nikdo', goto: 'B', when: (_state, team) => team.id === 3 },
             ],
           },
-          B: { end: true, blocks: ['B'] },
+          B: { blocks: ['B'] },
         },
       }),
     );
@@ -393,12 +416,17 @@ describe('graph', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Tým' },
-        intro: [{ svg: '<svg />', content: '' }, 'První text', 'Druhý text'],
         locations: {},
-        nodes: { A: { initialState: { n: 1 }, end: true, blocks: ['A'] } },
+        introNode: 'INTRO',
+        outroNode: 'B',
+        nodes: {
+          INTRO: { blocks: [{ svg: '<svg />', content: '' }, 'První text', 'Druhý text'] },
+          A: { initialState: { n: 1 }, blocks: ['A'], choices: [{ label: 'Konec', goto: 'B' }] },
+          B: { blocks: ['B'] },
+        },
       }),
     );
-    expect(graph.intro).toEqual({ blocks: ['', 'První text', 'Druhý text'] });
+    expect(graph.nodes['INTRO']!.preview).toEqual({ blocks: ['', 'První text', 'Druhý text'] });
   });
 
   it('leaves unreached dynamic nodes without text', () => {
@@ -406,13 +434,22 @@ describe('graph', () => {
     const graph = toGraph(
       define({
         teams: { 1: 'Tým' },
-        intro: ['Úvod'],
         locations: {},
+        introNode: 'INTRO',
+        outroNode: 'OUTRO',
         nodes: {
+          INTRO: { blocks: ['Úvod'] },
           A: { initialState: { n: 1 }, blocks: [], choices: [{ label: 'Dál', goto: 'C' }] },
           B: { blocks: ['B'], choices: [{ label: 'Jinam', goto: 'D' }] },
-          C: { end: true, blocks: (state) => [`n = ${state.n}`] },
-          D: { end: true, blocks: (state) => [`d = ${state.n}`] },
+          C: {
+            blocks: (state) => [`n = ${state.n}`],
+            choices: [{ label: 'Konec', goto: 'OUTRO' }],
+          },
+          D: {
+            blocks: (state) => [`d = ${state.n}`],
+            choices: [{ label: 'Konec', goto: 'OUTRO' }],
+          },
+          OUTRO: { blocks: ['Konec'] },
         },
       }),
     );
@@ -427,19 +464,22 @@ describe('graph', () => {
     const define = defineStory<{ n: number }>();
     const noStart = define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
+      introNode: 'INTRO',
+      outroNode: 'A',
       locations: {},
-      nodes: { A: { end: true, blocks: ['A'] } },
+      nodes: { INTRO: { blocks: ['Úvod'] }, A: { blocks: ['A'] } },
     });
     expect(graphProblems(toGraph(noStart))).toEqual(['Příběh nemá start (uzel s initialState).']);
     const orphan = define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
       locations: {},
+      introNode: 'INTRO',
+      outroNode: 'B',
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         A: { initialState: { n: 0 }, blocks: [], choices: [{ label: 'Dál', goto: 'B' }] },
-        B: { end: true, blocks: ['B'] },
-        C: { end: true, blocks: ['C'] },
+        B: { blocks: ['B'] },
+        C: { blocks: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
       },
     });
     expect(graphProblems(toGraph(orphan))).toEqual(['Uzel C je nedosažitelný ze startu.']);
@@ -452,9 +492,11 @@ const _typeErrors = () => {
     const define = defineStory<{ gold: number }>();
     define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
       locations: {},
+      introNode: 'INTRO',
+      outroNode: 'C',
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { gold: 0 },
           blocks: [],
@@ -463,49 +505,80 @@ const _typeErrors = () => {
             { label: 'Překlep', goto: 'BB' },
             // @ts-expect-error: nextState must match the state type
             { label: 'Špatný typ', goto: 'B', nextState: () => ({ gold: 'hodně' }) },
+            // @ts-expect-error: nothing leads to the intro, the login does
+            { label: 'Zpět na úvod', goto: 'INTRO' },
           ],
         },
         // @ts-expect-error: a team has only its id and name
-        C: { end: true, blocks: (_state, team) => [team.color] },
+        C: { blocks: (_state, team) => [team.color] },
         // @ts-expect-error: unknown theme
-        B: { end: true, blocks: [{ theme: 'neon', content: 'B' }] },
+        B: { blocks: [{ theme: 'neon', content: 'B' }], choices: [{ label: 'Dál', goto: 'C' }] },
       },
     });
     define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
       locations: {},
-      // @ts-expect-error: a node without end needs choices
-      nodes: { A: { initialState: { gold: 0 }, blocks: [] } },
+      introNode: 'INTRO',
+      outroNode: 'B',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        // @ts-expect-error: a node that is not the outro needs choices or QR choices
+        A: { initialState: { gold: 0 }, blocks: [] },
+        B: { blocks: ['B'] },
+      },
     });
     define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
       locations: { 1: 'Místo 1' },
+      introNode: 'INTRO',
+      outroNode: 'B',
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         // @ts-expect-error: a node offers buttons or QR choices, not both
         A: {
           initialState: { gold: 0 },
           blocks: [],
-          choices: [{ label: 'Dál', goto: 'A' }],
-          scans: [{ location: 1, goto: 'A' }],
+          choices: [{ label: 'Dál', goto: 'B' }],
+          scans: [{ location: 1, goto: 'B' }],
         },
+        B: { blocks: ['B'] },
       },
     });
     define({
       teams: { 1: 'Tým' },
-      intro: ['Úvod'],
       locations: { 1: 'Studna' },
+      introNode: 'INTRO',
+      outroNode: 'B',
       nodes: {
+        INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { gold: 0 },
           blocks: [],
           scans: [
-            { location: 1, goto: 'A' },
+            { location: 1, goto: 'B' },
             // @ts-expect-error: a QR choice must use a place from `locations`
-            { location: 2, goto: 'A' },
+            { location: 2, goto: 'B' },
           ],
         },
+        B: { blocks: ['B'] },
+      },
+    });
+    // A wrong id makes the other nodes mistyped too, so these stay on one line each.
+    const base = { teams: {}, locations: {} } as const;
+    // @ts-expect-error: the intro has to be a node of the story
+    define({ ...base, introNode: 'X', outroNode: 'B', nodes: { B: { blocks: [] } } });
+    // @ts-expect-error: the outro is another node than the intro
+    define({ ...base, introNode: 'B', outroNode: 'B', nodes: { B: { blocks: [] } } });
+    define({
+      teams: { 1: 'Tým' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'B',
+      nodes: {
+        // @ts-expect-error: the intro has no team and no state, so its blocks are a plain list
+        INTRO: { blocks: (_state, team) => [team.name] },
+        A: { initialState: { gold: 0 }, blocks: [], choices: [{ label: 'Dál', goto: 'B' }] },
+        B: { blocks: ['B'] },
       },
     });
   }

@@ -70,17 +70,9 @@ interface NodeBase<S> {
   readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
 }
 
-/** A node ends the story, offers buttons, or waits for a QR scan; never buttons and scans at once. */
+/** A node offers buttons or waits for a QR scan, never both; the intro and the outro are apart. */
 export type StoryNode<S, K extends string, L extends number = number> =
   | (NodeBase<S> & {
-      readonly end: true;
-      readonly choices?: never;
-      readonly scans?: never;
-      readonly scanTitle?: never;
-      readonly scanText?: never;
-    })
-  | (NodeBase<S> & {
-      readonly end?: false;
       /**
        * Evaluated once per render, like `blocks`, so a function has to give the same list for the
        * same state and team: a chosen button is found by its position in the list.
@@ -93,7 +85,6 @@ export type StoryNode<S, K extends string, L extends number = number> =
       readonly scanText?: never;
     })
   | (NodeBase<S> & {
-      readonly end?: false;
       readonly choices?: never;
       readonly scans: readonly [ScanChoice<S, K, L>, ...ScanChoice<S, K, L>[]];
       /** The heading of the scan screen; the player's default one without it. */
@@ -101,6 +92,34 @@ export type StoryNode<S, K extends string, L extends number = number> =
       /** The text under that heading; the player's default one without it. */
       readonly scanText?: string;
     });
+
+/**
+ * The intro: anyone sees it before scanning a team's login code, so there is no team and no state
+ * and the blocks are a plain list. The login leads on, to the start or to where the team is.
+ */
+export interface IntroNode {
+  readonly initialState?: never;
+  readonly blocks: readonly MaybeBlock[];
+  /** The heading of the login scan screen; the player's default one without it. */
+  readonly scanTitle?: string;
+  /** The text under that heading; the player's default one without it. */
+  readonly scanText?: string;
+  readonly choices?: never;
+  readonly scans?: never;
+}
+
+/** The outro: the game ends when a team arrives; the blocks may use the state and the team. */
+export interface OutroNode<S> {
+  readonly initialState?: never;
+  readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
+  readonly choices?: never;
+  readonly scans?: never;
+  readonly scanTitle?: never;
+  readonly scanText?: never;
+}
+
+/** Any node of a story the engine runs. */
+export type AnyNode = StoryNode<State, string> | IntroNode | OutroNode<State>;
 
 /** A physical place with a QR code; teams scan it to take a QR choice. */
 export interface Location {
@@ -119,37 +138,67 @@ export interface Story {
   readonly teams: readonly Team[];
   /** Places with QR codes, by id. */
   readonly locations: readonly Location[];
-  /** Screens anyone sees before scanning a team's login code; the same for every team. */
-  readonly intro: readonly Block[];
-  /** The heading of the login scan screen; the player's default one without it. */
-  readonly introScanTitle?: string;
-  /** The text under that heading; the player's default one without it. */
-  readonly introScanText?: string;
+  /** The node anyone sees before scanning a team's login code; the same for every team. */
+  readonly introNode: string;
+  /** The node the game ends at. */
+  readonly outroNode: string;
   /** Node ids in definition order. */
   readonly order: readonly string[];
-  readonly nodes: Readonly<Record<string, StoryNode<State, string>>>;
+  readonly nodes: Readonly<Record<string, AnyNode>>;
 }
 
-export interface StoryDefinition<S, K extends string, L extends number> {
+export interface StoryDefinition<
+  S,
+  K extends string,
+  I extends K,
+  O extends Exclude<K, I>,
+  L extends number,
+> {
   /** Teams: number → name. Each team gets a login QR code with its number. */
   readonly teams: Readonly<Record<number, string>>;
   /** Places with QR codes: number → name. Only these numbers can appear in `scans`. */
   readonly locations: Readonly<Record<L, string>>;
   /**
-   * Screens shown before login, without any team or state: the story and the rules. After them
+   * The node shown before login, without any team or state: the story and the rules. After it
    * the player scans the team's code; a team that has not started yet begins at the start node.
    */
-  readonly intro: readonly Block[];
-  /** The heading of the login scan screen; the player's default one without it. */
-  readonly introScanTitle?: string;
-  /** The text under that heading; the player's default one without it. */
-  readonly introScanText?: string;
-  readonly nodes: Readonly<Record<K, StoryNode<S, NoInfer<K>, NoInfer<L>>>>;
+  readonly introNode: I;
+  /** The node the game ends at; no choice leads on from it. */
+  readonly outroNode: O;
+  /**
+   * The first part types the values, so arrow functions and literals get their types from it; the
+   * second checks that the intro, the outro and the other nodes have their shapes. `NoInfer` keeps
+   * TypeScript from guessing the ids from the nodes instead of from the keys, `introNode` and
+   * `outroNode`.
+   */
+  readonly nodes: {
+    readonly [Id in K]:
+      | StoryNode<S, Exclude<NoInfer<K>, NoInfer<I>>, NoInfer<L>>
+      | IntroNode
+      | OutroNode<S>;
+  } & NodeShapes<S, NoInfer<K>, NoInfer<I>, NoInfer<O>, NoInfer<L>>;
 }
+
+/**
+ * Which node has to be the intro, which the outro, and which an ordinary node of the story. While
+ * TypeScript still infers the ids it sees `I` as `string`; the first branch keeps the check out of
+ * the way until then, otherwise every node would be typed as the intro and literals in the nodes
+ * would lose their types.
+ */
+type NodeShapes<S, K extends string, I extends string, O extends string, L extends number> = {
+  readonly [Id in K]: string extends I
+    ? unknown
+    : Id extends I
+      ? IntroNode
+      : Id extends O
+        ? OutroNode<S>
+        : StoryNode<S, Exclude<K, I>, L>;
+};
 
 /**
  * Defines the story. The first call fixes the state type, the second infers the node ids and the
  * location numbers, so a `goto` to a missing node or a scan of an unknown place is a type error.
+ * `introNode` names the node shown before login and `outroNode` the one the game ends at.
  * `choices` are buttons, `scans` are QR codes of `locations`: `{ location: 1, goto: 'WELL' }`
  * moves the team on when it scans the code of place 1.
  *
@@ -157,29 +206,29 @@ export interface StoryDefinition<S, K extends string, L extends number> {
  * defineStory<{ gold: number }>()({
  *   teams: { 1: 'Vlci', 2: 'Lišky' },
  *   locations: { 1: 'Studna' },
- *   intro: ['# Hra\n\nNaskenujte kód svého týmu.'],
+ *   introNode: 'INTRO',
+ *   outroNode: 'OUTRO',
  *   nodes: {
- *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'B' }] },
- *     B: { end: true, blocks: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
+ *     INTRO: { blocks: ['# Hra\n\nNaskenujte kód svého týmu.'] },
+ *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'OUTRO' }] },
+ *     OUTRO: { blocks: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
  *   },
  * })
  * ```
  */
 export const defineStory =
   <S extends State>() =>
-  <K extends string, L extends number = never>({
+  <K extends string, I extends K, O extends Exclude<K, I>, L extends number = never>({
     teams,
     locations,
-    intro,
-    introScanTitle,
-    introScanText,
+    introNode,
+    outroNode,
     nodes,
-  }: StoryDefinition<S, K, L>): Story => ({
+  }: StoryDefinition<S, K, I, O, L>): Story => ({
     teams: byId(teams),
     locations: byId(locations),
-    intro,
-    ...(introScanTitle === undefined ? {} : { introScanTitle }),
-    ...(introScanText === undefined ? {} : { introScanText }),
+    introNode,
+    outroNode,
     order: Object.keys(nodes),
     nodes,
   });

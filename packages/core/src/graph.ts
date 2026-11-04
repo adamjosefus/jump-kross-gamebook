@@ -1,6 +1,5 @@
 import {
   availableChoices,
-  introScreens,
   mergeState,
   nodeType,
   sampleTeam,
@@ -8,7 +7,7 @@ import {
   startNode,
   stateKey,
 } from './engine.ts';
-import type { Choice, Story, StoryNode, Team } from './story.ts';
+import type { AnyNode, Choice, Story, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -42,23 +41,18 @@ export interface GraphNode {
   readonly choices: readonly GraphChoice[];
 }
 
-/** What anyone sees before scanning a team's code. */
-export interface GraphIntro {
-  /** Text of every block, markdown; empty for a block with only a picture. */
-  readonly blocks: readonly string[];
-}
-
 /** The shape of a story: serializable, for the admin. */
 export interface GameGraph {
-  readonly intro: GraphIntro;
+  /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
+  readonly introNode: string;
+  /** The node the game ends at. */
+  readonly outroNode: string;
   /** Node ids in definition order. */
   readonly order: readonly string[];
   /** The node every team starts at; the previews are computed from it. */
   readonly start?: string;
   readonly nodes: Readonly<Record<string, GraphNode>>;
 }
-
-type AnyNode = StoryNode<State, string>;
 
 /** Fixed buttons and QR choices of a node, in definition order, as one list of edges. */
 const transitionsOf = (story: Story, node: AnyNode) => [
@@ -175,7 +169,8 @@ export const toGraph = (story: Story): GameGraph => {
       : explore(story, from, teams);
   const { states } = explored;
   return {
-    intro: { blocks: introScreens(story).map((screen) => screen.content) },
+    introNode: story.introNode,
+    outroNode: story.outroNode,
     order: story.order,
     ...(from === undefined ? {} : { start: from }),
     nodes: Object.fromEntries(
@@ -185,9 +180,10 @@ export const toGraph = (story: Story): GameGraph => {
         const preview = previewOf(node, state, sampleTeam(story));
         const graphNode: GraphNode = {
           id,
-          type: nodeType(node),
+          type: nodeType(story, id),
           dynamic: typeof node.blocks === 'function',
-          reached: state !== undefined,
+          // Everyone sees the intro, without a state.
+          reached: id === story.introNode || state !== undefined,
           ...(preview === undefined ? {} : { preview }),
           choices: [
             ...transitionsOf(story, node).map((choice) => ({
@@ -238,7 +234,7 @@ export const graphProblems = (graph: GameGraph): readonly string[] => {
       ),
     ),
     ...graph.order.flatMap((id) =>
-      reached.has(id) ? [] : [`Uzel ${id} je nedosažitelný ze startu.`],
+      reached.has(id) || id === graph.introNode ? [] : [`Uzel ${id} je nedosažitelný ze startu.`],
     ),
   ];
 };

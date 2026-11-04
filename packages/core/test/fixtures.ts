@@ -2,21 +2,25 @@ import { defineStory } from '../src/index.ts';
 
 type State = { readonly gold: number; readonly hatColor: 'red' | 'blue' | 'green' };
 
-/** Small story covering QR choices, conditional blocks and choices, and both kinds of end. */
+/** Small story covering QR choices, conditional blocks and choices, and an outro that depends on the state. */
 export const SAMPLE = defineStory<State>()({
   teams: { 1: 'Vlci', 2: 'Lišky' },
-  intro: [
-    {
-      theme: 'intro',
-      content: `
-      # Hra
-
-      Naskenujte kód svého týmu.
-    `,
-    },
-  ],
   locations: { 32: 'Místo 32', 33: 'Místo 33' },
+  introNode: 'INTRO',
+  outroNode: 'OUTRO',
   nodes: {
+    INTRO: {
+      blocks: [
+        {
+          theme: 'intro',
+          content: `
+          # Hra
+
+          Naskenujte kód svého týmu.
+        `,
+        },
+      ],
+    },
     A1: {
       initialState: { gold: 100, hatColor: 'red' },
       blocks: [
@@ -57,16 +61,19 @@ export const SAMPLE = defineStory<State>()({
         ];
       },
       choices: [
-        { label: 'Bojovat', goto: 'C1' },
+        { label: 'Bojovat', goto: 'OUTRO' },
         {
           label: 'Koupit meč',
-          goto: 'C2',
+          goto: 'OUTRO',
           when: (state) => state.gold >= 90,
           nextState: (state) => ({ gold: state.gold - 90 }),
         },
       ],
     },
-    C1: { end: true, blocks: (_state, team) => [`Prohráli jste, týme ${team.name}.`] },
-    C2: { end: true, blocks: ['Vyhráli jste.'] },
+    // Whoever bought the sword has less than 50 left and won; fighting keeps the gold and loses.
+    OUTRO: {
+      blocks: (state, team) =>
+        state.gold < 50 ? ['Vyhráli jste.'] : [`Prohráli jste, týme ${team.name}.`],
+    },
   },
 });

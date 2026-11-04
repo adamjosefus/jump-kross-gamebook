@@ -75,7 +75,6 @@ const structureOf = (graph: GameGraph) =>
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
 const INITIAL_ID = 'graph:initial';
-const INTRO_ID = 'graph:intro';
 const INITIAL_EDGE_ID = 'graph:initial-intro';
 const loginEdgeId = (start: string) => `graph:login:${start}`;
 
@@ -108,7 +107,6 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
     },
     children: [
       ...graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
-      { id: INTRO_ID, width: NODE_WIDTH, height: NODE_HEIGHT },
       { id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE },
     ],
     edges: [
@@ -131,13 +129,17 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
             : [],
         ),
       ),
-      { id: INITIAL_EDGE_ID, sources: [INITIAL_ID], targets: [INTRO_ID] },
-      ...startsOf(graph).map((id) => ({
-        id: loginEdgeId(id),
-        sources: [INTRO_ID],
-        targets: [id],
-        labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL, true) }],
-      })),
+      ...(Object.hasOwn(graph.nodes, graph.introNode)
+        ? [
+            { id: INITIAL_EDGE_ID, sources: [INITIAL_ID], targets: [graph.introNode] },
+            ...startsOf(graph).map((id) => ({
+              id: loginEdgeId(id),
+              sources: [graph.introNode],
+              targets: [id],
+              labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL, true) }],
+            })),
+          ]
+        : []),
     ],
   };
   const result = await elk.layout(input);
@@ -246,10 +248,6 @@ const textOf = (blocks: readonly string[]) =>
 const NO_PREVIEW = 'Obsah závisí na stavu a tento start sem nevede.';
 
 type InitialFlowNode = Node<Record<string, never>, 'initial'>;
-type IntroFlowNode = Node<
-  { readonly intro: GameGraph['intro']; readonly focused: boolean },
-  'intro'
->;
 
 const InitialDot = () => (
   <div
@@ -266,31 +264,6 @@ const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 /** The node a test run stands on. */
 const FOCUSED_CARD =
   'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
-
-/** The intro, which is not a node of the story: everyone sees it before the team's code. */
-const IntroCard = ({ data: { intro, focused } }: NodeProps<IntroFlowNode>) => (
-  <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
-    <Handle type='target' position={Position.Top} className='opacity-0' />
-    <div
-      className={cn(
-        'flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm hover:border-foreground',
-        focused && FOCUSED_CARD,
-      )}
-    >
-      <div className='flex items-center gap-1'>
-        <Badge variant='secondary'>Úvod</Badge>
-      </div>
-      <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
-        {textOf(intro.blocks) === '' ? (
-          <em>Úvod nemá text.</em>
-        ) : (
-          <Markdown>{textOf(intro.blocks)}</Markdown>
-        )}
-      </div>
-    </div>
-    <Handle type='source' position={Position.Bottom} className='opacity-0' />
-  </div>
-);
 
 /** Node card: id tag, kind and the text of all its blocks, shortened as a whole. */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
@@ -312,6 +285,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
           <Badge variant='secondary' className='font-mono'>
             {node.id}
           </Badge>
+          {node.type === 'intro' && <Badge variant='outline'>Úvod</Badge>}
           {node.type === 'end' && (
             <Badge variant='outline' title='Konec'>
               <IconFlag />
@@ -360,14 +334,12 @@ const BlocksDialog = ({
   readonly onClose: () => void;
 }) => {
   const node = id === undefined ? undefined : graph.nodes[id];
-  const blocks = id === INTRO_ID ? graph.intro.blocks : node?.preview?.blocks;
+  const blocks = node?.preview?.blocks;
   return (
     <Dialog open={id !== undefined} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className='flex max-h-[85dvh] flex-col gap-0 sm:max-w-2xl'>
         <DialogHeader className='-mx-4 border-b px-4 pb-4'>
-          <DialogTitle className={node === undefined ? undefined : 'font-mono'}>
-            {node?.id ?? 'Úvod'}
-          </DialogTitle>
+          <DialogTitle className='font-mono'>{node?.id}</DialogTitle>
           <DialogDescription>
             {node?.dynamic === true && blocks !== undefined
               ? 'Text závisí na stavu a týmu. Tohle je ukázka pro první příchod a první tým.'
@@ -395,10 +367,7 @@ const BlocksDialog = ({
   );
 };
 
-const nodeTypes = { story: StoryNodeCard, initial: InitialDot, intro: IntroCard } as const;
-
-/** Id of the intro card, for `focus`. */
-export const GRAPH_INTRO = INTRO_ID;
+const nodeTypes = { story: StoryNodeCard, initial: InitialDot } as const;
 
 /** Screen pixels covered by floating panels on the sides of the graph. */
 export interface GraphInset {
@@ -441,7 +410,7 @@ export interface StoryGraphProps {
   readonly visits?: Readonly<Record<string, number>>;
   /** Click on the empty canvas, e.g. to close a floating panel. */
   readonly onPaneClick?: () => void;
-  /** Node to highlight and move the view to, e.g. where a test run stands; `GRAPH_INTRO` for the intro. */
+  /** Node to highlight and move the view to, e.g. where a test run stands. */
   readonly focus?: string;
   /** Floating panels over the sides, so the focused node is not moved under them. */
   readonly inset?: GraphInset;
@@ -480,7 +449,7 @@ export const StoryGraph = ({
   }, [graph, structure]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
-  const nodes = useMemo<(StoryFlowNode | InitialFlowNode | IntroFlowNode)[]>(() => {
+  const nodes = useMemo<(StoryFlowNode | InitialFlowNode)[]>(() => {
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
     return [
       ...graph.order.map((id): StoryFlowNode => ({
@@ -502,13 +471,6 @@ export const StoryGraph = ({
         data: {},
         draggable: false,
         selectable: false,
-      },
-      {
-        id: INTRO_ID,
-        type: 'intro',
-        position: position(INTRO_ID),
-        data: { intro: graph.intro, focused: focus === INTRO_ID },
-        draggable: false,
       },
     ];
   }, [graph, laidOut, teams, visits, focus]);
@@ -546,7 +508,7 @@ export const StoryGraph = ({
         id: INITIAL_EDGE_ID,
         type: 'route',
         source: INITIAL_ID,
-        target: INTRO_ID,
+        target: graph.introNode,
         markerEnd: ARROW_HEAD,
         data: {
           points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
@@ -558,7 +520,7 @@ export const StoryGraph = ({
         return {
           id: loginEdgeId(id),
           type: 'route',
-          source: INTRO_ID,
+          source: graph.introNode,
           target: id,
           markerEnd: ARROW_HEAD,
           data: {

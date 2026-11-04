@@ -55,7 +55,7 @@ describe('api', () => {
 
   it('serves the story graph to the admin', async () => {
     const graph = (await admin('GET', '/api/admin/story')).body;
-    expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
+    expect(graph.order).toEqual(['INTRO', 'A1', 'A2', 'B1', 'OUTRO']);
     expect(graph).toMatchObject({ start: 'A1', nodes: { A1: { type: 'start', reached: true } } });
     expect(graph.nodes.B1.preview.blocks[0]).toContain('chudou pokrývku hlavy');
   });
@@ -188,17 +188,17 @@ describe('api', () => {
     expect(b1.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }]);
 
     const end = await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
-    expect(end.body).toMatchObject({ status: 'finished', node: { id: 'C1', type: 'end' } });
+    expect(end.body).toMatchObject({ status: 'finished', node: { id: 'OUTRO', type: 'end' } });
     expect(end.body.node.screens[0].content).toBe('Prohráli jste, týme Vlci.');
 
     const overview = (await admin('GET', '/api/admin/overview')).body;
     expect(overview.teams[0]).toMatchObject({
-      node: 'C1',
+      node: 'OUTRO',
       finished: true,
       devices: 2,
       state: { gold: 80 },
     });
-    expect(overview.visits).toEqual({ A1: 1, A2: 1, B1: 1, C1: 1 });
+    expect(overview.visits).toEqual({ A1: 1, A2: 1, B1: 1, OUTRO: 1 });
     expect(overview.log.map((entry: { readonly action: string }) => entry.action)).toEqual([
       'choice:0',
       'scan:32',
