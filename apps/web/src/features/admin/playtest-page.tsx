@@ -199,7 +199,7 @@ const CodeEntry = ({
           ) : offered.length === 0 ? (
             <p className='text-xs text-muted-foreground'>Příběh žádné nemá.</p>
           ) : (
-            <ul className='-mx-1 flex max-h-56 flex-col overflow-y-auto'>
+            <ul className='-mx-3 flex max-h-56 flex-col overflow-y-auto px-2'>
               {offered.map((entry) => (
                 <li key={entry.code}>
                   <button
