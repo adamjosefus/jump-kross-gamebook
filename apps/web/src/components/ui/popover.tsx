@@ -34,4 +34,21 @@ function PopoverContent({
   );
 }
 
-export { Popover, PopoverContent, PopoverTrigger };
+/** The tail pointing at the trigger, like a tooltip's; goes inside `PopoverContent`. */
+function PopoverArrow({
+  className,
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Arrow>) {
+  return (
+    <PopoverPrimitive.Arrow
+      data-slot='popover-arrow'
+      className={cn(
+        'z-50 size-2.5 translate-y-[calc(-50%_-_1px)] rotate-45 rounded-[2px] border-r border-b border-foreground/10 bg-popover fill-popover',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Popover, PopoverArrow, PopoverContent, PopoverTrigger };

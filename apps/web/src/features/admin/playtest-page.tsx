@@ -22,7 +22,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -188,7 +188,8 @@ const CodeEntry = ({
           </Button>
         </PopoverTrigger>
       </Hint>
-      <PopoverContent side='top' align='end' className='flex flex-col gap-3'>
+      <PopoverContent side='top' sideOffset={0} className='flex flex-col gap-3'>
+        <PopoverArrow />
         <section className='flex flex-col gap-1'>
           <h3 className='text-sm font-medium'>{kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}</h3>
           {codes.isError ? (
