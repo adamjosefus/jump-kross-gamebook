@@ -22,6 +22,13 @@ import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -229,6 +236,12 @@ type StoryFlowNode = Node<
   },
   'story'
 >;
+/** All the blocks as one text, for a card to shorten as a whole. */
+const textOf = (blocks: readonly string[]) =>
+  blocks.filter((block) => block.trim() !== '').join('\n\n');
+
+const NO_PREVIEW = 'Obsah závisí na stavu a tento start sem nevede.';
+
 type InitialFlowNode = Node<Record<string, never>, 'initial'>;
 type IntroFlowNode = Node<{ readonly intro: GameGraph['intro'] }, 'intro'>;
 
@@ -246,19 +259,23 @@ const InitialDot = () => (
 const IntroCard = ({ data: { intro } }: NodeProps<IntroFlowNode>) => (
   <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
     <Handle type='target' position={Position.Top} className='opacity-0' />
-    <div className='flex size-full flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm'>
+    <div className='flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm hover:border-foreground'>
       <div className='flex items-center gap-1'>
         <Badge variant='secondary'>Úvod</Badge>
       </div>
       <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
-        {intro.content === '' ? <em>Úvod nemá text.</em> : <Markdown>{intro.content}</Markdown>}
+        {textOf(intro.blocks) === '' ? (
+          <em>Úvod nemá text.</em>
+        ) : (
+          <Markdown>{textOf(intro.blocks)}</Markdown>
+        )}
       </div>
     </div>
     <Handle type='source' position={Position.Bottom} className='opacity-0' />
   </div>
 );
 
-/** Node card: id tag, kind and the first screen of its content. */
+/** Node card: id tag, kind and the text of all its blocks, shortened as a whole. */
 const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
@@ -267,7 +284,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
       <div
         title={preview?.state === undefined ? undefined : JSON.stringify(preview.state, null, 1)}
         className={cn(
-          'flex size-full flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm',
+          'flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm hover:border-foreground',
           node.type !== 'passage' && 'border-foreground/60',
           !node.reached && teams.length === 0 && 'opacity-40',
           teams.length > 0 && 'ring-2 ring-foreground',
@@ -295,9 +312,9 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
         </div>
         <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
           {preview === undefined ? (
-            <em>Obsah závisí na stavu a tento start sem nevede.</em>
+            <em>{NO_PREVIEW}</em>
           ) : (
-            <Markdown>{preview.content}</Markdown>
+            <Markdown>{textOf(preview.blocks)}</Markdown>
           )}
         </div>
       </div>
@@ -310,6 +327,50 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
       )}
       <Handle type='source' position={Position.Bottom} className='opacity-0' />
     </div>
+  );
+};
+
+/** The whole text of a clicked card, block by block. */
+const BlocksDialog = ({
+  graph,
+  id,
+  onClose,
+}: {
+  readonly graph: GameGraph;
+  /** Missing: closed. */
+  readonly id: string | undefined;
+  readonly onClose: () => void;
+}) => {
+  const node = id === undefined ? undefined : graph.nodes[id];
+  const blocks = id === INTRO_ID ? graph.intro.blocks : node?.preview?.blocks;
+  return (
+    <Dialog open={id !== undefined} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className='max-h-[85dvh] overflow-y-auto sm:max-w-2xl'>
+        <DialogHeader>
+          <DialogTitle className={node === undefined ? undefined : 'font-mono'}>
+            {node?.id ?? 'Úvod'}
+          </DialogTitle>
+          <DialogDescription>
+            {node?.dynamic === true && blocks !== undefined
+              ? 'Text závisí na stavu a týmu. Tohle je ukázka pro první příchod a první tým.'
+              : 'Všechny bloky v pořadí, v jakém je uvidí hráči.'}
+          </DialogDescription>
+        </DialogHeader>
+        {blocks === undefined ? (
+          <em className='text-muted-foreground'>{NO_PREVIEW}</em>
+        ) : (
+          blocks.map((block, index) => (
+            <div key={index} className='graph-preview rounded-lg border p-3 leading-relaxed'>
+              {block.trim() === '' ? (
+                <em className='text-muted-foreground'>Blok bez textu.</em>
+              ) : (
+                <Markdown>{block}</Markdown>
+              )}
+            </div>
+          ))
+        )}
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -338,6 +399,7 @@ export const StoryGraph = ({
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
   const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: Layout }>();
+  const [opened, setOpened] = useState<string>();
 
   const structure = useMemo(() => structureOf(graph), [graph]);
   useEffect(() => {
@@ -451,6 +513,9 @@ export const StoryGraph = ({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           {...(onPaneClick === undefined ? {} : { onPaneClick })}
+          onNodeClick={(_event, node) => {
+            if (node.id !== INITIAL_ID) setOpened(node.id);
+          }}
           colorMode={resolved}
           fitView
           minZoom={0.1}
@@ -461,6 +526,7 @@ export const StoryGraph = ({
           <Controls showInteractive={false} />
         </ReactFlow>
       )}
+      <BlocksDialog graph={graph} id={opened} onClose={() => setOpened(undefined)} />
     </div>
   );
 };
