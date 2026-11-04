@@ -191,7 +191,9 @@ const CodeEntry = ({
       <PopoverContent side='top' sideOffset={6} className='flex flex-col gap-3'>
         <PopoverArrow />
         <section className='flex flex-col gap-1'>
-          <h3 className='text-sm font-medium'>{kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}</h3>
+          <h3 className='-mx-3 border-b px-3 pb-2 text-sm font-medium'>
+            {kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}
+          </h3>
           {codes.isError ? (
             <p className='text-xs text-destructive'>{errorMessage(codes.error)}</p>
           ) : offered === undefined ? (
