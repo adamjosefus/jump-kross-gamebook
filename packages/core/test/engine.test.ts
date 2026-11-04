@@ -110,7 +110,7 @@ describe('engine', () => {
   });
 
   it('applies choices and merges the next state', () => {
-    const viaB = applyChoice(story, start, 0);
+    const viaB = applyChoice(story, start, VLCI, 0);
     expect(viaB.ok && viaB.position).toEqual({
       node: 'B1',
       state: { gold: 100, hatColor: 'blue' },
@@ -118,7 +118,7 @@ describe('engine', () => {
   });
 
   it('moves on by scanning the QR code of one of the offered locations', () => {
-    const moved = applyChoice(story, start, 1);
+    const moved = applyChoice(story, start, VLCI, 1);
     if (!moved.ok) throw new Error(moved.error);
     const atWell = moved.position;
     expect(atWell.state).toEqual({ gold: 80, hatColor: 'green' });
@@ -133,20 +133,20 @@ describe('engine', () => {
       choices: [],
       scan: true,
     });
-    expect(applyChoice(story, atWell, 0)).toEqual({ ok: false, error: 'scan-required' });
-    expect(applyScan(story, atWell, 34)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyChoice(story, atWell, VLCI, 0)).toEqual({ ok: false, error: 'scan-required' });
+    expect(applyScan(story, atWell, VLCI, 34)).toEqual({ ok: false, error: 'wrong-location' });
 
-    const viaWell = applyScan(story, atWell, 32);
+    const viaWell = applyScan(story, atWell, VLCI, 32);
     expect(viaWell.ok && viaWell.position).toEqual({
       node: 'B1',
       state: { gold: 80, hatColor: 'green' },
     });
-    const viaGate = applyScan(story, atWell, 33);
+    const viaGate = applyScan(story, atWell, VLCI, 33);
     expect(viaGate.ok && viaGate.position).toEqual({
       node: 'B1',
       state: { gold: 130, hatColor: 'green' },
     });
-    expect(applyScan(story, start, 32)).toEqual({ ok: false, error: 'no-scan' });
+    expect(applyScan(story, start, VLCI, 32)).toEqual({ ok: false, error: 'no-scan' });
   });
 
   it('offers only QR choices whose condition holds', () => {
@@ -167,8 +167,10 @@ describe('engine', () => {
       },
     });
     const locked = { node: 'A', state: { key: false } };
-    expect(applyScan(gated, locked, 2)).toEqual({ ok: false, error: 'wrong-location' });
-    expect(applyScan(gated, { ...locked, state: { key: true } }, 2)).toMatchObject({ ok: true });
+    expect(applyScan(gated, locked, VLCI, 2)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyScan(gated, { ...locked, state: { key: true } }, VLCI, 2)).toMatchObject({
+      ok: true,
+    });
   });
 
   it('evaluates blocks from the state and hides unavailable choices', () => {
@@ -193,14 +195,14 @@ describe('engine', () => {
     expect(renderNode(story, poor, VLCI)!.choices.map((choice) => choice.label)).toEqual([
       'Bojovat',
     ]);
-    expect(applyChoice(story, poor, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
+    expect(applyChoice(story, poor, VLCI, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
   });
 
   it('stops at end nodes', () => {
     const end = { node: 'C1', state: {} };
     expect(renderNode(story, end, VLCI)).toMatchObject({ type: 'end', choices: [], scan: false });
-    expect(applyChoice(story, end, 0)).toEqual({ ok: false, error: 'finished' });
-    expect(applyScan(story, end, 32)).toEqual({ ok: false, error: 'finished' });
+    expect(applyChoice(story, end, VLCI, 0)).toEqual({ ok: false, error: 'finished' });
+    expect(applyScan(story, end, VLCI, 32)).toEqual({ ok: false, error: 'finished' });
     expect(renderNode(story, { ...end, node: 'X' }, VLCI)).toBeUndefined();
   });
 });
@@ -209,6 +211,128 @@ describe('dedent', () => {
   it('strips common indentation and surrounding blank lines', () => {
     expect(dedent('\n    a\n      b\n\n    c\n  ')).toBe('a\n  b\n\nc');
     expect(dedent('jeden řádek')).toBe('jeden řádek');
+  });
+});
+
+describe('`when` with a team', () => {
+  const LISKY = { id: 2, name: 'Lišky' };
+  const teamStory = defineStory<{ n: number }>()({
+    teams: { 1: 'Vlci', 2: 'Lišky' },
+    intro: ['Úvod'],
+    locations: { 1: 'Studna' },
+    nodes: {
+      A: {
+        initialState: { n: 0 },
+        blocks: ['A'],
+        choices: [
+          { label: 'Všichni', goto: 'S' },
+          { label: 'Jen Lišky', goto: 'B', when: (_state, team) => team.name === 'Lišky' },
+        ],
+      },
+      S: {
+        blocks: ['S'],
+        scans: [{ location: 1, goto: 'B', when: (_state, team) => team.id === 2 }],
+      },
+      B: { end: true, blocks: ['B'] },
+    },
+  });
+  const atStart = startPosition(teamStory)!;
+  const atScan = { node: 'S', state: atStart.state };
+
+  it('shows a choice only to the teams that pass', () => {
+    const labelsFor = (team: { readonly id: number; readonly name: string }) =>
+      renderNode(teamStory, atStart, team)!.choices.map((choice) => choice.label);
+    expect(labelsFor(VLCI)).toEqual(['Všichni']);
+    expect(labelsFor(LISKY)).toEqual(['Všichni', 'Jen Lišky']);
+  });
+
+  it('lets only those teams take it', () => {
+    expect(applyChoice(teamStory, atStart, VLCI, 1)).toEqual({
+      ok: false,
+      error: 'unavailable-choice',
+    });
+    expect(applyChoice(teamStory, atStart, LISKY, 1)).toMatchObject({ ok: true });
+    expect(applyScan(teamStory, atScan, VLCI, 1)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyScan(teamStory, atScan, LISKY, 1)).toMatchObject({ ok: true });
+  });
+});
+
+describe('`choices` as a function', () => {
+  const LISKY = { id: 2, name: 'Lišky' };
+  const dynamic = defineStory<{ gold: number }>()({
+    teams: { 1: 'Vlci', 2: 'Lišky' },
+    intro: ['Úvod'],
+    locations: {},
+    nodes: {
+      A: {
+        initialState: { gold: 1 },
+        blocks: ['A'],
+        choices: (state, team) => [
+          { label: `Dál, ${team.name}`, goto: 'B' },
+          team.id === 2 && { label: 'Lišky', goto: 'C' },
+          state.gold > 5 && { label: 'Bohatí', goto: 'D' },
+          { label: 'Zlato', goto: 'E', when: () => false },
+        ],
+      },
+      B: {
+        blocks: ['B'],
+        choices: [{ label: 'Zlato', goto: 'F', nextState: () => ({ gold: 9 }) }],
+      },
+      C: { end: true, blocks: ['C'] },
+      D: { end: true, blocks: ['D'] },
+      E: { end: true, blocks: ['E'] },
+      F: {
+        blocks: ['F'],
+        choices: (state) => (state.gold > 5 ? [{ label: 'Konec', goto: 'D' }] : []),
+      },
+    },
+  });
+  const at = startPosition(dynamic)!;
+
+  it('types `goto` inside the function too', () => {
+    const typed = defineStory<{ gold: number }>()({
+      teams: { 1: 'Vlci' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { gold: 1 },
+          blocks: ['A'],
+          // @ts-expect-error a target that is not a node of the story
+          choices: () => [{ label: 'Pryč', goto: 'NIKDE' }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(typed.order).toEqual(['A', 'B']);
+  });
+
+  it('renders the choices for the state and the team, skipping falsy ones', () => {
+    expect(renderNode(dynamic, at, VLCI)!.choices).toEqual([{ index: 0, label: 'Dál, Vlci' }]);
+    expect(renderNode(dynamic, at, LISKY)!.choices).toEqual([
+      { index: 0, label: 'Dál, Lišky' },
+      { index: 1, label: 'Lišky' },
+    ]);
+    expect(renderNode(dynamic, { ...at, state: { gold: 9 } }, VLCI)!.choices).toEqual([
+      { index: 0, label: 'Dál, Vlci' },
+      { index: 1, label: 'Bohatí' },
+    ]);
+  });
+
+  it('takes a choice by its position in the list of that team', () => {
+    expect(applyChoice(dynamic, at, LISKY, 1)).toMatchObject({ ok: true, position: { node: 'C' } });
+    expect(applyChoice(dynamic, at, VLCI, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
+  });
+
+  it('draws the edges of all reachable states in the graph', () => {
+    const graph = toGraph(dynamic);
+    expect(graph.nodes['A']!.choices).toEqual([
+      { label: 'Dál, Vlci', target: 'B', conditional: true },
+      { label: 'Lišky', target: 'C', conditional: true },
+    ]);
+    // F offers its only choice just in the state B sets.
+    expect(graph.nodes['F']!.choices).toEqual([{ label: 'Konec', target: 'D', conditional: true }]);
+    expect(graph.nodes['D']!.reached).toBe(true);
   });
 });
 
@@ -241,6 +365,28 @@ describe('graph', () => {
       ],
     });
     expect(graphProblems(graph)).toEqual([]);
+  });
+
+  it('offers a choice with `when` to any team that passes it', () => {
+    const graph = toGraph(
+      defineStory<{ n: number }>()({
+        teams: { 1: 'Vlci', 2: 'Lišky' },
+        intro: ['Úvod'],
+        locations: {},
+        nodes: {
+          A: {
+            initialState: { n: 0 },
+            blocks: ['A'],
+            choices: [
+              { label: 'Lišky', goto: 'B', when: (_state, team) => team.id === 2 },
+              { label: 'Nikdo', goto: 'B', when: (_state, team) => team.id === 3 },
+            ],
+          },
+          B: { end: true, blocks: ['B'] },
+        },
+      }),
+    );
+    expect(graph.nodes['A']!.choices.map((choice) => choice.available)).toEqual([true, false]);
   });
 
   it('previews the intro by its first screen with text', () => {

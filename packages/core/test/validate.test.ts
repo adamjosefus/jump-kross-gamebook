@@ -90,7 +90,9 @@ describe('validateStory', () => {
         B: { end: true, blocks: ['B'] },
       },
     });
-    expect(validateStory(story)).toEqual(['Uzel A nemá ve stavu {"n":0} žádný obsah.']);
+    expect(validateStory(story)).toEqual([
+      'Uzel A nemá ve stavu {"n":0} žádný obsah. (týká se: Lišky)',
+    ]);
   });
 
   it('reports unreachable nodes and choices nobody can take', () => {
@@ -196,6 +198,96 @@ describe('validateStory', () => {
       'Uzel A má prázdnou obrazovku č. 2.',
       'Uzel A má prázdnou obrazovku č. 3.',
       'Uzel B nemá ve stavu {"n":0} žádný obsah.',
+    ]);
+  });
+
+  it('plays the story for every team, so `when` can depend on the team', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [
+            { label: 'Vlci', goto: 'B', when: (_state, team) => team.id === 1 },
+            { label: 'Lišky', goto: 'C', when: (_state, team) => team.id === 2 },
+          ],
+        },
+        // Only the wolves get here, so the foxes' lack of a choice is no dead end.
+        B: {
+          blocks: ['B'],
+          choices: [{ label: 'Dál', goto: 'C', when: (_state, team) => team.id === 1 }],
+        },
+        C: { end: true, blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([]);
+  });
+
+  it('names the teams a problem concerns', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [{ label: 'Jen Vlci', goto: 'B', when: (_state, team) => team.id === 1 }],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
+    ]);
+  });
+
+  it('checks `choices` functions when played', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: (_state, team) =>
+            team.id === 1
+              ? [
+                  { label: 'Dál', goto: 'B' },
+                  { label: 'Dál', goto: 'B' },
+                ]
+              : [],
+        },
+        B: { end: true, blocks: ['B'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel A má dvě volby „Dál“. (týká se: Vlci)',
+      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
+    ]);
+  });
+
+  it('reports a `choices` function that throws', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      intro: ['Úvod'],
+      locations: {},
+      nodes: {
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: () => {
+            throw new Error('chyba');
+          },
+        },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Podmínka volby v uzlu A ve stavu {"n":0} spadla: chyba',
     ]);
   });
 
