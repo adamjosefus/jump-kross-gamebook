@@ -26,9 +26,8 @@ export interface GraphChoice {
 export interface NodePreview {
   /** State the team has on arrival, along the first path from the start. */
   readonly state?: State;
-  /** First screen, markdown. */
-  readonly content: string;
-  readonly screens: number;
+  /** Text of every block, markdown; empty for a block with only a picture. */
+  readonly blocks: readonly string[];
 }
 
 export interface GraphNode {
@@ -45,9 +44,8 @@ export interface GraphNode {
 
 /** What anyone sees before scanning a team's code. */
 export interface GraphIntro {
-  /** First screen with text, markdown; empty when no screen has any. */
-  readonly content: string;
-  readonly screens: number;
+  /** Text of every block, markdown; empty for a block with only a picture. */
+  readonly blocks: readonly string[];
 }
 
 /** The shape of a story: serializable, for the admin. */
@@ -160,8 +158,7 @@ const previewOf = (
     const screens = screensOf(node, state ?? {}, team);
     return {
       ...(state === undefined ? {} : { state }),
-      content: screens[0]?.content ?? '',
-      screens: screens.length,
+      blocks: screens.map((screen) => screen.content),
     };
   } catch {
     return undefined;
@@ -177,12 +174,8 @@ export const toGraph = (story: Story): GameGraph => {
       ? { states: new Map<string, State>(), choices: new Map<string, never>() }
       : explore(story, from, teams);
   const { states } = explored;
-  const intro = introScreens(story);
   return {
-    intro: {
-      content: intro.find((screen) => screen.content.trim() !== '')?.content ?? '',
-      screens: intro.length,
-    },
+    intro: { blocks: introScreens(story).map((screen) => screen.content) },
     order: story.order,
     ...(from === undefined ? {} : { start: from }),
     nodes: Object.fromEntries(

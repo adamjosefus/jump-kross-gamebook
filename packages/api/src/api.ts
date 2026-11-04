@@ -159,7 +159,7 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 
 export const StoryGraph = Schema.Struct({
   /** What anyone sees before scanning a team's code. */
-  intro: Schema.Struct({ content: Schema.String, screens: Schema.Number }),
+  intro: Schema.Struct({ blocks: Schema.Array(Schema.String) }),
   order: Schema.Array(Schema.String),
   /** The node every team starts at; the previews are computed from it. */
   start: Schema.optionalKey(Schema.String),
@@ -173,8 +173,7 @@ export const StoryGraph = Schema.Struct({
       preview: Schema.optionalKey(
         Schema.Struct({
           state: Schema.optionalKey(GameState),
-          content: Schema.String,
-          screens: Schema.Number,
+          blocks: Schema.Array(Schema.String),
         }),
       ),
       choices: Schema.Array(

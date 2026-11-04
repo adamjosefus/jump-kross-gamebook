@@ -349,16 +349,16 @@ describe('graph', () => {
       reached: true,
       preview: {
         state: { gold: 100, hatColor: 'blue' },
-        content: 'Pohodlně si nosil svoji chudou pokrývku hlavy.',
-        screens: 1,
+        blocks: ['Pohodlně si nosil svoji chudou pokrývku hlavy.'],
       },
       choices: [
         { label: 'Bojovat', target: 'C1', conditional: false },
         { label: 'Koupit meč', target: 'C2', conditional: true, available: true },
       ],
     });
+    expect(graph.nodes['A2']!.preview?.blocks).toHaveLength(2);
     expect(graph.nodes['A2']).toMatchObject({
-      preview: { state: { gold: 80, hatColor: 'green' }, screens: 2 },
+      preview: { state: { gold: 80, hatColor: 'green' } },
       choices: [
         { label: 'Místo 32', location: 32, target: 'B1', conditional: false },
         { label: 'Místo 33', location: 33, target: 'B1', conditional: false },
@@ -389,7 +389,7 @@ describe('graph', () => {
     expect(graph.nodes['A']!.choices.map((choice) => choice.available)).toEqual([true, false]);
   });
 
-  it('previews the intro by its first screen with text', () => {
+  it('previews the intro by the text of all its blocks', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Tým' },
@@ -398,7 +398,7 @@ describe('graph', () => {
         nodes: { A: { initialState: { n: 1 }, end: true, blocks: ['A'] } },
       }),
     );
-    expect(graph.intro).toEqual({ content: 'První text', screens: 3 });
+    expect(graph.intro).toEqual({ blocks: ['', 'První text', 'Druhý text'] });
   });
 
   it('leaves unreached dynamic nodes without text', () => {
@@ -417,10 +417,10 @@ describe('graph', () => {
       }),
     );
     expect(graph.start).toBe('A');
-    expect(graph.nodes['C']!.preview?.content).toBe('n = 1');
+    expect(graph.nodes['C']!.preview?.blocks).toEqual(['n = 1']);
     expect(graph.nodes['D']).toMatchObject({ reached: false, dynamic: true });
     expect(graph.nodes['D']!.preview).toBeUndefined();
-    expect(graph.nodes['B']).toMatchObject({ reached: false, preview: { content: 'B' } });
+    expect(graph.nodes['B']).toMatchObject({ reached: false, preview: { blocks: ['B'] } });
   });
 
   it('reports a missing start and unreachable nodes', () => {

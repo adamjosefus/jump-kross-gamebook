@@ -57,7 +57,7 @@ describe('api', () => {
     const graph = (await admin('GET', '/api/admin/story')).body;
     expect(graph.order).toEqual(['A1', 'A2', 'B1', 'C1', 'C2']);
     expect(graph).toMatchObject({ start: 'A1', nodes: { A1: { type: 'start', reached: true } } });
-    expect(graph.nodes.B1.preview.content).toContain('chudou pokrývku hlavy');
+    expect(graph.nodes.B1.preview.blocks[0]).toContain('chudou pokrývku hlavy');
   });
 
   it('shows the intro to anyone', async () => {
