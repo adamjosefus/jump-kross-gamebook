@@ -67,6 +67,7 @@ export const NodeScreens = ({
   initialIndex = 0,
   onIndexChange,
   requireCamera = false,
+  animated = true,
   aside,
   onRead,
 }: {
@@ -81,6 +82,8 @@ export const NodeScreens = ({
   readonly onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
   readonly requireCamera?: boolean;
+  /** Off, the text is all there at once. Other animations are up to the page, by CSS. */
+  readonly animated?: boolean;
   /** Shown at the right end of the navigation bar. */
   readonly aside?: ReactNode;
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
@@ -135,7 +138,7 @@ export const NodeScreens = ({
                 onRead={onRead}
                 content={screen.content}
                 theme={theme}
-                instant={shown}
+                instant={shown || !animated}
                 onRevealed={() => {
                   if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
                 }}

@@ -186,6 +186,13 @@
   --safe-area-inset-bottom: 1.25rem;
 }
 
+/* The admin's test run with the animations off. */
+.no-animations,
+.no-animations * {
+  animation: none !important;
+  transition: none !important;
+}
+
 /* A new screen of the player fades in; nothing moves. */
 @keyframes screen-fade-in {
   from {
