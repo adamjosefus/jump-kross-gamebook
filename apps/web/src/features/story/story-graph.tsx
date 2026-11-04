@@ -261,8 +261,11 @@ const InitialDot = () => (
   </div>
 );
 
+const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
+
 /** The node a test run stands on. */
-const FOCUSED_CARD = 'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-500';
+const FOCUSED_CARD =
+  'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
 
 /** The intro, which is not a node of the story: everyone sees it before the team's code. */
 const IntroCard = ({ data: { intro, focused } }: NodeProps<IntroFlowNode>) => (
@@ -360,8 +363,8 @@ const BlocksDialog = ({
   const blocks = id === INTRO_ID ? graph.intro.blocks : node?.preview?.blocks;
   return (
     <Dialog open={id !== undefined} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className='max-h-[85dvh] overflow-y-auto sm:max-w-2xl'>
-        <DialogHeader>
+      <DialogContent className='flex max-h-[85dvh] flex-col gap-0 sm:max-w-2xl'>
+        <DialogHeader className='-mx-4 border-b px-4 pb-4'>
           <DialogTitle className={node === undefined ? undefined : 'font-mono'}>
             {node?.id ?? 'Úvod'}
           </DialogTitle>
@@ -371,19 +374,22 @@ const BlocksDialog = ({
               : 'Všechny bloky v pořadí, v jakém je uvidí hráči.'}
           </DialogDescription>
         </DialogHeader>
-        {blocks === undefined ? (
-          <em className='text-muted-foreground'>{NO_PREVIEW}</em>
-        ) : (
-          blocks.map((block, index) => (
-            <div key={index} className='graph-preview rounded-lg border p-3 leading-relaxed'>
-              {block.trim() === '' ? (
-                <em className='text-muted-foreground'>Blok bez textu.</em>
-              ) : (
-                <Markdown>{block}</Markdown>
-              )}
-            </div>
-          ))
-        )}
+        {/* Only the blocks scroll, so the title and the close button stay in view. */}
+        <div className='-mx-4 -mb-4 flex min-h-0 flex-col gap-4 overflow-y-auto p-4'>
+          {blocks === undefined ? (
+            <em className='text-muted-foreground'>{NO_PREVIEW}</em>
+          ) : (
+            blocks.map((block, index) => (
+              <div key={index} className='graph-preview rounded-lg border p-3 leading-relaxed'>
+                {block.trim() === '' ? (
+                  <em className='text-muted-foreground'>Blok bez textu.</em>
+                ) : (
+                  <Markdown>{block}</Markdown>
+                )}
+              </div>
+            ))
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -523,7 +529,7 @@ export const StoryGraph = ({
             type: 'route',
             source: id,
             target: choice.target,
-            markerEnd: { type: MarkerType.ArrowClosed },
+            markerEnd: ARROW_HEAD,
             data: {
               points: route?.points ?? [],
               text: choice.label,
@@ -541,7 +547,7 @@ export const StoryGraph = ({
         type: 'route',
         source: INITIAL_ID,
         target: INTRO_ID,
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: ARROW_HEAD,
         data: {
           points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
           dimmed: false,
@@ -554,7 +560,7 @@ export const StoryGraph = ({
           type: 'route',
           source: INTRO_ID,
           target: id,
-          markerEnd: { type: MarkerType.ArrowClosed },
+          markerEnd: ARROW_HEAD,
           data: {
             points: route?.points ?? [],
             text: LOGIN_LABEL,
