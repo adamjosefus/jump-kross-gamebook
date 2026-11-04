@@ -2,11 +2,13 @@ import type { PlayerIntro, PlaytestView, PrintableCode } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import {
   IconArrowBackUp,
+  IconHistory,
   IconLoader2,
   IconPlayerSkipForward,
   IconQrcode,
   IconRotate,
   IconRun,
+  IconX,
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -27,12 +29,38 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NodeScreens } from '@/features/player/node-screens';
+import { GRAPH_INTRO, StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-import { adminKeys } from './queries';
+import { adminKeys, useStoryGraph } from './queries';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
+const LOG_KEY = 'gamebook.playtest.log';
+
+const remPx = (rem: number) =>
+  rem * Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+
+/** Whether the log panel is open; a hidden one stays hidden in this browser. */
+const useLogPanel = () => {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(LOG_KEY) !== 'hidden';
+    } catch {
+      return true;
+    }
+  });
+  const change = (next: boolean) => {
+    setOpen(next);
+    try {
+      if (next) localStorage.removeItem(LOG_KEY);
+      else localStorage.setItem(LOG_KEY, 'hidden');
+    } catch {
+      // Storage may be blocked; the panel then keeps its state only until a reload.
+    }
+  };
+  return [open, change] as const;
+};
 
 /** Whether the preview animates; off is remembered in this browser for the next test run. */
 const useAnimations = () => {
@@ -252,6 +280,8 @@ export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
   const navigate = useNavigate();
   const [animated, setAnimated] = useAnimations();
+  const [logOpen, setLogOpen] = useLogPanel();
+  const graph = useStoryGraph();
   const intro = useQuery({
     queryKey: ['player', 'intro'],
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
@@ -307,180 +337,215 @@ export const PlaytestPage = () => {
   if (intro.isError) return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
 
   return (
-    <div className='flex h-full flex-col'>
-      <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
-        {play.isPending && <IconLoader2 className='size-4 animate-spin' />}
-        <span>Test se nikam neukládá.</span>
-      </div>
+    <div className='relative h-full overflow-hidden'>
+      {/* The story map over the whole page; the node the run stands on is highlighted. */}
+      {graph.isError ? (
+        <p className='p-8 text-center text-destructive'>{errorMessage(graph.error)}</p>
+      ) : graph.data === undefined ? (
+        <IconLoader2 className='absolute top-1/2 left-1/2 size-6 -translate-1/2 animate-spin' />
+      ) : (
+        <StoryGraph
+          graph={graph.data}
+          {...(current === undefined
+            ? {}
+            : { focus: current.intro === true ? GRAPH_INTRO : current.node })}
+          // The preview is 22rem wide, the log 20rem, both 1rem from the edge.
+          inset={{ left: remPx(23), right: logOpen ? remPx(21) : 0 }}
+          controlsPosition='bottom-center'
+        />
+      )}
 
-      <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-4 md:flex-row md:items-start'>
-        <div className='mx-auto flex w-full max-w-sm shrink-0 flex-col gap-3 md:mx-0'>
-          {/* Exactly what the players see; test tools are in the toolbar under it. */}
-          <div
-            className={cn(
-              'phone-preview relative h-[min(44rem,calc(100dvh-12rem))] min-h-[32rem] overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-sm',
-              !animated && 'no-animations',
-            )}
-          >
-            <div className='flex size-full flex-col overflow-auto font-story'>
-              {current !== undefined && (
-                <NodeScreens
-                  node={current.view}
-                  step={path.length}
-                  visitScope='playtest'
-                  busy={play.isPending}
-                  onCode={(code) => take({ code })}
-                  requireCamera={current.intro === true}
-                  animated={animated}
-                  onPick={(choice) => take({ choice: choice.index })}
-                  // The screen in the URL belongs to the path in it; after a move it starts over.
-                  initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
-                  onIndexChange={(screen) =>
-                    void navigate({
-                      to: '/admin/playtest',
-                      search: { ...(pathParam === '' ? {} : { path: pathParam }), screen },
-                      replace: true,
-                    })
-                  }
-                />
-              )}
-            </div>
-            <div className='pointer-events-none absolute top-2.5 left-1/2 z-50 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
-            <div className='pointer-events-none absolute bottom-2 left-1/2 z-50 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
-          </div>
-          <div className='flex items-center gap-1 rounded-xl border bg-muted/40 p-1'>
-            <Hint text='Uzel zpět'>
-              <Button
-                variant='ghost'
-                size='icon-sm'
-                aria-label='Uzel zpět'
-                disabled={path.length < 2 || play.isPending}
-                onClick={() => backTo(path.length - 2)}
-              >
-                <IconArrowBackUp />
-              </Button>
-            </Hint>
-            <Hint text='Znovu od začátku'>
-              <Button
-                variant='ghost'
-                size='icon-sm'
-                aria-label='Znovu od začátku'
-                disabled={steps.length === 0 || play.isPending}
-                onClick={() => setMoves([])}
-              >
-                <IconRotate />
-              </Button>
-            </Hint>
-            <span className='flex-1' />
-            <CodeEntry
-              kind={current?.intro === true ? 'T' : 'L'}
-              disabled={current?.view.scan !== true}
-              busy={play.isPending}
-              onCode={(code, done) => {
-                if (current !== undefined)
-                  play.mutate({ from: current, move: { code } }, { onSuccess: done });
-              }}
-            />
-            {current?.intro === true ? (
-              <Hint text='Přeskočit přihlášení'>
-                <Button
-                  variant='ghost'
-                  size='icon-sm'
-                  aria-label='Přeskočit přihlášení'
-                  disabled={play.isPending}
-                  onClick={() => take(undefined)}
-                >
-                  <IconPlayerSkipForward />
-                </Button>
-              </Hint>
-            ) : (
-              <DropdownMenu>
-                <Hint
-                  text={
-                    current?.view.scan === true && scans.length === 0
-                      ? 'V tomto stavu nevede žádný QR kód dál.'
-                      : 'Přeskočit sken'
-                  }
-                >
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      size='icon-sm'
-                      aria-label='Přeskočit sken'
-                      disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
-                    >
-                      <IconPlayerSkipForward />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </Hint>
-                <DropdownMenuContent align='end'>
-                  <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
-                  {scans.map((location) => (
-                    <DropdownMenuItem
-                      key={location.id}
-                      onSelect={() => take({ scan: location.id })}
-                    >
-                      <IconQrcode /> {location.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
-            <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
-              <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
-                <IconRun className='size-4 text-muted-foreground' />
-                <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
-              </label>
-            </Hint>
-          </div>
-        </div>
-
-        <div className='flex min-w-0 flex-1 flex-col gap-6 text-sm'>
-          {current !== undefined && current.intro !== true && (
-            <section className='flex flex-col gap-2'>
-              <h2 className='font-medium'>Tým</h2>
-              <p>{current.team.name}</p>
-              <h2 className='mt-4 font-medium'>Stav</h2>
-              <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
-                {Object.entries(current.state).map(([key, value]) => (
-                  <div key={key} className='contents'>
-                    <dt className='text-muted-foreground'>{key}</dt>
-                    <dd>{JSON.stringify(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
+      <aside className='absolute top-4 bottom-4 left-4 flex w-[22rem] max-w-[calc(100%-2rem)] flex-col gap-2'>
+        {/* Exactly what the players see; test tools are in the toolbar under it. */}
+        <div
+          className={cn(
+            'phone-preview relative min-h-0 flex-1 overflow-hidden rounded-[2.5rem] border-4 bg-background shadow-lg',
+            !animated && 'no-animations',
           )}
-          <section className='flex flex-col gap-2'>
-            <h2 className='font-medium'>Cesta</h2>
-            <ol className='flex flex-col gap-1'>
-              {path.map((step, index) => (
-                <li key={index}>
-                  <button
-                    type='button'
-                    className={cn(
-                      'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
-                      index === path.length - 1 && 'bg-accent',
-                    )}
-                    disabled={play.isPending}
-                    onClick={() => backTo(index)}
-                    title='Vrátit se sem'
-                  >
-                    <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
-                      {index + 1}.
-                    </span>
-                    <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
-                    {step.via !== undefined && (
-                      <span className='truncate text-muted-foreground'>← {step.via}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </section>
+        >
+          <div className='flex size-full flex-col overflow-auto font-story'>
+            {current !== undefined && (
+              <NodeScreens
+                node={current.view}
+                step={path.length}
+                visitScope='playtest'
+                busy={play.isPending}
+                onCode={(code) => take({ code })}
+                requireCamera={current.intro === true}
+                animated={animated}
+                onPick={(choice) => take({ choice: choice.index })}
+                // The screen in the URL belongs to the path in it; after a move it starts over.
+                initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
+                onIndexChange={(screen) =>
+                  void navigate({
+                    to: '/admin/playtest',
+                    search: { ...(pathParam === '' ? {} : { path: pathParam }), screen },
+                    replace: true,
+                  })
+                }
+              />
+            )}
+          </div>
+          <div className='pointer-events-none absolute top-2.5 left-1/2 z-50 h-7 w-24 -translate-x-1/2 rounded-full bg-black' />
+          <div className='pointer-events-none absolute bottom-2 left-1/2 z-50 h-1 w-28 -translate-x-1/2 rounded-full bg-foreground/60' />
         </div>
-      </div>
+        <div className='flex items-center gap-1 rounded-xl border bg-background/95 p-1 shadow-lg backdrop-blur'>
+          <Hint text='Uzel zpět'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              aria-label='Uzel zpět'
+              disabled={path.length < 2 || play.isPending}
+              onClick={() => backTo(path.length - 2)}
+            >
+              <IconArrowBackUp />
+            </Button>
+          </Hint>
+          <Hint text='Znovu od začátku'>
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              aria-label='Znovu od začátku'
+              disabled={steps.length === 0 || play.isPending}
+              onClick={() => setMoves([])}
+            >
+              <IconRotate />
+            </Button>
+          </Hint>
+          <span className='flex-1' />
+          <CodeEntry
+            kind={current?.intro === true ? 'T' : 'L'}
+            disabled={current?.view.scan !== true}
+            busy={play.isPending}
+            onCode={(code, done) => {
+              if (current !== undefined)
+                play.mutate({ from: current, move: { code } }, { onSuccess: done });
+            }}
+          />
+          {current?.intro === true ? (
+            <Hint text='Přeskočit přihlášení'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label='Přeskočit přihlášení'
+                disabled={play.isPending}
+                onClick={() => take(undefined)}
+              >
+                <IconPlayerSkipForward />
+              </Button>
+            </Hint>
+          ) : (
+            <DropdownMenu>
+              <Hint
+                text={
+                  current?.view.scan === true && scans.length === 0
+                    ? 'V tomto stavu nevede žádný QR kód dál.'
+                    : 'Přeskočit sken'
+                }
+              >
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='icon-sm'
+                    aria-label='Přeskočit sken'
+                    disabled={current?.view.scan !== true || scans.length === 0 || play.isPending}
+                  >
+                    <IconPlayerSkipForward />
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
+                {scans.map((location) => (
+                  <DropdownMenuItem key={location.id} onSelect={() => take({ scan: location.id })}>
+                    <IconQrcode /> {location.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
+          <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
+            <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
+              <IconRun className='size-4 text-muted-foreground' />
+              <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
+            </label>
+          </Hint>
+        </div>
+      </aside>
+
+      {logOpen ? (
+        <aside className='absolute top-4 right-4 bottom-4 flex w-80 max-w-[calc(100%-2rem)] animate-in flex-col rounded-lg border bg-background/95 shadow-lg backdrop-blur fade-in slide-in-from-right-2'>
+          <header className='flex items-center gap-2 border-b py-2 pr-2 pl-4'>
+            <h2 className='flex-1 font-semibold'>Průběh testu</h2>
+            {play.isPending && (
+              <IconLoader2 className='size-4 animate-spin text-muted-foreground' />
+            )}
+            <Hint text='Skrýt průběh'>
+              <Button
+                variant='ghost'
+                size='icon-sm'
+                aria-label='Skrýt průběh'
+                onClick={() => setLogOpen(false)}
+              >
+                <IconX />
+              </Button>
+            </Hint>
+          </header>
+          <div className='flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4 text-sm'>
+            {current !== undefined && current.intro !== true && (
+              <section className='flex flex-col gap-2'>
+                <h2 className='font-medium'>Tým</h2>
+                <p>{current.team.name}</p>
+                <h2 className='mt-4 font-medium'>Stav</h2>
+                <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
+                  {Object.entries(current.state).map(([key, value]) => (
+                    <div key={key} className='contents'>
+                      <dt className='text-muted-foreground'>{key}</dt>
+                      <dd>{JSON.stringify(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            )}
+            <section className='flex flex-col gap-2'>
+              <h2 className='font-medium'>Cesta</h2>
+              <ol className='flex flex-col gap-1'>
+                {path.map((step, index) => (
+                  <li key={index}>
+                    <button
+                      type='button'
+                      className={cn(
+                        'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
+                        index === path.length - 1 && 'bg-accent',
+                      )}
+                      disabled={play.isPending}
+                      onClick={() => backTo(index)}
+                      title='Vrátit se sem'
+                    >
+                      <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
+                        {index + 1}.
+                      </span>
+                      <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
+                      {step.via !== undefined && (
+                        <span className='truncate text-muted-foreground'>← {step.via}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+            <p className='mt-auto text-xs text-muted-foreground'>Test se nikam neukládá.</p>
+          </div>
+        </aside>
+      ) : (
+        <div className='absolute top-4 right-4 rounded-lg border bg-background/90 p-1 shadow-md backdrop-blur'>
+          <Button variant='ghost' size='sm' onClick={() => setLogOpen(true)}>
+            {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
+            <span className='text-muted-foreground'>{path.length}</span>
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
