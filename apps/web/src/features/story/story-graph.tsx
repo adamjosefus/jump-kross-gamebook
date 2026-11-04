@@ -10,6 +10,8 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  useReactFlow,
+  useStore,
   type Edge,
   type EdgeProps,
   type Node,
@@ -233,6 +235,7 @@ type StoryFlowNode = Node<
     readonly node: GraphNode;
     readonly teams: readonly GraphTeam[];
     readonly visits: number | undefined;
+    readonly focused: boolean;
   },
   'story'
 >;
@@ -243,7 +246,10 @@ const textOf = (blocks: readonly string[]) =>
 const NO_PREVIEW = 'Obsah závisí na stavu a tento start sem nevede.';
 
 type InitialFlowNode = Node<Record<string, never>, 'initial'>;
-type IntroFlowNode = Node<{ readonly intro: GameGraph['intro'] }, 'intro'>;
+type IntroFlowNode = Node<
+  { readonly intro: GameGraph['intro']; readonly focused: boolean },
+  'intro'
+>;
 
 const InitialDot = () => (
   <div
@@ -255,11 +261,19 @@ const InitialDot = () => (
   </div>
 );
 
+/** The node a test run stands on. */
+const FOCUSED_CARD = 'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-500';
+
 /** The intro, which is not a node of the story: everyone sees it before the team's code. */
-const IntroCard = ({ data: { intro } }: NodeProps<IntroFlowNode>) => (
+const IntroCard = ({ data: { intro, focused } }: NodeProps<IntroFlowNode>) => (
   <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
     <Handle type='target' position={Position.Top} className='opacity-0' />
-    <div className='flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm hover:border-foreground'>
+    <div
+      className={cn(
+        'flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border border-foreground/60 bg-card p-3 text-card-foreground shadow-sm hover:border-foreground',
+        focused && FOCUSED_CARD,
+      )}
+    >
       <div className='flex items-center gap-1'>
         <Badge variant='secondary'>Úvod</Badge>
       </div>
@@ -276,7 +290,7 @@ const IntroCard = ({ data: { intro } }: NodeProps<IntroFlowNode>) => (
 );
 
 /** Node card: id tag, kind and the text of all its blocks, shortened as a whole. */
-const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNode>) => {
+const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
     <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
@@ -288,6 +302,7 @@ const StoryNodeCard = ({ data: { node, teams, visits } }: NodeProps<StoryFlowNod
           node.type !== 'passage' && 'border-foreground/60',
           !node.reached && teams.length === 0 && 'opacity-40',
           teams.length > 0 && 'ring-2 ring-foreground',
+          focused && `opacity-100 ${FOCUSED_CARD}`,
         )}
       >
         <div className='flex items-center gap-1'>
@@ -376,6 +391,42 @@ const BlocksDialog = ({
 
 const nodeTypes = { story: StoryNodeCard, initial: InitialDot, intro: IntroCard } as const;
 
+/** Id of the intro card, for `focus`. */
+export const GRAPH_INTRO = INTRO_ID;
+
+/** Screen pixels covered by floating panels on the sides of the graph. */
+export interface GraphInset {
+  readonly left: number;
+  readonly right: number;
+}
+
+const NO_INSET: GraphInset = { left: 0, right: 0 };
+
+/**
+ * Moves the view to the focused node whenever the focus changes, into the middle of the part not
+ * covered by the panels; the zoom stays readable.
+ */
+const FocusView = ({
+  center,
+  inset,
+}: {
+  readonly center: XYPosition | undefined;
+  readonly inset: GraphInset;
+}) => {
+  const flow = useReactFlow();
+  // The nodes are not measured into the store here, so readiness is the pan and zoom and a size.
+  const initialized = useStore((state) => state.panZoom !== null && state.width > 0);
+  const x = center?.x;
+  const y = center?.y;
+  const shift = (inset.left - inset.right) / 2;
+  useEffect(() => {
+    if (!initialized || x === undefined || y === undefined) return;
+    const zoom = Math.max(flow.getZoom(), 0.75);
+    void flow.setCenter(x - shift / zoom, y, { zoom, duration: 400 });
+  }, [flow, initialized, x, y, shift]);
+  return null;
+};
+
 export interface StoryGraphProps {
   readonly graph: GameGraph;
   /** Clans to show on the nodes they stand on. */
@@ -384,6 +435,10 @@ export interface StoryGraphProps {
   readonly visits?: Readonly<Record<string, number>>;
   /** Click on the empty canvas, e.g. to close a floating panel. */
   readonly onPaneClick?: () => void;
+  /** Node to highlight and move the view to, e.g. where a test run stands; `GRAPH_INTRO` for the intro. */
+  readonly focus?: string;
+  /** Floating panels over the sides, so the focused node is not moved under them. */
+  readonly inset?: GraphInset;
   readonly className?: string;
 }
 
@@ -395,6 +450,8 @@ export const StoryGraph = ({
   teams = NO_TEAMS,
   visits,
   onPaneClick,
+  focus,
+  inset = NO_INSET,
   className,
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
@@ -428,6 +485,7 @@ export const StoryGraph = ({
           node: graph.nodes[id]!,
           teams: teams.filter((team) => team.node === id),
           visits: visits === undefined ? undefined : (visits[id] ?? 0),
+          focused: focus === id,
         },
         draggable: false,
       })),
@@ -443,11 +501,17 @@ export const StoryGraph = ({
         id: INTRO_ID,
         type: 'intro',
         position: position(INTRO_ID),
-        data: { intro: graph.intro },
+        data: { intro: graph.intro, focused: focus === INTRO_ID },
         draggable: false,
       },
     ];
-  }, [graph, laidOut, teams, visits]);
+  }, [graph, laidOut, teams, visits, focus]);
+
+  const focusAt = focus === undefined ? undefined : laidOut?.layout.nodes.get(focus);
+  const focusCenter =
+    focusAt === undefined
+      ? undefined
+      : { x: focusAt.x + NODE_WIDTH / 2, y: focusAt.y + NODE_HEIGHT / 2 };
 
   const edges = useMemo<RouteEdge[]>(
     () => [
@@ -517,13 +581,15 @@ export const StoryGraph = ({
             if (node.id !== INITIAL_ID) setOpened(node.id);
           }}
           colorMode={resolved}
-          fitView
+          // A focused node sets the view itself.
+          fitView={focus === undefined}
           minZoom={0.1}
           nodesConnectable={false}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
           <Controls showInteractive={false} />
+          <FocusView center={focusCenter} inset={inset} />
         </ReactFlow>
       )}
       <BlocksDialog graph={graph} id={opened} onClose={() => setOpened(undefined)} />
