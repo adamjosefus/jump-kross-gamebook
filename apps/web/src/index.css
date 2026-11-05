@@ -162,6 +162,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-size-adjust: from-font;
   }
   html.dark {
     color-scheme: dark;
@@ -174,8 +175,13 @@
     @apply font-sans;
     /* Native parts of the page, like scrollbars, follow the app's mode, not the system's. */
     color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-synthesis: none;
     /* iPhone Safari would enlarge text, and Pretext lays out the size it is given. */
-    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: none;
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
   }
 }
 /* Content kept clear of the notch, the home indicator and rounded corners. */
