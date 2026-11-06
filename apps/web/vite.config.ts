@@ -79,5 +79,8 @@ export default defineConfig({
   server: { host: true },
   build: {
     target: ['safari16.4', 'chrome111'],
+    // The story graph in the admin is about 1.7 MB minified, nearly all of it the ELK layout engine.
+    // It loads only when an organizer opens the graph, so it is allowed; anything bigger still warns.
+    chunkSizeWarningLimit: 2000,
   },
 });
