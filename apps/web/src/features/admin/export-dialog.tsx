@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { QrCode } from '@/components/qr/qr-code';
-import type { PaperFormat } from '@/components/qr/qr-pdf';
 import { type NoiseShape, type QrStyle, QUIET_ZONE, qrCodeSvg } from '@/components/qr/qr-svg';
 import {
   type Anamorphosis,
@@ -37,18 +36,10 @@ import {
 
 import { copySvg, fileName, saveBlob } from './download';
 
-type Format = 'svg' | PaperFormat;
-
 interface Option<T extends string> {
   readonly value: T;
   readonly label: string;
 }
-
-const FORMATS: readonly Option<Format>[] = [
-  { value: 'svg', label: 'SVG' },
-  { value: 'A4', label: 'PDF A4' },
-  { value: 'A5', label: 'PDF A5' },
-] as const;
 
 const SIDES: readonly Option<ViewerSide>[] = [
   { value: 'bottom', label: 'U spodního okraje' },
@@ -121,9 +112,8 @@ const Checkbox = ({
 );
 
 /**
- * Every way to get a QR code out, in one place: format (SVG, PDF on A4 or A5), copy or download,
- * and optionally mirrored and stretched for an angled view (anamorphosis). The PDF of an unmodified
- * code is the full card; a modified one is the bare code with a note for the organisers.
+ * Every way to get a QR code out as SVG, in one place: copy or download, optionally with noise
+ * around it and mirrored and stretched for an angled view (anamorphosis).
  */
 export const ExportDialog = ({
   entry,
@@ -134,7 +124,6 @@ export const ExportDialog = ({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) => {
-  const [format, setFormat] = useState<Format>('svg');
   const [warp, setWarp] = useState(false);
   const [view, setView] = useState(DEFAULT_ANAMORPHOSIS);
   const [noiseOn, setNoiseOn] = useState(false);
@@ -180,19 +169,6 @@ export const ExportDialog = ({
   const svg = async () =>
     modified ? warpedQrSvg(entry.code, effective, style) : qrCodeSvg(entry.code, style);
 
-  const pdf = async (paper: PaperFormat) => {
-    // pdf-lib and the fonts are loaded only when someone actually asks for a PDF.
-    const { qrCardPdf, warpedQrPdf } = await import('@/components/qr/qr-pdf');
-    const common = {
-      kind: entry.kind,
-      value: entry.code,
-      label: entry.label,
-      format: paper,
-      style,
-    };
-    return modified ? warpedQrPdf({ ...common, anamorphosis: effective }) : qrCardPdf(common);
-  };
-
   const run = async (task: () => Promise<void>, failure: string) => {
     setBusy(true);
     try {
@@ -206,19 +182,7 @@ export const ExportDialog = ({
 
   const download = () =>
     run(async () => {
-      if (format === 'svg') {
-        saveBlob(
-          new Blob([await svg()], { type: 'image/svg+xml' }),
-          fileName(entry, 'svg', suffix),
-        );
-      } else {
-        const name = fileName(
-          entry,
-          'pdf',
-          [suffix, format.toLowerCase()].filter(Boolean).join('-'),
-        );
-        saveBlob(await pdf(format), name);
-      }
+      saveBlob(new Blob([await svg()], { type: 'image/svg+xml' }), fileName(entry, 'svg', suffix));
     }, 'Soubor se nepodařilo vytvořit.');
 
   const copy = () =>
@@ -255,18 +219,6 @@ export const ExportDialog = ({
           </div>
 
           <div className='flex flex-col gap-5'>
-            <div className='flex flex-col gap-2'>
-              <Label>Formát</Label>
-              <Segmented value={format} options={FORMATS} onChange={setFormat} />
-              <p className='text-xs text-muted-foreground'>
-                {format === 'svg'
-                  ? 'Samotný kód.'
-                  : modified
-                    ? 'Upravený kód přes celou stránku, pod ním poznámka pro organizátory.'
-                    : 'Celá karta s názvem a nápovědou, jako na obrazovce.'}
-              </p>
-            </div>
-
             <div className='flex flex-col gap-3'>
               <Checkbox checked={noiseOn} onChange={setNoiseOn}>
                 Šum kolem kódu
@@ -395,8 +347,8 @@ export const ExportDialog = ({
           <Button
             variant='outline'
             onClick={() => void copy()}
-            disabled={busy || format !== 'svg'}
-            title={format === 'svg' ? 'Zkopírovat SVG do schránky' : 'Kopírovat jde jen SVG'}
+            disabled={busy}
+            title='Zkopírovat SVG do schránky'
           >
             {copied ? <IconCheck /> : <IconCopy />} {copied ? 'Zkopírováno' : 'Kopírovat'}
           </Button>

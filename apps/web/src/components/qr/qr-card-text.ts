@@ -7,7 +7,7 @@ export interface QrCardText {
   readonly hint: string;
 }
 
-/** Wording of a card, shared by the on-screen card and the PDF export. */
+/** Wording of a card, shown on the on-screen card. */
 export const qrCardText = (kind: QrCardKind, label?: string): QrCardText =>
   ({
     T: {

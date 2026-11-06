@@ -1,6 +1,6 @@
 import type { PrintableCode } from '@gamebook/api';
 
-/** File name like `qr-tym-vlci-T-12.svg` or `qr-tym-vlci-T-12-a4.pdf`: readable, without diacritics, unique per code. */
+/** File name like `qr-tym-vlci-T-12.svg`: readable, without diacritics, unique per code. */
 export const fileName = (entry: PrintableCode, extension: string, suffix?: string) => {
   const slug = entry.label
     .normalize('NFD')

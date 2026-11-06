@@ -13,7 +13,7 @@ interface QrCardProps {
 
 /**
  * Card with a fixed physical width, in the colors of the app theme. Only the code stays dark on
- * white to scan in dark mode too; printed, the whole card is black on white like the PDF.
+ * white to scan in dark mode too; printed, the whole card is black on white.
  */
 const QrCard = ({
   value,
