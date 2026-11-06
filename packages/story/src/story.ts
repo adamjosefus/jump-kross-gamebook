@@ -49,6 +49,19 @@ export const story = defineStory<State>()({
     INTRO: {
       scanTitle: 'Představte se prosím',
       scanText: 'Naskenujte kód svého klanu.',
+      // Notifications around the login; a text left out falls back to the player's default one.
+      loginMessages: {
+        loggedIn: (team) => `Jste tým ${team.name}`,
+        sameTeam: (team) => `Už hrajete za tým ${team.name}.`,
+        foreignCode: 'Tento QR kód nepatří ke hře.',
+        notTeamCode: 'Nejdřív naskenujte přihlašovací kód týmu.',
+        unknownTeam: 'Tento tým už ve hře není.',
+        switchTitle: 'Přepnout na jiný tým?',
+        switchText: (team) =>
+          `Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát za něj místo za tým ${team.name}.`,
+        switchConfirm: 'Přepnout tým',
+        switchCancel: (team) => `Zůstat v týmu ${team.name}`,
+      },
       blocks: [
         {
           theme: 'intro',

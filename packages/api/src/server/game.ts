@@ -4,6 +4,7 @@ import {
   availableScans,
   encodeQr,
   introScreens,
+  loginMessages,
   renderNode,
   sampleTeam,
   startPosition,
@@ -76,6 +77,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       ...(introNode?.scanText === undefined ? {} : { scanText: introNode.scanText }),
     };
 
+    // Before the login there is no team; these texts are written without one.
+    const loginTexts = loginMessages(story, sampleTeam(story));
+
     const teamName = (id: number) =>
       story.teams.find((team) => team.id === id)?.name ?? `Tým ${id}`;
 
@@ -91,7 +95,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const view = (team: TeamRow): PlayerView => {
       const identity = identityOf(team);
-      const base = { team: identity, step: team.step };
+      const { loggedIn, sameTeam, switchTitle, switchText, switchConfirm, switchCancel } =
+        loginMessages(story, identity);
+      const base = {
+        team: identity,
+        step: team.step,
+        loginMessages: { loggedIn, sameTeam, switchTitle, switchText, switchConfirm, switchCancel },
+      };
       const node =
         team.node === undefined
           ? undefined
@@ -188,15 +198,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       if (payload?.kind !== 'T') {
         yield* penalty;
         return yield* new InvalidCode({
-          message:
-            payload === undefined
-              ? 'Tento QR kód nepatří ke hře.'
-              : 'Nejdřív naskenujte přihlašovací kód týmu.',
+          message: payload === undefined ? loginTexts.foreignCode : loginTexts.notTeamCode,
         });
       }
       const team = story.teams.find((candidate) => candidate.id === payload.id);
-      if (team === undefined)
-        return yield* new InvalidCode({ message: 'Tento tým už ve hře není.' });
+      if (team === undefined) return yield* new InvalidCode({ message: loginTexts.unknownTeam });
       return team;
     });
 

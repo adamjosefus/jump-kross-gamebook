@@ -9,7 +9,7 @@ import {
   stateKey,
   type RenderedScreen,
 } from './engine.ts';
-import type { AnyNode, Choice, Story, Team } from './story.ts';
+import { loginMessages, type AnyNode, type Choice, type Story, type Team } from './story.ts';
 import type { State } from './types.ts';
 
 export interface ValidateOptions {
@@ -71,6 +71,9 @@ const introProblems = (story: Story): readonly string[] => {
     ),
     ...problemIf(intro.scanTitle?.trim() === '', 'Úvod má prázdný titulek skeneru.'),
     ...problemIf(intro.scanText?.trim() === '', 'Úvod má prázdný text skeneru.'),
+    ...Object.entries(loginMessages(story, sampleTeam(story))).flatMap(([key, text]) =>
+      problemIf(text.trim() === '', `Úvod má prázdný text přihlášení ${key}.`),
+    ),
     ...introScreens(story).flatMap((screen, index) => [
       ...problemIf(isEmptyScreen(screen), `Úvod má prázdnou obrazovku č. ${index + 1}.`),
       ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),

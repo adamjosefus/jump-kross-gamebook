@@ -82,6 +82,15 @@ export const PlayerView = Schema.Struct({
   /** Increments with every move; sent back as `expectedStep`. */
   step: Schema.Number,
   status: Schema.Literals(['playing', 'finished', 'not-ready']),
+  /** The story's login texts, written for this team. */
+  loginMessages: Schema.Struct({
+    loggedIn: Schema.String,
+    sameTeam: Schema.String,
+    switchTitle: Schema.String,
+    switchText: Schema.String,
+    switchConfirm: Schema.String,
+    switchCancel: Schema.String,
+  }),
   node: Schema.optionalKey(
     Schema.Struct({
       id: Schema.String,
