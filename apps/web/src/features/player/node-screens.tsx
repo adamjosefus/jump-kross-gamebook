@@ -69,6 +69,7 @@ export const NodeScreens = ({
   requireCamera = false,
   animated = true,
   aside,
+  corner,
   onRead,
 }: {
   readonly node: PlayerNode;
@@ -86,6 +87,8 @@ export const NodeScreens = ({
   readonly animated?: boolean;
   /** Shown at the right end of the navigation bar. */
   readonly aside?: ReactNode;
+  /** Shown small in the top left corner of the first screen, where the others have „Zpět“. */
+  readonly corner?: ReactNode;
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
   readonly onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
@@ -118,6 +121,14 @@ export const NodeScreens = ({
   return (
     <PlayerFrame
       onBack={index > 0 ? () => go(index - 1) : undefined}
+      lead={
+        corner !== undefined &&
+        index === 0 && (
+          <span className='font-mono text-[0.625rem] tracking-[0.2em] text-muted-foreground/35 tabular-nums select-none'>
+            {corner}
+          </span>
+        )
+      }
       aside={aside}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >

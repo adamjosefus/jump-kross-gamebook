@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import path from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
@@ -71,7 +72,36 @@ const apiDevServer = (): Plugin => {
   };
 };
 
+/** The commit being built: Vercel names it, locally git does. */
+const commitHash = () => {
+  const vercel = process.env['VERCEL_GIT_COMMIT_SHA'];
+  if (vercel !== undefined && vercel !== '') return vercel.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short=7 HEAD', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+};
+
+/** When and from what the app was built, as `yy-mm-hh-mm-hash` in Prague time. */
+const appVersion = () => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Prague',
+      year: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date())
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts['year']}-${parts['month']}-${parts['hour']}-${parts['minute']}-${commitHash()}`;
+};
+
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   plugins: [react(), tailwindcss(), apiDevServer()],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },

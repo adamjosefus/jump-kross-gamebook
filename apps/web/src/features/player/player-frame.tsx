@@ -11,12 +11,15 @@ import { cn } from '@/lib/utils';
  */
 export const PlayerFrame = ({
   onBack,
+  lead,
   aside,
   className,
   children,
 }: {
-  /** Where „Zpět“ leads; its place stays empty without it. */
+  /** Where „Zpět“ leads; without it, its place has `lead` or stays empty. */
   readonly onBack?: (() => void) | undefined;
+  /** Shown at the left end of the bar when there is no „Zpět“. */
+  readonly lead?: ReactNode;
   /** Shown at the right end of the bar. */
   readonly aside?: ReactNode;
   /** Colors of the whole screen. */
@@ -32,7 +35,7 @@ export const PlayerFrame = ({
     <div className='safe-area-padding mx-auto flex w-full max-w-xl flex-1 flex-col gap-6'>
       <nav className='flex h-8 shrink-0 items-center justify-between text-sm text-muted-foreground'>
         {onBack === undefined ? (
-          <span />
+          <span>{lead}</span>
         ) : (
           <Button
             variant='ghost'

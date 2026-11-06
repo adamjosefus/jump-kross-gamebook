@@ -6,6 +6,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { api, errorMessage, isApiError } from '@/lib/api';
+import { APP_VERSION } from '@/lib/version';
 
 import { ConfirmDialog } from './confirm-dialog';
 import { NodeScreens } from './node-screens';
@@ -186,7 +187,7 @@ const TeamNodeScreens = ({
   <NodeScreens {...props} onRead={useReadingReport(teamId)} />
 );
 
-const PAGE = 'flex min-h-dvh flex-col font-story';
+const PAGE = 'player-page flex min-h-dvh flex-col font-story';
 
 const Centered = ({ children }: { readonly children: ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
@@ -239,6 +240,7 @@ const Intro = ({
       initialIndex={initialIndex}
       onIndexChange={onIndexChange}
       requireCamera
+      corner={APP_VERSION}
     />
   );
 };
