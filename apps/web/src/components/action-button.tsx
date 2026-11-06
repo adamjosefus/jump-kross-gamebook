@@ -4,6 +4,13 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
+ * The least height of the big player buttons, `ActionButton` and `SlideButton` alike: two lines of
+ * their text (`text-xl leading-tight`, 2 × 25px), the `py-2` padding and a 1px border, 68px in all.
+ * A third line makes the button taller.
+ */
+export const PLAYER_BUTTON_HEIGHT = 'min-h-17';
+
+/**
  * The big button of a player screen: the text in the middle, the icon at the edge. The text is as
  * big as the story text (`typography.ts`) and a long one wraps instead of running under the icon.
  */
@@ -22,7 +29,8 @@ export const ActionButton = ({
   <Button
     size='lg'
     className={cn(
-      'relative h-auto min-h-14 rounded-full px-12 py-2 text-xl leading-tight text-pretty whitespace-normal',
+      PLAYER_BUTTON_HEIGHT,
+      'relative h-auto rounded-full px-12 py-2 text-xl leading-tight text-pretty whitespace-normal',
       className,
     )}
     {...props}

@@ -1,6 +1,7 @@
 import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 
+import { PLAYER_BUTTON_HEIGHT } from '@/components/action-button';
 import { hapticLight, hapticStrong } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
@@ -97,7 +98,8 @@ export const SlideButton = ({
     <div
       ref={track}
       className={cn(
-        'relative flex min-h-14 items-center rounded-full border bg-muted/40 select-none',
+        PLAYER_BUTTON_HEIGHT,
+        'relative flex items-center rounded-full border bg-muted/40 select-none',
         disabled && stage === 'idle' && 'opacity-50',
         className,
       )}
