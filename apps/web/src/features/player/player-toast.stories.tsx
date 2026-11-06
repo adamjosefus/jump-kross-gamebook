@@ -14,10 +14,13 @@ const SAMPLES = [
   () => playerToast.error('Nepodařilo se spojit se serverem. Zkuste to prosím znovu.'),
 ] as const;
 
-/** The player's toasts beside the admin's small ones, in the same Toaster as the app. */
-const Demo = () => {
+/**
+ * The player's toasts beside the admin's small ones. `lasting` keeps them open to look at them;
+ * without it they go away after the app's default time.
+ */
+const Demo = ({ lasting }: { readonly lasting: boolean }) => {
   useEffect(() => {
-    // Shown expanded and kept open, so all of them can be looked at side by side.
+    // All of them at once on opening the story.
     for (const show of SAMPLES) show();
     return () => {
       toast.dismiss();
@@ -40,7 +43,11 @@ const Demo = () => {
       <Button variant='ghost' onClick={() => toast.success('Uloženo (administrace)')}>
         Malá z administrace
       </Button>
-      <Toaster position='top-center' expand duration={Number.POSITIVE_INFINITY} />
+      <Toaster
+        position='top-center'
+        expand={lasting}
+        {...(lasting ? { duration: Number.POSITIVE_INFINITY } : {})}
+      />
     </div>
   );
 };
@@ -48,9 +55,16 @@ const Demo = () => {
 const meta = {
   title: 'Player/Notifikace',
   component: Demo,
+  args: { lasting: true },
   parameters: { viewport: { defaultViewport: 'mobile1' } },
 } satisfies Meta<typeof Demo>;
 
 export default meta;
 
-export const Prehled: StoryObj<typeof meta> = { name: 'Přehled' };
+type Story = StoryObj<typeof meta>;
+
+/** All of them kept open, to look at them side by side. */
+export const Prehled: Story = { name: 'Přehled' };
+
+/** As in the app: they go away by themselves; the buttons show them again. */
+export const Chovani: Story = { name: 'Chování', args: { lasting: false } };
