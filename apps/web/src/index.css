@@ -250,6 +250,11 @@
     text-size-adjust: none;
   }
 }
+/* The game does not bounce past its edges, nor reload when pulled down; long screens still scroll. */
+html:has(.player-page) {
+  overscroll-behavior: none;
+}
+
 /* Content kept clear of the notch, the home indicator and rounded corners. */
 .safe-area-padding {
   padding: calc(var(--safe-area-inset-top) + 1rem) calc(var(--safe-area-inset-right) + 1.25rem)
