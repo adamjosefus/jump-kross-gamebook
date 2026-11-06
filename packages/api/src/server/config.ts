@@ -20,24 +20,51 @@ const DEV_FALLBACKS = {
   SESSION_SECRET: 'dev-session-secret',
 } as const;
 
+type SecretName = keyof typeof DEV_FALLBACKS;
+
+const SECRET_NAMES: readonly SecretName[] = ['ADMIN_PASSWORD', 'QR_SECRET', 'SESSION_SECRET'];
+
+const isDeployed = (env: Readonly<Record<string, string | undefined>>) =>
+  env['VERCEL'] !== undefined || env['NODE_ENV'] === 'production';
+
 /**
- * Reads the environment. Any deployment (production or preview) must set every secret; only local
- * development falls back to known values.
+ * Secrets a deployment (production or preview) has not set. Always empty in local development,
+ * which falls back to known values.
  */
+export const missingSecrets = (
+  env: Readonly<Record<string, string | undefined>>,
+): readonly SecretName[] =>
+  isDeployed(env) ? SECRET_NAMES.filter((name) => env[name] === undefined || env[name] === '') : [];
+
+/** Reads the environment; throws when a deployment lacks a secret (see `missingSecrets`). */
 export const configFromEnv = (
   env: Readonly<Record<string, string | undefined>>,
 ): ServerConfigShape => {
-  const deployed = env['VERCEL'] !== undefined || env['NODE_ENV'] === 'production';
-  const read = (name: keyof typeof DEV_FALLBACKS) => {
+  const missing = missingSecrets(env);
+  if (missing.length > 0) throw new Error(`Missing environment variables ${missing.join(', ')}`);
+  const read = (name: SecretName) => {
     const value = env[name];
-    if (value !== undefined && value !== '') return value;
-    if (deployed) throw new Error(`Missing environment variable ${name}`);
-    return DEV_FALLBACKS[name];
+    return value === undefined || value === '' ? DEV_FALLBACKS[name] : value;
   };
   return {
     adminPassword: read('ADMIN_PASSWORD'),
     qrSecret: read('QR_SECRET'),
     sessionSecret: read('SESSION_SECRET'),
-    insecureCookies: !deployed,
+    insecureCookies: !isDeployed(env),
+  };
+};
+
+/**
+ * Stands in for the API while a deployment lacks secrets: every request gets a 503 that names the
+ * variables to set, instead of the function crashing on start with an anonymous 500. The message is
+ * technical, for the console; the app shows players its own.
+ */
+export const misconfiguredHandler = (missing: readonly string[]) => {
+  const message = `Missing environment variables ${missing.join(', ')}. Set them in the Vercel project settings and redeploy.`;
+  console.error(`${message} Until then the API answers every request with 503.`);
+  return {
+    handler: async (_request: Request): Promise<Response> =>
+      Response.json({ _tag: 'ServerMisconfigured', message }, { status: 503 }),
+    dispose: async (): Promise<void> => undefined,
   };
 };

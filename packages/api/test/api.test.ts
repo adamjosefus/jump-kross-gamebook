@@ -1,13 +1,16 @@
 import { encodeQr } from '@gamebook/core';
-import { afterAll, describe, expect, it } from 'vitest';
+import { Effect, Layer } from 'effect';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { SAMPLE } from '../../core/test/fixtures.ts';
 import {
   emptyMemoryData,
+  handlerFromEnv,
   makeHandler,
   MemoryStoreLayer,
   type ServerConfigShape,
 } from '../src/server/index.ts';
+import { Store, StoreError, type StoreShape } from '../src/server/store.ts';
 
 const config: ServerConfigShape = {
   adminPassword: 'heslo',
@@ -308,5 +311,54 @@ describe('memory data', () => {
     );
     expect(await state.json()).toMatchObject({ team: { id: 1 }, node: { id: 'A2' } });
     await after.dispose();
+  });
+});
+
+describe('server failures', () => {
+  it('answers 503 naming the missing secrets of a deployment', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { handler: stand } = handlerFromEnv({ VERCEL: '1', ADMIN_PASSWORD: 'heslo' });
+    const response = await stand(new Request('http://localhost/api/player/intro'));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      _tag: 'ServerMisconfigured',
+      message: expect.stringContaining('QR_SECRET, SESSION_SECRET'),
+    });
+    expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('logs a defect such as a failed database call', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // Every call fails, as with an unreachable database.
+    const fail = () => Effect.fail(new StoreError({ message: 'connection refused' }));
+    const broken: StoreShape = {
+      listTeams: fail,
+      getTeam: fail,
+      ensureTeam: fail,
+      moveTeam: fail,
+      markStarted: fail,
+      clearTiming: fail,
+      addReading: fail,
+      listReading: fail,
+      createSession: fail,
+      touchSession: fail,
+      deleteSession: fail,
+      activeDevices: fail,
+      recentLog: fail,
+      visitCounts: fail,
+    };
+    const failing = makeHandler(config, Layer.succeed(Store, broken), SAMPLE);
+    const response = await failing.handler(
+      new Request('http://localhost/api/player/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }) }),
+      }),
+    );
+    await failing.dispose();
+    expect(response.status).toBe(500);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('connection refused'));
+    log.mockRestore();
   });
 });
