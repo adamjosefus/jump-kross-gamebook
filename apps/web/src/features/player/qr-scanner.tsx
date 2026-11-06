@@ -4,7 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'rea
 
 import { Button } from '@/components/ui/button';
 
-import { ScanFrame } from './scan-frame';
+import { ScanFrame, type ScanPoint } from './scan-frame';
 
 /**
  * Why the camera did not start, for the player. `qr-scanner` reports a denied permission as
@@ -38,6 +38,19 @@ const ARM_MS = 3000;
 const LOST_MS = 800;
 
 /**
+ * A point of the video picture in the camera square (0 to 1): the video covers the square, so its
+ * shorter side fills it and the longer one is cut evenly. A mirrored video (a front camera) flips.
+ */
+const inSquare = (video: HTMLVideoElement, point: QrScanner.Point): ScanPoint => {
+  const side = Math.min(video.videoWidth, video.videoHeight);
+  const x = (point.x - (video.videoWidth - side) / 2) / side;
+  return {
+    x: video.style.transform.includes('scaleX(-1)') ? 1 - x : x,
+    y: (point.y - (video.videoHeight - side) / 2) / side,
+  };
+};
+
+/**
  * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`). The camera
  * runs while the component is mounted, so a wrong code can be followed by another one.
  */
@@ -58,13 +71,15 @@ const QrScannerView = ({
   const failed = cameraError !== undefined;
 
   const last = useRef<{ readonly code: string; readonly at: number }>(undefined);
-  // The code waiting to be sent and when it was last read.
+  // The code waiting to be sent, where the last read code is and when it was read.
   const [arming, setArming] = useState<string>();
+  const [corners, setCorners] = useState<readonly ScanPoint[]>();
   const seenAt = useRef(0);
-  const emit = useEffectEvent((code: string) => {
+  const emit = useEffectEvent((code: string, found: readonly ScanPoint[]) => {
     const now = Date.now();
-    if (disabled || (last.current?.code === code && now - last.current.at < REPEAT_MS)) return;
     seenAt.current = now;
+    setCorners(found);
+    if (disabled || (last.current?.code === code && now - last.current.at < REPEAT_MS)) return;
     setArming(code);
   });
   const send = useEffectEvent((code: string) => {
@@ -73,17 +88,21 @@ const QrScannerView = ({
     onCode(code);
   });
 
-  // A code held in view for `ARM_MS` is sent; one that leaves the view meanwhile is dropped.
+  // A code not read for a while has left the view: it is not sent and the shade lets it go.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Date.now() - seenAt.current <= LOST_MS) return;
+      setArming(undefined);
+      setCorners(undefined);
+    }, 100);
+    return () => clearInterval(timer);
+  }, []);
+
+  // A code held in view for `ARM_MS` is sent.
   useEffect(() => {
     if (arming === undefined) return undefined;
-    const sendTimer = setTimeout(() => send(arming), ARM_MS);
-    const lostTimer = setInterval(() => {
-      if (Date.now() - seenAt.current > LOST_MS) setArming(undefined);
-    }, 100);
-    return () => {
-      clearTimeout(sendTimer);
-      clearInterval(lostTimer);
-    };
+    const timer = setTimeout(() => send(arming), ARM_MS);
+    return () => clearTimeout(timer);
   }, [arming]);
 
   // Nothing waits to be sent while the last code is.
@@ -101,10 +120,19 @@ const QrScannerView = ({
     video.muted = true;
     video.playsInline = true;
     container.append(video);
-    const scanner = new QrScanner(video, (result) => emit(result.data), {
-      preferredCamera: 'environment',
-      maxScansPerSecond: 8,
-    });
+    const scanner = new QrScanner(
+      video,
+      (result) =>
+        emit(
+          result.data,
+          result.cornerPoints.map((point) => inSquare(video, point)),
+        ),
+      {
+        returnDetailedScanResult: true,
+        preferredCamera: 'environment',
+        maxScansPerSecond: 8,
+      },
+    );
     // A scanner torn down meanwhile (React runs effects twice in development) must not report;
     // `start()` cannot be aborted, so the cleanup flags it instead.
     let current = true;
@@ -127,14 +155,11 @@ const QrScannerView = ({
         <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-muted'>
           <div ref={stage} className='absolute inset-0' />
           {cameraError === undefined ? (
-            // The library scans the middle two thirds of the shorter side; the video covers the
-            // square, so that is two thirds of it.
-            <div className='absolute inset-[16.667%]'>
-              <ScanFrame
-                state={disabled ? 'busy' : arming === undefined ? 'aiming' : 'arming'}
-                armMs={ARM_MS}
-              />
-            </div>
+            <ScanFrame
+              state={disabled ? 'busy' : arming === undefined ? 'aiming' : 'arming'}
+              armMs={ARM_MS}
+              corners={corners}
+            />
           ) : (
             <div className='relative mx-auto flex max-w-xs flex-col items-center gap-3 px-4 text-center text-balance'>
               <p>{cameraError}</p>

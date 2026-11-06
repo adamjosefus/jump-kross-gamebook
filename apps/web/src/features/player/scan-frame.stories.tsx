@@ -3,7 +3,22 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { QrCode } from '@/components/qr/qr-code';
 
-import { ScanFrame, type ScanFrameState } from './scan-frame';
+import { ScanFrame, type ScanFrameState, type ScanPoint } from './scan-frame';
+
+/** Turn of the code in the picture, as its `-rotate-6`. */
+const TURN = (-6 * Math.PI) / 180;
+/** Half the side of the code's dark modules: the card is 52 % wide, the modules about 80 % of it. */
+const HALF = 0.52 * 0.8 * 0.5;
+/** Where the scanner would find the code's corners, clockwise from its top left. */
+const CODE: readonly ScanPoint[] = [
+  [-1, -1],
+  [1, -1],
+  [1, 1],
+  [-1, 1],
+].map(([across = 0, down = 0]) => ({
+  x: 0.5 + HALF * (across * Math.cos(TURN) - down * Math.sin(TURN)),
+  y: 0.5 + HALF * (across * Math.sin(TURN) + down * Math.cos(TURN)),
+}));
 
 /** A stand-in for the black and white camera picture with a code in it, laid out as in the scanner. */
 const Camera = ({ children }: { readonly children: ReactNode }) => (
@@ -16,7 +31,7 @@ const Camera = ({ children }: { readonly children: ReactNode }) => (
       <div className='relative w-[52%] -rotate-6 rounded-md bg-white p-2 shadow-lg'>
         <QrCode value='L-32-9FZM' />
       </div>
-      <div className='absolute inset-[16.667%]'>{children}</div>
+      {children}
     </div>
   </div>
 );
@@ -29,7 +44,7 @@ const meta = {
   argTypes: { state: { control: 'inline-radio', options: ['aiming', 'arming', 'busy'] } },
   render: (args) => (
     <Camera>
-      <ScanFrame {...args} />
+      <ScanFrame {...args} corners={args.state === 'aiming' ? undefined : CODE} />
     </Camera>
   ),
 } satisfies Meta<typeof ScanFrame>;
@@ -41,7 +56,7 @@ export const Aiming: StoryObj<typeof meta> = {};
 /** A code is in view: the gaps close, and once they do the code is sent. */
 export const Arming: StoryObj<typeof meta> = { args: { state: 'arming' } };
 
-/** The code is being sent: the dashes run around and turn amber. */
+/** The code was held long enough and is being sent: the outline stays closed with a check mark. */
 export const Busy: StoryObj<typeof meta> = { args: { state: 'busy' } };
 
 /** The steps of the scanner, over and over: one code sent, one looked away from. */
@@ -70,7 +85,11 @@ const Sequence = () => {
   return (
     <div className='flex flex-col gap-4'>
       <Camera>
-        <ScanFrame state={step.state} armMs={3000} />
+        <ScanFrame
+          state={step.state}
+          armMs={3000}
+          corners={step.state === 'aiming' ? undefined : CODE}
+        />
       </Camera>
       <p className='text-center text-sm text-muted-foreground'>{step.label}</p>
     </div>

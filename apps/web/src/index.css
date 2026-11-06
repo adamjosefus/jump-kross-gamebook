@@ -281,40 +281,53 @@
 }
 
 /*
- * The scanner's aim (ScanFrame): one dash centered on each corner of a path 100 long, white with
- * a soft shadow. Once a code is in view the dashes turn amber, the color that stands out most on
- * the black and white camera picture. ScanFrame moves and grows the dashes itself.
+ * The scanner's aim (ScanFrame) in a 1 × 1 box over the camera: medium gray with a hole, and an
+ * outline as one dash per corner of a path 100 long, white with a soft shadow. Once a code is in
+ * view the dashes turn amber, the color that stands out most on the black and white camera
+ * picture; once the code is sent, a check mark of the same color shows in the middle. ScanFrame
+ * moves the hole, the outline and the check mark and runs and grows the dashes itself.
  */
-.scan-frame {
-  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
+.scan-frame-shade {
+  fill: rgb(115 115 115 / 0.6);
 }
-.scan-frame path {
+.scan-frame-line {
   fill: none;
   stroke: white;
-  /* In units of the 100 wide box (a stroke that does not scale ignores `pathLength`). */
-  stroke-width: 1.5;
+  stroke-width: 0.01;
   stroke-linecap: round;
-  /* At rest, before ScanFrame takes over: dashes 9 long centered on the corners (9 / 2 − 12.5). */
-  stroke-dasharray: 9 16;
-  stroke-dashoffset: -8;
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
   transition:
     stroke 400ms ease,
     stroke-width 400ms ease;
 }
-.scan-frame:is([data-state='arming'], [data-state='busy']) path {
+.scan-frame:is([data-state='arming'], [data-state='busy']) .scan-frame-line {
   stroke: oklch(0.83 0.17 80);
-  stroke-width: 2;
+  stroke-width: 0.0133;
 }
-/* Without motion the dashes do not run, so sending is told by pulsing. */
-@media (prefers-reduced-motion: reduce) {
-  .scan-frame[data-state='busy'] path {
-    animation: scan-frame-pulse 1.2s ease-in-out infinite alternate;
-  }
+.scan-frame-check {
+  filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
+  opacity: 0;
+  scale: 0.6;
+  transition:
+    opacity 250ms ease,
+    scale 250ms ease;
 }
-@keyframes scan-frame-pulse {
-  to {
-    opacity: 0.4;
-  }
+.scan-frame-check circle {
+  fill: oklch(0.83 0.17 80);
+}
+.scan-frame-check path {
+  fill: none;
+  stroke: white;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.scan-frame[data-state='busy'] .scan-frame-check {
+  opacity: 1;
+  scale: 1;
+  transition:
+    opacity 250ms ease,
+    scale 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Buttons of the player; the admin keeps its own. */
