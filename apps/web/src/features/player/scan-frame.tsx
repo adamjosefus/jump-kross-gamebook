@@ -88,17 +88,24 @@ const nearestOrder = (corners: readonly ScanPoint[], from: readonly ScanPoint[])
  * so every corner sits in the middle of one quarter of a square's path.
  */
 const roundedPath = (points: readonly ScanPoint[], radius: number) => {
-  const toward = (point: ScanPoint, other: ScanPoint) => {
-    const share = Math.min(radius / (distance(point, other) || 1), 0.5);
-    return `${point.x + (other.x - point.x) * share} ${point.y + (other.y - point.y) * share}`;
+  // Where the rounding of a corner meets its side, and its control point: a cubic curve with
+  // handles 0.5523 of the radius long is a quarter circle, so the outline and the hole around it
+  // have arcs with the same center at right angles.
+  const along = (point: ScanPoint, other: ScanPoint, length: number) => {
+    const share = Math.min(length / (distance(point, other) || 1), 0.5);
+    return { x: point.x + (other.x - point.x) * share, y: point.y + (other.y - point.y) * share };
   };
+  const text = (point: ScanPoint) => `${point.x} ${point.y}`;
   const first = around(points, 0, REST[0] ?? { x: 0, y: 0 });
   const second = around(points, 1, first);
   const corners = points.map((_, index) => {
     const point = around(points, index + 1, first);
     const previous = around(points, index, point);
     const next = around(points, index + 2, point);
-    return `L${toward(point, previous)}Q${point.x} ${point.y} ${toward(point, next)}`;
+    const handle = radius * (1 - 0.5523);
+    return `L${text(along(point, previous, radius))}C${text(along(point, previous, handle))} ${text(
+      along(point, next, handle),
+    )} ${text(along(point, next, radius))}`;
   });
   return `M${(first.x + second.x) / 2} ${(first.y + second.y) / 2}${corners.join('')}Z`;
 };
@@ -107,16 +114,18 @@ const roundedPath = (points: readonly ScanPoint[], radius: number) => {
  * - `aiming`: waiting for a code.
  * - `arming`: a code is in view and is sent once the outline closes, unless the player looks away.
  * - `busy`: the code was held long enough and is being sent.
+ * - `accepted`: the game took the code.
+ * - `rejected`: the code was read but does not work, or could not be sent.
  */
-export type ScanFrameState = 'aiming' | 'arming' | 'busy';
+export type ScanFrameState = 'aiming' | 'arming' | 'busy' | 'accepted' | 'rejected';
 
 /**
  * The scanner's aim over the whole camera square: medium gray with a hole and an outline drawn as
  * one dash per corner. At rest it marks the middle, where the library scans; once a code is found
  * it glides onto the code. The dashes then turn amber and speed up around the outline, so it is
  * seen even on the black and white camera picture, and while the code is held in view they grow
- * until the gaps close. Then the outline stops, stays closed and a check mark shows in the middle
- * while the code is sent. Back to aiming the dashes slow down, stop on the corners and shrink.
+ * until the gaps close. Then the outline stops and stays closed while the code is sent, and its
+ * middle shows the answer: a check mark when the game took the code, an exclamation mark when not. Back to aiming the dashes slow down, stop on the corners and shrink.
  * The motion is computed frame by frame, so it never jumps when anything changes midway.
  */
 export const ScanFrame = ({
@@ -132,14 +141,14 @@ export const ScanFrame = ({
 }) => {
   const shade = useRef<SVGPathElement>(null);
   const line = useRef<SVGPathElement>(null);
-  const check = useRef<HTMLDivElement>(null);
+  const icon = useRef<HTMLDivElement>(null);
   const latest = useEffectEvent(() => ({ state, armMs, corners }));
 
   useEffect(() => {
     const shadeElement = shade.current;
     const lineElement = line.current;
-    const checkElement = check.current;
-    if (shadeElement === null || lineElement === null || checkElement === null) return undefined;
+    const iconElement = icon.current;
+    if (shadeElement === null || lineElement === null || iconElement === null) return undefined;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     // Where the aim is, where the dashes' centers are along it (a multiple of a quarter: on the
     // corners), how fast they run and how long they are.
@@ -180,7 +189,7 @@ export const ScanFrame = ({
         dash = Math.max(dash, DASH + (QUARTER - DASH) * progress);
       } else {
         armingSince = undefined;
-        const goal = current.state === 'busy' ? QUARTER : DASH;
+        const goal = current.state === 'aiming' ? DASH : QUARTER;
         dash += (goal - dash) * (1 - Math.exp(-seconds / SHRINK));
       }
 
@@ -193,8 +202,8 @@ export const ScanFrame = ({
         x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
         y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
       };
-      checkElement.style.left = `${middle.x * 100}%`;
-      checkElement.style.top = `${middle.y * 100}%`;
+      iconElement.style.left = `${middle.x * 100}%`;
+      iconElement.style.top = `${middle.y * 100}%`;
       // Dashes grow from their centers and run clockwise, against the offset.
       lineElement.style.strokeDasharray = `${dash} ${QUARTER - dash}`;
       lineElement.style.strokeDashoffset = `${dash / 2 - QUARTER / 2 - phase}`;
@@ -210,10 +219,14 @@ export const ScanFrame = ({
         <path ref={shade} className='scan-frame-shade' fillRule='evenodd' />
         <path ref={line} className='scan-frame-line' pathLength={100} />
       </svg>
-      <div ref={check} className='absolute -translate-1/2' aria-hidden='true'>
-        <svg viewBox='0 0 24 24' className='scan-frame-check size-12'>
+      <div ref={icon} className='absolute' aria-hidden='true'>
+        <svg viewBox='0 0 24 24' className='scan-frame-icon size-12' data-icon='accepted'>
           <circle cx='12' cy='12' r='11' />
           <path d='m7.5 12.5 3 3 6-6.5' />
+        </svg>
+        <svg viewBox='0 0 24 24' className='scan-frame-icon size-12' data-icon='rejected'>
+          <circle cx='12' cy='12' r='11' />
+          <path d='M12 6.75v6.5M12 17.25v.01' />
         </svg>
       </div>
     </div>

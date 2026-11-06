@@ -31,6 +31,19 @@ const REPEAT_MS = 3000;
 /** A code is sent only after it stays in view this long, so the player can still change their mind. */
 const ARM_MS = 3000;
 
+/** How long the check mark over an accepted code shows before the game moves on. */
+export const ACCEPTED_MS = 900;
+
+/** How long the exclamation mark over a code that does not work stays before aiming again. */
+const REJECTED_MS = 1600;
+
+/**
+ * What the game said to a sent code: `accepted` is shown with a check mark, `rejected` (the code
+ * does not work, or could not be sent) with an exclamation mark. Nothing is shown when the game
+ * handles the code in its own way, e.g. by asking first.
+ */
+export type ScanOutcome = 'accepted' | 'rejected' | undefined;
+
 /**
  * A code not read for this long has left the view and is not sent. The scanner reads up to
  * 8 times a second but misses some frames, e.g. when the camera moves.
@@ -59,7 +72,7 @@ const QrScannerView = ({
   disabled = false,
   header,
 }: {
-  readonly onCode: (code: string) => void;
+  readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   /** Codes read meanwhile are ignored, e.g. while the last one is being sent. */
   readonly disabled?: boolean;
   /** Shown over the top of the camera. */
@@ -74,19 +87,33 @@ const QrScannerView = ({
   // The code waiting to be sent, where the last read code is and when it was read.
   const [arming, setArming] = useState<string>();
   const [corners, setCorners] = useState<readonly ScanPoint[]>();
+  // The last sent code from sending to its answer, until the scanner aims again.
+  const [answer, setAnswer] = useState<'busy' | 'accepted' | 'rejected'>();
   const seenAt = useRef(0);
   const emit = useEffectEvent((code: string, found: readonly ScanPoint[]) => {
     const now = Date.now();
     seenAt.current = now;
     setCorners(found);
-    if (disabled || (last.current?.code === code && now - last.current.at < REPEAT_MS)) return;
+    if (disabled || answer !== undefined) return;
+    if (last.current?.code === code && now - last.current.at < REPEAT_MS) return;
     setArming(code);
   });
-  const send = useEffectEvent((code: string) => {
-    last.current = { code, at: Date.now() };
+  const send = useEffectEvent(async (code: string) => {
     setArming(undefined);
-    onCode(code);
+    setAnswer('busy');
+    const outcome = await Promise.resolve(onCode(code)).catch(() => 'rejected' as const);
+    // Counted from the answer, so a code left in view is not sent again right away.
+    last.current = { code, at: Date.now() };
+    setAnswer(outcome);
   });
+
+  // An exclamation mark stays a while, then the scanner aims again; a check mark stays until the
+  // game moves on.
+  useEffect(() => {
+    if (answer !== 'rejected') return undefined;
+    const timer = setTimeout(() => setAnswer(undefined), REJECTED_MS);
+    return () => clearTimeout(timer);
+  }, [answer]);
 
   // A code not read for a while has left the view: it is not sent and the shade lets it go.
   useEffect(() => {
@@ -101,7 +128,7 @@ const QrScannerView = ({
   // A code held in view for `ARM_MS` is sent.
   useEffect(() => {
     if (arming === undefined) return undefined;
-    const timer = setTimeout(() => send(arming), ARM_MS);
+    const timer = setTimeout(() => void send(arming), ARM_MS);
     return () => clearTimeout(timer);
   }, [arming]);
 
@@ -120,6 +147,8 @@ const QrScannerView = ({
     video.muted = true;
     video.playsInline = true;
     container.append(video);
+    // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more and
+    // to always use its own decoder, as the browser's `BarcodeDetector` may read them.
     const scanner = new QrScanner(
       video,
       (result) =>
@@ -156,7 +185,7 @@ const QrScannerView = ({
           <div ref={stage} className='absolute inset-0' />
           {cameraError === undefined ? (
             <ScanFrame
-              state={disabled ? 'busy' : arming === undefined ? 'aiming' : 'arming'}
+              state={answer ?? (disabled ? 'busy' : arming === undefined ? 'aiming' : 'arming')}
               armMs={ARM_MS}
               corners={corners}
             />
@@ -168,11 +197,15 @@ const QrScannerView = ({
               </Button>
             </div>
           )}
-          {disabled && (
-            <span className='sr-only' role='status'>
-              Načítání…
-            </span>
-          )}
+          <span className='sr-only' role='status'>
+            {answer === 'accepted'
+              ? 'Kód přijat.'
+              : answer === 'rejected'
+                ? 'Tento kód tady nefunguje.'
+                : answer === 'busy' || disabled
+                  ? 'Načítání…'
+                  : ''}
+          </span>
         </div>
       </div>
     </div>
@@ -193,7 +226,7 @@ export const ScanScreen = ({
   readonly title?: string | undefined;
   /** From the story; a default one without it. */
   readonly text?: string | undefined;
-  readonly onCode: (code: string) => void;
+  readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly busy: boolean;
 }) => (
   <QrScannerView

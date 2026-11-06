@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { BLOCK_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
-import { ScanScreen } from './qr-scanner';
+import { ScanScreen, type ScanOutcome } from './qr-scanner';
 import { useReadingTime } from './reading';
 import { StoryText } from './story-text/story-text';
 import { useRecentVisit } from './visits';
@@ -89,7 +89,7 @@ export const NodeScreens = ({
   /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
   readonly onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
-  readonly onCode: (code: string) => void;
+  readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
   // A node left by scanning has one more screen after its blocks: the scanner.

@@ -41,7 +41,12 @@ const meta = {
   title: 'Player/ScanFrame',
   component: ScanFrame,
   args: { state: 'aiming', armMs: 3000 },
-  argTypes: { state: { control: 'inline-radio', options: ['aiming', 'arming', 'busy'] } },
+  argTypes: {
+    state: {
+      control: 'inline-radio',
+      options: ['aiming', 'arming', 'busy', 'accepted', 'rejected'],
+    },
+  },
   render: (args) => (
     <Camera>
       <ScanFrame {...args} corners={args.state === 'aiming' ? undefined : CODE} />
@@ -56,10 +61,16 @@ export const Aiming: StoryObj<typeof meta> = {};
 /** A code is in view: the gaps close, and once they do the code is sent. */
 export const Arming: StoryObj<typeof meta> = { args: { state: 'arming' } };
 
-/** The code was held long enough and is being sent: the outline stays closed with a check mark. */
+/** The code was held long enough and is being sent: the outline stops and stays closed. */
 export const Busy: StoryObj<typeof meta> = { args: { state: 'busy' } };
 
-/** The steps of the scanner, over and over: one code sent, one looked away from. */
+/** The game took the code: a check mark, then the game moves on. */
+export const Accepted: StoryObj<typeof meta> = { args: { state: 'accepted' } };
+
+/** The code was read but does not work here: an exclamation mark, then aiming again. */
+export const Rejected: StoryObj<typeof meta> = { args: { state: 'rejected' } };
+
+/** The steps of the scanner, over and over: a code taken, one refused, one looked away from. */
 type Step = {
   readonly state: ScanFrameState;
   readonly ms: number;
@@ -69,8 +80,13 @@ const START: Step = { state: 'aiming', ms: 2000, label: 'Míření' };
 const SEQUENCE: readonly Step[] = [
   START,
   { state: 'arming', ms: 3000, label: 'Kód v záběru, odpočet' },
-  { state: 'busy', ms: 2500, label: 'Odesílání' },
-  { state: 'aiming', ms: 2500, label: 'Míření' },
+  { state: 'busy', ms: 500, label: 'Odesílání' },
+  { state: 'accepted', ms: 2000, label: 'Kód přijat' },
+  { state: 'aiming', ms: 2000, label: 'Míření' },
+  { state: 'arming', ms: 3000, label: 'Kód v záběru, odpočet' },
+  { state: 'busy', ms: 500, label: 'Odesílání' },
+  { state: 'rejected', ms: 1600, label: 'Kód tady nefunguje' },
+  { state: 'aiming', ms: 2000, label: 'Míření' },
   { state: 'arming', ms: 1600, label: 'Kód v záběru, odpočet' },
   { state: 'aiming', ms: 2500, label: 'Hráč se odvrátil, odpočet zrušen' },
 ];
@@ -96,5 +112,5 @@ const Sequence = () => {
   );
 };
 
-/** The whole course from the white aim: sending a code, then looking away during the countdown. */
+/** The whole course from the white aim: a code taken, one refused and one looked away from. */
 export const Course: StoryObj<typeof meta> = { render: () => <Sequence /> };

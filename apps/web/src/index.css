@@ -281,14 +281,15 @@
 }
 
 /*
- * The scanner's aim (ScanFrame) in a 1 × 1 box over the camera: medium gray with a hole, and an
+ * The scanner's aim (ScanFrame) in a 1 × 1 box over the camera: dark shade with a hole, and an
  * outline as one dash per corner of a path 100 long, white with a soft shadow. Once a code is in
  * view the dashes turn amber, the color that stands out most on the black and white camera
- * picture; once the code is sent, a check mark of the same color shows in the middle. ScanFrame
- * moves the hole, the outline and the check mark and runs and grows the dashes itself.
+ * picture; the answer to the sent code shows in the middle as a disc of the same color with a
+ * check mark, or turns all red with an exclamation mark. ScanFrame moves the hole, the outline and the mark and runs and
+ * grows the dashes itself.
  */
 .scan-frame-shade {
-  fill: rgb(115 115 115 / 0.6);
+  fill: rgb(0 0 0 / 0.4);
 }
 .scan-frame-line {
   fill: none;
@@ -300,11 +301,18 @@
     stroke 400ms ease,
     stroke-width 400ms ease;
 }
-.scan-frame:is([data-state='arming'], [data-state='busy']) .scan-frame-line {
+.scan-frame:not([data-state='aiming']) .scan-frame-line {
   stroke: oklch(0.83 0.17 80);
   stroke-width: 0.0133;
 }
-.scan-frame-check {
+/* A code that does not work turns the outline and its mark red. */
+.scan-frame[data-state='rejected'] .scan-frame-line {
+  stroke: oklch(0.64 0.23 27);
+}
+.scan-frame-icon {
+  position: absolute;
+  inset: 0;
+  translate: -50% -50%;
   filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
   opacity: 0;
   scale: 0.6;
@@ -312,17 +320,21 @@
     opacity 250ms ease,
     scale 250ms ease;
 }
-.scan-frame-check circle {
+.scan-frame-icon circle {
   fill: oklch(0.83 0.17 80);
 }
-.scan-frame-check path {
+.scan-frame-icon[data-icon='rejected'] circle {
+  fill: oklch(0.64 0.23 27);
+}
+.scan-frame-icon path {
   fill: none;
   stroke: white;
   stroke-width: 2.25;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.scan-frame[data-state='busy'] .scan-frame-check {
+.scan-frame[data-state='accepted'] .scan-frame-icon[data-icon='accepted'],
+.scan-frame[data-state='rejected'] .scan-frame-icon[data-icon='rejected'] {
   opacity: 1;
   scale: 1;
   transition:

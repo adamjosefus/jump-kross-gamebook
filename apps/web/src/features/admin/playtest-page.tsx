@@ -30,6 +30,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NodeScreens } from '@/features/player/node-screens';
+import { ACCEPTED_MS, type ScanOutcome } from '@/features/player/qr-scanner';
 import { StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -356,16 +357,31 @@ export const PlaytestPage = () => {
   const play = useMutation({
     mutationFn: ({ from, move }: { readonly from: Step; readonly move?: Move }) =>
       playFrom(from, move),
-    onSuccess: (next) => setMoves([...steps, next]),
     onError: (error) => toast.error(errorMessage(error)),
   });
+  const advance = (next: Step) => setMoves([...steps, next]);
 
   /** Keeps the path up to and including the step with this index. */
   const backTo = (index: number) => setMoves(steps.slice(0, index));
 
   const take = (move: Move | undefined) => {
     if (current !== undefined)
-      play.mutate({ from: current, ...(move === undefined ? {} : { move }) });
+      play.mutate(
+        { from: current, ...(move === undefined ? {} : { move }) },
+        { onSuccess: advance },
+      );
+  };
+
+  /** As in the game: a code taken shows its check mark first, a refused one an exclamation mark. */
+  const scan = async (code: string): Promise<ScanOutcome> => {
+    if (current === undefined) return undefined;
+    try {
+      const next = await play.mutateAsync({ from: current, move: { code } });
+      setTimeout(() => advance(next), ACCEPTED_MS);
+      return 'accepted';
+    } catch {
+      return 'rejected';
+    }
   };
 
   if (intro.isPending || (opened !== '' && replay.isPending))
@@ -410,7 +426,7 @@ export const PlaytestPage = () => {
                 step={path.length}
                 visitScope='playtest'
                 busy={play.isPending}
-                onCode={(code) => take({ code })}
+                onCode={scan}
                 requireCamera={current.intro === true}
                 animated={animated}
                 onPick={(choice) => take({ choice: choice.index })}

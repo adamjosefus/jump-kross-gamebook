@@ -20,6 +20,7 @@ import { api, errorMessage, isApiError } from '@/lib/api';
 
 import { NodeScreens } from './node-screens';
 import { PlayerFrame } from './player-frame';
+import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
 
 const STATE_KEY = ['player', 'state'] as const;
@@ -55,12 +56,12 @@ export const PlayerPage = () => {
     }
   };
 
+  const onLogin = (next: PlayerView) => {
+    onResult(next);
+    toast.success(`Jste tým ${next.team.name}`);
+  };
   const login = useMutation({
     mutationFn: (code: string) => api((client) => client.player.login({ payload: { code } })),
-    onSuccess: (next) => {
-      onResult(next);
-      toast.success(`Jste tým ${next.team.name}`);
-    },
     onError,
   });
   const choose = useMutation({
@@ -72,19 +73,39 @@ export const PlayerPage = () => {
   const scan = useMutation({
     mutationFn: ({ code, step }: { readonly code: string; readonly step: number }) =>
       api((client) => client.player.scan({ payload: { code, expectedStep: step } })),
-    onSuccess: onResult,
     onError,
   });
 
-  const onCode = (code: string) => {
-    if (view == null) return login.mutate(code);
+  /**
+   * A scanned code taken by the game is shown with a check mark, and the game moves on only after
+   * it; one refused (the mutation reports why) is shown with an exclamation mark.
+   */
+  const answer = async <T,>(
+    pending: Promise<T>,
+    apply: (result: T) => void,
+  ): Promise<ScanOutcome> => {
+    try {
+      const result = await pending;
+      setTimeout(() => apply(result), ACCEPTED_MS);
+      return 'accepted';
+    } catch {
+      return 'rejected';
+    }
+  };
+
+  const onCode = (code: string): ScanOutcome | Promise<ScanOutcome> => {
+    if (view == null) return answer(login.mutateAsync(code), onLogin);
     const parsed = parseQr(code);
-    if (parsed?.kind !== 'T') return scan.mutate({ code, step: view.step });
+    if (parsed?.kind !== 'T') return answer(scan.mutateAsync({ code, step: view.step }), onResult);
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
-    if (parsed.id === view.team.id) return toast.info(`Už hrajete za tým ${view.team.name}.`);
+    if (parsed.id === view.team.id) {
+      toast.info(`Už hrajete za tým ${view.team.name}.`);
+      return 'rejected';
+    }
     setSwitchCode(code);
     setSwitchOpen(true);
+    return undefined;
   };
 
   // The slide button is the confirmation, so a choice is sent right away.
@@ -162,7 +183,7 @@ export const PlayerPage = () => {
             <AlertDialogCancel>Zůstat v týmu {view?.team.name}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (switchCode !== undefined) login.mutate(switchCode);
+                if (switchCode !== undefined) login.mutate(switchCode, { onSuccess: onLogin });
               }}
             >
               Přepnout tým
@@ -198,7 +219,7 @@ const Intro = ({
   initialIndex,
   onIndexChange,
 }: {
-  readonly onCode: (code: string) => void;
+  readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly busy: boolean;
   readonly initialIndex: number;
   readonly onIndexChange: (index: number) => void;
