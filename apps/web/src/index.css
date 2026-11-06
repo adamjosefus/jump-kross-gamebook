@@ -280,10 +280,41 @@
   animation: screen-fade-in 0.3s ease-out;
 }
 
-/* The scanner's aiming corners: white with a soft shadow. The library sets their color inline. */
-.scan-region-highlight-svg {
-  stroke: white !important;
+/*
+ * The scanner's aim (ScanFrame): one dash centered on each corner of a path 100 long, white with
+ * a soft shadow. Once a code is in view the dashes turn amber, the color that stands out most on
+ * the black and white camera picture. ScanFrame moves and grows the dashes itself.
+ */
+.scan-frame {
   filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.5));
+}
+.scan-frame path {
+  fill: none;
+  stroke: white;
+  /* In units of the 100 wide box (a stroke that does not scale ignores `pathLength`). */
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  /* At rest, before ScanFrame takes over: dashes 9 long centered on the corners (9 / 2 − 12.5). */
+  stroke-dasharray: 9 16;
+  stroke-dashoffset: -8;
+  transition:
+    stroke 400ms ease,
+    stroke-width 400ms ease;
+}
+.scan-frame:is([data-state='arming'], [data-state='busy']) path {
+  stroke: oklch(0.83 0.17 80);
+  stroke-width: 2;
+}
+/* Without motion the dashes do not run, so sending is told by pulsing. */
+@media (prefers-reduced-motion: reduce) {
+  .scan-frame[data-state='busy'] path {
+    animation: scan-frame-pulse 1.2s ease-in-out infinite alternate;
+  }
+}
+@keyframes scan-frame-pulse {
+  to {
+    opacity: 0.4;
+  }
 }
 
 /* Buttons of the player; the admin keeps its own. */

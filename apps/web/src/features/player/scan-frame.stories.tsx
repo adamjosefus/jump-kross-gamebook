@@ -1,0 +1,81 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useEffect, useState, type ReactNode } from 'react';
+
+import { QrCode } from '@/components/qr/qr-code';
+
+import { ScanFrame, type ScanFrameState } from './scan-frame';
+
+/** A stand-in for the black and white camera picture with a code in it, laid out as in the scanner. */
+const Camera = ({ children }: { readonly children: ReactNode }) => (
+  <div className='mx-auto max-w-md'>
+    <div className='relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-muted'>
+      <div
+        className='absolute inset-0'
+        style={{ background: 'radial-gradient(circle at 30% 20%, #d4d4d4, #3a3a3a 70%)' }}
+      />
+      <div className='relative w-[52%] -rotate-6 rounded-md bg-white p-2 shadow-lg'>
+        <QrCode value='L-32-9FZM' />
+      </div>
+      <div className='absolute inset-[16.667%]'>{children}</div>
+    </div>
+  </div>
+);
+
+/** The aim over a stand-in for the black and white camera picture, laid out as in the scanner. */
+const meta = {
+  title: 'Player/ScanFrame',
+  component: ScanFrame,
+  args: { state: 'aiming', armMs: 3000 },
+  argTypes: { state: { control: 'inline-radio', options: ['aiming', 'arming', 'busy'] } },
+  render: (args) => (
+    <Camera>
+      <ScanFrame {...args} />
+    </Camera>
+  ),
+} satisfies Meta<typeof ScanFrame>;
+
+export default meta;
+
+export const Aiming: StoryObj<typeof meta> = {};
+
+/** A code is in view: the gaps close, and once they do the code is sent. */
+export const Arming: StoryObj<typeof meta> = { args: { state: 'arming' } };
+
+/** The code is being sent: the dashes run around and turn amber. */
+export const Busy: StoryObj<typeof meta> = { args: { state: 'busy' } };
+
+/** The steps of the scanner, over and over: one code sent, one looked away from. */
+type Step = {
+  readonly state: ScanFrameState;
+  readonly ms: number;
+  readonly label: string;
+};
+const START: Step = { state: 'aiming', ms: 2000, label: 'Míření' };
+const SEQUENCE: readonly Step[] = [
+  START,
+  { state: 'arming', ms: 3000, label: 'Kód v záběru, odpočet' },
+  { state: 'busy', ms: 2500, label: 'Odesílání' },
+  { state: 'aiming', ms: 2500, label: 'Míření' },
+  { state: 'arming', ms: 1600, label: 'Kód v záběru, odpočet' },
+  { state: 'aiming', ms: 2500, label: 'Hráč se odvrátil, odpočet zrušen' },
+];
+
+const Sequence = () => {
+  const [index, setIndex] = useState(0);
+  const step = SEQUENCE[index] ?? START;
+  useEffect(() => {
+    const timer = setTimeout(() => setIndex((current) => (current + 1) % SEQUENCE.length), step.ms);
+    return () => clearTimeout(timer);
+  }, [step]);
+  return (
+    <div className='flex flex-col gap-4'>
+      <Camera>
+        <ScanFrame state={step.state} armMs={3000} />
+      </Camera>
+      <p className='text-center text-sm text-muted-foreground'>{step.label}</p>
+    </div>
+  );
+};
+
+/** The whole course from the white aim: sending a code, then looking away during the countdown. */
+export const Course: StoryObj<typeof meta> = { render: () => <Sequence /> };

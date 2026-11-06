@@ -1,8 +1,10 @@
-import { IconLoader2, IconRotateClockwise } from '@tabler/icons-react';
+import { IconRotateClockwise } from '@tabler/icons-react';
 import QrScanner from 'qr-scanner';
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
+
+import { ScanFrame } from './scan-frame';
 
 /**
  * Why the camera did not start, for the player. `qr-scanner` reports a denied permission as
@@ -26,6 +28,15 @@ const cameraProblem = async (error: unknown) => {
 /** The same code read again within this time is ignored, so one code is not sent twice. */
 const REPEAT_MS = 3000;
 
+/** A code is sent only after it stays in view this long, so the player can still change their mind. */
+const ARM_MS = 3000;
+
+/**
+ * A code not read for this long has left the view and is not sent. The scanner reads up to
+ * 8 times a second but misses some frames, e.g. when the camera moves.
+ */
+const LOST_MS = 800;
+
 /**
  * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`). The camera
  * runs while the component is mounted, so a wrong code can be followed by another one.
@@ -47,12 +58,36 @@ const QrScannerView = ({
   const failed = cameraError !== undefined;
 
   const last = useRef<{ readonly code: string; readonly at: number }>(undefined);
+  // The code waiting to be sent and when it was last read.
+  const [arming, setArming] = useState<string>();
+  const seenAt = useRef(0);
   const emit = useEffectEvent((code: string) => {
     const now = Date.now();
     if (disabled || (last.current?.code === code && now - last.current.at < REPEAT_MS)) return;
-    last.current = { code, at: now };
+    seenAt.current = now;
+    setArming(code);
+  });
+  const send = useEffectEvent((code: string) => {
+    last.current = { code, at: Date.now() };
+    setArming(undefined);
     onCode(code);
   });
+
+  // A code held in view for `ARM_MS` is sent; one that leaves the view meanwhile is dropped.
+  useEffect(() => {
+    if (arming === undefined) return undefined;
+    const sendTimer = setTimeout(() => send(arming), ARM_MS);
+    const lostTimer = setInterval(() => {
+      if (Date.now() - seenAt.current > LOST_MS) setArming(undefined);
+    }, 100);
+    return () => {
+      clearTimeout(sendTimer);
+      clearInterval(lostTimer);
+    };
+  }, [arming]);
+
+  // Nothing waits to be sent while the last code is.
+  if (disabled && arming !== undefined) setArming(undefined);
 
   useEffect(() => {
     const container = stage.current;
@@ -68,7 +103,6 @@ const QrScannerView = ({
     container.append(video);
     const scanner = new QrScanner(video, (result) => emit(result.data), {
       preferredCamera: 'environment',
-      highlightScanRegion: true,
       maxScansPerSecond: 8,
     });
     // A scanner torn down meanwhile (React runs effects twice in development) must not report;
@@ -81,7 +115,6 @@ const QrScannerView = ({
     return () => {
       current = false;
       scanner.destroy();
-      // The scan region overlay sits next to the video.
       container.replaceChildren();
     };
   }, [failed]);
@@ -93,20 +126,28 @@ const QrScannerView = ({
         {/* Square across the column; capped by the height when the screen lies. */}
         <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-muted'>
           <div ref={stage} className='absolute inset-0' />
-          <div className='relative w-full px-4'>
-            {disabled ? (
-              <IconLoader2 className='mx-auto size-8 animate-spin' />
-            ) : (
-              cameraError !== undefined && (
-                <div className='mx-auto flex max-w-xs flex-col items-center gap-3 text-center text-balance'>
-                  <p>{cameraError}</p>
-                  <Button variant='secondary' onClick={() => setCameraError(undefined)}>
-                    <IconRotateClockwise /> Zkusit znovu
-                  </Button>
-                </div>
-              )
-            )}
-          </div>
+          {cameraError === undefined ? (
+            // The library scans the middle two thirds of the shorter side; the video covers the
+            // square, so that is two thirds of it.
+            <div className='absolute inset-[16.667%]'>
+              <ScanFrame
+                state={disabled ? 'busy' : arming === undefined ? 'aiming' : 'arming'}
+                armMs={ARM_MS}
+              />
+            </div>
+          ) : (
+            <div className='relative mx-auto flex max-w-xs flex-col items-center gap-3 px-4 text-center text-balance'>
+              <p>{cameraError}</p>
+              <Button variant='secondary' onClick={() => setCameraError(undefined)}>
+                <IconRotateClockwise /> Zkusit znovu
+              </Button>
+            </div>
+          )}
+          {disabled && (
+            <span className='sr-only' role='status'>
+              Načítání…
+            </span>
+          )}
         </div>
       </div>
     </div>
