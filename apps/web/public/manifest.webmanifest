@@ -1,0 +1,10 @@
+{
+  "name": "JUMP Kross 2027",
+  "short_name": "JUMP Kross",
+  "lang": "cs",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff"
+}
