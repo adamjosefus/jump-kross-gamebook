@@ -10,6 +10,9 @@ import { cn } from '@/lib/utils';
  */
 export const PLAYER_BUTTON_HEIGHT = 'min-h-17';
 
+/** A player button with only an icon: a circle as tall as `PLAYER_BUTTON_HEIGHT`. */
+export const PLAYER_ICON_BUTTON_SIZE = 'size-17';
+
 /**
  * The big button of a player screen: the text in the middle, the icon at the edge. The text is as
  * big as the story text (`typography.ts`) and a long one wraps instead of running under the icon.
@@ -35,7 +38,15 @@ export const ActionButton = ({
     )}
     {...props}
   >
-    <span className={cn('absolute flex', iconSide === 'start' ? 'left-5' : 'right-5')}>{icon}</span>
+    {/* A square as tall as the button, so the icon sits where the slider's thumb has its own. */}
+    <span
+      className={cn(
+        'absolute inset-y-0 flex aspect-square items-center justify-center',
+        iconSide === 'start' ? 'left-0' : 'right-0',
+      )}
+    >
+      {icon}
+    </span>
     {children}
   </Button>
 );

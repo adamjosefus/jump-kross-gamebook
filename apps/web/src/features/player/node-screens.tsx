@@ -2,7 +2,7 @@ import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import { IconArrowRight, IconFlag } from '@tabler/icons-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
-import { ActionButton } from '@/components/action-button';
+import { ActionButton, PLAYER_ICON_BUTTON_SIZE } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -162,7 +162,7 @@ export const NodeScreens = ({
                 <Button
                   size='icon'
                   aria-label='Další'
-                  className='size-14 self-center rounded-full'
+                  className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
                   onClick={() => go(index + 1)}
                 >
                   <IconArrowRight className='size-5' />

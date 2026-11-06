@@ -9,7 +9,7 @@ import {
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
-import { ActionButton } from '@/components/action-button';
+import { ActionButton, PLAYER_ICON_BUTTON_SIZE } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -30,7 +30,11 @@ const Buttons = () => (
       <ActionButton icon={<IconArrowRight className='size-5' />}>Otevřít dopis</ActionButton>
     </Row>
     <Row label='Další bez textu'>
-      <Button size='icon' aria-label='Další' className='size-14 self-center rounded-full'>
+      <Button
+        size='icon'
+        aria-label='Další'
+        className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
+      >
         <IconArrowRight className='size-5' />
       </Button>
     </Row>

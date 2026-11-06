@@ -13,7 +13,7 @@ type Stage = 'idle' | 'confirmed' | 'pending';
 const Label = ({ children }: { readonly children: ReactNode }) => (
   <span
     data-slot='slide-button-label'
-    className='flex-1 px-14 py-2 text-center text-xl leading-tight font-medium text-pretty'
+    className='flex-1 px-16 py-2 text-center text-xl leading-tight font-medium text-pretty'
   >
     {children}
   </span>
@@ -92,7 +92,8 @@ export const SlideButton = ({
 
   const active = drag !== undefined || stage !== 'idle';
   // Where the thumb ends, from the left edge of the track; a sliding thumb covers its border too.
-  const thumbEnd = `(3.25rem + ${progress} * (100% + 1px - 3.25rem))`;
+  // At rest the thumb is 0.25rem from the edge and fills the track's height but 0.25rem on each side.
+  const thumbEnd = `(3.875rem + ${progress} * (100% + 1px - 3.875rem))`;
 
   return (
     <div
@@ -110,12 +111,12 @@ export const SlideButton = ({
         aria-label='Posuňte doprava pro potvrzení'
         disabled={disabled && stage === 'idle'}
         className={cn(
-          'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
+          'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-4.75 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
           // An invisible margin around the thumb, so a finger catches it even slightly off.
           "before:absolute before:-inset-4 before:rounded-full before:content-['']",
           active
             ? '-top-px -bottom-px -left-px'
-            : 'top-[calc(50%-1.5rem)] bottom-[calc(50%-1.5rem)] left-1',
+            : 'top-[calc(50%-1.8125rem)] bottom-[calc(50%-1.8125rem)] left-1',
           drag === undefined
             ? 'transition-[top,bottom,left,right] duration-300 ease-out'
             : 'transition-[top,bottom,left] duration-150 ease-out',
@@ -141,7 +142,9 @@ export const SlideButton = ({
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
       >
         <Label>{children}</Label>
-        <IconArrowRight className='absolute top-1/2 right-5 size-5 -translate-y-1/2' />
+        <span className='absolute inset-y-0 right-0 flex aspect-square items-center justify-center'>
+          <IconArrowRight className='size-5' />
+        </span>
       </div>
     </div>
   );
