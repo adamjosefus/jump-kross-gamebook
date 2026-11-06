@@ -26,6 +26,7 @@ const Label = ({ children }: { readonly children: ReactNode }) => (
  * a circle in the middle of its height. The label stays readable over the thumb: a second copy in
  * the thumb's text color is clipped to the thumb. A touch hides the thumb's chevron; the arrow at
  * the end of the track is clipped the same way, so the thumb uncovers it only when it gets there.
+ * The thumb can be grabbed a little beyond its visible edge.
  */
 export const SlideButton = ({
   children,
@@ -108,6 +109,8 @@ export const SlideButton = ({
         disabled={disabled && stage === 'idle'}
         className={cn(
           'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-3.5 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
+          // An invisible margin around the thumb, so a finger catches it even slightly off.
+          "before:absolute before:-inset-4 before:rounded-full before:content-['']",
           active
             ? '-top-px -bottom-px -left-px'
             : 'top-[calc(50%-1.5rem)] bottom-[calc(50%-1.5rem)] left-1',
