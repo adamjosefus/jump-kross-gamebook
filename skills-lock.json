@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "typography-css": {
+      "source": "adamjosefus/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typography-css/SKILL.md",
+      "computedHash": "a4c606801eaf262b427e5f571e8cd871982a325fe54725aaf97a768ce264c1d1"
+    },
+    "typography-css-reset": {
+      "source": "adamjosefus/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typography-css-reset/SKILL.md",
+      "computedHash": "0f8f3523e578230a3be2a37a1912910aba72bb7ce1804401a619b29dcac522cd"
+    },
+    "typography-czech": {
+      "source": "adamjosefus/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typography-czech/SKILL.md",
+      "computedHash": "5b958e52371f333b1ca11d0d44a44ff4a5c2649325937fe40ea6cffa86b4b838"
+    }
+  }
+}
