@@ -100,7 +100,7 @@ export const SlideButton = ({
       ref={track}
       className={cn(
         PLAYER_BUTTON_HEIGHT,
-        'relative flex items-center rounded-full border bg-muted/40 select-none',
+        'relative flex items-center rounded-full border bg-muted/40 transition-opacity select-none',
         disabled && stage === 'idle' && 'opacity-50',
         className,
       )}

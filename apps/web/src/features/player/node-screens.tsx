@@ -158,15 +158,10 @@ export const NodeScreens = ({
           </div>
         )}
 
-        {/* Buttons wait for the whole text, so nobody goes on before reading it. They keep their
-          room meanwhile, so the text does not move when they appear. */}
+        {/* Buttons are there from the start but stay disabled until the whole text is shown, so
+          nobody goes on before reading it. */}
         {!scanning && (
-          <div
-            className={cn(
-              'mt-auto flex flex-col gap-3',
-              shown ? 'animate-in duration-500 fade-in' : 'invisible',
-            )}
-          >
+          <div className='mt-auto flex flex-col gap-3'>
             {!last ? (
               nextText === '' ? (
                 // No text in the story: only the arrow, in a circle as tall as the wide button.
@@ -174,6 +169,7 @@ export const NodeScreens = ({
                   size='icon'
                   aria-label='Další'
                   className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
+                  disabled={!shown}
                   onClick={() => go(index + 1)}
                 >
                   <IconArrowRight className='size-5' />
@@ -181,18 +177,28 @@ export const NodeScreens = ({
               ) : (
                 <ActionButton
                   icon={<IconArrowRight className='size-5' />}
+                  disabled={!shown}
                   onClick={() => go(index + 1)}
                 >
                   {nextText}
                 </ActionButton>
               )
             ) : node.type === 'end' ? (
-              <p className='flex items-center justify-center gap-2'>
+              <p
+                className={cn(
+                  'flex items-center justify-center gap-2',
+                  shown ? 'animate-in duration-500 fade-in' : 'invisible',
+                )}
+              >
                 <IconFlag className='size-4' /> Konec hry
               </p>
             ) : (
               choices.map((choice) => (
-                <SlideButton key={choice.index} onConfirm={() => onPick(choice)} disabled={busy}>
+                <SlideButton
+                  key={choice.index}
+                  onConfirm={() => onPick(choice)}
+                  disabled={busy || !shown}
+                >
                   {choice.label}
                 </SlideButton>
               ))
