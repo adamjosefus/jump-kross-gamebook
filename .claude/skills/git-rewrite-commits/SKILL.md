@@ -1,6 +1,6 @@
 ---
 name: git-rewrite-commits
-description: Safely rewrite, reorder, squash, split, or recommit commits on main into logical commits in this project's Czech „Oblast: popis“ style. Use when the user asks to rewrite commits, split commits, squash commits, recommit work, rebase, reorder commits, or combine commits.
+description: Safely rewrite, reorder, squash, split, or recommit commits on main into logical commits in this project's English Conventional Commits style. Use when the user asks to rewrite commits, split commits, squash commits, recommit work, rebase, reorder commits, or combine commits.
 ---
 
 # Rewrite Commits Workflow
@@ -81,14 +81,14 @@ Show the user the planned commit list (subjects and which files go where) before
 
 ## Commit Style
 
-Messages are in Czech with diacritics, following the existing history (`git log --format=%B -20` shows examples):
+Messages are in English and follow [Conventional Commits](https://www.conventionalcommits.org/), matching the existing history (`git log --format=%B -20` shows examples):
 
-- **Subject:** `Oblast: popis`. The area is a short Czech noun with a capital letter, reused from history when it fits: `Příběh`, `Graf příběhu`, `Test`, `Živě`, `Styl`, `Mobil`, `Ikony`, `Skills`. Introduce a new area only when none fits.
-- The description says what is now true, lowercase after the colon, no trailing period, ideally under 72 characters: `Ikony: favicon, ikona na plochu a ikony v manifestu`.
-- **Body** (optional, after a blank line): plain prose wrapped at about 80 columns explaining what changed and why; no bullet lists unless the change is a list of independent items.
-- Follow Czech typography (quotes „ “, en dash –, non-breaking spaces after one-letter prepositions where the typography-czech skill applies).
+- **Subject:** `type(scope): description`. Types: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci`, `chore`. `style` is only for code formatting, never for visual or CSS changes (those are `feat` or `fix`).
+- The scope is optional, short, lowercase and reused from history when it fits: `core`, `app`, `story`, `graph`, `player`, `scanner`, `playtest`, `live`, `qr`, `blocks`, `buttons`, `dev-server`, `skills`. Introduce a new scope only when none fits.
+- The description is imperative or says what is now true, lowercase, no trailing period, ideally under 72 characters: `feat(icons): favicon, home screen icon and manifest icons`.
+- Mark breaking changes with `!` after the scope and a `BREAKING CHANGE:` footer.
+- **Body** (optional, after a blank line): plain English prose wrapped at about 80 columns explaining what changed and why; no bullet lists unless the change is a list of independent items.
 - Keep the `Co-Authored-By:` trailers of the original commits on the commits that contain that work. For commits you create, end with the trailer the current session prescribes.
-- No conventional-commit prefixes (`feat:`, `fix(scope):`).
 
 ## Phase 4: Rewrite History
 
@@ -106,9 +106,9 @@ Always pass commit messages via heredoc:
 
 ```bash
 git commit -m "$(cat <<'EOF'
-Oblast: stručný popis toho, co teď platí
+type(scope): short description of what is now true
 
-Volitelné vysvětlení, co se změnilo a proč, zalomené kolem 80 znaků.
+Optional explanation of what changed and why, wrapped at about 80 columns.
 
 Co-Authored-By: …
 EOF
@@ -166,7 +166,7 @@ Přepis proběhl v pořádku: výsledný strom odpovídá zálohové větvi a pr
 Zálohová větev: `rewrite-commits-backup/main-<timestamp>`
 
 Commity:
-- `<sha>` `Oblast: popis`
+- `<sha>` `type(scope): description`
 
 Ověření:
 - `git diff --exit-code <backup-ref> HEAD`: OK
