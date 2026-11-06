@@ -118,14 +118,7 @@ export const PlayerPage = () => {
       </main>
     );
 
-  const aside = view != null && (
-    <div className='flex items-center gap-2'>
-      <span>
-        Tým <strong className='text-foreground'>{view.team.name}</strong>
-      </span>
-      {busy && <IconLoader2 className='size-4 animate-spin' />}
-    </div>
-  );
+  const aside = view != null && busy && <IconLoader2 className='size-4 animate-spin' />;
 
   return (
     <main className={PAGE}>
