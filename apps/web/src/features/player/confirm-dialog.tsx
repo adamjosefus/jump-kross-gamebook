@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * How long the buttons stay locked after the dialog opens. The dialog pops up over a screen the
  * players may be tapping right then, and that tap must not land on one of its buttons.
  */
-export const CONFIRM_ARM_MS = 650;
+export const CONFIRM_ARM_MS = 1500;
 
 const BUTTON = cn(
   PLAYER_BUTTON_HEIGHT,
