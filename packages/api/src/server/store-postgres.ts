@@ -136,15 +136,17 @@ export const makePostgresStore = (url: string) => {
       query(
         async () => void (await sql`insert into session (id, team_id) values (${id}, ${teamId})`),
       ),
-    touchSession: (id) =>
+    touchSession: (id, createdAfter) =>
       query(async () => {
         // Only write when the last touch is older than 30 s, so polling stays a read.
         const [row] = await sql`
           with touched as (
             update session set last_seen_at = now()
-            where id = ${id} and last_seen_at < now() - interval '30 seconds'
+            where id = ${id} and created_at > ${createdAfter.toISOString()}
+              and last_seen_at < now() - interval '30 seconds'
           )
-          select team_id from session where id = ${id}`;
+          select team_id from session
+          where id = ${id} and created_at > ${createdAfter.toISOString()}`;
         return row === undefined ? undefined : Number(row['team_id']);
       }),
     deleteSession: (id) =>

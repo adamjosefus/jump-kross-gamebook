@@ -65,8 +65,14 @@ export interface StoreShape {
   readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;
 
   readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>;
-  /** Resolves a session and records that the device is alive. */
-  readonly touchSession: (id: string) => Effect.Effect<number | undefined, StoreError>;
+  /**
+   * Resolves a session created after `createdAfter` and records that the device is alive; an
+   * older session resolves to undefined.
+   */
+  readonly touchSession: (
+    id: string,
+    createdAfter: Date,
+  ) => Effect.Effect<number | undefined, StoreError>;
   readonly deleteSession: (id: string) => Effect.Effect<void, StoreError>;
   /** Devices seen since `since`, per team. */
   readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;

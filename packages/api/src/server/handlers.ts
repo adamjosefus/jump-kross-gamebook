@@ -15,8 +15,12 @@ import { Game } from './game.ts';
 import { Store } from './store.ts';
 import { ADMIN_MAX_AGE, createAdminToken, verifyAdminToken } from './tokens.ts';
 
-/** A team plays within a day or two; after that the phone has to scan the team code again. */
-const PLAYER_MAX_AGE = '2 days';
+/**
+ * A team plays within a day or two; after that the phone has to scan the team code again. The
+ * cookie expires then and the server refuses the session too, even when the cookie was kept.
+ */
+const PLAYER_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+const PLAYER_MAX_AGE = `${PLAYER_SESSION_TTL_MS / 1000} seconds` as const;
 
 /** Store failures are bugs or outages, not API errors: they surface as 500s. */
 const orDie = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effect<A, E, R>) =>
@@ -41,7 +45,9 @@ const PlayerAuthLive = Layer.effect(
       session: Effect.fn(function* (httpEffect, { credential }) {
         const sessionId = Redacted.value(credential);
         if (sessionId === '') return yield* new Unauthorized({ message: 'Nejste přihlášeni.' });
-        const teamId = yield* orDie(store.touchSession(sessionId));
+        const teamId = yield* orDie(
+          store.touchSession(sessionId, new Date(Date.now() - PLAYER_SESSION_TTL_MS)),
+        );
         if (teamId === undefined)
           return yield* new Unauthorized({ message: 'Přihlášení vypršelo.' });
         return yield* Effect.provideService(httpEffect, CurrentTeam, { sessionId, teamId });

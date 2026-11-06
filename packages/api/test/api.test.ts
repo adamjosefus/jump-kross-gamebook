@@ -314,6 +314,36 @@ describe('memory data', () => {
   });
 });
 
+describe('player session', () => {
+  it('expires two days after the login, even when the cookie is kept', async () => {
+    const memory = emptyMemoryData();
+    const { handler: send, dispose: close } = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
+    const code = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const response = await send(
+      new Request('http://localhost/api/player/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      }),
+    );
+    const [cookie, ...attributes] = response.headers.getSetCookie()[0]!.split('; ');
+    expect(attributes).toContain(`Max-Age=${2 * 24 * 60 * 60}`);
+    const state = () =>
+      send(new Request('http://localhost/api/player/state', { headers: { cookie: cookie! } }));
+    expect((await state()).status).toBe(200);
+
+    const [sessionId, session] = [...memory.sessions][0]!;
+    const almostTwoDays = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 60_000);
+    memory.sessions.set(sessionId, { ...session, createdAt: almostTwoDays });
+    expect((await state()).status).toBe(200);
+
+    const overTwoDays = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 - 60_000);
+    memory.sessions.set(sessionId, { ...session, createdAt: overTwoDays });
+    expect((await state()).status).toBe(401);
+    await close();
+  });
+});
+
 describe('server failures', () => {
   it('answers 503 naming the missing secrets of a deployment', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);

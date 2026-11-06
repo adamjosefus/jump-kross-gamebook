@@ -4,6 +4,7 @@ import { Store, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
 interface SessionRow {
   readonly teamId: number;
+  readonly createdAt: Date;
   readonly lastSeenAt: Date;
 }
 
@@ -102,11 +103,15 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     listReading: () => Effect.sync(() => data.reading),
 
     createSession: (id, teamId) =>
-      Effect.sync(() => void sessions.set(id, { teamId, lastSeenAt: new Date() })),
-    touchSession: (id) =>
+      Effect.sync(() => {
+        const now = new Date();
+        sessions.set(id, { teamId, createdAt: now, lastSeenAt: now });
+      }),
+    touchSession: (id, createdAfter) =>
       Effect.sync(() => {
         const session = sessions.get(id);
         if (session === undefined || !teams.has(session.teamId)) return undefined;
+        if (session.createdAt <= createdAfter) return undefined;
         sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),
