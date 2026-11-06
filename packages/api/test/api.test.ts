@@ -139,7 +139,7 @@ describe('api', () => {
     expect((await phone('POST', '/api/player/login', { code: studna })).status).toBe(400);
     expect((await phone('POST', '/api/player/login', { code: 'T-1-AAAA' })).status).toBe(400);
     expect((await phone('POST', '/api/player/login', { code: gone })).body.message).toBe(
-      'Tento tým už ve hře není.',
+      'Tento tým už ve hře není.',
     );
 
     const start = await phone('POST', '/api/player/login', { code: login });

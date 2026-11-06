@@ -50,7 +50,7 @@ export const PlayerPage = () => {
 
   const onLogin = (next: PlayerView) => {
     onResult(next);
-    playerToast.success(`Jste tým ${next.team.name}`);
+    playerToast.success(next.loginMessages.loggedIn);
   };
   const login = useMutation({
     mutationFn: (code: string) => api((client) => client.player.login({ payload: { code } })),
@@ -92,7 +92,7 @@ export const PlayerPage = () => {
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {
-      playerToast.info(`Už hrajete za tým ${view.team.name}.`);
+      playerToast.info(view.loginMessages.sameTeam);
       return 'rejected';
     }
     setSwitchCode(code);
@@ -158,15 +158,14 @@ export const PlayerPage = () => {
       <ConfirmDialog
         open={switchOpen}
         onOpenChange={setSwitchOpen}
-        title='Přepnout na jiný tým?'
-        confirmLabel='Přepnout tým'
-        cancelLabel={`Zůstat v týmu ${view?.team.name ?? ''}`}
+        title={view?.loginMessages.switchTitle ?? ''}
+        confirmLabel={view?.loginMessages.switchConfirm ?? ''}
+        cancelLabel={view?.loginMessages.switchCancel ?? ''}
         onConfirm={() => {
           if (switchCode !== undefined) login.mutate(switchCode, { onSuccess: onLogin });
         }}
       >
-        Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát za něj
-        místo za tým {view?.team.name}.
+        {view?.loginMessages.switchText}
       </ConfirmDialog>
     </main>
   );

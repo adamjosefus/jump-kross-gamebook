@@ -68,6 +68,7 @@ interface NodeBase<S> {
   readonly initialState?: S;
   /** Evaluated once per render; the state does not change while a node is shown. */
   readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
+  readonly loginMessages?: never;
 }
 
 /** A node offers buttons or waits for a QR scan, never both; the intro and the outro are apart. */
@@ -104,9 +105,70 @@ export interface IntroNode {
   readonly scanTitle?: string;
   /** The text under that heading; the player's default one without it. */
   readonly scanText?: string;
+  /** Notifications around scanning a team's login code; the default text where one is missing. */
+  readonly loginMessages?: LoginMessages;
   readonly choices?: never;
   readonly scans?: never;
 }
+
+/** A text written as it is or for a team, e.g. to use its name. */
+export type TeamText = string | ((team: Team) => string);
+
+/** Notifications and the dialog around scanning a team's login code. */
+export interface LoginMessages {
+  /** After the device joins a team; the team is the one it joined. */
+  readonly loggedIn?: TeamText;
+  /** The device scanned the code of the team it already plays for. */
+  readonly sameTeam?: TeamText;
+  /** The scanned code does not belong to the game. */
+  readonly foreignCode?: string;
+  /** A location's code scanned at the login instead of a team's. */
+  readonly notTeamCode?: string;
+  /** The code of a team that is no longer in the story. */
+  readonly unknownTeam?: string;
+  /**
+   * The dialog before the device switches to another team whose code it scanned mid-game; the
+   * team is the one the device plays for now.
+   */
+  readonly switchTitle?: TeamText;
+  readonly switchText?: TeamText;
+  readonly switchConfirm?: TeamText;
+  readonly switchCancel?: TeamText;
+}
+
+/** The texts used where the story does not set its own. */
+export const DEFAULT_LOGIN_MESSAGES = {
+  loggedIn: (team: Team) => `Jste tým ${team.name}`,
+  sameTeam: (team: Team) => `Už hrajete za tým ${team.name}.`,
+  foreignCode: 'Tento QR kód nepatří ke hře.',
+  notTeamCode: 'Nejdřív naskenujte přihlašovací kód týmu.',
+  unknownTeam: 'Tento tým už ve hře není.',
+  switchTitle: 'Přepnout na jiný tým?',
+  switchText: (team: Team) =>
+    `Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát za něj místo za tým ${team.name}.`,
+  switchConfirm: 'Přepnout tým',
+  switchCancel: (team: Team) => `Zůstat v týmu ${team.name}`,
+} as const satisfies Required<LoginMessages>;
+
+/** The login texts of the story, with the defaults filled in and written for the team. */
+export const loginMessages = (story: Story, team: Team) => {
+  const set = story.nodes[story.introNode]?.loginMessages;
+  const text = (key: keyof LoginMessages): string => {
+    const value = set?.[key] ?? DEFAULT_LOGIN_MESSAGES[key];
+    return typeof value === 'function' ? value(team) : value;
+  };
+  return {
+    loggedIn: text('loggedIn'),
+    sameTeam: text('sameTeam'),
+    foreignCode: text('foreignCode'),
+    notTeamCode: text('notTeamCode'),
+    unknownTeam: text('unknownTeam'),
+    switchTitle: text('switchTitle'),
+    switchText: text('switchText'),
+    switchConfirm: text('switchConfirm'),
+    switchCancel: text('switchCancel'),
+  } as const satisfies Readonly<Record<keyof LoginMessages, string>>;
+};
 
 /** The outro: the game ends when a team arrives; the blocks may use the state and the team. */
 export interface OutroNode<S> {
@@ -116,6 +178,7 @@ export interface OutroNode<S> {
   readonly scans?: never;
   readonly scanTitle?: never;
   readonly scanText?: never;
+  readonly loginMessages?: never;
 }
 
 /** Any node of a story the engine runs. */
