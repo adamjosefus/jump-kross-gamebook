@@ -65,3 +65,8 @@ export const CustomNextButton: StoryObj<typeof meta> = {
     },
   },
 };
+
+/** A later screen: „Zpět“ is a small circle with an arrow in the top left corner. */
+export const BackButton: StoryObj<typeof meta> = {
+  args: { ...ArrowOnlyNextButton.args, initialIndex: 1 },
+};

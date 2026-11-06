@@ -38,12 +38,14 @@ export const PlayerFrame = ({
           <span>{lead}</span>
         ) : (
           <Button
-            variant='ghost'
-            size='sm'
-            className='-ml-3 rounded-full text-muted-foreground'
+            variant='secondary'
+            size='icon'
+            aria-label='Zpět'
+            className='rounded-full'
             onClick={onBack}
           >
-            <IconArrowLeft /> Zpět
+            {/* The arrowhead weighs the glyph to the left; a pixel to the right centers it. */}
+            <IconArrowLeft className='size-4 translate-x-px' />
           </Button>
         )}
         {aside}
