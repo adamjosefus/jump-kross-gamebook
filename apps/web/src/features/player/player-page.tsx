@@ -4,22 +4,13 @@ import { IconLoader2 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState, type ComponentProps, type ReactNode } from 'react';
-import { toast } from 'sonner';
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { api, errorMessage, isApiError } from '@/lib/api';
 
+import { ConfirmDialog } from './confirm-dialog';
 import { NodeScreens } from './node-screens';
 import { PlayerFrame } from './player-frame';
+import { playerToast } from './player-toast';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
 
@@ -50,7 +41,7 @@ export const PlayerPage = () => {
 
   const onResult = (next: PlayerView) => queryClient.setQueryData(STATE_KEY, next);
   const onError = (error: unknown) => {
-    toast.error(errorMessage(error));
+    playerToast.error(errorMessage(error));
     if (isApiError(error, 'StepConflict') || isApiError(error, 'InvalidMove')) {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
@@ -58,7 +49,7 @@ export const PlayerPage = () => {
 
   const onLogin = (next: PlayerView) => {
     onResult(next);
-    toast.success(`Jste tým ${next.team.name}`);
+    playerToast.success(`Jste tým ${next.team.name}`);
   };
   const login = useMutation({
     mutationFn: (code: string) => api((client) => client.player.login({ payload: { code } })),
@@ -100,7 +91,7 @@ export const PlayerPage = () => {
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {
-      toast.info(`Už hrajete za tým ${view.team.name}.`);
+      playerToast.info(`Už hrajete za tým ${view.team.name}.`);
       return 'rejected';
     }
     setSwitchCode(code);
@@ -170,27 +161,19 @@ export const PlayerPage = () => {
         />
       )}
 
-      <AlertDialog open={switchOpen} onOpenChange={setSwitchOpen}>
-        <AlertDialogContent className='font-story'>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Přepnout na jiný tým?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát
-              za něj místo za tým {view?.team.name}.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Zůstat v týmu {view?.team.name}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (switchCode !== undefined) login.mutate(switchCode, { onSuccess: onLogin });
-              }}
-            >
-              Přepnout tým
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={switchOpen}
+        onOpenChange={setSwitchOpen}
+        title='Přepnout na jiný tým?'
+        confirmLabel='Přepnout tým'
+        cancelLabel={`Zůstat v týmu ${view?.team.name ?? ''}`}
+        onConfirm={() => {
+          if (switchCode !== undefined) login.mutate(switchCode, { onSuccess: onLogin });
+        }}
+      >
+        Naskenovali jste přihlašovací kód jiného týmu. Když přepnete, bude tento telefon hrát za něj
+        místo za tým {view?.team.name}.
+      </ConfirmDialog>
     </main>
   );
 };

@@ -71,12 +71,6 @@ const Buttons = () => (
         </Button>
       </div>
     </Row>
-    <Row label='Dialog'>
-      <div className='flex flex-wrap gap-2'>
-        <Button variant='outline'>Zůstat v týmu Lišky</Button>
-        <Button>Přepnout tým</Button>
-      </div>
-    </Row>
   </div>
 );
 
