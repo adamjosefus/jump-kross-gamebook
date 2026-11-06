@@ -15,7 +15,8 @@ import { Game } from './game.ts';
 import { Store } from './store.ts';
 import { ADMIN_MAX_AGE, createAdminToken, verifyAdminToken } from './tokens.ts';
 
-const PLAYER_MAX_AGE = '7 days';
+/** A team plays within a day or two; after that the phone has to scan the team code again. */
+const PLAYER_MAX_AGE = '2 days';
 
 /** Store failures are bugs or outages, not API errors: they surface as 500s. */
 const orDie = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effect<A, E, R>) =>
