@@ -9,7 +9,7 @@ Use this skill when the user explicitly asks to rewrite existing commits into a 
 
 The goal is to preserve the final tree exactly while replacing the commit sequence with logical commits written in the project's style (see [Commit Style](#commit-style)). Always create a backup branch first and verify the rewritten history against that backup before reporting success.
 
-This project works directly on `main` and pushes every commit there; there are no feature branches or PRs. Rewriting therefore usually means rewriting `main` itself.
+Work lands on `main` either directly or through a branch and a pull request (see `.claude/rules/git.md` for branch and PR conventions). Rewriting therefore means rewriting `main` itself, or the branch the user names.
 
 ## Safety Rules
 
