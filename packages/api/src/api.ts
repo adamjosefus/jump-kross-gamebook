@@ -369,6 +369,12 @@ export const PrintableCode = Schema.Struct({
   id: Schema.Number,
   label: Schema.String,
   code: Schema.String,
+  /**
+   * The story's texts of the scan screens that take this code, each once: the intro's for a team's
+   * login code, those of the nodes accepting it for the others. `null` stands for the scan screens
+   * without a text of their own; empty when no node takes the code. For the organisers only.
+   */
+  scanTexts: Schema.Array(Schema.NullOr(Schema.String)),
 });
 export type PrintableCode = typeof PrintableCode.Type;
 

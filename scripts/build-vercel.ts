@@ -5,6 +5,9 @@
  *   .vercel/output/static/          the SPA (apps/web/dist)
  *   .vercel/output/functions/api.func  one bundled Node function serving /api/*
  *   .vercel/output/config.json      routes: /api/* to the function, everything else to the SPA
+ *
+ * Every response carries X-Robots-Tag, so search engines and AI crawlers skip even files that have
+ * no <meta name="robots"> of their own (API responses, images, the manifest).
  */
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -57,6 +60,14 @@ writeFileSync(
     {
       version: 3,
       routes: [
+        {
+          src: '^/(.*)$',
+          headers: {
+            'X-Robots-Tag':
+              'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai',
+          },
+          continue: true,
+        },
         { src: '^/api/(.*)$', dest: '/api' },
         { handle: 'filesystem' },
         { src: '^/(.*)$', dest: '/index.html' },

@@ -5,27 +5,56 @@ import { cn } from '@/lib/utils';
 
 import { type QrCardText, qrCardText } from './qr-card-text';
 import { QrCode } from './qr-code';
+import type { QrStyle } from './qr-svg';
+
+/** The code without its own white margin, the same object every render so it is drawn once. */
+const NO_QUIET_ZONE: QrStyle = { quietZone: 0 };
+
+/** Stands in for a scan screen without a text of its own in the story. */
+const NO_SCAN_TEXT = '—';
+
+/**
+ * Light outline buttons for `actions`: they show only over the card turned light, so they keep
+ * light colors in dark mode too.
+ */
+export const QR_CARD_ACTION =
+  'border-black/10 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/10 dark:bg-white dark:hover:bg-black/5';
 
 interface QrCardProps {
   readonly value: string;
+  /**
+   * The story's texts of the scan screens that take the code, the ones the players read while
+   * scanning it; `null` for a screen without its own. For the organisers on screen, never printed.
+   */
+  readonly scanTexts?: readonly (string | null)[] | undefined;
+  /**
+   * Buttons in the bottom right corner, on a background of their own so they do not get lost in the
+   * content under them; shown on hover or keyboard focus (always on touch screens), never printed.
+   * Style them with `QR_CARD_ACTION`.
+   */
+  readonly actions?: ReactNode;
   readonly className?: string;
 }
 
 /**
- * Card with a fixed physical width, in the colors of the app theme. Only the code stays dark on
- * white to scan in dark mode too; printed, the whole card is black on white.
+ * Card as narrow as its code, which has a fixed physical width, unless `className` makes it wider;
+ * the code stays in the middle, bigger in print. In the colors of the app theme, the code included:
+ * it has no background or margin of its own and takes the text color. On hover or keyboard focus,
+ * and in print, the card turns black on white, so the code scans in dark mode too; the card's
+ * padding is the code's quiet zone.
  */
 const QrCard = ({
   value,
+  scanTexts = [],
+  actions,
   className,
   icon,
   eyebrow,
   title,
-  hint,
 }: QrCardProps & QrCardText & { readonly icon: ReactNode }) => (
   <figure
     className={cn(
-      'flex w-[8cm] break-inside-avoid flex-col gap-3 rounded-xl border bg-card p-5 text-card-foreground print:border-2 print:border-black print:bg-white print:text-black',
+      'group relative flex w-min break-inside-avoid flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-card-foreground transition-colors focus-within:border-black/10 focus-within:bg-white focus-within:text-black hover:border-black/10 hover:bg-white hover:text-black print:border-2 print:border-black print:bg-white print:text-black',
       className,
     )}
   >
@@ -34,13 +63,35 @@ const QrCard = ({
         {icon}
         {eyebrow}
       </span>
-      {title !== undefined && <span className='text-2xl leading-tight font-semibold'>{title}</span>}
+      {title !== undefined && <span className='text-lg leading-tight font-semibold'>{title}</span>}
     </figcaption>
-    <QrCode value={value} className='rounded-md' />
-    <div className='flex items-end justify-between gap-2 text-xs'>
-      <span>{hint}</span>
-      <span className='font-mono text-[10px] opacity-60'>{value}</span>
+    {/* The code in the middle; its text runs up on the left, centered between the edge and the
+      code, and fades out on hover to leave the quiet zone clear for scanning. An empty column of
+      the same width on the right keeps the code in the middle. */}
+    <div className='-mx-4 grid grid-cols-[minmax(1.75rem,1fr)_auto_minmax(1.75rem,1fr)] items-center'>
+      <span
+        aria-hidden
+        className='rotate-180 justify-self-center font-mono text-[10px] whitespace-nowrap opacity-60 transition-opacity [writing-mode:vertical-rl] group-focus-within:opacity-0 group-hover:opacity-0'
+      >
+        {value}
+      </span>
+      <QrCode
+        value={value}
+        style={NO_QUIET_ZONE}
+        plain
+        className='my-3 w-[3.5cm] print:w-[5.5cm]'
+      />
     </div>
+    <span className='flex flex-col gap-1 text-xs print:hidden'>
+      {(scanTexts.length === 0 ? [null] : scanTexts).map((text) => (
+        <span key={text ?? ''}>{text ?? NO_SCAN_TEXT}</span>
+      ))}
+    </span>
+    {actions !== undefined && (
+      <div className='absolute right-1 bottom-1 z-10 flex gap-1 rounded-xl bg-white p-1 opacity-0 shadow-[0_0_0.75rem_0.5rem_white] transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 print:hidden [@media(hover:none)]:opacity-100'>
+        {actions}
+      </div>
+    )}
   </figure>
 );
 
