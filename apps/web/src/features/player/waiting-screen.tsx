@@ -22,11 +22,14 @@ const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
 export const WaitingScreen = ({
   message,
   corner,
+  aside,
 }: {
   /** Markdown, set like the story's text. */
   readonly message: string;
   /** Shown small in the top left corner, like on the first screen of the intro. */
   readonly corner?: ReactNode;
+  /** Shown at the right end of the bar, like the sign of a lost connection. */
+  readonly aside?: ReactNode;
 }) => (
   <PlayerFrame
     lead={
@@ -36,6 +39,7 @@ export const WaitingScreen = ({
         </span>
       )
     }
+    aside={aside}
   >
     <div className={cn('flex-1', OPTICAL_CENTER)} role='status'>
       <div className='flex flex-col gap-6'>

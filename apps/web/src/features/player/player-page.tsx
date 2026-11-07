@@ -1,5 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -195,13 +195,7 @@ export const PlayerPage = () => {
           </Centered>
         </PlayerFrame>
       ) : view.status === 'not-ready' || view.node === undefined ? (
-        <PlayerFrame aside={aside}>
-          <Centered>
-            <p className='text-center text-balance'>
-              Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
-            </p>
-          </Centered>
-        </PlayerFrame>
+        <WaitingScreen message={GAME_NOT_STARTED_MESSAGE} aside={aside} />
       ) : (
         <TeamNodeScreens
           teamId={view.team.id}
@@ -294,19 +288,17 @@ const Intro = ({
         ? WAITING_POLL_MS
         : false,
   });
-  if (intro.isPending)
+  // A poll that fails while waiting keeps the last answer on the screen and the next one tries
+  // again; only an intro never loaded shows the problem.
+  if (intro.data === undefined)
     return (
       <PlayerFrame>
         <Centered>
-          <IconLoader2 className='size-6 animate-spin' />
-        </Centered>
-      </PlayerFrame>
-    );
-  if (intro.isError)
-    return (
-      <PlayerFrame>
-        <Centered>
-          <Problem message={errorMessage(intro.error)} onRetry={() => void intro.refetch()} />
+          {intro.isError ? (
+            <Problem message={errorMessage(intro.error)} onRetry={() => void intro.refetch()} />
+          ) : (
+            <IconLoader2 className='size-6 animate-spin' />
+          )}
         </Centered>
       </PlayerFrame>
     );
