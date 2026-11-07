@@ -1,14 +1,14 @@
-import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { WaitingScreen } from './waiting-screen';
+import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 /** The screen of a phone that cannot log in yet; it moves on by itself once the game opens. */
 const meta = {
   title: 'Player/WaitingScreen',
   component: WaitingScreen,
   parameters: { layout: 'fullscreen' },
-  args: { message: GAME_NOT_STARTED_MESSAGE, corner: '26-11-07-345530d' },
+  args: { message: NOT_STARTED_TEXT, corner: '26-11-07-345530d' },
 } satisfies Meta<typeof WaitingScreen>;
 
 export default meta;

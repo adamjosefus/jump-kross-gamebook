@@ -1,3 +1,4 @@
+import { GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -5,6 +6,9 @@ import { cn } from '@/lib/utils';
 import { OPTICAL_CENTER } from './block-look';
 import { PlayerFrame } from './player-frame';
 import { StoryText } from './story-text/story-text';
+
+/** The waiting screen before the start; it also says the phone needs nothing more from the team. */
+export const NOT_STARTED_TEXT = `${GAME_NOT_STARTED_MESSAGE}\n\nAž hra začne, sama se načte.`;
 
 /** Delays of the three dots, so they light up one after another. */
 const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
@@ -19,6 +23,7 @@ export const WaitingScreen = ({
   message,
   corner,
 }: {
+  /** Markdown, set like the story's text. */
   readonly message: string;
   /** Shown small in the top left corner, like on the first screen of the intro. */
   readonly corner?: ReactNode;

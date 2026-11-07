@@ -1,5 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
-import { WaitingScreen } from './waiting-screen';
+import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
@@ -315,7 +315,7 @@ const Intro = ({
   if (!started || closed)
     return (
       <WaitingScreen
-        message={started ? GAME_CLOSED_MESSAGE : GAME_NOT_STARTED_MESSAGE}
+        message={started ? GAME_CLOSED_MESSAGE : NOT_STARTED_TEXT}
         corner={APP_VERSION}
       />
     );
