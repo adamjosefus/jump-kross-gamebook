@@ -1,4 +1,12 @@
-import { escapeAttribute, type QrStyle, QUIET_ZONE, qrRuns } from './qr-svg';
+import { outlinePath, qrOutlines } from './qr-outline';
+import {
+  backgroundRect,
+  escapeAttribute,
+  type QrStyle,
+  type QrSvgOptions,
+  QUIET_ZONE,
+  qrRuns,
+} from './qr-svg';
 
 /** Edge of the printed sheet the viewer stands at. */
 export type ViewerSide = 'bottom' | 'top' | 'left' | 'right';
@@ -23,7 +31,7 @@ export interface Anamorphosis {
 
 export const DEFAULT_ANAMORPHOSIS: Anamorphosis = {
   side: 'bottom',
-  angle: 60,
+  angle: 70,
   distance: 6,
   mirrorX: false,
   mirrorY: false,
@@ -106,7 +114,10 @@ export interface WarpedQr {
   /** Width and height of the print, in modules of the code's printed width through its centre. */
   readonly width: number;
   readonly height: number;
-  /** Dark modules as quadrilaterals, the top left corner of the print at the origin. */
+  /**
+   * Outlines of the dark shapes, the top left corner of the print at the origin. The stretch keeps
+   * straight lines straight, so the corners of the outlines are enough.
+   */
   readonly path: string;
   /** Printed width of the code through its centre, in the same units: the distance's unit. */
   readonly codeWidth: number;
@@ -171,12 +182,7 @@ export const warpedQr = (
     const [placedX, placedY] = place(sheetPoint);
     return `${round(placedX)} ${round(placedY)}`;
   };
-  const path = runs
-    .map(
-      ({ column, row, length }) =>
-        `M${point(map(column, row))}L${point(map(column + length, row))}L${point(map(column + length, row + 1))}L${point(map(column, row + 1))}Z`,
-    )
-    .join('');
+  const path = outlinePath(qrOutlines(size, runs), ([column, row]) => point(map(column, row)));
   return {
     width: right - left,
     height: bottom - top,
@@ -217,13 +223,18 @@ export const viewerHint = (
   mirrorHint(mirrorX, mirrorY);
 
 /** Self-contained SVG file of the mirrored and stretched code. */
-export const warpedQrSvg = (value: string, anamorphosis: Anamorphosis, style?: QrStyle): string => {
+export const warpedQrSvg = (
+  value: string,
+  anamorphosis: Anamorphosis,
+  style?: QrStyle,
+  options: QrSvgOptions = {},
+): string => {
   const { width, height, path } = warpedQr(value, anamorphosis, style);
   const viewWidth = round(width);
   const viewHeight = round(height);
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewWidth} ${viewHeight}" width="${round(viewWidth * 10)}" height="${round(viewHeight * 10)}">` +
     `<title>${escapeAttribute(`${value} – ${viewerHint(anamorphosis)}`)}</title>` +
-    `<rect width="${viewWidth}" height="${viewHeight}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`
+    `${backgroundRect(viewWidth, viewHeight, options)}<path d="${path}" fill="#000"/></svg>`
   );
 };

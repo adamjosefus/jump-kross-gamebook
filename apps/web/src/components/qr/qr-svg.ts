@@ -1,5 +1,7 @@
 import QRCode from 'qrcode';
 
+import { outlinePath, qrOutlines } from './qr-outline';
+
 /** Quiet zone around the code, in modules: what the spec asks for, and the default. */
 export const QUIET_ZONE = 4;
 
@@ -124,12 +126,29 @@ export const qrGeometry = (value: string, style?: QrStyle): QrGeometry => {
 export const escapeAttribute = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
-/** Self-contained SVG file of a code. */
-export const qrCodeSvg = (value: string, style?: QrStyle): string => {
-  const { size, path } = qrGeometry(value, style);
+/** What an SVG file of a code contains besides the dark shapes. */
+export interface QrSvgOptions {
+  /** A white rectangle under the code; without it only the dark shapes are drawn. */
+  readonly background?: boolean;
+}
+
+/** White rectangle under a code of the given size, or nothing. */
+export const backgroundRect = (
+  width: number,
+  height: number,
+  { background = true }: QrSvgOptions,
+) => (background ? `<rect width="${width}" height="${height}" fill="#fff"/>` : '');
+
+/**
+ * Self-contained SVG file of a code, the dark modules joined into the outlines of whole shapes, so
+ * it opens in a design tool as a few clean objects instead of many rectangles.
+ */
+export const qrCodeSvg = (value: string, style?: QrStyle, options: QrSvgOptions = {}): string => {
+  const { size, runs } = qrRuns(value, style);
+  const path = outlinePath(qrOutlines(size, runs), ([column, row]) => `${column} ${row}`);
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size * 10}" height="${size * 10}" shape-rendering="crispEdges">` +
     `<title>${escapeAttribute(value)}</title>` +
-    `<rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`
+    `${backgroundRect(size, size, options)}<path d="${path}" fill="#000"/></svg>`
   );
 };
