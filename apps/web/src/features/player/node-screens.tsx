@@ -123,7 +123,6 @@ export const NodeScreens = ({
   initialIndex = 0,
   onIndexChange,
   requireCamera = false,
-  scanStandIn,
   animated = true,
   aside,
   corner,
@@ -140,8 +139,6 @@ export const NodeScreens = ({
   readonly onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
   readonly requireCamera?: boolean;
-  /** Shown in place of the scanner while there is nothing to scan yet (a game not started). */
-  readonly scanStandIn?: ReactNode;
   /** Off, the text is all there at once. Other animations are up to the page, by CSS. */
   readonly animated?: boolean;
   /** Shown at the right end of the navigation bar. */
@@ -195,16 +192,7 @@ export const NodeScreens = ({
         key={`${node.id}-${step}-${index}`}
         className='screen-fade-in flex flex-1 flex-col gap-6'
       >
-        {scanning &&
-          (scanStandIn !== undefined ? (
-            <div className={cn('flex-1', OPTICAL_CENTER)}>
-              <p className='text-center text-balance'>{scanStandIn}</p>
-            </div>
-          ) : requireCamera ? (
-            <CameraGate>{scanScreen}</CameraGate>
-          ) : (
-            scanScreen
-          ))}
+        {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
         {/* The block sits at the optical center of the space between the top and the buttons. */}
         {screen !== undefined && (
           <div className={cn('flex-1', OPTICAL_CENTER)}>

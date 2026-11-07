@@ -16,6 +16,7 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
+import { WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
@@ -310,13 +311,13 @@ const Intro = ({
       </PlayerFrame>
     );
   const { started, closed, ...content } = intro.data;
-  if (closed)
+  // Until the teams can log in, the waiting screen comes first, before the intro.
+  if (!started || closed)
     return (
-      <PlayerFrame lead={APP_VERSION}>
-        <Centered>
-          <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
-        </Centered>
-      </PlayerFrame>
+      <WaitingScreen
+        message={started ? GAME_CLOSED_MESSAGE : GAME_NOT_STARTED_MESSAGE}
+        corner={APP_VERSION}
+      />
     );
   return (
     <NodeScreens
@@ -329,8 +330,6 @@ const Intro = ({
       initialIndex={initialIndex}
       onIndexChange={onIndexChange}
       requireCamera
-      // Before the start the intro reads as usual, but there is nothing to scan yet.
-      {...(started ? {} : { scanStandIn: GAME_NOT_STARTED_MESSAGE })}
       corner={APP_VERSION}
     />
   );
