@@ -7,6 +7,7 @@ import {
   Store,
   StoreError,
   type AdminFailures,
+  type BanRow,
   type GameSettingsRow,
   type LogRow,
   type ReadingRow,
@@ -110,6 +111,15 @@ const toSession = (row: Row): SessionRow => ({
   lastSeenAt: timestamp(row['last_seen_at']),
   ip: optionalText(row['ip']),
   userAgent: optionalText(row['user_agent']),
+  deviceId: optionalText(row['device_id']),
+});
+
+const toBan = (row: Row): BanRow => ({
+  deviceId: text(row['device_id']),
+  teamId: Number(row['team_id']),
+  ip: optionalText(row['ip']),
+  userAgent: optionalText(row['user_agent']),
+  bannedAt: timestamp(row['banned_at']),
 });
 
 const toSettings = (row: Row | undefined): GameSettingsRow => ({
@@ -261,12 +271,12 @@ export const makePostgresStore = (client: SqlClient) => {
     listReading: () =>
       query(async () => (await run(sql`select * from reading order by id`)).map(toReading)),
 
-    createSession: (id, teamId, { ip, userAgent }) =>
+    createSession: (id, teamId, { ip, userAgent, deviceId }) =>
       query(
         async () =>
           void (await run(sql`
-            insert into session (id, team_id, ip, user_agent)
-            values (${id}, ${teamId}, ${ip ?? null}, ${userAgent ?? null})`)),
+            insert into session (id, team_id, ip, user_agent, device_id)
+            values (${id}, ${teamId}, ${ip ?? null}, ${userAgent ?? null}, ${deviceId ?? null})`)),
       ),
     touchSession: (id, createdAfter) =>
       query(async () => {
@@ -297,6 +307,30 @@ export const makePostgresStore = (client: SqlClient) => {
             select * from session where created_at > ${createdAfter.toISOString()}::timestamptz
             order by last_seen_at desc, created_at desc`)
         ).map(toSession),
+      ),
+
+    banDevice: ({ deviceId, teamId, ip, userAgent }) =>
+      query(() =>
+        transaction([
+          sql`
+            insert into device_ban (device_id, team_id, ip, user_agent)
+            values (${deviceId}, ${teamId}, ${ip ?? null}, ${userAgent ?? null})
+            on conflict (device_id) do nothing`,
+          sql`delete from session where device_id = ${deviceId}`,
+        ]),
+      ),
+    unbanDevice: (deviceId) =>
+      query(
+        async () => void (await run(sql`delete from device_ban where device_id = ${deviceId}`)),
+      ),
+    isBanned: (deviceId) =>
+      query(
+        async () =>
+          (await run(sql`select 1 from device_ban where device_id = ${deviceId}`)).length > 0,
+      ),
+    listBans: () =>
+      query(async () =>
+        (await run(sql`select * from device_ban order by banned_at desc`)).map(toBan),
       ),
 
     gameSettings: () =>

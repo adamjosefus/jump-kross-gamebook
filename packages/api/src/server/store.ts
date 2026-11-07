@@ -44,12 +44,24 @@ export interface SessionRow {
   /** The device's address at the login, as the proxy reported it. */
   readonly ip: string | undefined;
   readonly userAgent: string | undefined;
+  /** The device's own cookie, which outlives its sessions; undefined for older sessions. */
+  readonly deviceId: string | undefined;
 }
 
 /** What the device told about itself when it logged in. */
 export interface SessionClient {
   readonly ip: string | undefined;
   readonly userAgent: string | undefined;
+  readonly deviceId: string | undefined;
+}
+
+/** A device the admin banned; it cannot log in again until it is unbanned. */
+export interface BanRow {
+  readonly deviceId: string;
+  readonly teamId: number;
+  readonly ip: string | undefined;
+  readonly userAgent: string | undefined;
+  readonly bannedAt: Date;
 }
 
 /** Whether teams can play; the admin closes the game before it starts or after it ends. */
@@ -135,6 +147,13 @@ export interface StoreShape {
   readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;
   /** Sessions created after `createdAfter`, the most recently seen first. */
   readonly listSessions: (createdAfter: Date) => Effect.Effect<readonly SessionRow[], StoreError>;
+
+  /** Bans the device and ends every session of it, in one go. */
+  readonly banDevice: (ban: Omit<BanRow, 'bannedAt'>) => Effect.Effect<void, StoreError>;
+  readonly unbanDevice: (deviceId: string) => Effect.Effect<void, StoreError>;
+  readonly isBanned: (deviceId: string) => Effect.Effect<boolean, StoreError>;
+  /** The most recent ban first. */
+  readonly listBans: () => Effect.Effect<readonly BanRow[], StoreError>;
 
   readonly gameSettings: () => Effect.Effect<GameSettingsRow, StoreError>;
   readonly setGameClosed: (closed: boolean) => Effect.Effect<GameSettingsRow, StoreError>;

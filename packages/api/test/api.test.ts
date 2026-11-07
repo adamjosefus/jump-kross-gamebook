@@ -500,6 +500,55 @@ describe('closed game', () => {
   });
 });
 
+describe('devices from the admin', () => {
+  it('logs a device out, bans one and unbans it', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const other = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    const phone = device(fresh.handler);
+    const tablet = device(fresh.handler);
+    await phone('POST', '/api/player/login', { code: login });
+    await tablet('POST', '/api/player/login', { code: login });
+    // Every device gets its own id that outlives the session.
+    expect(phone.jar.get('gb_device')).toMatch(/^[0-9a-f-]{36}$/);
+    expect(phone.jar.get('gb_device')).not.toBe(tablet.jar.get('gb_device'));
+
+    const devices = async () => (await admin('GET', '/api/admin/overview')).body.devices;
+    const listed: readonly { readonly id: string; readonly bannable: boolean }[] = await devices();
+    expect(listed.map(({ bannable }) => bannable)).toEqual([true, true]);
+    // The newest login is seen most recently; it is the tablet.
+    const [tabletDevice, phoneDevice] = listed;
+
+    expect((await admin('POST', '/api/admin/devices/nobody/logout')).status).toBe(404);
+    expect((await admin('POST', `/api/admin/devices/${phoneDevice!.id}/logout`)).status).toBe(204);
+    expect((await phone('GET', '/api/player/state')).status).toBe(401);
+    expect(await devices()).toHaveLength(1);
+    // A logged-out device logs in again, with the same id.
+    const deviceCookie = phone.jar.get('gb_device');
+    expect((await phone('POST', '/api/player/login', { code: login })).status).toBe(200);
+    expect(phone.jar.get('gb_device')).toBe(deviceCookie);
+
+    expect((await admin('POST', `/api/admin/devices/${tabletDevice!.id}/ban`)).status).toBe(204);
+    expect((await tablet('GET', '/api/player/state')).status).toBe(401);
+    // Banned, the device logs in to no team, a wrong code is still named as such.
+    const refused = await tablet('POST', '/api/player/login', { code: other });
+    expect(refused).toMatchObject({ status: 403, body: { _tag: 'DeviceBanned' } });
+    expect((await phone('GET', '/api/player/state')).status).toBe(200);
+    const overview = (await admin('GET', '/api/admin/overview')).body;
+    expect(overview.devices).toHaveLength(1);
+    expect(overview.bans).toMatchObject([{ teamId: 1, teamName: 'Vlci' }]);
+    expect(overview.bans[0].id).toMatch(/^[0-9a-f]{12}$/);
+
+    expect((await admin('POST', `/api/admin/bans/${overview.bans[0].id}/remove`)).status).toBe(204);
+    expect((await admin('POST', `/api/admin/bans/${overview.bans[0].id}/remove`)).status).toBe(404);
+    expect((await tablet('POST', '/api/player/login', { code: other })).status).toBe(200);
+    await fresh.dispose();
+  });
+});
+
 describe('admin password', () => {
   it('locks an address out after repeated wrong passwords and lets the right one in', async () => {
     const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
@@ -551,7 +600,10 @@ describe('memory data', () => {
     };
     const before = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
     const response = await login(before.handler);
-    const cookie = response.headers.getSetCookie()[0]!.split(';')[0]!;
+    const cookie = response.headers
+      .getSetCookie()
+      .find((header) => header.startsWith('gb_session='))!
+      .split(';')[0]!;
     await before.handler(
       new Request('http://localhost/api/player/choose', {
         method: 'POST',
@@ -583,7 +635,10 @@ describe('player session', () => {
         body: JSON.stringify({ code }),
       }),
     );
-    const [cookie, ...attributes] = response.headers.getSetCookie()[0]!.split('; ');
+    const [cookie, ...attributes] = response.headers
+      .getSetCookie()
+      .find((header) => header.startsWith('gb_session='))!
+      .split('; ');
     expect(attributes).toContain(`Max-Age=${2 * 24 * 60 * 60}`);
     const state = () =>
       send(new Request('http://localhost/api/player/state', { headers: { cookie: cookie! } }));
@@ -656,6 +711,10 @@ describe('server failures', () => {
       listSessions: fail,
       gameSettings: fail,
       setGameClosed: fail,
+      banDevice: fail,
+      unbanDevice: fail,
+      isBanned: fail,
+      listBans: fail,
       adminFailures: fail,
       recordAdminFailure: fail,
       clearAdminFailures: fail,

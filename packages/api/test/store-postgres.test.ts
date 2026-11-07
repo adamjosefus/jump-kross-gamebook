@@ -130,7 +130,13 @@ describe('postgres store', () => {
   });
 
   it('records the first login once and clears it with the reading and the sessions', async () => {
-    await run(store.createSession('forgotten', 1, { ip: undefined, userAgent: undefined }));
+    await run(
+      store.createSession('forgotten', 1, {
+        ip: undefined,
+        userAgent: undefined,
+        deviceId: undefined,
+      }),
+    );
     await run(store.markStarted(1));
     const started = (await run(store.getTeam(1)))!.startedAt;
     expect(started).toBeInstanceOf(Date);
@@ -162,10 +168,22 @@ describe('postgres store', () => {
 
   it('resolves sessions created after the limit and counts the devices', async () => {
     await run(
-      store.createSession('phone', 1, { ip: '203.0.113.7', userAgent: 'Mozilla/5.0 (iPhone)' }),
+      store.createSession('phone', 1, {
+        ip: '203.0.113.7',
+        userAgent: 'Mozilla/5.0 (iPhone)',
+        deviceId: 'device-phone',
+      }),
     );
-    await run(store.createSession('tablet', 1, { ip: undefined, userAgent: undefined }));
-    await run(store.createSession('other', 2, { ip: undefined, userAgent: undefined }));
+    await run(
+      store.createSession('tablet', 1, {
+        ip: undefined,
+        userAgent: undefined,
+        deviceId: undefined,
+      }),
+    );
+    await run(
+      store.createSession('other', 2, { ip: undefined, userAgent: undefined, deviceId: undefined }),
+    );
     const old = new Date(Date.now() - 60_000);
     expect(await run(store.touchSession('phone', old))).toBe(1);
     expect(await run(store.touchSession('other', old))).toBe(2);
@@ -187,6 +205,7 @@ describe('postgres store', () => {
       teamId: 1,
       ip: '203.0.113.7',
       userAgent: 'Mozilla/5.0 (iPhone)',
+      deviceId: 'device-phone',
     });
     expect(sessions.find(({ id }) => id === 'tablet')).toMatchObject({
       ip: undefined,
@@ -248,6 +267,34 @@ describe('postgres store', () => {
     expect(calls).toEqual(['select pg_ad']);
   });
 
+  it('bans a device, ends its sessions and unbans it', async () => {
+    const device = { ip: '198.51.100.4', userAgent: 'Android', deviceId: 'device-ban' };
+    await run(store.createSession('banned-1', 1, device));
+    await run(store.createSession('banned-2', 2, device));
+    await run(store.createSession('kept', 2, { ...device, deviceId: 'device-other' }));
+    expect(await run(store.isBanned('device-ban'))).toBe(false);
+
+    await run(
+      store.banDevice({ deviceId: 'device-ban', teamId: 1, ip: device.ip, userAgent: 'Android' }),
+    );
+    // A second ban of the same device changes nothing.
+    await run(
+      store.banDevice({ deviceId: 'device-ban', teamId: 2, ip: undefined, userAgent: undefined }),
+    );
+    expect(await run(store.isBanned('device-ban'))).toBe(true);
+    expect(await run(store.listBans())).toMatchObject([
+      { deviceId: 'device-ban', teamId: 1, ip: '198.51.100.4', userAgent: 'Android' },
+    ]);
+    const old = new Date(Date.now() - 60_000);
+    expect(await run(store.touchSession('banned-1', old))).toBeUndefined();
+    expect(await run(store.touchSession('banned-2', old))).toBeUndefined();
+    expect(await run(store.touchSession('kept', old))).toBe(2);
+
+    await run(store.unbanDevice('device-ban'));
+    expect(await run(store.isBanned('device-ban'))).toBe(false);
+    expect(await run(store.listBans())).toEqual([]);
+  });
+
   it('keeps whether the game is closed', async () => {
     expect(await run(store.gameSettings())).toEqual({ closed: false, changedAt: undefined });
     const closed = await run(store.setGameClosed(true));
@@ -267,7 +314,9 @@ describe('postgres store', () => {
   });
 
   it('resets several teams in one go', async () => {
-    await run(store.createSession('again', 1, { ip: undefined, userAgent: undefined }));
+    await run(
+      store.createSession('again', 1, { ip: undefined, userAgent: undefined, deviceId: undefined }),
+    );
     await run(store.markStarted(1));
     const rows = await run(
       store.resetTeams([1, 2, 3], {

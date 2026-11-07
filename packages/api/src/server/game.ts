@@ -20,6 +20,7 @@ import type { State } from '@gamebook/core';
 import { Context, Effect, Layer } from 'effect';
 
 import {
+  DeviceBanned,
   GameClosed,
   GameNotStarted,
   InvalidCode,
@@ -27,6 +28,7 @@ import {
   InvalidState,
   NotFound,
   StepConflict,
+  type BannedDevice,
   type Device,
   type GameInfo,
   type Overview,
@@ -39,6 +41,7 @@ import { ServerConfig } from './config.ts';
 import { readingTotals } from './reading.ts';
 import {
   Store,
+  type BanRow,
   type GameSettingsRow,
   type SessionClient,
   type SessionRow,
@@ -72,6 +75,11 @@ export const PLAYER_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 const CLOSED_MESSAGE = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
 const gameClosed = () => new GameClosed({ message: CLOSED_MESSAGE });
 
+const BANNED_MESSAGE = 'Toto zařízení organizátoři zablokovali. Pokud jde o omyl, ozvěte se jim.';
+
+/** A device's own id comes from its cookie; anything else is treated as no id. */
+const DEVICE_ID = /^[0-9a-f-]{36}$/;
+
 /** The longest address and browser description kept of a device; both come from the client. */
 const MAX_IP_LENGTH = 64;
 const MAX_USER_AGENT_LENGTH = 400;
@@ -82,12 +90,12 @@ const clip = (value: string | undefined, length: number) => {
 };
 
 /**
- * What stands for a device in the admin: a short hash of its session. The session id is the
- * device's cookie, so it never leaves the server as it is.
+ * What stands for a device or a ban in the admin: a short hash of the session or of the device's
+ * id. Both are cookies of the device, so they never leave the server as they are.
  */
-const deviceId = async (sessionId: string) => {
+const publicId = async (kind: 'session' | 'ban', secret: string) => {
   const digest = new Uint8Array(
-    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`device:${sessionId}`)),
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${kind}:${secret}`)),
   );
   return Array.from(digest.slice(0, 6), (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
@@ -343,12 +351,19 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           message: 'Hra ještě nezačala. Počkejte na pokyn organizátorů.',
         });
       yield* requireOpen();
+      const deviceId =
+        client.deviceId !== undefined && DEVICE_ID.test(client.deviceId)
+          ? client.deviceId
+          : undefined;
+      if (deviceId !== undefined && (yield* store.isBanned(deviceId)))
+        return yield* new DeviceBanned({ message: BANNED_MESSAGE });
       const team = yield* store.ensureTeam(id);
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
       const sessionId = crypto.randomUUID();
       yield* store.createSession(sessionId, team.id, {
         ip: clip(client.ip, MAX_IP_LENGTH),
         userAgent: clip(client.userAgent, MAX_USER_AGENT_LENGTH),
+        deviceId,
       });
       return { sessionId, view: yield* playerView(team.id) };
     });
@@ -423,7 +438,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
-      id: await deviceId(session.id),
+      id: await publicId('session', session.id),
       teamId: session.teamId,
       teamName: teamName(session.teamId),
       loggedInAt: session.createdAt.toISOString(),
@@ -431,11 +446,68 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       active: session.lastSeenAt.getTime() >= activeSince,
       ...(session.ip === undefined ? {} : { ip: session.ip }),
       ...(session.userAgent === undefined ? {} : { userAgent: session.userAgent }),
+      bannable: session.deviceId !== undefined,
+    });
+
+    const banOf = async (ban: BanRow): Promise<BannedDevice> => ({
+      id: await publicId('ban', ban.deviceId),
+      teamId: ban.teamId,
+      teamName: teamName(ban.teamId),
+      bannedAt: ban.bannedAt.toISOString(),
+      ...(ban.ip === undefined ? {} : { ip: ban.ip }),
+      ...(ban.userAgent === undefined ? {} : { userAgent: ban.userAgent }),
+    });
+
+    /** The live session the admin's device list names by `id`. */
+    const sessionOf = Effect.fn('Game.sessionOf')(function* (id: string) {
+      const sessions = yield* store.listSessions(new Date(Date.now() - PLAYER_SESSION_TTL_MS));
+      const ids = yield* Effect.promise(() =>
+        Promise.all(sessions.map((session) => publicId('session', session.id))),
+      );
+      const session = sessions[ids.indexOf(id)];
+      if (session === undefined) return yield* notFound('Zařízení');
+      return session;
+    });
+
+    /** Logs the device out; its next request finds no session and it shows the team login. */
+    const logoutDevice = Effect.fn('Game.logoutDevice')(function* (id: string) {
+      const session = yield* sessionOf(id);
+      yield* store.deleteSession(session.id);
+    });
+
+    /** Logs the device out of every team and refuses its logins until it is unbanned. */
+    const banDevice = Effect.fn('Game.banDevice')(function* (id: string) {
+      const session = yield* sessionOf(id);
+      if (session.deviceId === undefined) {
+        yield* new NotFound({
+          message: 'Zařízení se přihlásilo před zavedením blokování; jde ho jen odhlásit.',
+        });
+        return;
+      }
+      yield* store.banDevice({
+        deviceId: session.deviceId,
+        teamId: session.teamId,
+        ip: session.ip,
+        userAgent: session.userAgent,
+      });
+    });
+
+    const unbanDevice = Effect.fn('Game.unbanDevice')(function* (id: string) {
+      const bans = yield* store.listBans();
+      const ids = yield* Effect.promise(() =>
+        Promise.all(bans.map((ban) => publicId('ban', ban.deviceId))),
+      );
+      const ban = bans[ids.indexOf(id)];
+      if (ban === undefined) {
+        yield* notFound('Blokované zařízení');
+        return;
+      }
+      yield* store.unbanDevice(ban.deviceId);
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
       const now = Date.now();
-      const [teams, log, devices, visits, readingRows, gameStartedAt, sessions, settings] =
+      const [teams, log, devices, visits, readingRows, gameStartedAt, sessions, settings, bans] =
         yield* Effect.all(
           [
             store.listTeams(),
@@ -447,16 +519,21 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
             // Only sessions that still work; an expired one is a device that has to log in again.
             store.listSessions(new Date(now - PLAYER_SESSION_TTL_MS)),
             store.gameSettings(),
+            store.listBans(),
           ],
           { concurrency: 'unbounded' },
         );
       const readingMs = readingTotals(readingRows);
-      const deviceList = yield* Effect.promise(() =>
-        Promise.all(sessions.map((session) => deviceOf(session, now - DEVICE_WINDOW_MS))),
+      const [deviceList, banList] = yield* Effect.promise(() =>
+        Promise.all([
+          Promise.all(sessions.map((session) => deviceOf(session, now - DEVICE_WINDOW_MS))),
+          Promise.all(bans.map(banOf)),
+        ]),
       );
       const result: Overview = {
         game: gameInfo(gameStartedAt, settings),
         devices: deviceList,
+        bans: banList,
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) =>
           teamStatus(
@@ -653,6 +730,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       moveTeam,
       playtest,
       setClosed,
+      logoutDevice,
+      banDevice,
+      unbanDevice,
       codes,
     };
   }),

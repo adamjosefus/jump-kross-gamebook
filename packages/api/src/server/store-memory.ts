@@ -3,6 +3,7 @@ import { Effect, Layer } from 'effect';
 import {
   Store,
   type AdminFailures,
+  type BanRow,
   type GameSettingsRow,
   type LogRow,
   type ReadingRow,
@@ -26,6 +27,7 @@ export interface MemoryData {
   readonly teams: Map<number, TeamRow>;
   readonly sessions: Map<string, SessionRow>;
   readonly adminFailures: Map<string, AdminFailures>;
+  readonly bans: Map<string, BanRow>;
   log: readonly LogRow[];
   reading: readonly ReadingRow[];
   gameStartedAt: Date | undefined;
@@ -36,6 +38,7 @@ export const emptyMemoryData = (): MemoryData => ({
   teams: new Map(),
   sessions: new Map(),
   adminFailures: new Map(),
+  bans: new Map(),
   log: [],
   reading: [],
   gameStartedAt: undefined,
@@ -44,7 +47,7 @@ export const emptyMemoryData = (): MemoryData => ({
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
-  const { teams, sessions, adminFailures } = data;
+  const { teams, sessions, adminFailures, bans } = data;
 
   const ensure = (id: number): TeamRow => {
     const existing = teams.get(id);
@@ -163,6 +166,21 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         [...sessions.values()]
           .filter((session) => session.createdAt > createdAfter && teams.has(session.teamId))
           .toSorted((first, second) => second.lastSeenAt.getTime() - first.lastSeenAt.getTime()),
+      ),
+
+    banDevice: (ban) =>
+      Effect.sync(() => {
+        if (!bans.has(ban.deviceId)) bans.set(ban.deviceId, { ...ban, bannedAt: new Date() });
+        for (const [id, session] of sessions)
+          if (session.deviceId === ban.deviceId) sessions.delete(id);
+      }),
+    unbanDevice: (deviceId) => Effect.sync(() => void bans.delete(deviceId)),
+    isBanned: (deviceId) => Effect.sync(() => bans.has(deviceId)),
+    listBans: () =>
+      Effect.sync(() =>
+        [...bans.values()].toSorted(
+          (first, second) => second.bannedAt.getTime() - first.bannedAt.getTime(),
+        ),
       ),
 
     gameSettings: () => Effect.sync(() => data.settings),

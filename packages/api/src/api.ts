@@ -69,6 +69,13 @@ export class InvalidState extends Schema.TaggedError<InvalidState>()(
   { httpApiStatus: 400 },
 ) {}
 
+/** The admin banned this device; it cannot log in until the admin unbans it. */
+export class DeviceBanned extends Schema.TaggedError<DeviceBanned>()(
+  'DeviceBanned',
+  { message: Schema.String },
+  { httpApiStatus: 403 },
+) {}
+
 /** The admin closed the game: nobody logs in or moves until it opens again. */
 export class GameClosed extends Schema.TaggedError<GameClosed>()(
   'GameClosed',
@@ -140,6 +147,12 @@ export const MAX_READING_INTERVALS = 200;
 
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
+/**
+ * The device's own id, set at its first login and kept for a year, so a banned device stays
+ * banned after its session ends. Clearing the browser's data makes it a new device.
+ */
+export const DeviceCookie = HttpApiSecurity.apiKey({ key: 'gb_device', in: 'cookie' });
+
 export class CurrentTeam extends Context.Service<
   CurrentTeam,
   { readonly sessionId: string; readonly teamId: number }
@@ -168,7 +181,7 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     HttpApiEndpoint.post('login', '/login', {
       payload: Schema.Struct({ code: Schema.String }),
       success: PlayerView,
-      error: [InvalidCode, NotFound, GameNotStarted, GameClosed],
+      error: [InvalidCode, NotFound, GameNotStarted, GameClosed, DeviceBanned],
     }),
   )
   .add(
@@ -305,14 +318,30 @@ export const Device = Schema.Struct({
   /** The address the device logged in from; missing when the proxy did not report it. */
   ip: Schema.optionalKey(Schema.String),
   userAgent: Schema.optionalKey(Schema.String),
+  /** False for a device logged in before devices had their own cookie: it can only be logged out. */
+  bannable: Schema.Boolean,
 });
 export type Device = typeof Device.Type;
+
+/** A device the admin banned, as it was when it was banned. */
+export const BannedDevice = Schema.Struct({
+  /** Stands for the ban; derived from the device's cookie, which itself is never shown. */
+  id: Schema.String,
+  teamId: Schema.Number,
+  teamName: Schema.String,
+  bannedAt: Schema.String,
+  ip: Schema.optionalKey(Schema.String),
+  userAgent: Schema.optionalKey(Schema.String),
+});
+export type BannedDevice = typeof BannedDevice.Type;
 
 export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
   /** Every device logged in to a team, the most recently seen first. */
   devices: Schema.Array(Device),
+  /** Banned devices, the most recent ban first. */
+  bans: Schema.Array(BannedDevice),
   codes: Schema.Array(QrCode),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
@@ -398,6 +427,20 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     HttpApiEndpoint.post('setClosed', '/game/closed', {
       payload: Schema.Struct({ closed: Schema.Boolean }),
       success: GameInfo,
+    }).middleware(AdminAuth),
+    /** Ends the device's session; it can log in again with a team code. */
+    HttpApiEndpoint.post('logoutDevice', '/devices/:id/logout', {
+      params: { id: Schema.String },
+      error: NotFound,
+    }).middleware(AdminAuth),
+    /** Ends every session of the device and refuses its logins until it is unbanned. */
+    HttpApiEndpoint.post('banDevice', '/devices/:id/ban', {
+      params: { id: Schema.String },
+      error: NotFound,
+    }).middleware(AdminAuth),
+    HttpApiEndpoint.post('unbanDevice', '/bans/:id/remove', {
+      params: { id: Schema.String },
+      error: NotFound,
     }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetAll', '/teams/reset', {
       success: Schema.Array(TeamStatus),

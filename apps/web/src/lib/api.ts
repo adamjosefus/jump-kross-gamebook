@@ -31,6 +31,7 @@ const DECLARED: ReadonlySet<string> = new Set([
   'NotFound',
   'GameNotStarted',
   'GameClosed',
+  'DeviceBanned',
 ]);
 
 const OFFLINE =
