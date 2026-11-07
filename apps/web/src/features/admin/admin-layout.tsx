@@ -1,7 +1,14 @@
-import { IconDeviceDesktop, IconLoader2, IconLogout, IconMoon, IconSun } from '@tabler/icons-react';
+import {
+  IconDeviceDesktop,
+  IconLoader2,
+  IconLogout,
+  IconMoon,
+  IconPlayerPause,
+  IconSun,
+} from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Outlet } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { api, errorMessage, isApiError } from '@/lib/api';
 import { useTheme, type ThemePreference } from '@/lib/theme';
 
-import { adminKeys } from './queries';
+import { adminKeys, useOverview } from './queries';
 
 const NAV = [
   { to: '/admin/story', label: 'Příběh' },
@@ -32,9 +39,53 @@ const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
   dark: 'tmavý',
 } as const;
 
+/** The app's name, last in every page title. */
+const APP_NAME = 'Gamebook';
+
+/**
+ * Sets the browser tab's title to `Živě | Gamebook` and the like while the page is shown; leaving the
+ * admin restores the plain app name.
+ */
+const usePageTitle = (page: string | undefined) => {
+  useEffect(() => {
+    document.title = page === undefined ? APP_NAME : `${page} | ${APP_NAME}`;
+    return () => {
+      document.title = APP_NAME;
+    };
+  }, [page]);
+};
+
+/**
+ * Above the admin bar on every page while the game is paused, since nobody plays until it goes on;
+ * on the page Hra itself without the link there. Muted amber that reads in both color modes.
+ */
+const PausedBar = ({ pathname }: { readonly pathname: string }) => {
+  const overview = useOverview();
+  const game = overview.data?.game;
+  if (game?.startedAt === undefined || !game.closed) return null;
+  return (
+    <div
+      role='status'
+      className='flex items-center gap-2 border-b border-amber-200 bg-amber-100 px-4 py-1.5 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/60 dark:text-amber-100 print:hidden'
+    >
+      <IconPlayerPause className='size-4 shrink-0' />
+      Hra je pozastavená, týmy na cestě teď nemohou hrát.
+      {pathname !== '/admin/game' && (
+        <Link
+          to='/admin/game'
+          className='font-medium underline underline-offset-2 hover:text-amber-800 dark:hover:text-amber-50'
+        >
+          Pokračovat na stránce Hra
+        </Link>
+      )}
+    </div>
+  );
+};
+
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {
   const queryClient = useQueryClient();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { preference, setPreference } = useTheme();
   const ThemeIcon = THEME_ICON[preference];
 
@@ -54,6 +105,10 @@ export const AdminLayout = () => {
     onSettled: () => queryClient.clear(),
   });
 
+  // The page's name from the bar, so the tab and the highlighted button always say the same.
+  const page = NAV.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+  usePageTitle(me.data === false ? 'Přihlášení' : page?.label);
+
   if (me.isPending) {
     return (
       <div className='flex min-h-dvh items-center justify-center'>
@@ -66,6 +121,7 @@ export const AdminLayout = () => {
   return (
     // When printed (the QR codes), the page grows with its content and the bar is left out.
     <div className='flex h-dvh flex-col print:h-auto'>
+      <PausedBar pathname={pathname} />
       <header className='flex items-center gap-1 border-b px-4 py-2 print:hidden'>
         <span className='mr-4 font-semibold'>Gamebook</span>
         <nav className='flex gap-1'>

@@ -1,6 +1,6 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
-import { IconFlag, IconQrcode, IconWalk } from '@tabler/icons-react';
+import { IconFlag, IconDirectionSign, IconQrcode, IconWalk } from '@tabler/icons-react';
 import {
   Background,
   BaseEdge,
@@ -39,6 +39,10 @@ const NODE_WIDTH = 240;
 const NODE_HEIGHT = 136;
 /** Filled dot with an arrow into the intro, like the initial state of a state machine. */
 const INITIAL_SIZE = 14;
+/** Ringed dot the end nodes lead into, like the final state of a state machine. */
+const FINAL_SIZE = 20;
+/** Radius of the rounded corners where an edge turns. */
+const CORNER_RADIUS = 8;
 
 const elk = new ELK();
 
@@ -77,15 +81,18 @@ const edgeId = (source: string, index: number) => `${source}-${index}`;
 const INITIAL_ID = 'graph:initial';
 const INITIAL_EDGE_ID = 'graph:initial-intro';
 const loginEdgeId = (start: string) => `graph:login:${start}`;
+const FINAL_ID = 'graph:final';
+const finalEdgeId = (end: string) => `graph:final:${end}`;
 
 /** Teams reach the start by scanning their login code after the intro. */
 const LOGIN_LABEL = 'Kód týmu';
 const startsOf = (graph: GameGraph) =>
   graph.order.filter((id) => graph.nodes[id]!.type === 'start');
+const endsOf = (graph: GameGraph) => graph.order.filter((id) => graph.nodes[id]!.type === 'end');
 
-/** Rough label size; ELK only needs it to reserve space. */
-const labelSize = (text: string, icon = false) => ({
-  width: Math.ceil(text.length * 6.5) + 14 + (icon ? 14 : 0),
+/** Rough size of a label with its icon; ELK only needs it to reserve space. */
+const labelSize = (text: string) => ({
+  width: Math.ceil(text.length * 6.5) + 28,
   height: 18,
 });
 
@@ -108,6 +115,9 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
     children: [
       ...graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
       { id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE },
+      ...(endsOf(graph).length > 0
+        ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }]
+        : []),
     ],
     edges: [
       ...graph.order.flatMap((id) =>
@@ -118,12 +128,7 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
                   id: edgeId(id, index),
                   sources: [id],
                   targets: [choice.target],
-                  labels: [
-                    {
-                      text: choice.label,
-                      ...labelSize(choice.label, choice.code !== undefined),
-                    },
-                  ],
+                  labels: [{ text: choice.label, ...labelSize(choice.label) }],
                 },
               ]
             : [],
@@ -136,10 +141,11 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
               id: loginEdgeId(id),
               sources: [graph.introNode],
               targets: [id],
-              labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL, true) }],
+              labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL) }],
             })),
           ]
         : []),
+      ...endsOf(graph).map((id) => ({ id: finalEdgeId(id), sources: [id], targets: [FINAL_ID] })),
     ],
   };
   const result = await elk.layout(input);
@@ -187,12 +193,39 @@ type RouteEdge = Edge<
   'route'
 >;
 
+/**
+ * SVG path through the points with every turn rounded by a quadratic curve; the radius shrinks to
+ * half of a short segment, so two turns close together do not overlap.
+ */
+const roundedPath = (points: readonly XYPosition[]) =>
+  points
+    .map((point, index) => {
+      const previous = points[index - 1];
+      const next = points[index + 1];
+      if (previous === undefined) return `M ${point.x} ${point.y}`;
+      if (next === undefined) return `L ${point.x} ${point.y}`;
+      const radius = Math.min(
+        CORNER_RADIUS,
+        Math.hypot(point.x - previous.x, point.y - previous.y) / 2,
+        Math.hypot(next.x - point.x, next.y - point.y) / 2,
+      );
+      const toward = (to: XYPosition) => {
+        const length = Math.hypot(to.x - point.x, to.y - point.y) || 1;
+        return {
+          x: point.x + ((to.x - point.x) / length) * radius,
+          y: point.y + ((to.y - point.y) / length) * radius,
+        };
+      };
+      const start = toward(previous);
+      const end = toward(next);
+      return `L ${start.x} ${start.y} Q ${point.x} ${point.y} ${end.x} ${end.y}`;
+    })
+    .join(' ');
+
 /** Edge drawn along the route ELK computed, with its label where ELK placed it. */
 const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   if (data === undefined || data.points.length === 0) return null;
-  const path = data.points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ');
+  const path = roundedPath(data.points);
   const { label } = data;
   return (
     <>
@@ -214,7 +247,11 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
               height: label.height,
             }}
           >
-            {data.qr === true && <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />}
+            {data.qr === true ? (
+              <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />
+            ) : (
+              <IconDirectionSign className='mr-0.5 inline size-3 align-[-2px]' />
+            )}
             {data.text}
           </div>
         </EdgeLabelRenderer>
@@ -259,13 +296,30 @@ const InitialDot = () => (
   </div>
 );
 
+type FinalFlowNode = Node<Record<string, never>, 'final'>;
+
+const FinalDot = () => (
+  <div
+    title='Konec'
+    className='flex items-center justify-center rounded-full border-2 border-foreground'
+    style={{ width: FINAL_SIZE, height: FINAL_SIZE }}
+  >
+    <div className='size-2.5 rounded-full bg-foreground' />
+    <Handle type='target' position={Position.Top} className='opacity-0' />
+  </div>
+);
+
 const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
 /** The node a test run stands on. */
 const FOCUSED_CARD =
   'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
 
-/** Node card: id tag, kind and the text of all its blocks, shortened as a whole. */
+/**
+ * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The corners are
+ * concentric with the round tags (their radius plus the padding), and the text lines up with the
+ * tags' labels rather than their outlines.
+ */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   return (
@@ -274,7 +328,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
       <div
         title={preview?.state === undefined ? undefined : JSON.stringify(preview.state, null, 1)}
         className={cn(
-          'flex size-full cursor-pointer flex-col gap-2 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-sm hover:border-foreground',
+          'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[1.25rem] border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
           node.type !== 'passage' && 'border-foreground/60',
           !node.reached && teams.length === 0 && 'opacity-40',
           teams.length > 0 && 'ring-2 ring-foreground',
@@ -302,7 +356,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
             </Badge>
           )}
         </div>
-        <div className='graph-preview line-clamp-4 text-xs leading-snug text-muted-foreground'>
+        <div className='graph-preview line-clamp-4 px-2 text-xs leading-snug text-muted-foreground'>
           {preview === undefined ? (
             <em>{NO_PREVIEW}</em>
           ) : (
@@ -367,7 +421,7 @@ const BlocksDialog = ({
   );
 };
 
-const nodeTypes = { story: StoryNodeCard, initial: InitialDot } as const;
+const nodeTypes = { story: StoryNodeCard, initial: InitialDot, final: FinalDot } as const;
 
 /** Screen pixels covered by floating panels on the sides of the graph. */
 export interface GraphInset {
@@ -449,7 +503,7 @@ export const StoryGraph = ({
   }, [graph, structure]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
-  const nodes = useMemo<(StoryFlowNode | InitialFlowNode)[]>(() => {
+  const nodes = useMemo<(StoryFlowNode | InitialFlowNode | FinalFlowNode)[]>(() => {
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
     return [
       ...graph.order.map((id): StoryFlowNode => ({
@@ -472,6 +526,18 @@ export const StoryGraph = ({
         draggable: false,
         selectable: false,
       },
+      ...(endsOf(graph).length > 0
+        ? [
+            {
+              id: FINAL_ID,
+              type: 'final',
+              position: position(FINAL_ID),
+              data: {},
+              draggable: false,
+              selectable: false,
+            } satisfies FinalFlowNode,
+          ]
+        : []),
     ];
   }, [graph, laidOut, teams, visits, focus]);
 
@@ -541,6 +607,17 @@ export const StoryGraph = ({
           },
         };
       }),
+      ...endsOf(graph).map((id): RouteEdge => ({
+        id: finalEdgeId(id),
+        type: 'route',
+        source: id,
+        target: FINAL_ID,
+        markerEnd: ARROW_HEAD,
+        data: {
+          points: laidOut?.layout.edges.get(finalEdgeId(id))?.points ?? [],
+          dimmed: !graph.nodes[id]!.reached,
+        },
+      })),
     ],
     [graph, laidOut],
   );
@@ -555,7 +632,7 @@ export const StoryGraph = ({
           edgeTypes={edgeTypes}
           {...(onPaneClick === undefined ? {} : { onPaneClick })}
           onNodeClick={(_event, node) => {
-            if (node.id !== INITIAL_ID) setOpened(node.id);
+            if (node.type === 'story') setOpened(node.id);
           }}
           colorMode={resolved}
           // A focused node sets the view itself.

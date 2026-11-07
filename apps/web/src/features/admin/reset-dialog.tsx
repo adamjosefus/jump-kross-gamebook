@@ -17,11 +17,11 @@ import { api, errorMessage } from '@/lib/api';
 
 import { adminKeys } from './queries';
 
-const NEW_GAME = 'NOVÁ HRA';
+const RESET_ALL = 'SMAZAT POSTUP';
 
 /**
  * Puts one team, or every team, back on the start with the initial state. The progress is lost
- * on every device of the team at once, so the admin has to type the team's name (or „NOVÁ HRA“)
+ * on every device of the team at once, so the admin has to type the team's name (or „SMAZAT POSTUP“)
  * to confirm.
  */
 export const ResetDialog = ({
@@ -38,7 +38,7 @@ export const ResetDialog = ({
 }) => {
   const queryClient = useQueryClient();
   const [typed, setTyped] = useState('');
-  const word = team?.name ?? NEW_GAME;
+  const word = team?.name ?? RESET_ALL;
 
   const reset = useMutation({
     mutationFn: async () => {
@@ -70,11 +70,11 @@ export const ResetDialog = ({
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2 text-destructive'>
             <IconAlertTriangle className='size-5' />
-            {team === undefined ? 'Nová hra pro všechny týmy' : `Vrátit tým ${team.name} na start`}
+            {team === undefined ? 'Smazat postup všech týmů' : `Vrátit tým ${team.name} na start`}
           </DialogTitle>
           <DialogDescription>
             {team === undefined
-              ? 'Všechny týmy přijdou o celý postup a začnou znovu od startu s výchozím stavem. Hra se zastaví a všechny telefony se odhlásí; přihlásí se zase, až hru znovu spustíte.'
+              ? 'Všechny týmy přijdou o celý postup a začnou znovu od startu s výchozím stavem. Hra se vrátí do stavu Nespuštěná a všechny telefony se odhlásí; přihlásí se zase, až hru spustíte.'
               : 'Tým přijde o celý postup a začne znovu od startu s výchozím stavem. Jeho telefony se odhlásí a čas týmu začne běžet znovu od jeho dalšího přihlášení.'}{' '}
             Projeví se to hned na všech telefonech a nejde to vrátit.
           </DialogDescription>
@@ -105,7 +105,7 @@ export const ResetDialog = ({
               disabled={typed !== word || reset.isPending}
             >
               {reset.isPending && <IconLoader2 className='animate-spin' />}
-              {team === undefined ? 'Začít novou hru' : 'Vrátit na start'}
+              {team === undefined ? 'Smazat postup' : 'Vrátit na start'}
             </Button>
           </DialogFooter>
         </form>

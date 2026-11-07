@@ -4,7 +4,13 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { QrCode } from '@/components/qr/qr-code';
-import { type NoiseShape, type QrStyle, QUIET_ZONE, qrCodeSvg } from '@/components/qr/qr-svg';
+import {
+  type NoiseShape,
+  type QrStyle,
+  type QrSvgOptions,
+  QUIET_ZONE,
+  qrCodeSvg,
+} from '@/components/qr/qr-svg';
 import {
   type Anamorphosis,
   DEFAULT_ANAMORPHOSIS,
@@ -176,8 +182,10 @@ export const ExportDialog = ({
     .filter(Boolean)
     .join('-');
 
-  const svg = async () =>
-    modified ? warpedQrSvg(entry.code, effective, style) : qrCodeSvg(entry.code, style);
+  const svg = async (options?: QrSvgOptions) =>
+    modified
+      ? warpedQrSvg(entry.code, effective, style, options)
+      : qrCodeSvg(entry.code, style, options);
 
   const run = async (task: () => Promise<void>, failure: string) => {
     setBusy(true);
@@ -197,38 +205,65 @@ export const ExportDialog = ({
 
   const copy = () =>
     run(async () => {
-      await copySvg(await svg());
+      // Pasted into a design, only the dark shapes are wanted; the file keeps its white background.
+      await copySvg(await svg({ background: false }));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }, 'Kopírování se nepovedlo. Povolte prohlížeči přístup ke schránce.');
+
+  const copyText = () => {
+    navigator.clipboard.writeText(entry.code).then(
+      () => toast.success(`Zkopírováno: ${entry.code}`),
+      () => toast.error('Kód se nepodařilo zkopírovat.'),
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-2xl'>
         <DialogHeader>
-          <DialogTitle>Stáhnout {entry.label}</DialogTitle>
-          <DialogDescription className='font-mono'>{entry.code}</DialogDescription>
+          <DialogTitle>Exportovat {entry.label}</DialogTitle>
+          {/* The code's text, to type it in when testing without a camera. */}
+          <DialogDescription className='flex items-center gap-1 font-mono'>
+            {entry.code}
+            <Button
+              variant='ghost'
+              size='icon-xs'
+              title='Zkopírovat text kódu'
+              aria-label={`Zkopírovat text kódu ${entry.code}`}
+              onClick={copyText}
+            >
+              <IconCopy />
+            </Button>
+          </DialogDescription>
         </DialogHeader>
 
-        <div className='grid gap-6 sm:grid-cols-[1fr_16rem]'>
-          <div className='flex h-72 items-center justify-center rounded-lg border bg-white p-4'>
-            {preview === undefined ? (
-              <QrCode value={entry.code} style={style} className='max-h-full w-auto' />
-            ) : (
-              <svg
-                viewBox={`0 0 ${preview.width} ${preview.height}`}
-                role='img'
-                aria-label={`Upravený QR kód ${entry.code}`}
-                className='max-h-full max-w-full'
-                style={{ aspectRatio: `${preview.width} / ${preview.height}` }}
-              >
-                <rect width={preview.width} height={preview.height} fill='#fff' />
-                <path d={preview.path} fill='#000' />
-              </svg>
-            )}
+        {/* A fixed height on wider screens, so the dialog keeps its size whatever is checked: the
+          options scroll inside it and the hint under the preview has its own reserved space. */}
+        <div className='grid gap-6 sm:h-[30rem] sm:grid-cols-[1fr_16rem] sm:grid-rows-[minmax(0,1fr)]'>
+          <div className='flex min-h-0 flex-col gap-3'>
+            <div className='flex h-72 items-center justify-center rounded-lg border bg-white p-4 sm:h-auto sm:min-h-0 sm:flex-1'>
+              {preview === undefined ? (
+                <QrCode value={entry.code} style={style} className='max-h-full w-auto' />
+              ) : (
+                <svg
+                  viewBox={`0 0 ${preview.width} ${preview.height}`}
+                  role='img'
+                  aria-label={`Upravený QR kód ${entry.code}`}
+                  className='max-h-full max-w-full'
+                  style={{ aspectRatio: `${preview.width} / ${preview.height}` }}
+                >
+                  <rect width={preview.width} height={preview.height} fill='#fff' />
+                  <path d={preview.path} fill='#000' />
+                </svg>
+              )}
+            </div>
+            <p className='text-sm text-muted-foreground sm:min-h-[4lh]'>
+              {modified ? viewerHint(effective) : null}
+            </p>
           </div>
 
-          <div className='flex flex-col gap-5'>
+          <div className='-mr-2 flex min-h-0 flex-col gap-5 pr-2 sm:overflow-y-auto'>
             <div className='flex flex-col gap-3'>
               <Checkbox checked={noiseOn} onChange={setNoiseOn}>
                 Šum kolem kódu
@@ -335,15 +370,20 @@ export const ExportDialog = ({
 
             <fieldset className='flex flex-col gap-2'>
               <legend className='mb-2 text-sm leading-none font-medium'>Zrcadlit</legend>
+              {/* One axis at most: both together are only a 180° turn, not a mirror image. */}
               <Checkbox
                 checked={view.mirrorX}
-                onChange={(mirrorX) => setView({ ...view, mirrorX })}
+                onChange={(mirrorX) =>
+                  setView({ ...view, mirrorX, mirrorY: view.mirrorY && !mirrorX })
+                }
               >
                 Vodorovně (levá ↔ pravá)
               </Checkbox>
               <Checkbox
                 checked={view.mirrorY}
-                onChange={(mirrorY) => setView({ ...view, mirrorY })}
+                onChange={(mirrorY) =>
+                  setView({ ...view, mirrorY, mirrorX: view.mirrorX && !mirrorY })
+                }
               >
                 Svisle (horní ↔ dolní)
               </Checkbox>
@@ -351,19 +391,17 @@ export const ExportDialog = ({
           </div>
         </div>
 
-        {modified && <p className='text-sm text-muted-foreground'>{viewerHint(effective)}</p>}
-
         <DialogFooter className='gap-2'>
           <Button
             variant='outline'
             onClick={() => void copy()}
             disabled={busy}
-            title='Zkopírovat SVG do schránky'
+            title='Zkopírovat SVG bez bílého pozadí do schránky'
           >
-            {copied ? <IconCheck /> : <IconCopy />} {copied ? 'Zkopírováno' : 'Kopírovat'}
+            {copied ? <IconCheck /> : <IconCopy />} {copied ? 'Zkopírováno' : 'Kopírovat SVG'}
           </Button>
           <Button onClick={() => void download()} disabled={busy}>
-            {busy ? <IconLoader2 className='animate-spin' /> : <IconDownload />} Stáhnout
+            {busy ? <IconLoader2 className='animate-spin' /> : <IconDownload />} Stáhnout SVG
           </Button>
         </DialogFooter>
       </DialogContent>

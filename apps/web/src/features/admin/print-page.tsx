@@ -1,8 +1,7 @@
 import type { PrintableCode } from '@gamebook/api';
-import { IconCopy, IconDownload, IconLoader2, IconSearch } from '@tabler/icons-react';
+import { IconShare2, IconLoader2, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { ProgressQr, QR_CARD_ACTION, TeamLoginQr } from '@/components/qr/qr-cards';
 import { Button } from '@/components/ui/button';
@@ -12,41 +11,20 @@ import { api, errorMessage } from '@/lib/api';
 import { ExportDialog } from './export-dialog';
 import { adminKeys } from './queries';
 
-/**
- * A card with buttons in its corner: one copies the code's text, to type it in when testing without
- * a camera, the other opens every export option.
- */
+/** A card with one button in its corner, opening every export option. */
 const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
   const [open, setOpen] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(entry.code).then(
-      () => toast.success(`Zkopírováno: ${entry.code}`),
-      () => toast.error('Kód se nepodařilo zkopírovat.'),
-    );
-  };
   const actions = (
-    <>
-      <Button
-        variant='outline'
-        size='icon'
-        className={QR_CARD_ACTION}
-        title='Zkopírovat text kódu'
-        aria-label={`Zkopírovat text kódu ${entry.label}`}
-        onClick={copy}
-      >
-        <IconCopy />
-      </Button>
-      <Button
-        variant='outline'
-        size='icon'
-        className={QR_CARD_ACTION}
-        title='Stáhnout'
-        aria-label={`Stáhnout ${entry.label}`}
-        onClick={() => setOpen(true)}
-      >
-        <IconDownload />
-      </Button>
-    </>
+    <Button
+      variant='outline'
+      size='icon'
+      className={QR_CARD_ACTION}
+      title='Exportovat'
+      aria-label={`Exportovat ${entry.label}`}
+      onClick={() => setOpen(true)}
+    >
+      <IconShare2 />
+    </Button>
   );
   return (
     <>
@@ -99,7 +77,7 @@ const SECTIONS = [
 
 /**
  * Every QR code of the game in sections by kind, filtered by the text of their name or code; each
- * card's download button opens all export options. Printed, only the cards are left.
+ * card's export button opens all export options. Printed, only the cards are left.
  */
 export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }) => {
   const [filter, setFilter] = useState('');

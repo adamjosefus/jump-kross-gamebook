@@ -32,6 +32,11 @@ describe('qr svg', () => {
     expect(inQuietZone).toEqual([]);
   });
 
+  it('leaves out the white background on request', () => {
+    expect(qrCodeSvg('L-32-9FZM7K')).toContain('<rect');
+    expect(qrCodeSvg('L-32-9FZM7K', undefined, { background: false })).not.toContain('<rect');
+  });
+
   it('escapes attribute values', () => {
     expect(escapeAttribute('a "b" <c> & d')).toBe('a &quot;b&quot; &lt;c> &amp; d');
   });

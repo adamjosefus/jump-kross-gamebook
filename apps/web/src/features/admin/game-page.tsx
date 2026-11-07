@@ -1,8 +1,6 @@
-import type { GameInfo, TeamStatus } from '@gamebook/api';
-import { IconLoader2, IconPlayerPlay, IconRotate } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { TeamStatus } from '@gamebook/api';
+import { IconArrowBackUp, IconLoader2 } from '@tabler/icons-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,61 +13,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
 
-import { formatTime } from './format';
-import { GameSwitch } from './game-switch';
-import { adminKeys, useOverview } from './queries';
+import { GameControl, teamHasProgress } from './game-control';
+import { useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 
 /**
- * Whether the teams may log in. Until the organisers start the game no team gets in; from then
- * on each team's clock runs from its first login. „Nová hra“ stops the game again.
+ * A compact table across the whole width of its card: the rows run edge to edge and the outer
+ * cells keep the card's padding, so the text lines up with the card's title.
  */
-const GameCard = ({ game }: { readonly game: GameInfo }) => {
-  const queryClient = useQueryClient();
-  const start = useMutation({
-    mutationFn: () => api((client) => client.admin.startGame()),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
-      toast.success('Hra běží. Týmy se mohou přihlásit.');
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-  return (
-    <Card className='lg:col-span-2'>
-      <CardHeader className='flex flex-row items-start justify-between gap-4'>
-        <div className='flex flex-col gap-1.5'>
-          <CardTitle>Hra</CardTitle>
-          <CardDescription>
-            {game.startedAt === undefined
-              ? 'Hra neběží: týmy se zatím nemohou přihlásit. Spusťte ji, až budou týmy připravené naskenovat svůj kód.'
-              : `Hra běží od ${formatTime(game.startedAt, { seconds: true })}. Čas každého týmu se počítá od jeho prvního přihlášení.`}
-          </CardDescription>
-        </div>
-        {game.startedAt === undefined ? (
-          <Button size='sm' disabled={start.isPending} onClick={() => start.mutate()}>
-            {start.isPending ? <IconLoader2 className='animate-spin' /> : <IconPlayerPlay />}
-            Spustit hru
-          </Button>
-        ) : (
-          // A closed game keeps its start, but nobody plays until it opens again.
-          <Badge variant={game.closed ? 'destructive' : 'default'}>
-            {game.closed ? 'zavřená' : 'běží'}
-          </Badge>
-        )}
-      </CardHeader>
-    </Card>
-  );
-};
+const CARD_TABLE =
+  '[&_td]:py-1 [&_th]:h-8 [&_tr>*:first-child]:pl-(--card-spacing) [&_tr>*:last-child]:pr-(--card-spacing)';
 
 /**
- * The game's start, whether it is open, its teams and QR codes, the latter two from the story. The
- * admin starts the game, closes and opens it, and puts teams back on the start: one team, or every
- * team for a new game.
+ * The game's phase, its teams and QR codes, the latter two from the story. The admin starts, pauses
+ * and resumes the game, puts one team back on the start, or wipes every team's progress.
  */
 export const GamePage = () => {
   const overview = useOverview();
+  const startNode = useStoryGraph().data?.start;
   // The team stays set while the dialog animates out; `null` means every team.
   const [reset, setReset] = useState<TeamStatus | null>();
   const [resetOpen, setResetOpen] = useState(false);
@@ -86,31 +49,25 @@ export const GamePage = () => {
 
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
-      <GameCard game={game} />
-      <GameSwitch game={game} />
+      <GameControl game={game} teams={teams} onResetAll={() => openReset(null)} />
 
       <Card>
-        <CardHeader className='flex flex-row items-start justify-between gap-4'>
-          <div className='flex flex-col gap-1.5'>
-            <CardTitle>Týmy</CardTitle>
-            <CardDescription>
-              Týmy jsou součástí příběhu (<code>teams</code> v{' '}
-              <code>packages/story/src/story.ts</code>). Tým začne na startu, když se po spuštění
-              hry poprvé přihlásí svým kódem. Nová hra hru zase zastaví a odhlásí všechny telefony.
-            </CardDescription>
-          </div>
-          <Button variant='destructive' size='sm' onClick={() => openReset(null)}>
-            <IconRotate /> Nová hra
-          </Button>
+        <CardHeader>
+          <CardTitle>Týmy</CardTitle>
+          <CardDescription>
+            Týmy jsou součástí příběhu (<code>teams</code> v{' '}
+            <code>packages/story/src/story.ts</code>). Tým začne na startu, když se po spuštění hry
+            poprvé přihlásí svým kódem.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='px-0'>
+          <Table className={CARD_TABLE}>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-12'>#</TableHead>
                 <TableHead>Název</TableHead>
                 <TableHead>Kde je</TableHead>
-                <TableHead className='w-10' />
+                <TableHead className='w-px' />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,17 +87,20 @@ export const GamePage = () => {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      title='Vrátit na start'
-                      aria-label={`Vrátit tým ${team.name} na start`}
-                      disabled={team.node === undefined}
-                      onClick={() => openReset(team)}
-                    >
-                      <IconRotate />
-                    </Button>
+                  <TableCell className='text-right'>
+                    {/* A team without progress is already where this would put it. */}
+                    {teamHasProgress(team, startNode) && (
+                      <Button
+                        variant='ghost'
+                        size='xs'
+                        className='text-muted-foreground'
+                        title='Vrátit tým na start a smazat jeho postup'
+                        aria-label={`Vrátit tým ${team.name} na start`}
+                        onClick={() => openReset(team)}
+                      >
+                        <IconArrowBackUp /> Na start
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -158,8 +118,8 @@ export const GamePage = () => {
             stránce QR kódy.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='px-0'>
+          <Table className={CARD_TABLE}>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-16'>Číslo</TableHead>
