@@ -1,7 +1,7 @@
 import { IconDeviceDesktop, IconLoader2, IconLogout, IconMoon, IconSun } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, Outlet } from '@tanstack/react-router';
-import { useState, type FormEvent } from 'react';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,9 +32,26 @@ const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
   dark: 'tmavý',
 } as const;
 
+/** The app's name, last in every page title. */
+const APP_NAME = 'Gamebook';
+
+/**
+ * Sets the browser tab's title to `Živě | Gamebook` and the like while the page is shown; leaving the
+ * admin restores the plain app name.
+ */
+const usePageTitle = (page: string | undefined) => {
+  useEffect(() => {
+    document.title = page === undefined ? APP_NAME : `${page} | ${APP_NAME}`;
+    return () => {
+      document.title = APP_NAME;
+    };
+  }, [page]);
+};
+
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {
   const queryClient = useQueryClient();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { preference, setPreference } = useTheme();
   const ThemeIcon = THEME_ICON[preference];
 
@@ -53,6 +70,10 @@ export const AdminLayout = () => {
     mutationFn: () => api((client) => client.admin.logout()),
     onSettled: () => queryClient.clear(),
   });
+
+  // The page's name from the bar, so the tab and the highlighted button always say the same.
+  const page = NAV.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+  usePageTitle(me.data === false ? 'Přihlášení' : page?.label);
 
   if (me.isPending) {
     return (
