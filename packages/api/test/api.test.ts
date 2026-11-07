@@ -10,6 +10,7 @@ import {
   MemoryStoreLayer,
   type ServerConfigShape,
 } from '../src/server/index.ts';
+import { makeMemoryStore } from '../src/server/store-memory.ts';
 import { Store, StoreError, type StoreShape } from '../src/server/store.ts';
 
 const config: ServerConfigShape = {
@@ -22,11 +23,11 @@ const { handler, dispose } = makeHandler(config, MemoryStoreLayer(), SAMPLE);
 afterAll(() => dispose());
 
 /** Minimal client with its own cookie jar, like one phone. */
-const device = () => {
+const device = (handle = handler) => {
   // The jar is updated in place as cookies arrive, like a browser's.
   const jar = new Map<string, string>();
   return async (method: string, path: string, body?: unknown) => {
-    const response = await handler(
+    const response = await handle(
       new Request(`http://localhost${path}`, {
         method,
         headers: {
@@ -280,6 +281,47 @@ describe('api', () => {
   });
 });
 
+describe('admin against the players', () => {
+  it('resets and moves a team whatever its devices do at the same moment', async () => {
+    // Between the admin's read of the team and its write, a player's move gets in: the memory
+    // store's `ensureTeam` (how the admin reads the team) moves the team right after reading it.
+    const inner = makeMemoryStore();
+    const racing: StoreShape = {
+      ...inner,
+      ensureTeam: (id) =>
+        Effect.gen(function* () {
+          const team = yield* inner.ensureTeam(id);
+          yield* inner.moveTeam(id, team.step, {
+            node: 'B1',
+            state: { gold: 0 },
+            finished: false,
+            action: 'choice:0',
+          });
+          return team;
+        }),
+    };
+    const raced = makeHandler(config, Layer.succeed(Store, racing), SAMPLE);
+    const call = device(raced.handler);
+    await call('POST', '/api/admin/login', { password: config.adminPassword });
+
+    const reset = await call('POST', '/api/admin/teams/1/reset');
+    expect(reset.status).toBe(200);
+    expect(reset.body).toMatchObject({ node: 'A1', state: { gold: 100 } });
+    const afterReset = await Effect.runPromise(inner.getTeam(1));
+    expect(afterReset).toMatchObject({ node: 'A1', state: { gold: 100 }, step: 2 });
+
+    const moved = await call('POST', '/api/admin/teams/1/move', { node: 'A2', state: { gold: 5 } });
+    expect(moved.status).toBe(200);
+    expect(moved.body).toMatchObject({ node: 'A2', state: { gold: 5 } });
+    const afterMove = await Effect.runPromise(inner.getTeam(1));
+    expect(afterMove).toMatchObject({ node: 'A2', state: { gold: 5 }, step: 4 });
+
+    const log = await Effect.runPromise(inner.recentLog(10));
+    expect(log.map((entry) => entry.action)).toEqual(['admin', 'choice:0', 'reset', 'choice:0']);
+    await raced.dispose();
+  });
+});
+
 describe('memory data', () => {
   it('outlives the handler, as when the code reloads in development', async () => {
     const memory = emptyMemoryData();
@@ -352,9 +394,27 @@ describe('server failures', () => {
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({
       _tag: 'ServerMisconfigured',
-      message: expect.stringContaining('QR_SECRET, SESSION_SECRET'),
+      message: expect.stringContaining('QR_SECRET, SESSION_SECRET, DATABASE_URL'),
     });
     expect(log).toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it('refuses to run a deployment on the memory store', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const secrets = { ADMIN_PASSWORD: 'heslo', QR_SECRET: 'qr', SESSION_SECRET: 'session' };
+    const deployed = handlerFromEnv({ ...secrets, NODE_ENV: 'production' });
+    const response = await deployed.handler(new Request('http://localhost/api/player/intro'));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      message: expect.stringContaining('DATABASE_URL'),
+    });
+    // Local development keeps the memory store and the known fallbacks.
+    const local = handlerFromEnv({});
+    expect((await local.handler(new Request('http://localhost/api/player/intro'))).status).toBe(
+      200,
+    );
+    await local.dispose();
     log.mockRestore();
   });
 

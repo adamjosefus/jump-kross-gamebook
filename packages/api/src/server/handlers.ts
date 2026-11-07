@@ -13,7 +13,7 @@ import {
 import { ServerConfig } from './config.ts';
 import { Game } from './game.ts';
 import { Store } from './store.ts';
-import { ADMIN_MAX_AGE, createAdminToken, verifyAdminToken } from './tokens.ts';
+import { ADMIN_MAX_AGE, createAdminToken, secretsEqual, verifyAdminToken } from './tokens.ts';
 
 /**
  * A team plays within a day or two; after that the phone has to scan the team code again. The
@@ -124,7 +124,7 @@ const AdminHandlers = HttpApiBuilder.group(
 
     return handlers.handleAll({
       login: Effect.fn(function* ({ payload }) {
-        if (payload.password !== config.adminPassword) {
+        if (!secretsEqual(config.adminPassword, payload.password)) {
           yield* Effect.sleep('600 millis');
           yield* new Unauthorized({ message: 'Špatné heslo.' });
         }

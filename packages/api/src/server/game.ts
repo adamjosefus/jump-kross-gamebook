@@ -52,6 +52,8 @@ const DEVICE_WINDOW_MS = 2 * 60 * 1000;
 const MAX_READING_MS = 5 * 60 * 1000;
 /** More than a device can have waiting, so one request cannot flood the table. */
 const MAX_READING_BATCH = 500;
+/** Reading older than a game's time counts as if it ended then, so a wrong clock cannot predate it. */
+const MAX_READING_AGO_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Small pause after a wrong code, so codes cannot be guessed quickly. */
 const penalty = Effect.sleep('400 millis');
@@ -252,9 +254,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       intervals: readonly { readonly ms: number; readonly agoMs: number }[],
     ) {
       const now = Date.now();
+      // A device's numbers are not trusted: a non-finite one would make an invalid date and fail
+      // the insert, so such an interval is dropped like one of no length.
       const rows = intervals.slice(0, MAX_READING_BATCH).flatMap(({ ms, agoMs }) => {
+        if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
         const counted = Math.min(ms, MAX_READING_MS);
-        const ended = now - Math.max(agoMs, 0);
+        const ended = now - Math.min(Math.max(agoMs, 0), MAX_READING_AGO_MS);
         return counted > 0
           ? [{ teamId, startedAt: new Date(ended - counted), endedAt: new Date(ended) }]
           : [];
@@ -343,11 +348,21 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* store.ensureTeam(id);
     });
 
+    /**
+     * The admin's move of a team, whatever its devices do at the same moment: a player's move in
+     * between must not make the admin's one silently vanish. The row exists, so the move applies.
+     */
+    const adminMove = Effect.fn('Game.adminMove')(function* (team: TeamRow, move: TeamMove) {
+      const moved = yield* store.moveTeam(team.id, undefined, move);
+      if (moved === undefined) return yield* Effect.die(new Error(`Tým ${team.id} zmizel.`));
+      return moved;
+    });
+
     /** Puts the team back on the start with the initial state, on every device. */
     const resetTeam = Effect.fn('Game.resetTeam')(function* (id: number) {
       const team = yield* requireTeam(id);
       const start = startPosition(story);
-      const moved = yield* store.moveTeam(id, team.step, {
+      const moved = yield* adminMove(team, {
         node: start?.node,
         state: start?.state ?? {},
         finished: false,
@@ -355,9 +370,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       });
       yield* store.clearTiming(id);
       // The row from the move still has the old first scan.
-      return yield* singleTeamStatus(
-        moved === undefined ? yield* requireTeam(id) : { ...moved, startedAt: undefined },
-      );
+      return yield* singleTeamStatus({ ...moved, startedAt: undefined });
     });
 
     /** A new game: every team back on the start. */
@@ -374,13 +387,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       state: TeamRow['state'],
     ) {
       const team = yield* requireTeam(id);
-      const moved = yield* store.moveTeam(id, team.step, {
+      const moved = yield* adminMove(team, {
         node,
         state,
         finished: isEnd(node),
         action: 'admin',
       });
-      return yield* singleTeamStatus(moved ?? (yield* requireTeam(id)));
+      return yield* singleTeamStatus(moved);
     });
 
     /** A test run: the same rules as the game, but the position comes from the client. */

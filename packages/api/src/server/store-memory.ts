@@ -60,7 +60,8 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     moveTeam: (id, expectedStep, move) =>
       Effect.sync(() => {
         const team = teams.get(id);
-        if (team === undefined || team.step !== expectedStep) return undefined;
+        if (team === undefined) return undefined;
+        if (expectedStep !== undefined && team.step !== expectedStep) return undefined;
         const now = new Date();
         const updated: TeamRow = {
           ...team,

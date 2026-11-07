@@ -85,7 +85,8 @@ export const makePostgresStore = (url: string) => {
       }),
     moveTeam: (id, expectedStep, move) =>
       query(async () => {
-        // CTEs see the table as it was before the update, so `previous` holds the old node.
+        // CTEs see the table as it was before the update, so `previous` holds the old node. A
+        // null expected step matches any step.
         const [row] = await sql`
           with previous as (select node from team where id = ${id}),
           updated as (
@@ -95,7 +96,7 @@ export const makePostgresStore = (url: string) => {
               step = step + 1,
               finished_at = case when ${move.finished} then coalesce(finished_at, now()) else null end,
               updated_at = now()
-            where id = ${id} and step = ${expectedStep}
+            where id = ${id} and (${expectedStep ?? null}::int is null or step = ${expectedStep ?? null}::int)
             returning *
           ),
           logged as (

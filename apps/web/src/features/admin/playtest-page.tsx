@@ -128,7 +128,7 @@ interface Step extends PlaytestView {
 
 /**
  * Moves in the URL, separated by dots: `c2` the choice with index 2, `s1` the QR code of place 1
- * skipped, `qL-1-5FV2` a scanned code, `x` the login skipped.
+ * skipped, `qL-1-5FV2XY` a scanned code, `x` the login skipped.
  */
 const encodeMove = (move: Move | undefined) =>
   move === undefined
@@ -286,7 +286,7 @@ const CodeEntry = ({
             <Input
               value={text}
               onChange={(event) => setText(event.target.value.toUpperCase())}
-              placeholder='L-12-ABCD'
+              placeholder='L-12-ABCDEF'
               aria-label='Kód z QR'
               autoCapitalize='characters'
               autoComplete='off'

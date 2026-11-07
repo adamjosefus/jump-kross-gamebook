@@ -44,16 +44,21 @@ export interface TeamMove {
 /**
  * Persistence. `moveTeam` is the only write on the hot path and must be atomic: it applies only
  * when the team is still at `expectedStep`, which is how concurrent devices of a team are resolved.
+ * Without an expected step (the admin resets or moves a team) it applies whatever the team does
+ * meanwhile, so the admin's word is the last one.
  */
 export interface StoreShape {
   readonly listTeams: () => Effect.Effect<readonly TeamRow[], StoreError>;
   readonly getTeam: (id: number) => Effect.Effect<TeamRow | undefined, StoreError>;
   /** The team's row, created (not started) the first time the team is needed. */
   readonly ensureTeam: (id: number) => Effect.Effect<TeamRow, StoreError>;
-  /** Returns the updated team, or undefined when the step did not match. */
+  /**
+   * Returns the updated team, or undefined when the step did not match or the team has no row.
+   * With `expectedStep` undefined the move applies at any step.
+   */
   readonly moveTeam: (
     id: number,
-    expectedStep: number,
+    expectedStep: number | undefined,
     move: TeamMove,
   ) => Effect.Effect<TeamRow | undefined, StoreError>;
 

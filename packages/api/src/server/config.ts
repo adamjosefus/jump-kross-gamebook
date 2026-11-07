@@ -24,17 +24,27 @@ type SecretName = keyof typeof DEV_FALLBACKS;
 
 const SECRET_NAMES: readonly SecretName[] = ['ADMIN_PASSWORD', 'QR_SECRET', 'SESSION_SECRET'];
 
+/**
+ * Variables a deployment cannot run without. Besides the secrets that is the database: without it
+ * the API would keep the game in the memory of one function instance, where it is lost with every
+ * cold start and differs between instances, without anyone noticing.
+ */
+const REQUIRED_NAMES: readonly (SecretName | 'DATABASE_URL')[] = [...SECRET_NAMES, 'DATABASE_URL'];
+
 const isDeployed = (env: Readonly<Record<string, string | undefined>>) =>
   env['VERCEL'] !== undefined || env['NODE_ENV'] === 'production';
 
+const isUnset = (env: Readonly<Record<string, string | undefined>>, name: string) =>
+  env[name] === undefined || env[name] === '';
+
 /**
- * Secrets a deployment (production or preview) has not set. Always empty in local development,
- * which falls back to known values.
+ * Variables a deployment (production or preview) has not set: the secrets and the database. Always
+ * empty in local development, which falls back to known values and to the memory store.
  */
 export const missingSecrets = (
   env: Readonly<Record<string, string | undefined>>,
-): readonly SecretName[] =>
-  isDeployed(env) ? SECRET_NAMES.filter((name) => env[name] === undefined || env[name] === '') : [];
+): readonly string[] =>
+  isDeployed(env) ? REQUIRED_NAMES.filter((name) => isUnset(env, name)) : [];
 
 /** Reads the environment; throws when a deployment lacks a secret (see `missingSecrets`). */
 export const configFromEnv = (
@@ -42,10 +52,7 @@ export const configFromEnv = (
 ): ServerConfigShape => {
   const missing = missingSecrets(env);
   if (missing.length > 0) throw new Error(`Missing environment variables ${missing.join(', ')}`);
-  const read = (name: SecretName) => {
-    const value = env[name];
-    return value === undefined || value === '' ? DEV_FALLBACKS[name] : value;
-  };
+  const read = (name: SecretName) => (isUnset(env, name) ? DEV_FALLBACKS[name] : env[name]!);
   return {
     adminPassword: read('ADMIN_PASSWORD'),
     qrSecret: read('QR_SECRET'),

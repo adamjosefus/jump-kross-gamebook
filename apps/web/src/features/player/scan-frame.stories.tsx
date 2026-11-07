@@ -29,7 +29,7 @@ const Camera = ({ children }: { readonly children: ReactNode }) => (
         style={{ background: 'radial-gradient(circle at 30% 20%, #d4d4d4, #3a3a3a 70%)' }}
       />
       <div className='relative w-[52%] -rotate-6 rounded-md bg-white p-2 shadow-lg'>
-        <QrCode value='L-32-9FZM' />
+        <QrCode value='L-32-9FZM7K' />
       </div>
       {children}
     </div>
