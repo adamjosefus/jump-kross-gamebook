@@ -50,6 +50,69 @@ export type ScanOutcome = 'accepted' | 'rejected' | undefined;
  */
 const LOST_MS = 800;
 
+/** The picture shows once this many frames in a row came at the same size. */
+const STEADY_FRAMES = 6;
+
+/** Without frame callbacks, the picture shows this long after it started or last changed size. */
+const STEADY_MS = 400;
+
+/**
+ * Calls `onSteady` once the camera's picture has settled. When the camera starts, iOS Safari paints
+ * the video black and then a few frames boxed in the wrong aspect before the picture fills the
+ * square, so the video is kept hidden until then. Returns a cleanup that cancels the wait.
+ */
+const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    onSteady();
+  };
+  // Old iPhones (before iOS 15.4) have no frame callbacks; the types claim every browser does.
+  const frameCallbacks = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+  if (frameCallbacks) {
+    let size = '';
+    let steadyFrames = 0;
+    let handle = 0;
+    const frame: VideoFrameRequestCallback = (_now, { width, height }) => {
+      steadyFrames = `${width}×${height}` === size ? steadyFrames + 1 : 1;
+      size = `${width}×${height}`;
+      if (steadyFrames >= STEADY_FRAMES) finish();
+      else if (!done) handle = video.requestVideoFrameCallback(frame);
+    };
+    handle = video.requestVideoFrameCallback(frame);
+    return () => {
+      done = true;
+      video.cancelVideoFrameCallback(handle);
+    };
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const wait = () => {
+    clearTimeout(timer);
+    timer = setTimeout(finish, STEADY_MS);
+  };
+  video.addEventListener('playing', wait);
+  video.addEventListener('resize', wait);
+  return () => {
+    done = true;
+    clearTimeout(timer);
+    video.removeEventListener('playing', wait);
+    video.removeEventListener('resize', wait);
+  };
+};
+
+/**
+ * Sizes the video element to the picture's own aspect, centered and overflowing the square on its
+ * longer side. The square then never shows bars, even in the frames where Safari does not apply
+ * `object-fit` yet, and on cameras that ignore the request for a square picture.
+ */
+const coverSquare = (video: HTMLVideoElement) => {
+  const { videoWidth: width, videoHeight: height } = video;
+  if (width === 0 || height === 0) return;
+  video.style.width = width >= height ? `${(width / height) * 100}%` : '100%';
+  video.style.height = width >= height ? '100%' : `${(height / width) * 100}%`;
+};
+
 /**
  * A point of the video picture in the camera square (0 to 1): the video covers the square, so its
  * shorter side fills it and the longer one is cut evenly. A mirrored video (a front camera) flips.
@@ -151,13 +214,30 @@ const QrScannerView = ({
     // later, which in a shared one would be the next scanner's camera (React runs effects twice
     // in development, so that happens on every mount).
     const video = document.createElement('video');
-    // Black and white, by CSS only; the scanner reads the stream, not the painted picture.
-    video.className = 'size-full object-cover grayscale contrast-125';
+    // Black and white, by CSS only; the scanner reads the stream, not the painted picture. Hidden
+    // (not by `visibility`, which the library overrides) until the picture settles, then it fades
+    // in over the gray square.
+    video.className =
+      'absolute top-1/2 left-1/2 size-full max-w-none -translate-1/2 object-cover grayscale contrast-125 opacity-0 transition-opacity duration-300 motion-reduce:transition-none';
     video.muted = true;
     video.playsInline = true;
+    const fit = () => coverSquare(video);
+    video.addEventListener('loadedmetadata', fit);
+    video.addEventListener('resize', fit);
+    // The library stops the camera while the page is hidden and opens it anew when the player
+    // comes back (`emptied` marks the stop), so the picture is hidden and settles again each time.
+    let stopWaiting = () => {};
+    const hideUntilSteady = () => {
+      stopWaiting();
+      video.classList.add('opacity-0');
+      stopWaiting = whenSteady(video, () => video.classList.remove('opacity-0'));
+    };
+    hideUntilSteady();
+    video.addEventListener('emptied', hideUntilSteady);
     container.append(video);
-    // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more and
-    // to always use its own decoder, as the browser's `BarcodeDetector` may read them.
+    // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more, to
+    // always use its own decoder, as the browser's `BarcodeDetector` may read them, and to ask the
+    // camera for a square picture like the square it is shown in.
     const scanner = new QrScanner(
       video,
       (result) =>
@@ -180,6 +260,10 @@ const QrScannerView = ({
     });
     return () => {
       current = false;
+      video.removeEventListener('emptied', hideUntilSteady);
+      stopWaiting();
+      video.removeEventListener('loadedmetadata', fit);
+      video.removeEventListener('resize', fit);
       scanner.destroy();
       container.replaceChildren();
     };

@@ -163,7 +163,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  qr-scanner@1.4.2: 9e04a21e8b76605b4af2d32174a284e2f12f0bd0f9bb0f2737a0d6d8d69b2a22
+  qr-scanner@1.4.2: d95cc86a87bb730fb21929ff3f0dc8733cf8acebc7bdb024cd7dcaa3ca3d88b1
 
 importers:
 
@@ -240,7 +240,7 @@ importers:
         version: 2.1.0
       qr-scanner:
         specifier: ^1.4.2
-        version: 1.4.2(patch_hash=9e04a21e8b76605b4af2d32174a284e2f12f0bd0f9bb0f2737a0d6d8d69b2a22)
+        version: 1.4.2(patch_hash=d95cc86a87bb730fb21929ff3f0dc8733cf8acebc7bdb024cd7dcaa3ca3d88b1)
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -7321,7 +7321,7 @@ snapshots:
 
   property-information@7.2.0: {}
 
-  qr-scanner@1.4.2(patch_hash=9e04a21e8b76605b4af2d32174a284e2f12f0bd0f9bb0f2737a0d6d8d69b2a22):
+  qr-scanner@1.4.2(patch_hash=d95cc86a87bb730fb21929ff3f0dc8733cf8acebc7bdb024cd7dcaa3ca3d88b1):
     dependencies:
       '@types/offscreencanvas': 2019.7.3
 
