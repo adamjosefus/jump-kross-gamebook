@@ -99,6 +99,9 @@ export class NotFound extends Schema.TaggedError<NotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
+/** What a player reads before the organisers start the game, on the screen and in the refused login. */
+export const GAME_NOT_STARTED_MESSAGE = 'Hra ještě nezačala. Počkejte na pokyn organizátorů.';
+
 /** The organisers have not started the game yet, so no team can log in. */
 export class GameNotStarted extends Schema.TaggedError<GameNotStarted>()(
   'GameNotStarted',
@@ -175,6 +178,8 @@ export class PlayerAuth extends HttpApiMiddleware.Service<PlayerAuth, { provides
 
 /** What anyone sees before scanning a team's login code. */
 export const PlayerIntro = Schema.Struct({
+  /** The organisers started the game; until then the login does not work. */
+  started: Schema.Boolean,
   /** The admin closed the game; the login does not work until it opens again. */
   closed: Schema.Boolean,
   screens: Schema.Array(PlayerScreen),

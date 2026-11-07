@@ -1,5 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
+import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
@@ -27,8 +28,11 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
 
-/** While the admin keeps the game closed, the device asks now and then whether it opened. */
-const CLOSED_POLL_MS = 15_000;
+/**
+ * While the game is not started yet or the admin keeps it closed, the device asks now and then
+ * whether the teams can log in.
+ */
+const WAITING_POLL_MS = 15_000;
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -73,8 +77,8 @@ export const PlayerPage = () => {
     ) {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
-    // The intro shows the closed game in place of the scanner.
-    if (isApiError(error, 'GameClosed'))
+    // The intro shows a game not started or closed in place of the scanner.
+    if (isApiError(error, 'GameClosed') || isApiError(error, 'GameNotStarted'))
       void queryClient.invalidateQueries({ queryKey: INTRO_KEY });
   };
 
@@ -191,13 +195,7 @@ export const PlayerPage = () => {
           </Centered>
         </PlayerFrame>
       ) : view.status === 'not-ready' || view.node === undefined ? (
-        <PlayerFrame aside={aside}>
-          <Centered>
-            <p className='text-center text-balance'>
-              Hra ještě nezačala. Vyčkejte na pokyn organizátorů.
-            </p>
-          </Centered>
-        </PlayerFrame>
+        <WaitingScreen message={GAME_NOT_STARTED_MESSAGE} aside={aside} />
       ) : (
         <TeamNodeScreens
           teamId={view.team.id}
@@ -282,34 +280,36 @@ const Intro = ({
   const intro = useQuery({
     queryKey: INTRO_KEY,
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
-    // The story changes only with a deploy; only a closed game is asked again, until it opens.
+    // The story changes only with a deploy; only a game the teams cannot log in to yet is asked
+    // again, until they can.
     staleTime: Infinity,
-    refetchInterval: (query) => (query.state.data?.closed === true ? CLOSED_POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data !== undefined && (!query.state.data.started || query.state.data.closed)
+        ? WAITING_POLL_MS
+        : false,
   });
-  if (intro.isPending)
+  // A poll that fails while waiting keeps the last answer on the screen and the next one tries
+  // again; only an intro never loaded shows the problem.
+  if (intro.data === undefined)
     return (
       <PlayerFrame>
         <Centered>
-          <IconLoader2 className='size-6 animate-spin' />
+          {intro.isError ? (
+            <Problem message={errorMessage(intro.error)} onRetry={() => void intro.refetch()} />
+          ) : (
+            <IconLoader2 className='size-6 animate-spin' />
+          )}
         </Centered>
       </PlayerFrame>
     );
-  if (intro.isError)
+  const { started, closed, ...content } = intro.data;
+  // Until the teams can log in, the waiting screen comes first, before the intro.
+  if (!started || closed)
     return (
-      <PlayerFrame>
-        <Centered>
-          <Problem message={errorMessage(intro.error)} onRetry={() => void intro.refetch()} />
-        </Centered>
-      </PlayerFrame>
-    );
-  const { closed, ...content } = intro.data;
-  if (closed)
-    return (
-      <PlayerFrame lead={APP_VERSION}>
-        <Centered>
-          <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
-        </Centered>
-      </PlayerFrame>
+      <WaitingScreen
+        message={started ? GAME_CLOSED_MESSAGE : NOT_STARTED_TEXT}
+        corner={APP_VERSION}
+      />
     );
   return (
     <NodeScreens
