@@ -721,6 +721,22 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return gameInfo(yield* store.gameStartedAt(), row);
     });
 
+    /**
+     * The scan texts, each once, of the nodes whose scan screen takes the code; `null` for those
+     * without a text of their own.
+     */
+    const scanTextsOf = (kind: PrintableCode['kind'], id: number): readonly (string | null)[] => {
+      const nodes =
+        kind === 'T'
+          ? [story.nodes[story.introNode]]
+          : Object.values(story.nodes).filter((node) =>
+              node?.scans?.some((option) => option.code === id),
+            );
+      return [
+        ...new Set(nodes.flatMap((node) => (node === undefined ? [] : [node.scanText ?? null]))),
+      ];
+    };
+
     const codes = Effect.fn('Game.codes')(function* () {
       // Teams and codes come from the story, so their codes change only with a deploy.
       const entries: readonly {
@@ -736,6 +752,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           entries.map(async (entry) => ({
             ...entry,
             code: await encodeQr(config.qrSecret, entry),
+            scanTexts: scanTextsOf(entry.kind, entry.id),
           })),
         ),
       );
