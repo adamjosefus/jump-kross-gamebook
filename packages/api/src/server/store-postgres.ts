@@ -7,8 +7,10 @@ import {
   Store,
   StoreError,
   type AdminFailures,
+  type GameSettingsRow,
   type LogRow,
   type ReadingRow,
+  type SessionRow,
   type TeamRow,
 } from './store.ts';
 
@@ -99,6 +101,23 @@ const toLog = (row: Row): LogRow => ({
 const toFailures = (row: Row): AdminFailures => ({
   failures: Number(row['failures']),
   lastAt: timestamp(row['last_at']),
+});
+
+const toSession = (row: Row): SessionRow => ({
+  id: text(row['id']),
+  teamId: Number(row['team_id']),
+  createdAt: timestamp(row['created_at']),
+  lastSeenAt: timestamp(row['last_seen_at']),
+  ip: optionalText(row['ip']),
+  userAgent: optionalText(row['user_agent']),
+});
+
+const toSettings = (row: Row | undefined): GameSettingsRow => ({
+  closed: row?.['closed'] === true,
+  changedAt:
+    row === undefined || row['closed_changed_at'] === null
+      ? undefined
+      : timestamp(row['closed_changed_at']),
 });
 
 const toReading = (row: Row): ReadingRow => ({
@@ -242,10 +261,12 @@ export const makePostgresStore = (client: SqlClient) => {
     listReading: () =>
       query(async () => (await run(sql`select * from reading order by id`)).map(toReading)),
 
-    createSession: (id, teamId) =>
+    createSession: (id, teamId, { ip, userAgent }) =>
       query(
         async () =>
-          void (await run(sql`insert into session (id, team_id) values (${id}, ${teamId})`)),
+          void (await run(sql`
+            insert into session (id, team_id, ip, user_agent)
+            values (${id}, ${teamId}, ${ip ?? null}, ${userAgent ?? null})`)),
       ),
     touchSession: (id, createdAfter) =>
       query(async () => {
@@ -268,6 +289,29 @@ export const makePostgresStore = (client: SqlClient) => {
           select team_id, count(*)::int as devices from session
           where last_seen_at >= ${since.toISOString()}::timestamptz group by team_id`);
         return new Map(rows.map((row) => [Number(row['team_id']), Number(row['devices'])]));
+      }),
+    listSessions: (createdAfter) =>
+      query(async () =>
+        (
+          await run(sql`
+            select * from session where created_at > ${createdAfter.toISOString()}::timestamptz
+            order by last_seen_at desc, created_at desc`)
+        ).map(toSession),
+      ),
+
+    gameSettings: () =>
+      query(async () => {
+        const [row] = await run(sql`select closed, closed_changed_at from game where id = 1`);
+        return toSettings(row);
+      }),
+    setGameClosed: (closed) =>
+      query(async () => {
+        const [row] = await run(sql`
+          insert into game (id, closed, closed_changed_at) values (1, ${closed}, now())
+          on conflict (id) do update
+            set closed = excluded.closed, closed_changed_at = excluded.closed_changed_at
+          returning closed, closed_changed_at`);
+        return toSettings(row);
       }),
 
     adminFailures: (key) =>

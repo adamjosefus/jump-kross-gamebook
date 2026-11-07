@@ -8,12 +8,14 @@ import {
   IconCopy,
   IconHistory,
   IconLoader2,
+  IconLock,
   IconPin,
   IconPinnedOff,
   IconRotate,
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -251,7 +253,11 @@ export const DashboardPage = () => {
 
   return (
     <div className='relative h-full'>
-      {overview.isError && <StaleBar at={overview.dataUpdatedAt} error={overview.error} />}
+      {overview.isError ? (
+        <StaleBar at={overview.dataUpdatedAt} error={overview.error} />
+      ) : (
+        overview.data.game.closed && <ClosedBar />
+      )}
       {graph === undefined ? (
         <IconLoader2 className='m-8 size-6 animate-spin' />
       ) : (
@@ -378,6 +384,20 @@ export const DashboardPage = () => {
     </div>
   );
 };
+
+/** The admin closed the game; it is opened again on the page Hra. */
+const ClosedBar = () => (
+  <div
+    role='status'
+    className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
+  >
+    <IconLock className='size-4 shrink-0' />
+    Hra je zavřená, týmy teď nemohou hrát.
+    <Link to='/admin/game' className='underline underline-offset-2'>
+      Otevřít na stránce Hra
+    </Link>
+  </div>
+);
 
 /** The last poll failed: what is shown is from `at`. */
 const StaleBar = ({ at, error }: { readonly at: number; readonly error: unknown }) => (

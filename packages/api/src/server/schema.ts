@@ -38,6 +38,8 @@ create table if not exists session (
   last_seen_at timestamptz not null default now()
 );
 create index if not exists session_last_seen on session (last_seen_at);
+alter table session add column if not exists ip text;
+alter table session add column if not exists user_agent text;
 
 create table if not exists reading (
   id bigserial primary key,
@@ -52,10 +54,14 @@ create table if not exists game (
   id int primary key check (id = 1),
   started_at timestamptz
 );
+-- Whether the admin closed the game, a pause at any time that keeps every team's progress.
+alter table game add column if not exists closed boolean not null default false;
+alter table game add column if not exists closed_changed_at timestamptz;
 
 create table if not exists admin_login (
   key text primary key,
   failures int not null default 0,
   last_at timestamptz not null default now()
 );
+
 `;

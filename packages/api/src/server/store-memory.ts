@@ -3,17 +3,13 @@ import { Effect, Layer } from 'effect';
 import {
   Store,
   type AdminFailures,
+  type GameSettingsRow,
   type LogRow,
   type ReadingRow,
+  type SessionRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
-
-interface SessionRow {
-  readonly teamId: number;
-  readonly createdAt: Date;
-  readonly lastSeenAt: Date;
-}
 
 /** How many times each key occurs. */
 const countBy = <K>(keys: readonly K[]): ReadonlyMap<K, number> =>
@@ -33,6 +29,7 @@ export interface MemoryData {
   log: readonly LogRow[];
   reading: readonly ReadingRow[];
   gameStartedAt: Date | undefined;
+  settings: GameSettingsRow;
 }
 
 export const emptyMemoryData = (): MemoryData => ({
@@ -42,6 +39,7 @@ export const emptyMemoryData = (): MemoryData => ({
   log: [],
   reading: [],
   gameStartedAt: undefined,
+  settings: { closed: false, changedAt: undefined },
 });
 
 /** In-process store for local development without a database and for tests. */
@@ -138,10 +136,10 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       }),
     listReading: () => Effect.sync(() => data.reading),
 
-    createSession: (id, teamId) =>
+    createSession: (id, teamId, client) =>
       Effect.sync(() => {
         const now = new Date();
-        sessions.set(id, { teamId, createdAt: now, lastSeenAt: now });
+        sessions.set(id, { id, teamId, createdAt: now, lastSeenAt: now, ...client });
       }),
     touchSession: (id, createdAfter) =>
       Effect.sync(() => {
@@ -160,6 +158,19 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             .map((session) => session.teamId),
         ),
       ),
+    listSessions: (createdAfter) =>
+      Effect.sync(() =>
+        [...sessions.values()]
+          .filter((session) => session.createdAt > createdAfter && teams.has(session.teamId))
+          .toSorted((first, second) => second.lastSeenAt.getTime() - first.lastSeenAt.getTime()),
+      ),
+
+    gameSettings: () => Effect.sync(() => data.settings),
+    setGameClosed: (closed) =>
+      Effect.sync(() => {
+        data.settings = { closed, changedAt: new Date() };
+        return data.settings;
+      }),
 
     adminFailures: (key) => Effect.sync(() => adminFailures.get(key)),
     recordAdminFailure: (key) =>

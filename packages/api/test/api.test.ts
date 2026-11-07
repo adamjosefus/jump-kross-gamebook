@@ -73,6 +73,7 @@ describe('api', () => {
 
   it('shows the intro to anyone', async () => {
     expect((await device()('GET', '/api/player/intro')).body).toEqual({
+      closed: false,
       screens: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
     });
   });
@@ -317,7 +318,7 @@ describe('api', () => {
     ]);
     // The game is not started any more: the phones are logged out and cannot log in until the
     // organisers start it again.
-    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({ closed: false });
     expect((await phone('GET', '/api/player/state')).status).toBe(401);
     expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(409);
     await admin('POST', '/api/admin/game/start');
@@ -332,7 +333,7 @@ describe('game start', () => {
     await admin('POST', '/api/admin/login', { password: config.adminPassword });
     const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const phone = device(fresh.handler);
-    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({ closed: false });
     const early = await phone('POST', '/api/player/login', { code: vlci });
     expect(early).toMatchObject({ status: 409, body: { _tag: 'GameNotStarted' } });
     expect((await admin('GET', '/api/admin/overview')).body.teams[0].startedAt).toBeUndefined();
@@ -432,6 +433,69 @@ describe('a state the game cannot hold', () => {
     expect(chosen.body).toMatchObject({ _tag: 'InvalidMove', reason: 'broken-state' });
     expect((await run(makeMemoryStore(data).getTeam(1)))?.step).toBe(broken.step);
     expect((await admin('GET', '/api/admin/overview')).status).toBe(200);
+    await fresh.dispose();
+  });
+});
+
+describe('closed game', () => {
+  it('lets nobody play while closed and lists the logged-in devices', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    const phone = device(fresh.handler, {
+      'x-forwarded-for': '203.0.113.7, 10.0.0.1',
+      'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1',
+    });
+    const started = await phone('POST', '/api/player/login', { code: login });
+    expect(started.status).toBe(200);
+
+    const before = (await admin('GET', '/api/admin/overview')).body;
+    expect(before.game).toMatchObject({ closed: false, startedAt: expect.any(String) });
+    expect(before.devices).toMatchObject([
+      {
+        teamId: 1,
+        teamName: 'Vlci',
+        active: true,
+        ip: '203.0.113.7',
+        userAgent: expect.stringContaining('iPhone'),
+      },
+    ]);
+    // The device stands for its session without revealing the cookie.
+    expect(before.devices[0].id).toMatch(/^[0-9a-f]{12}$/);
+    expect(phone.jar.get('gb_session')).not.toContain(before.devices[0].id);
+
+    const closed = await admin('POST', '/api/admin/game/closed', { closed: true });
+    expect(closed.body).toMatchObject({ closed: true, closedChangedAt: expect.any(String) });
+    expect((await device(fresh.handler)('GET', '/api/player/intro')).body.closed).toBe(true);
+
+    // A logged-in device stays logged in but sees no node and cannot move.
+    const state = (await phone('GET', '/api/player/state')).body;
+    expect(state).toMatchObject({ status: 'closed', step: started.body.step });
+    expect(state.node).toBeUndefined();
+    const scan = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedStep: started.body.step,
+    });
+    expect(scan).toMatchObject({ status: 423, body: { _tag: 'GameClosed' } });
+    expect(
+      (await phone('POST', '/api/player/choose', { index: 0, expectedStep: started.body.step }))
+        .status,
+    ).toBe(423);
+    // A new device cannot log in, but a wrong code is still named as such.
+    const tablet = device(fresh.handler);
+    expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(423);
+    expect((await tablet('POST', '/api/player/login', { code: studna })).status).toBe(400);
+    // The admin's test run goes on.
+    expect((await admin('POST', '/api/admin/playtest', {})).status).toBe(200);
+
+    await admin('POST', '/api/admin/game/closed', { closed: false });
+    const reopened = (await phone('GET', '/api/player/state')).body;
+    expect(reopened).toMatchObject({ status: 'playing', node: { id: 'A1' } });
+    expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(200);
+    expect((await admin('GET', '/api/admin/overview')).body.devices).toHaveLength(2);
     await fresh.dispose();
   });
 });
@@ -589,6 +653,9 @@ describe('server failures', () => {
       touchSession: fail,
       deleteSession: fail,
       activeDevices: fail,
+      listSessions: fail,
+      gameSettings: fail,
+      setGameClosed: fail,
       adminFailures: fail,
       recordAdminFailure: fail,
       clearAdminFailures: fail,

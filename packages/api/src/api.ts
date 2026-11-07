@@ -69,6 +69,13 @@ export class InvalidState extends Schema.TaggedError<InvalidState>()(
   { httpApiStatus: 400 },
 ) {}
 
+/** The admin closed the game: nobody logs in or moves until it opens again. */
+export class GameClosed extends Schema.TaggedError<GameClosed>()(
+  'GameClosed',
+  { message: Schema.String },
+  { httpApiStatus: 423 },
+) {}
+
 export class NotFound extends Schema.TaggedError<NotFound>()(
   'NotFound',
   { message: Schema.String },
@@ -100,7 +107,8 @@ export const PlayerView = Schema.Struct({
   team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
   /** Increments with every move; sent back as `expectedStep`. */
   step: Schema.Number,
-  status: Schema.Literals(['playing', 'finished', 'not-ready']),
+  /** `closed`: the admin closed the game; the view then has no node until it opens again. */
+  status: Schema.Literals(['playing', 'finished', 'not-ready', 'closed']),
   /** The story's login texts, written for this team. */
   loginMessages: Schema.Struct({
     loggedIn: Schema.String,
@@ -144,6 +152,8 @@ export class PlayerAuth extends HttpApiMiddleware.Service<PlayerAuth, { provides
 
 /** What anyone sees before scanning a team's login code. */
 export const PlayerIntro = Schema.Struct({
+  /** The admin closed the game; the login does not work until it opens again. */
+  closed: Schema.Boolean,
   screens: Schema.Array(PlayerScreen),
   /** The heading of the login scan screen, when the story sets one. */
   scanTitle: Schema.optionalKey(Schema.String),
@@ -158,7 +168,7 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     HttpApiEndpoint.post('login', '/login', {
       payload: Schema.Struct({ code: Schema.String }),
       success: PlayerView,
-      error: [InvalidCode, NotFound, GameNotStarted],
+      error: [InvalidCode, NotFound, GameNotStarted, GameClosed],
     }),
   )
   .add(
@@ -168,12 +178,12 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     HttpApiEndpoint.post('choose', '/choose', {
       payload: Schema.Struct({ index: Schema.Number, expectedStep: Schema.Number }),
       success: PlayerView,
-      error: [StepConflict, InvalidMove, NotFound],
+      error: [StepConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
     HttpApiEndpoint.post('scan', '/scan', {
       payload: Schema.Struct({ code: Schema.String, expectedStep: Schema.Number }),
       success: PlayerView,
-      error: [InvalidCode, StepConflict, InvalidMove, NotFound],
+      error: [InvalidCode, StepConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
     /**
      * How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. The
@@ -265,6 +275,10 @@ export type TeamStatus = typeof TeamStatus.Type;
 export const GameInfo = Schema.Struct({
   /** Missing until the organisers start the game, and after a new game. */
   startedAt: Schema.optionalKey(Schema.String),
+  /** The admin closed the game: nobody logs in or moves until it opens again. */
+  closed: Schema.Boolean,
+  /** When the admin last opened or closed the game; missing when it never happened. */
+  closedChangedAt: Schema.optionalKey(Schema.String),
 });
 export type GameInfo = typeof GameInfo.Type;
 
@@ -278,9 +292,27 @@ export const LogEntry = Schema.Struct({
 });
 export type LogEntry = typeof LogEntry.Type;
 
+/** A device logged in to a team, from its login until the session expires or it logs out. */
+export const Device = Schema.Struct({
+  /** Stands for the device; derived from its session, which itself is never shown. */
+  id: Schema.String,
+  teamId: Schema.Number,
+  teamName: Schema.String,
+  loggedInAt: Schema.String,
+  lastSeenAt: Schema.String,
+  /** Seen in the last two minutes. */
+  active: Schema.Boolean,
+  /** The address the device logged in from; missing when the proxy did not report it. */
+  ip: Schema.optionalKey(Schema.String),
+  userAgent: Schema.optionalKey(Schema.String),
+});
+export type Device = typeof Device.Type;
+
 export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
+  /** Every device logged in to a team, the most recently seen first. */
+  devices: Schema.Array(Device),
   codes: Schema.Array(QrCode),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
@@ -363,6 +395,10 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     /** Lets the teams log in; the clock of each starts with its first login. */
     HttpApiEndpoint.post('startGame', '/game/start', { success: GameInfo }).middleware(AdminAuth),
+    HttpApiEndpoint.post('setClosed', '/game/closed', {
+      payload: Schema.Struct({ closed: Schema.Boolean }),
+      success: GameInfo,
+    }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetAll', '/teams/reset', {
       success: Schema.Array(TeamStatus),
     }).middleware(AdminAuth),
