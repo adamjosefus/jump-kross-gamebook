@@ -8,14 +8,12 @@ import {
   IconCopy,
   IconHistory,
   IconLoader2,
-  IconPlayerPause,
   IconPin,
   IconPinnedOff,
   IconRotate,
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -244,11 +242,7 @@ export const DashboardPage = () => {
 
   return (
     <div className='relative h-full'>
-      {overview.isError ? (
-        <StaleBar at={overview.dataUpdatedAt} error={overview.error} />
-      ) : (
-        overview.data.game.closed && <ClosedBar />
-      )}
+      {overview.isError && <StaleBar at={overview.dataUpdatedAt} error={overview.error} />}
       {graph === undefined ? (
         <IconLoader2 className='m-8 size-6 animate-spin' />
       ) : (
@@ -375,20 +369,6 @@ export const DashboardPage = () => {
     </div>
   );
 };
-
-/** The admin paused the game; it goes on from the page Hra. */
-const ClosedBar = () => (
-  <div
-    role='status'
-    className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
-  >
-    <IconPlayerPause className='size-4 shrink-0' />
-    Hra je pozastavená, týmy na cestě teď nemohou hrát.
-    <Link to='/admin/game' className='underline underline-offset-2'>
-      Pokračovat na stránce Hra
-    </Link>
-  </div>
-);
 
 /** The last poll failed: what is shown is from `at`. */
 const StaleBar = ({ at, error }: { readonly at: number; readonly error: unknown }) => (
