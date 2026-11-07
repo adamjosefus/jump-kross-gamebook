@@ -59,7 +59,10 @@ const GameCard = ({ game }: { readonly game: GameInfo }) => {
             Spustit hru
           </Button>
         ) : (
-          <Badge>běží</Badge>
+          // A closed game keeps its start, but nobody plays until it opens again.
+          <Badge variant={game.closed ? 'destructive' : 'default'}>
+            {game.closed ? 'zavřená' : 'běží'}
+          </Badge>
         )}
       </CardHeader>
     </Card>
