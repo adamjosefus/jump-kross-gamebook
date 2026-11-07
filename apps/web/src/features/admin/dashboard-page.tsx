@@ -8,7 +8,7 @@ import {
   IconCopy,
   IconHistory,
   IconLoader2,
-  IconLock,
+  IconPlayerPause,
   IconPin,
   IconPinnedOff,
   IconRotate,
@@ -281,7 +281,7 @@ export const DashboardPage = () => {
           <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2'>
             <p className='text-xs text-muted-foreground'>
               {game.startedAt === undefined
-                ? 'Hra neběží, týmy se nemohou přihlásit.'
+                ? 'Hra není spuštěná, týmy se nemohou přihlásit.'
                 : `Hra běží od ${formatTime(game.startedAt)}.`}
             </p>
             <CopyResults teams={teams} now={now} />
@@ -376,16 +376,16 @@ export const DashboardPage = () => {
   );
 };
 
-/** The admin closed the game; it is opened again on the page Hra. */
+/** The admin paused the game; it goes on from the page Hra. */
 const ClosedBar = () => (
   <div
     role='status'
     className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
   >
-    <IconLock className='size-4 shrink-0' />
-    Hra je zavřená, týmy na cestě teď nemohou hrát.
+    <IconPlayerPause className='size-4 shrink-0' />
+    Hra je pozastavená, týmy na cestě teď nemohou hrát.
     <Link to='/admin/game' className='underline underline-offset-2'>
-      Otevřít na stránce Hra
+      Pokračovat na stránce Hra
     </Link>
   </div>
 );

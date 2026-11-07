@@ -1,8 +1,6 @@
-import type { GameInfo, TeamStatus } from '@gamebook/api';
-import { IconLoader2, IconPlayerPlay, IconRotate } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { TeamStatus } from '@gamebook/api';
+import { IconLoader2, IconRotate } from '@tabler/icons-react';
 import { useState } from 'react';
-import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,53 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
 
-import { formatTime } from './format';
-import { GameSwitch } from './game-switch';
-import { adminKeys, useOverview } from './queries';
+import { GameControl } from './game-control';
+import { useOverview } from './queries';
 import { ResetDialog } from './reset-dialog';
-
-/**
- * Whether the teams may log in. Until the organisers start the game no team gets in; from then
- * on each team's clock runs from its first login. „Nová hra“ stops the game again.
- */
-const GameCard = ({ game }: { readonly game: GameInfo }) => {
-  const queryClient = useQueryClient();
-  const start = useMutation({
-    mutationFn: () => api((client) => client.admin.startGame()),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
-      toast.success('Hra běží. Týmy se mohou přihlásit.');
-    },
-    onError: (error) => toast.error(errorMessage(error)),
-  });
-  return (
-    <Card className='lg:col-span-2'>
-      <CardHeader className='flex flex-row items-start justify-between gap-4'>
-        <div className='flex flex-col gap-1.5'>
-          <CardTitle>Hra</CardTitle>
-          <CardDescription>
-            {game.startedAt === undefined
-              ? 'Hra neběží: týmy se zatím nemohou přihlásit. Spusťte ji, až budou týmy připravené naskenovat svůj kód.'
-              : `Hra běží od ${formatTime(game.startedAt, { seconds: true })}. Čas každého týmu se počítá od jeho prvního přihlášení.`}
-          </CardDescription>
-        </div>
-        {game.startedAt === undefined ? (
-          <Button size='sm' disabled={start.isPending} onClick={() => start.mutate()}>
-            {start.isPending ? <IconLoader2 className='animate-spin' /> : <IconPlayerPlay />}
-            Spustit hru
-          </Button>
-        ) : (
-          // A closed game keeps its start, but nobody plays until it opens again.
-          <Badge variant={game.closed ? 'destructive' : 'default'}>
-            {game.closed ? 'zavřená' : 'běží'}
-          </Badge>
-        )}
-      </CardHeader>
-    </Card>
-  );
-};
 
 /**
  * The game's start, whether it is open, its teams and QR codes, the latter two from the story. The
@@ -86,22 +42,16 @@ export const GamePage = () => {
 
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
-      <GameCard game={game} />
-      <GameSwitch game={game} />
+      <GameControl game={game} teams={teams} onResetAll={() => openReset(null)} />
 
       <Card>
-        <CardHeader className='flex flex-row items-start justify-between gap-4'>
-          <div className='flex flex-col gap-1.5'>
-            <CardTitle>Týmy</CardTitle>
-            <CardDescription>
-              Týmy jsou součástí příběhu (<code>teams</code> v{' '}
-              <code>packages/story/src/story.ts</code>). Tým začne na startu, když se po spuštění
-              hry poprvé přihlásí svým kódem. Nová hra hru zase zastaví a odhlásí všechny telefony.
-            </CardDescription>
-          </div>
-          <Button variant='destructive' size='sm' onClick={() => openReset(null)}>
-            <IconRotate /> Nová hra
-          </Button>
+        <CardHeader>
+          <CardTitle>Týmy</CardTitle>
+          <CardDescription>
+            Týmy jsou součástí příběhu (<code>teams</code> v{' '}
+            <code>packages/story/src/story.ts</code>). Tým začne na startu, když se po spuštění hry
+            poprvé přihlásí svým kódem.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
