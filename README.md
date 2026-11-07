@@ -1,5 +1,7 @@
 # JUMP Kross 2027
 
+[![Vercel deploy](https://github.com/adamjosefus/jump-kross-gamebook/actions/workflows/deploy-status.yml/badge.svg)](https://github.com/adamjosefus/jump-kross-gamebook/actions/workflows/deploy-status.yml)
+
 A web app for a branching gamebook played by several teams at once in the real world.
 
 Each team plays on their phones. They read the story screen by screen, make choices and walk to QR codes placed around, which they scan to continue; scanning one of several codes hung side by side is a choice too. Where a team goes and what it finds depends on its earlier decisions, so every team can take a different path through the story.
