@@ -33,7 +33,8 @@ export const GamePage = () => {
   };
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
-  if (overview.isError)
+  // The last data stay when a refresh fails; the error is the page only without any.
+  if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, locations } = overview.data;
 

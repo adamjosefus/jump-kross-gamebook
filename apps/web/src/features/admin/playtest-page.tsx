@@ -139,12 +139,14 @@ const encodeMove = (move: Move | undefined) =>
         ? `s${move.scan}`
         : `q${move.code}`;
 
-const decodeMove = (token: string): Move | undefined => {
+/** `undefined` is the skipped login; a token nobody wrote is `invalid`, not a move. */
+const decodeMove = (token: string): Move | undefined | 'invalid' => {
   const rest = token.slice(1);
-  if (token.startsWith('c')) return { choice: Number(rest) };
-  if (token.startsWith('s')) return { scan: Number(rest) };
-  if (token.startsWith('q')) return { code: rest };
-  return undefined;
+  if (token === 'x') return undefined;
+  if (token.startsWith('c') && /^\d+$/.test(rest)) return { choice: Number(rest) };
+  if (token.startsWith('s') && /^\d+$/.test(rest)) return { scan: Number(rest) };
+  if (token.startsWith('q') && rest !== '') return { code: rest };
+  return 'invalid';
 };
 
 /** How the path shows the move from `from`. */
@@ -182,7 +184,14 @@ const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
 const replaySteps = async (from: Step, tokens: readonly string[]): Promise<readonly Step[]> => {
   const [token, ...rest] = tokens;
   if (token === undefined) return [];
-  const next = await playFrom(from, decodeMove(token)).catch((error: unknown) => {
+  const move = decodeMove(token);
+  // A mistyped token, or a skipped login after the intro, would otherwise replay as a skipped
+  // login and the rest of the path would go on from a wrong place.
+  if (move === 'invalid' || (move === undefined && from.intro !== true)) {
+    toast.error(`Cestu z adresy nešlo celou přehrát: krok „${token}“ není tah.`);
+    return [];
+  }
+  const next = await playFrom(from, move).catch((error: unknown) => {
     toast.error(`Cestu z adresy nešlo celou přehrát: ${errorMessage(error)}`);
     return undefined;
   });
@@ -475,7 +484,15 @@ export const PlaytestPage = () => {
             busy={play.isPending}
             onCode={(code, done) => {
               if (current !== undefined)
-                play.mutate({ from: current, move: { code } }, { onSuccess: done });
+                play.mutate(
+                  { from: current, move: { code } },
+                  {
+                    onSuccess: (next) => {
+                      advance(next);
+                      done();
+                    },
+                  },
+                );
             }}
           />
           {current?.intro === true ? (

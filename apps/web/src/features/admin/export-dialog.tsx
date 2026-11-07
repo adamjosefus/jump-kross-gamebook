@@ -50,6 +50,14 @@ const SIDES: readonly Option<ViewerSide>[] = [
 
 const isSide = (value: string): value is ViewerSide => SIDES.some((side) => side.value === value);
 
+/** The viewer's side in a file name. */
+const SIDE_SLUG: Readonly<Record<ViewerSide, string>> = {
+  bottom: 'zdola',
+  top: 'shora',
+  left: 'zleva',
+  right: 'zprava',
+} as const;
+
 const MAX_DISTANCE = 20;
 
 const NOISE_SHAPES: readonly Option<NoiseShape>[] = [
@@ -159,7 +167,9 @@ export const ExportDialog = ({
   const suffix = [
     noise !== undefined && `sum-${noise.shape === 'circle' ? 'kruh' : 'ctverec'}-${noise.width}`,
     style !== undefined && quietZone !== QUIET_ZONE && `okraj-${quietZone}`,
-    effective.angle > 0 && `zkresleni-${effective.angle}`,
+    // The side and the distance change the picture as much as the angle does.
+    effective.angle > 0 &&
+      `zkresleni-${effective.angle}-${SIDE_SLUG[view.side]}-${String(effective.distance).replace('.', '_')}x`,
     view.mirrorX && 'zrcadlo-vodorovne',
     view.mirrorY && 'zrcadlo-svisle',
   ]

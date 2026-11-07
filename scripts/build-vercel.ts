@@ -36,6 +36,9 @@ writeFileSync(
   JSON.stringify(
     {
       runtime: 'nodejs22.x',
+      // A new game resets every team in one transaction; well within this, and a hung database
+      // call does not run up to the platform's limit.
+      maxDuration: 30,
       handler: 'index.mjs',
       launcherType: 'Nodejs',
       shouldAddHelpers: false,

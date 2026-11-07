@@ -481,40 +481,49 @@ export const StoryGraph = ({
       ? undefined
       : { x: focusAt.x + NODE_WIDTH / 2, y: focusAt.y + NODE_HEIGHT / 2 };
 
+  // An edge to a node that does not exist (reported by `graphProblems`) is left out, like in
+  // `layout`; React Flow would log an error on every render otherwise.
   const edges = useMemo<RouteEdge[]>(
     () => [
       ...graph.order.flatMap((id) =>
-        graph.nodes[id]!.choices.map((choice, index): RouteEdge => {
+        graph.nodes[id]!.choices.flatMap((choice, index): readonly RouteEdge[] => {
+          if (!Object.hasOwn(graph.nodes, choice.target)) return [];
           const route = laidOut?.layout.edges.get(edgeId(id, index));
-          return {
-            id: edgeId(id, index),
-            type: 'route',
-            source: id,
-            target: choice.target,
-            markerEnd: ARROW_HEAD,
-            data: {
-              points: route?.points ?? [],
-              text: choice.label,
-              qr: choice.location !== undefined,
-              ...(route?.label === undefined ? {} : { label: route.label }),
-              // Paths the start never takes are dimmed.
-              dimmed: choice.available === false || !graph.nodes[id]!.reached,
+          return [
+            {
+              id: edgeId(id, index),
+              type: 'route',
+              source: id,
+              target: choice.target,
+              markerEnd: ARROW_HEAD,
+              data: {
+                points: route?.points ?? [],
+                text: choice.label,
+                qr: choice.location !== undefined,
+                ...(route?.label === undefined ? {} : { label: route.label }),
+                // Paths the start never takes are dimmed.
+                dimmed: choice.available === false || !graph.nodes[id]!.reached,
+              },
+              ...(choice.conditional ? { style: { strokeDasharray: '6 4' } } : {}),
             },
-            ...(choice.conditional ? { style: { strokeDasharray: '6 4' } } : {}),
-          };
+          ];
         }),
       ),
-      {
-        id: INITIAL_EDGE_ID,
-        type: 'route',
-        source: INITIAL_ID,
-        target: graph.introNode,
-        markerEnd: ARROW_HEAD,
-        data: {
-          points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
-          dimmed: false,
-        },
-      },
+      ...(Object.hasOwn(graph.nodes, graph.introNode)
+        ? [
+            {
+              id: INITIAL_EDGE_ID,
+              type: 'route',
+              source: INITIAL_ID,
+              target: graph.introNode,
+              markerEnd: ARROW_HEAD,
+              data: {
+                points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
+                dimmed: false,
+              },
+            } satisfies RouteEdge,
+          ]
+        : []),
       ...startsOf(graph).map((id): RouteEdge => {
         const route = laidOut?.layout.edges.get(loginEdgeId(id));
         return {

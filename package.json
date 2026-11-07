@@ -12,6 +12,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "storybook": "pnpm --filter @gamebook/web storybook",
+    "build-storybook": "pnpm --filter @gamebook/web build-storybook",
     "build:vercel": "pnpm build && node scripts/build-vercel.ts"
   },
   "devDependencies": {
