@@ -364,6 +364,9 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
   const used = new Set<string>();
   const reached = new Set<string>();
   const problems: string[] = [];
+  // Every pair played, with the pairs its choices lead to: the trap check walks them backwards.
+  const played = new Map<string, Visit>();
+  const edges = new Map<string, readonly string[]>();
   let truncated = false;
   // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
   for (const [explored, visit] of queue.entries()) {
@@ -378,6 +381,9 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
     reached.add(visit.node);
     problems.push(...result.problems);
     for (const key of result.used) used.add(key);
+    const from = visitKey(visit);
+    played.set(from, visit);
+    edges.set(from, result.next.map(visitKey));
     for (const next of result.next) {
       const key = visitKey(next);
       if (seen.has(key)) continue;
@@ -385,7 +391,51 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
       queue.push(next);
     }
   }
-  return { problems: collapseStates(problems), reached, used, truncated };
+  // Within the limit every pair was played, so what cannot reach the end from here never will.
+  const traps = truncated ? [] : trappedVisits(story, played, edges);
+  return {
+    problems: collapseStates([
+      ...problems,
+      ...traps.map(
+        ({ node, state }) =>
+          `Uzel ${node} je ve stavu ${show(state)} past: odtud se nedá dojít na konec ${story.outroNode}.`,
+      ),
+    ]),
+    reached,
+    used,
+    truncated,
+  };
+};
+
+/**
+ * Played pairs with a way on but no way to the end: the team keeps choosing and never finishes. A
+ * dead end (no way on) has its own problem, and when no pair reaches the end at all the end itself
+ * is reported as unreachable, so neither is a trap.
+ */
+const trappedVisits = (
+  story: Story,
+  played: ReadonlyMap<string, Visit>,
+  edges: ReadonlyMap<string, readonly string[]>,
+): readonly Visit[] => {
+  const incoming = new Map<string, string[]>();
+  for (const [from, targets] of edges)
+    for (const target of targets) incoming.set(target, [...(incoming.get(target) ?? []), from]);
+  // Breadth-first search backwards from the end: the set and the queue are filled in place.
+  const finishing = [...played.keys()].filter((key) => played.get(key)!.node === story.outroNode);
+  if (finishing.length === 0) return [];
+  const canFinish = new Set(finishing);
+  const queue = [...finishing];
+  // for...of reads the array's length on every step, so keys pushed while iterating are visited too.
+  for (const key of queue) {
+    for (const from of incoming.get(key) ?? []) {
+      if (canFinish.has(from)) continue;
+      canFinish.add(from);
+      queue.push(from);
+    }
+  }
+  return [...played]
+    .filter(([key]) => !canFinish.has(key) && (edges.get(key)?.length ?? 0) > 0)
+    .map(([, visit]) => visit);
 };
 
 /** Choices of a reached node that no reached state offers; a function's list has no fixed ones. */
@@ -423,8 +473,9 @@ const mergeTeamProblems = (
 
 /**
  * Mistakes the type checker cannot see. Plays every (node, state) pair each team can reach from the
- * start and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
- * blocks that throw, bad team and code numbers and two QR choices for one code.
+ * start and reports nodes nobody reaches, choices nobody can take, dead ends, traps (pairs from
+ * which the end cannot be reached any more), empty screens and labels, blocks that throw, bad team
+ * and code numbers and two QR choices for one code.
  */
 export const validateStory = (
   story: Story,

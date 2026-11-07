@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @gamebook/web dev",
     "build": "pnpm --filter @gamebook/web build",
     "test": "vitest run",
+    "test:story": "vitest run --project story",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
     "lint": "oxlint --type-aware --deny-warnings",

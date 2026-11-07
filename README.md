@@ -22,6 +22,7 @@ Organizers get an admin area with a graph of the whole story, a live view of whe
 pnpm install
 pnpm dev            # the app with the API at http://localhost:5173
 pnpm test           # vitest; the Postgres store runs on an embedded Postgres (PGlite)
+pnpm test:story     # only the story: every team can finish it from every reachable state
 pnpm typecheck
 pnpm lint
 pnpm format
