@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { api, errorMessage } from '@/lib/api';
 
+import { GameSwitch } from './game-switch';
 import { adminKeys, useOverview } from './queries';
 import { ResetDialog } from './reset-dialog';
 
@@ -58,7 +59,10 @@ const GameCard = ({ game }: { readonly game: GameInfo }) => {
             Spustit hru
           </Button>
         ) : (
-          <Badge>běží</Badge>
+          // A closed game keeps its start, but nobody plays until it opens again.
+          <Badge variant={game.closed ? 'destructive' : 'default'}>
+            {game.closed ? 'zavřená' : 'běží'}
+          </Badge>
         )}
       </CardHeader>
     </Card>
@@ -66,8 +70,9 @@ const GameCard = ({ game }: { readonly game: GameInfo }) => {
 };
 
 /**
- * The game's start, its teams and QR codes, the latter two from the story. The admin starts the
- * game and puts teams back on the start: one team, or every team for a new game.
+ * The game's start, whether it is open, its teams and QR codes, the latter two from the story. The
+ * admin starts the game, closes and opens it, and puts teams back on the start: one team, or every
+ * team for a new game.
  */
 export const GamePage = () => {
   const overview = useOverview();
@@ -88,6 +93,8 @@ export const GamePage = () => {
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
       <GameCard game={game} />
+      <GameSwitch game={game} />
+
       <Card>
         <CardHeader className='flex flex-row items-start justify-between gap-4'>
           <div className='flex flex-col gap-1.5'>

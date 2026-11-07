@@ -73,6 +73,7 @@ describe('api', () => {
 
   it('shows the intro to anyone', async () => {
     expect((await device()('GET', '/api/player/intro')).body).toEqual({
+      closed: false,
       screens: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
     });
   });
@@ -317,7 +318,7 @@ describe('api', () => {
     ]);
     // The game is not started any more: the phones are logged out and cannot log in until the
     // organisers start it again.
-    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({ closed: false });
     expect((await phone('GET', '/api/player/state')).status).toBe(401);
     expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(409);
     await admin('POST', '/api/admin/game/start');
@@ -332,7 +333,7 @@ describe('game start', () => {
     await admin('POST', '/api/admin/login', { password: config.adminPassword });
     const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const phone = device(fresh.handler);
-    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({ closed: false });
     const early = await phone('POST', '/api/player/login', { code: vlci });
     expect(early).toMatchObject({ status: 409, body: { _tag: 'GameNotStarted' } });
     expect((await admin('GET', '/api/admin/overview')).body.teams[0].startedAt).toBeUndefined();
@@ -436,6 +437,170 @@ describe('a state the game cannot hold', () => {
   });
 });
 
+describe('closed game', () => {
+  it('lets nobody play while closed and lists the logged-in devices', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    const phone = device(fresh.handler, {
+      'x-forwarded-for': '203.0.113.7, 10.0.0.1',
+      'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1',
+    });
+    const started = await phone('POST', '/api/player/login', { code: login });
+    expect(started.status).toBe(200);
+
+    expect((await admin('GET', '/api/admin/overview')).body.game).toMatchObject({
+      closed: false,
+      startedAt: expect.any(String),
+    });
+    const before = (await admin('GET', '/api/admin/devices')).body;
+    expect(before.bans).toEqual([]);
+    expect(before.devices).toMatchObject([
+      {
+        teamId: 1,
+        teamName: 'Vlci',
+        active: true,
+        ip: '203.0.113.7',
+        userAgent: expect.stringContaining('iPhone'),
+      },
+    ]);
+    // The device stands for its session without revealing the cookie.
+    expect(before.devices[0].id).toMatch(/^[0-9a-f]{12}$/);
+    expect(phone.jar.get('gb_session')).not.toContain(before.devices[0].id);
+
+    const closed = await admin('POST', '/api/admin/game/closed', { closed: true });
+    expect(closed.body).toMatchObject({ closed: true, closedChangedAt: expect.any(String) });
+    expect((await device(fresh.handler)('GET', '/api/player/intro')).body.closed).toBe(true);
+
+    // A logged-in device stays logged in but sees no node and cannot move.
+    const state = (await phone('GET', '/api/player/state')).body;
+    expect(state).toMatchObject({ status: 'closed', step: started.body.step });
+    expect(state.node).toBeUndefined();
+    const scan = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedStep: started.body.step,
+    });
+    expect(scan).toMatchObject({ status: 423, body: { _tag: 'GameClosed' } });
+    expect(
+      (await phone('POST', '/api/player/choose', { index: 0, expectedStep: started.body.step }))
+        .status,
+    ).toBe(423);
+    // A new device cannot log in, but a wrong code is still named as such.
+    const tablet = device(fresh.handler);
+    expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(423);
+    expect((await tablet('POST', '/api/player/login', { code: studna })).status).toBe(400);
+    // The admin's test run goes on.
+    expect((await admin('POST', '/api/admin/playtest', {})).status).toBe(200);
+
+    await admin('POST', '/api/admin/game/closed', { closed: false });
+    const reopened = (await phone('GET', '/api/player/state')).body;
+    expect(reopened).toMatchObject({ status: 'playing', node: { id: 'A1' } });
+    expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(200);
+    expect((await admin('GET', '/api/admin/devices')).body.devices).toHaveLength(2);
+    await fresh.dispose();
+  });
+});
+
+describe('devices from the admin', () => {
+  it('logs a device out, bans one and unbans it', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const other = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    type Listed = readonly { readonly id: string; readonly bannable: boolean }[];
+    const devices = async (): Promise<Listed> =>
+      (await admin('GET', '/api/admin/devices')).body.devices;
+    const phone = device(fresh.handler);
+    const tablet = device(fresh.handler);
+    // Each device is told apart by logging in one at a time, not by the order of the list.
+    await phone('POST', '/api/player/login', { code: login });
+    const [phoneDevice] = await devices();
+    await tablet('POST', '/api/player/login', { code: login });
+    const tabletDevice = (await devices()).find(({ id }) => id !== phoneDevice!.id);
+    expect([phoneDevice?.bannable, tabletDevice?.bannable]).toEqual([true, true]);
+    // Every device gets its own id that outlives the session.
+    expect(phone.jar.get('gb_device')).toMatch(/^[0-9a-f-]{36}$/);
+    expect(phone.jar.get('gb_device')).not.toBe(tablet.jar.get('gb_device'));
+
+    expect((await admin('POST', '/api/admin/devices/nobody/logout')).status).toBe(404);
+    expect((await admin('POST', `/api/admin/devices/${phoneDevice!.id}/logout`)).status).toBe(204);
+    expect((await phone('GET', '/api/player/state')).status).toBe(401);
+    expect(await devices()).toHaveLength(1);
+    // A logged-out device logs in again, with the same id.
+    const deviceCookie = phone.jar.get('gb_device');
+    expect((await phone('POST', '/api/player/login', { code: login })).status).toBe(200);
+    expect(phone.jar.get('gb_device')).toBe(deviceCookie);
+
+    expect((await admin('POST', `/api/admin/devices/${tabletDevice!.id}/ban`)).status).toBe(204);
+    expect((await tablet('GET', '/api/player/state')).status).toBe(401);
+    // Banned, the device logs in to no team.
+    const refused = await tablet('POST', '/api/player/login', { code: other });
+    expect(refused).toMatchObject({ status: 403, body: { _tag: 'DeviceBanned' } });
+    expect((await phone('GET', '/api/player/state')).status).toBe(200);
+    const overview = (await admin('GET', '/api/admin/devices')).body;
+    expect(overview.devices).toHaveLength(1);
+    expect(overview.bans).toMatchObject([{ teamId: 1, teamName: 'Vlci' }]);
+    expect(overview.bans[0].id).toMatch(/^[0-9a-f]{12}$/);
+
+    expect((await admin('POST', `/api/admin/bans/${overview.bans[0].id}/remove`)).status).toBe(204);
+    expect((await admin('POST', `/api/admin/bans/${overview.bans[0].id}/remove`)).status).toBe(404);
+    expect((await tablet('POST', '/api/player/login', { code: other })).status).toBe(200);
+    await fresh.dispose();
+  });
+
+  it('gives a device that sends a foreign id its own, so it can be banned', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const forged = device(fresh.handler, {}, new Map([['gb_device', 'x']]));
+    const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    expect((await forged('POST', '/api/player/login', { code: login })).status).toBe(200);
+    expect(forged.jar.get('gb_device')).toMatch(/^[0-9a-f-]{36}$/);
+    const [listed] = (await admin('GET', '/api/admin/devices')).body.devices;
+    expect(listed.bannable).toBe(true);
+    await fresh.dispose();
+  });
+
+  it('refuses a session that slipped in while its device was being banned', async () => {
+    const store = makeMemoryStore();
+    const old = new Date(Date.now() - 60_000);
+    await Effect.runPromise(store.ensureTeam(1));
+    const client = { ip: undefined, userAgent: undefined, deviceId: 'device-late' };
+    await Effect.runPromise(
+      store.banDevice({ deviceId: 'device-late', teamId: 1, ip: undefined, userAgent: undefined }),
+    );
+    // The login checked the ban before it existed and creates its session only now.
+    await Effect.runPromise(store.createSession('late', 1, client));
+    expect(await Effect.runPromise(store.touchSession('late', old))).toBeUndefined();
+  });
+
+  it('says why a device from before the device ids cannot be banned', async () => {
+    const data = emptyMemoryData();
+    const fresh = makeHandler(config, MemoryStoreLayer(data), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const phone = device(fresh.handler);
+    await phone('POST', '/api/player/login', {
+      code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
+    });
+    // As if the session had been created before the device cookie existed.
+    for (const [id, session] of data.sessions)
+      data.sessions.set(id, { ...session, deviceId: undefined });
+    const [listed] = (await admin('GET', '/api/admin/devices')).body.devices;
+    expect(listed.bannable).toBe(false);
+    const refused = await admin('POST', `/api/admin/devices/${listed.id}/ban`);
+    expect(refused).toMatchObject({ status: 409, body: { _tag: 'DeviceNotBannable' } });
+    await fresh.dispose();
+  });
+});
+
 describe('admin password', () => {
   it('locks an address out after repeated wrong passwords and lets the right one in', async () => {
     const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
@@ -487,7 +652,10 @@ describe('memory data', () => {
     };
     const before = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
     const response = await login(before.handler);
-    const cookie = response.headers.getSetCookie()[0]!.split(';')[0]!;
+    const cookie = response.headers
+      .getSetCookie()
+      .find((header) => header.startsWith('gb_session='))!
+      .split(';')[0]!;
     await before.handler(
       new Request('http://localhost/api/player/choose', {
         method: 'POST',
@@ -519,7 +687,10 @@ describe('player session', () => {
         body: JSON.stringify({ code }),
       }),
     );
-    const [cookie, ...attributes] = response.headers.getSetCookie()[0]!.split('; ');
+    const [cookie, ...attributes] = response.headers
+      .getSetCookie()
+      .find((header) => header.startsWith('gb_session='))!
+      .split('; ');
     expect(attributes).toContain(`Max-Age=${2 * 24 * 60 * 60}`);
     const state = () =>
       send(new Request('http://localhost/api/player/state', { headers: { cookie: cookie! } }));
@@ -589,6 +760,13 @@ describe('server failures', () => {
       touchSession: fail,
       deleteSession: fail,
       activeDevices: fail,
+      listSessions: fail,
+      gameSettings: fail,
+      setGameClosed: fail,
+      banDevice: fail,
+      unbanDevice: fail,
+      isBanned: fail,
+      listBans: fail,
       adminFailures: fail,
       recordAdminFailure: fail,
       clearAdminFailures: fail,

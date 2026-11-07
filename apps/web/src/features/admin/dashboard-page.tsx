@@ -8,12 +8,14 @@ import {
   IconCopy,
   IconHistory,
   IconLoader2,
+  IconLock,
   IconPin,
   IconPinnedOff,
   IconRotate,
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -40,6 +42,7 @@ import { StoryGraph } from '@/features/story/story-graph';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
+import { timeAgo } from './format';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
@@ -51,13 +54,6 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
-
-const timeAgo = (iso: string) => {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  if (seconds < 60) return `před ${seconds} s`;
-  if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
-  return new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-};
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
@@ -251,7 +247,11 @@ export const DashboardPage = () => {
 
   return (
     <div className='relative h-full'>
-      {overview.isError && <StaleBar at={overview.dataUpdatedAt} error={overview.error} />}
+      {overview.isError ? (
+        <StaleBar at={overview.dataUpdatedAt} error={overview.error} />
+      ) : (
+        overview.data.game.closed && <ClosedBar />
+      )}
       {graph === undefined ? (
         <IconLoader2 className='m-8 size-6 animate-spin' />
       ) : (
@@ -378,6 +378,20 @@ export const DashboardPage = () => {
     </div>
   );
 };
+
+/** The admin closed the game; it is opened again on the page Hra. */
+const ClosedBar = () => (
+  <div
+    role='status'
+    className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
+  >
+    <IconLock className='size-4 shrink-0' />
+    Hra je zavřená, týmy teď nemohou hrát.
+    <Link to='/admin/game' className='underline underline-offset-2'>
+      Otevřít na stránce Hra
+    </Link>
+  </div>
+);
 
 /** The last poll failed: what is shown is from `at`. */
 const StaleBar = ({ at, error }: { readonly at: number; readonly error: unknown }) => (

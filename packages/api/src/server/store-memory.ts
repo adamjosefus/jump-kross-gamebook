@@ -3,17 +3,14 @@ import { Effect, Layer } from 'effect';
 import {
   Store,
   type AdminFailures,
+  type BanRow,
+  type GameSettingsRow,
   type LogRow,
   type ReadingRow,
+  type SessionRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
-
-interface SessionRow {
-  readonly teamId: number;
-  readonly createdAt: Date;
-  readonly lastSeenAt: Date;
-}
 
 /** How many times each key occurs. */
 const countBy = <K>(keys: readonly K[]): ReadonlyMap<K, number> =>
@@ -30,23 +27,27 @@ export interface MemoryData {
   readonly teams: Map<number, TeamRow>;
   readonly sessions: Map<string, SessionRow>;
   readonly adminFailures: Map<string, AdminFailures>;
+  readonly bans: Map<string, BanRow>;
   log: readonly LogRow[];
   reading: readonly ReadingRow[];
   gameStartedAt: Date | undefined;
+  settings: GameSettingsRow;
 }
 
 export const emptyMemoryData = (): MemoryData => ({
   teams: new Map(),
   sessions: new Map(),
   adminFailures: new Map(),
+  bans: new Map(),
   log: [],
   reading: [],
   gameStartedAt: undefined,
+  settings: { closed: false, changedAt: undefined },
 });
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
-  const { teams, sessions, adminFailures } = data;
+  const { teams, sessions, adminFailures, bans } = data;
 
   const ensure = (id: number): TeamRow => {
     const existing = teams.get(id);
@@ -138,16 +139,18 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       }),
     listReading: () => Effect.sync(() => data.reading),
 
-    createSession: (id, teamId) =>
+    createSession: (id, teamId, client) =>
       Effect.sync(() => {
         const now = new Date();
-        sessions.set(id, { teamId, createdAt: now, lastSeenAt: now });
+        sessions.set(id, { id, teamId, createdAt: now, lastSeenAt: now, ...client });
       }),
     touchSession: (id, createdAfter) =>
       Effect.sync(() => {
         const session = sessions.get(id);
         if (session === undefined || !teams.has(session.teamId)) return undefined;
         if (session.createdAt <= createdAfter) return undefined;
+        // A session that slipped in while its device was being banned is refused too.
+        if (session.deviceId !== undefined && bans.has(session.deviceId)) return undefined;
         sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),
@@ -160,6 +163,34 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             .map((session) => session.teamId),
         ),
       ),
+    listSessions: (createdAfter) =>
+      Effect.sync(() =>
+        [...sessions.values()]
+          .filter((session) => session.createdAt > createdAfter && teams.has(session.teamId))
+          .toSorted((first, second) => second.lastSeenAt.getTime() - first.lastSeenAt.getTime()),
+      ),
+
+    banDevice: (ban) =>
+      Effect.sync(() => {
+        if (!bans.has(ban.deviceId)) bans.set(ban.deviceId, { ...ban, bannedAt: new Date() });
+        for (const [id, session] of sessions)
+          if (session.deviceId === ban.deviceId) sessions.delete(id);
+      }),
+    unbanDevice: (deviceId) => Effect.sync(() => void bans.delete(deviceId)),
+    isBanned: (deviceId) => Effect.sync(() => bans.has(deviceId)),
+    listBans: () =>
+      Effect.sync(() =>
+        [...bans.values()].toSorted(
+          (first, second) => second.bannedAt.getTime() - first.bannedAt.getTime(),
+        ),
+      ),
+
+    gameSettings: () => Effect.sync(() => data.settings),
+    setGameClosed: (closed) =>
+      Effect.sync(() => {
+        data.settings = { closed, changedAt: new Date() };
+        return data.settings;
+      }),
 
     adminFailures: (key) => Effect.sync(() => adminFailures.get(key)),
     recordAdminFailure: (key) =>

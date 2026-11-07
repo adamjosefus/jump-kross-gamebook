@@ -7,21 +7,20 @@ import {
   AdminSessionCookie,
   Api,
   CurrentTeam,
+  DeviceCookie,
   PlayerAuth,
   PlayerSessionCookie,
   Unauthorized,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
-import { Game } from './game.ts';
+import { Game, isDeviceId, PLAYER_SESSION_TTL_MS } from './game.ts';
 import { Store } from './store.ts';
 import { ADMIN_MAX_AGE, createAdminToken, secretsEqual, verifyAdminToken } from './tokens.ts';
 
-/**
- * A team plays within a day or two; after that the phone has to scan the team code again. The
- * cookie expires then and the server refuses the session too, even when the cookie was kept.
- */
-const PLAYER_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 const PLAYER_MAX_AGE = `${PLAYER_SESSION_TTL_MS / 1000} seconds` as const;
+
+/** The device's own cookie outlives every game it plays, so a ban outlives the session. */
+const DEVICE_MAX_AGE = `${365 * 24 * 60 * 60} seconds` as const;
 
 /** Store failures are bugs or outages, not API errors: they surface as 500s. */
 const orDie = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effect<A, E, R>) =>
@@ -101,9 +100,25 @@ const PlayerHandlers = HttpApiBuilder.group(
     const store = yield* Store;
     const cookie = cookieOptions(yield* ServerConfig);
     return handlers.handleAll({
-      intro: () => Effect.succeed(game.intro),
+      intro: () => orDie(game.intro()),
       login: Effect.fn(function* ({ payload }) {
-        const { sessionId, view } = yield* orDie(game.login(payload.code));
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        const key = clientKey(request);
+        // A device without its own id (or with one this server did not give) gets one now; it is
+        // renewed with every login.
+        const sent = request.cookies[DeviceCookie.key];
+        const deviceId = isDeviceId(sent) ? sent : crypto.randomUUID();
+        yield* HttpApiBuilder.securitySetCookie(DeviceCookie, deviceId, {
+          ...cookie,
+          maxAge: DEVICE_MAX_AGE,
+        });
+        const { sessionId, view } = yield* orDie(
+          game.login(payload.code, {
+            ip: key === 'unknown' ? undefined : key,
+            userAgent: request.headers['user-agent'],
+            deviceId,
+          }),
+        );
         yield* HttpApiBuilder.securitySetCookie(PlayerSessionCookie, sessionId, {
           ...cookie,
           maxAge: PLAYER_MAX_AGE,
@@ -177,6 +192,11 @@ const AdminHandlers = HttpApiBuilder.group(
       playtest: ({ payload }) => game.playtest(payload),
       overview: () => orDie(game.overview()),
       startGame: () => orDie(game.startGame()),
+      setClosed: ({ payload }) => orDie(game.setClosed(payload.closed)),
+      devices: () => orDie(game.devices()),
+      logoutDevice: ({ params }) => orDie(game.logoutDevice(params.id)),
+      banDevice: ({ params }) => orDie(game.banDevice(params.id)),
+      unbanDevice: ({ params }) => orDie(game.unbanDevice(params.id)),
       resetAll: () => orDie(game.resetAll()),
       resetTeam: ({ params }) => orDie(game.resetTeam(params.id)),
       moveTeam: ({ params, payload }) =>

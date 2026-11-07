@@ -17,6 +17,7 @@ import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
 
 const STATE_KEY = ['player', 'state'] as const;
+const INTRO_KEY = ['player', 'intro'] as const;
 
 /** Polling keeps every device of a team on the same node; slower while the team walks to a code. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
@@ -24,6 +25,11 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
+
+/** While the admin keeps the game closed, the device asks now and then whether it opened. */
+const CLOSED_POLL_MS = 15_000;
+
+const CLOSED_TEXT = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -61,9 +67,16 @@ export const PlayerPage = () => {
   };
   const onError = (error: unknown) => {
     playerToast.error(errorMessage(error));
-    if (isApiError(error, 'StepConflict') || isApiError(error, 'InvalidMove')) {
+    if (
+      isApiError(error, 'StepConflict') ||
+      isApiError(error, 'InvalidMove') ||
+      isApiError(error, 'GameClosed')
+    ) {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
+    // The intro shows the closed game in place of the scanner.
+    if (isApiError(error, 'GameClosed'))
+      void queryClient.invalidateQueries({ queryKey: INTRO_KEY });
   };
 
   const onLogin = (next: PlayerView) => {
@@ -172,6 +185,12 @@ export const PlayerPage = () => {
           initialIndex={search.step === undefined ? (search.screen ?? 0) : 0}
           onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
         />
+      ) : view.status === 'closed' ? (
+        <PlayerFrame aside={aside}>
+          <Centered>
+            <p className='text-center text-balance'>{CLOSED_TEXT}</p>
+          </Centered>
+        </PlayerFrame>
       ) : view.status === 'not-ready' || view.node === undefined ? (
         <PlayerFrame aside={aside}>
           <Centered>
@@ -262,9 +281,11 @@ const Intro = ({
   readonly onIndexChange: (index: number) => void;
 }) => {
   const intro = useQuery({
-    queryKey: ['player', 'intro'],
+    queryKey: INTRO_KEY,
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
+    // The story changes only with a deploy; only a closed game is asked again, until it opens.
     staleTime: Infinity,
+    refetchInterval: (query) => (query.state.data?.closed === true ? CLOSED_POLL_MS : false),
   });
   if (intro.isPending)
     return (
@@ -282,9 +303,18 @@ const Intro = ({
         </Centered>
       </PlayerFrame>
     );
+  const { closed, ...content } = intro.data;
+  if (closed)
+    return (
+      <PlayerFrame lead={APP_VERSION}>
+        <Centered>
+          <p className='text-center text-balance'>{CLOSED_TEXT}</p>
+        </Centered>
+      </PlayerFrame>
+    );
   return (
     <NodeScreens
-      node={{ ...intro.data, id: 'intro', type: 'passage', choices: [], scan: true }}
+      node={{ ...content, id: 'intro', type: 'passage', choices: [], scan: true }}
       step={0}
       visitScope='intro'
       busy={busy}

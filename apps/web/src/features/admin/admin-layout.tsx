@@ -16,6 +16,7 @@ const NAV = [
   { to: '/admin/playtest', label: 'Test' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Živě' },
+  { to: '/admin/devices', label: 'Zařízení' },
   { to: '/admin/qr-codes', label: 'QR kódy' },
 ] as const;
 

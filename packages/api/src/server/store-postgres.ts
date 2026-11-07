@@ -7,8 +7,11 @@ import {
   Store,
   StoreError,
   type AdminFailures,
+  type BanRow,
+  type GameSettingsRow,
   type LogRow,
   type ReadingRow,
+  type SessionRow,
   type TeamRow,
 } from './store.ts';
 
@@ -99,6 +102,32 @@ const toLog = (row: Row): LogRow => ({
 const toFailures = (row: Row): AdminFailures => ({
   failures: Number(row['failures']),
   lastAt: timestamp(row['last_at']),
+});
+
+const toSession = (row: Row): SessionRow => ({
+  id: text(row['id']),
+  teamId: Number(row['team_id']),
+  createdAt: timestamp(row['created_at']),
+  lastSeenAt: timestamp(row['last_seen_at']),
+  ip: optionalText(row['ip']),
+  userAgent: optionalText(row['user_agent']),
+  deviceId: optionalText(row['device_id']),
+});
+
+const toBan = (row: Row): BanRow => ({
+  deviceId: text(row['device_id']),
+  teamId: Number(row['team_id']),
+  ip: optionalText(row['ip']),
+  userAgent: optionalText(row['user_agent']),
+  bannedAt: timestamp(row['banned_at']),
+});
+
+const toSettings = (row: Row | undefined): GameSettingsRow => ({
+  closed: row?.['closed'] === true,
+  changedAt:
+    row === undefined || row['closed_changed_at'] === null
+      ? undefined
+      : timestamp(row['closed_changed_at']),
 });
 
 const toReading = (row: Row): ReadingRow => ({
@@ -242,10 +271,12 @@ export const makePostgresStore = (client: SqlClient) => {
     listReading: () =>
       query(async () => (await run(sql`select * from reading order by id`)).map(toReading)),
 
-    createSession: (id, teamId) =>
+    createSession: (id, teamId, { ip, userAgent, deviceId }) =>
       query(
         async () =>
-          void (await run(sql`insert into session (id, team_id) values (${id}, ${teamId})`)),
+          void (await run(sql`
+            insert into session (id, team_id, ip, user_agent, device_id)
+            values (${id}, ${teamId}, ${ip ?? null}, ${userAgent ?? null}, ${deviceId ?? null})`)),
       ),
     touchSession: (id, createdAfter) =>
       query(async () => {
@@ -257,7 +288,8 @@ export const makePostgresStore = (client: SqlClient) => {
               and last_seen_at < now() - interval '30 seconds'
           )
           select team_id from session
-          where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz`);
+          where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz
+            and not exists (select 1 from device_ban where device_ban.device_id = session.device_id)`);
         return row === undefined ? undefined : Number(row['team_id']);
       }),
     deleteSession: (id) =>
@@ -268,6 +300,53 @@ export const makePostgresStore = (client: SqlClient) => {
           select team_id, count(*)::int as devices from session
           where last_seen_at >= ${since.toISOString()}::timestamptz group by team_id`);
         return new Map(rows.map((row) => [Number(row['team_id']), Number(row['devices'])]));
+      }),
+    listSessions: (createdAfter) =>
+      query(async () =>
+        (
+          await run(sql`
+            select * from session where created_at > ${createdAfter.toISOString()}::timestamptz
+            order by last_seen_at desc, created_at desc`)
+        ).map(toSession),
+      ),
+
+    banDevice: ({ deviceId, teamId, ip, userAgent }) =>
+      query(() =>
+        transaction([
+          sql`
+            insert into device_ban (device_id, team_id, ip, user_agent)
+            values (${deviceId}, ${teamId}, ${ip ?? null}, ${userAgent ?? null})
+            on conflict (device_id) do nothing`,
+          sql`delete from session where device_id = ${deviceId}`,
+        ]),
+      ),
+    unbanDevice: (deviceId) =>
+      query(
+        async () => void (await run(sql`delete from device_ban where device_id = ${deviceId}`)),
+      ),
+    isBanned: (deviceId) =>
+      query(
+        async () =>
+          (await run(sql`select 1 from device_ban where device_id = ${deviceId}`)).length > 0,
+      ),
+    listBans: () =>
+      query(async () =>
+        (await run(sql`select * from device_ban order by banned_at desc`)).map(toBan),
+      ),
+
+    gameSettings: () =>
+      query(async () => {
+        const [row] = await run(sql`select closed, closed_changed_at from game where id = 1`);
+        return toSettings(row);
+      }),
+    setGameClosed: (closed) =>
+      query(async () => {
+        const [row] = await run(sql`
+          insert into game (id, closed, closed_changed_at) values (1, ${closed}, now())
+          on conflict (id) do update
+            set closed = excluded.closed, closed_changed_at = excluded.closed_changed_at
+          returning closed, closed_changed_at`);
+        return toSettings(row);
       }),
 
     adminFailures: (key) =>

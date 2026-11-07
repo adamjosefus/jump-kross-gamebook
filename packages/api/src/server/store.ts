@@ -34,6 +34,43 @@ export interface ReadingRow {
   readonly endedAt: Date;
 }
 
+/** A device logged in to a team, as the admin sees it. */
+export interface SessionRow {
+  /** The session's id, which is also the device's cookie; never shown as it is. */
+  readonly id: string;
+  readonly teamId: number;
+  readonly createdAt: Date;
+  readonly lastSeenAt: Date;
+  /** The device's address at the login, as the proxy reported it. */
+  readonly ip: string | undefined;
+  readonly userAgent: string | undefined;
+  /** The device's own cookie, which outlives its sessions; undefined for older sessions. */
+  readonly deviceId: string | undefined;
+}
+
+/** What the device told about itself when it logged in. */
+export interface SessionClient {
+  readonly ip: string | undefined;
+  readonly userAgent: string | undefined;
+  readonly deviceId: string | undefined;
+}
+
+/** A device the admin banned; it cannot log in again until it is unbanned. */
+export interface BanRow {
+  readonly deviceId: string;
+  readonly teamId: number;
+  readonly ip: string | undefined;
+  readonly userAgent: string | undefined;
+  readonly bannedAt: Date;
+}
+
+/** Whether teams can play; the admin closes the game before it starts or after it ends. */
+export interface GameSettingsRow {
+  readonly closed: boolean;
+  /** The last time the admin opened or closed the game; undefined when it never happened. */
+  readonly changedAt: Date | undefined;
+}
+
 export interface AdminFailures {
   readonly failures: number;
   readonly lastAt: Date;
@@ -92,10 +129,14 @@ export interface StoreShape {
   readonly addReading: (rows: readonly ReadingRow[]) => Effect.Effect<void, StoreError>;
   readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;
 
-  readonly createSession: (id: string, teamId: number) => Effect.Effect<void, StoreError>;
+  readonly createSession: (
+    id: string,
+    teamId: number,
+    client: SessionClient,
+  ) => Effect.Effect<void, StoreError>;
   /**
    * Resolves a session created after `createdAfter` and records that the device is alive; an
-   * older session resolves to undefined.
+   * older session, or one of a banned device, resolves to undefined.
    */
   readonly touchSession: (
     id: string,
@@ -104,6 +145,18 @@ export interface StoreShape {
   readonly deleteSession: (id: string) => Effect.Effect<void, StoreError>;
   /** Devices seen since `since`, per team. */
   readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;
+  /** Sessions created after `createdAfter`, the most recently seen first. */
+  readonly listSessions: (createdAfter: Date) => Effect.Effect<readonly SessionRow[], StoreError>;
+
+  /** Bans the device and ends every session of it, in one go. */
+  readonly banDevice: (ban: Omit<BanRow, 'bannedAt'>) => Effect.Effect<void, StoreError>;
+  readonly unbanDevice: (deviceId: string) => Effect.Effect<void, StoreError>;
+  readonly isBanned: (deviceId: string) => Effect.Effect<boolean, StoreError>;
+  /** The most recent ban first. */
+  readonly listBans: () => Effect.Effect<readonly BanRow[], StoreError>;
+
+  readonly gameSettings: () => Effect.Effect<GameSettingsRow, StoreError>;
+  readonly setGameClosed: (closed: boolean) => Effect.Effect<GameSettingsRow, StoreError>;
 
   /** Failed admin logins from `key` (the client's address) since the last success. */
   readonly adminFailures: (key: string) => Effect.Effect<AdminFailures | undefined, StoreError>;

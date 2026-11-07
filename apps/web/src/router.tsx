@@ -83,6 +83,11 @@ const dashboard = createRoute({
   path: '/dashboard',
   component: lazyRouteComponent(() => import('@/features/admin/dashboard-page'), 'DashboardPage'),
 });
+const devices = createRoute({
+  getParentRoute: () => admin,
+  path: '/devices',
+  component: lazyRouteComponent(() => import('@/features/admin/devices-page'), 'DevicesPage'),
+});
 const print = createRoute({
   getParentRoute: () => admin,
   path: '/qr-codes',
@@ -106,7 +111,7 @@ const Crashed = ({ error }: { readonly error: unknown }) => {
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
-    admin.addChildren([adminIndex, story, playtest, game, dashboard, print]),
+    admin.addChildren([adminIndex, story, playtest, game, dashboard, devices, print]),
   ]),
   defaultErrorComponent: Crashed,
 });

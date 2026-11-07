@@ -20,12 +20,18 @@ import type { State } from '@gamebook/core';
 import { Context, Effect, Layer } from 'effect';
 
 import {
+  DeviceBanned,
+  DeviceNotBannable,
+  GameClosed,
   GameNotStarted,
   InvalidCode,
   InvalidMove,
   InvalidState,
   NotFound,
   StepConflict,
+  type BannedDevice,
+  type Device,
+  type Devices,
   type GameInfo,
   type Overview,
   type PlaytestView,
@@ -35,7 +41,15 @@ import {
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
 import { readingTotals } from './reading.ts';
-import { Store, type TeamMove, type TeamRow } from './store.ts';
+import {
+  Store,
+  type BanRow,
+  type GameSettingsRow,
+  type SessionClient,
+  type SessionRow,
+  type TeamMove,
+  type TeamRow,
+} from './store.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
   'wrong-code': 'Tento kód vás teď nikam nevede.',
@@ -53,6 +67,58 @@ const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state',
 const reasonOf = (error: MoveError) => (error === 'wrong-code' ? 'wrong-location' : error);
 
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * A team plays within a day or two; after that the phone has to scan the team code again. The
+ * cookie expires then and the server refuses the session too, even when the cookie was kept.
+ */
+export const PLAYER_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+
+const CLOSED_MESSAGE = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
+const gameClosed = () => new GameClosed({ message: CLOSED_MESSAGE });
+
+const BANNED_MESSAGE = 'Toto zařízení organizátoři zablokovali. Pokud jde o omyl, ozvěte se jim.';
+
+/** Whether a device's cookie holds an id this server gave it (`crypto.randomUUID()`). */
+export const isDeviceId = (value: string | undefined): value is string =>
+  value !== undefined &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+
+/**
+ * How long an instance trusts the setting it read. Every poll and move of every phone needs it,
+ * so it is not read from the database each time; a change by the admin reaches the instance that
+ * made it at once and the others within this time.
+ */
+const SETTINGS_TTL_MS = 5000;
+
+/** The longest address and browser description kept of a device; both come from the client. */
+const MAX_IP_LENGTH = 64;
+const MAX_USER_AGENT_LENGTH = 400;
+
+const clip = (value: string | undefined, length: number) => {
+  const trimmed = value?.trim().slice(0, length);
+  return trimmed === '' ? undefined : trimmed;
+};
+
+/**
+ * What stands for a device or a ban in the admin: a short hash of the session or of the device's
+ * id. Both are cookies of the device, so they never leave the server as they are.
+ */
+const publicId = async (kind: 'session' | 'ban', secret: string) => {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${kind}:${secret}`)),
+  );
+  return Array.from(digest.slice(0, 6), (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
+/** The game as the admin sees it: its start and whether it is closed. */
+const gameInfo = (startedAt: Date | undefined, settings: GameSettingsRow): GameInfo => ({
+  ...(startedAt === undefined ? {} : { startedAt: startedAt.toISOString() }),
+  closed: settings.closed,
+  ...(settings.changedAt === undefined
+    ? {}
+    : { closedChangedAt: settings.changedAt.toISOString() }),
+});
 
 /**
  * The most one continuous view of a text counts for. A phone left unlocked on a text while the
@@ -84,7 +150,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     let cachedGraph: GameGraph | undefined;
     const graph = () => (cachedGraph ??= toGraph(story));
     const introNode = story.nodes[story.introNode];
-    const intro = {
+    const introContent = {
       screens: introScreens(story),
       ...(introNode?.scanTitle === undefined ? {} : { scanTitle: introNode.scanTitle }),
       ...(introNode?.scanText === undefined ? {} : { scanText: introNode.scanText }),
@@ -92,6 +158,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     // Before the login there is no team; these texts are written without one.
     const loginTexts = loginMessages(story, sampleTeam(story));
+
+    // The setting with the time it was read; kept between requests, so it is a `let`.
+    let cachedSettings: { readonly row: GameSettingsRow; readonly at: number } | undefined;
+    const gameSettings = Effect.fn('Game.gameSettings')(function* () {
+      const now = Date.now();
+      if (cachedSettings !== undefined && now - cachedSettings.at < SETTINGS_TTL_MS)
+        return cachedSettings.row;
+      const row = yield* store.gameSettings();
+      cachedSettings = { row, at: now };
+      return row;
+    });
 
     const teamName = (id: number) =>
       story.teams.find((team) => team.id === id)?.name ?? `Tým ${id}`;
@@ -155,8 +232,29 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* ensureStarted(team);
     });
 
+    /** What the players see before the login; it says whether the game is closed. */
+    const intro = Effect.fn('Game.intro')(function* () {
+      const { closed } = yield* gameSettings();
+      return { closed, ...introContent };
+    });
+
+    /** Fails when the admin closed the game. */
+    const requireOpen = Effect.fn('Game.requireOpen')(function* () {
+      const { closed } = yield* gameSettings();
+      if (closed) yield* gameClosed();
+    });
+
+    /** A closed game shows the team without its node; the devices keep polling until it opens. */
+    const closedView = (team: TeamRow): PlayerView => {
+      const { node: _node, ...rest } = view(team);
+      return { ...rest, status: 'closed' };
+    };
+
     const playerView = Effect.fn('Game.playerView')(function* (teamId: number) {
-      return view(yield* loadTeam(teamId));
+      const [team, settings] = yield* Effect.all([loadTeam(teamId), gameSettings()], {
+        concurrency: 'unbounded',
+      });
+      return settings.closed ? closedView(team) : view(team);
     });
 
     const commit = Effect.fn('Game.commit')(function* (
@@ -192,7 +290,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       teamId: number,
       expectedStep: number,
     ) {
-      const team = yield* loadTeam(teamId);
+      const [team] = yield* Effect.all([loadTeam(teamId), requireOpen()], {
+        concurrency: 'unbounded',
+      });
       if (team.step !== expectedStep)
         return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
       if (team.node === undefined) {
@@ -263,18 +363,29 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     /**
      * Any device joins a team by its code and continues where the team is. Only once the
-     * organisers started the game: the team's clock runs from its first login after that.
+     * organisers started the game, and while it is not closed: the team's clock runs from its
+     * first login after the start.
      */
-    const login = Effect.fn('Game.login')(function* (code: string) {
+    const login = Effect.fn('Game.login')(function* (code: string, client: SessionClient) {
       const { id } = yield* teamOf(code);
       if ((yield* store.gameStartedAt()) === undefined)
         return yield* new GameNotStarted({
           message: 'Hra ještě nezačala. Počkejte na pokyn organizátorů.',
         });
+      const deviceId = isDeviceId(client.deviceId) ? client.deviceId : undefined;
+      const [, banned] = yield* Effect.all(
+        [requireOpen(), deviceId === undefined ? Effect.succeed(false) : store.isBanned(deviceId)],
+        { concurrency: 'unbounded' },
+      );
+      if (banned) return yield* new DeviceBanned({ message: BANNED_MESSAGE });
       const team = yield* store.ensureTeam(id);
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
       const sessionId = crypto.randomUUID();
-      yield* store.createSession(sessionId, team.id);
+      yield* store.createSession(sessionId, team.id, {
+        ip: clip(client.ip, MAX_IP_LENGTH),
+        userAgent: clip(client.userAgent, MAX_USER_AGENT_LENGTH),
+        deviceId,
+      });
       return { sessionId, view: yield* playerView(team.id) };
     });
 
@@ -331,11 +442,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       readingMs,
     });
 
-    const gameInfo = (startedAt: Date | undefined): GameInfo =>
-      startedAt === undefined ? {} : { startedAt: startedAt.toISOString() };
-
     const startGame = Effect.fn('Game.startGame')(function* () {
-      return gameInfo(yield* store.startGame());
+      return gameInfo(yield* store.startGame(), yield* store.gameSettings());
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
@@ -350,8 +458,93 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       );
     });
 
+    const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
+      id: await publicId('session', session.id),
+      teamId: session.teamId,
+      teamName: teamName(session.teamId),
+      loggedInAt: session.createdAt.toISOString(),
+      lastSeenAt: session.lastSeenAt.toISOString(),
+      active: session.lastSeenAt.getTime() >= activeSince,
+      ...(session.ip === undefined ? {} : { ip: session.ip }),
+      ...(session.userAgent === undefined ? {} : { userAgent: session.userAgent }),
+      bannable: session.deviceId !== undefined,
+    });
+
+    const banOf = async (ban: BanRow): Promise<BannedDevice> => ({
+      id: await publicId('ban', ban.deviceId),
+      teamId: ban.teamId,
+      teamName: teamName(ban.teamId),
+      bannedAt: ban.bannedAt.toISOString(),
+      ...(ban.ip === undefined ? {} : { ip: ban.ip }),
+      ...(ban.userAgent === undefined ? {} : { userAgent: ban.userAgent }),
+    });
+
+    /** The live session the admin's device list names by `id`. */
+    const sessionOf = Effect.fn('Game.sessionOf')(function* (id: string) {
+      const sessions = yield* store.listSessions(new Date(Date.now() - PLAYER_SESSION_TTL_MS));
+      const ids = yield* Effect.promise(() =>
+        Promise.all(sessions.map((session) => publicId('session', session.id))),
+      );
+      const session = sessions[ids.indexOf(id)];
+      if (session === undefined) return yield* notFound('Zařízení');
+      return session;
+    });
+
+    /** Logs the device out; its next request finds no session and it shows the team login. */
+    const logoutDevice = Effect.fn('Game.logoutDevice')(function* (id: string) {
+      const session = yield* sessionOf(id);
+      yield* store.deleteSession(session.id);
+    });
+
+    /** Logs the device out of every team and refuses its logins until it is unbanned. */
+    const banDevice = Effect.fn('Game.banDevice')(function* (id: string) {
+      const session = yield* sessionOf(id);
+      if (session.deviceId === undefined) {
+        yield* new DeviceNotBannable({
+          message: 'Zařízení se přihlásilo před zavedením blokování; jde ho jen odhlásit.',
+        });
+        return;
+      }
+      yield* store.banDevice({
+        deviceId: session.deviceId,
+        teamId: session.teamId,
+        ip: session.ip,
+        userAgent: session.userAgent,
+      });
+    });
+
+    const unbanDevice = Effect.fn('Game.unbanDevice')(function* (id: string) {
+      const bans = yield* store.listBans();
+      const ids = yield* Effect.promise(() =>
+        Promise.all(bans.map((ban) => publicId('ban', ban.deviceId))),
+      );
+      const ban = bans[ids.indexOf(id)];
+      if (ban === undefined) {
+        yield* notFound('Blokované zařízení');
+        return;
+      }
+      yield* store.unbanDevice(ban.deviceId);
+    });
+
+    const deviceList = Effect.fn('Game.devices')(function* () {
+      const now = Date.now();
+      const [sessions, bans] = yield* Effect.all(
+        // Only sessions that still work; an expired one is a device that has to log in again.
+        [store.listSessions(new Date(now - PLAYER_SESSION_TTL_MS)), store.listBans()],
+        { concurrency: 'unbounded' },
+      );
+      const [devices, banned] = yield* Effect.promise(() =>
+        Promise.all([
+          Promise.all(sessions.map((session) => deviceOf(session, now - DEVICE_WINDOW_MS))),
+          Promise.all(bans.map(banOf)),
+        ]),
+      );
+      const result: Devices = { devices, bans: banned };
+      return result;
+    });
+
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits, readingRows, gameStartedAt] = yield* Effect.all(
+      const [teams, log, devices, visits, readingRows, gameStartedAt, settings] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
@@ -359,12 +552,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           store.visitCounts(),
           store.listReading(),
           store.gameStartedAt(),
+          // The admin sees the stored setting, not this instance's cached copy.
+          store.gameSettings(),
         ],
         { concurrency: 'unbounded' },
       );
       const readingMs = readingTotals(readingRows);
       const result: Overview = {
-        game: gameInfo(gameStartedAt),
+        game: gameInfo(gameStartedAt, settings),
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) =>
           teamStatus(
@@ -518,6 +713,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return step;
     });
 
+    /** Opens or closes the game for every team at once; the admin's own test runs go on. */
+    const setClosed = Effect.fn('Game.setClosed')(function* (closed: boolean) {
+      const row = yield* store.setGameClosed(closed);
+      // This instance knows at once; the others within `SETTINGS_TTL_MS`.
+      cachedSettings = { row, at: Date.now() };
+      return gameInfo(yield* store.gameStartedAt(), row);
+    });
+
     const codes = Effect.fn('Game.codes')(function* () {
       // Teams and codes come from the story, so their codes change only with a deploy.
       const entries: readonly {
@@ -554,6 +757,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       resetAll,
       moveTeam,
       playtest,
+      setClosed,
+      devices: deviceList,
+      logoutDevice,
+      banDevice,
+      unbanDevice,
       codes,
     };
   }),
