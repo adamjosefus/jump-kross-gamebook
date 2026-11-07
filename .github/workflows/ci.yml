@@ -16,8 +16,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Each script is its own check, so a PR shows exactly what failed.
-        task: [format:check, lint, typecheck, test, build:vercel, build-storybook]
+        # Each script is its own check, so a PR shows exactly what failed. `test` runs every
+        # test; `test:story` repeats the story's own, so a story nobody can finish fails by name.
+        task: [format:check, lint, typecheck, test, test:story, build:vercel, build-storybook]
     steps:
       - uses: actions/checkout@v5
       # Version comes from `packageManager` in package.json.
