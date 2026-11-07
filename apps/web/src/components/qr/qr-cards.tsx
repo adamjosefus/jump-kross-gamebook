@@ -54,7 +54,7 @@ const QrCard = ({
 }: QrCardProps & QrCardText & { readonly icon: ReactNode }) => (
   <figure
     className={cn(
-      'group relative flex w-min break-inside-avoid flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground transition-colors focus-within:border-black/10 focus-within:bg-white focus-within:text-black hover:border-black/10 hover:bg-white hover:text-black print:border-2 print:border-black print:bg-white print:text-black',
+      'group relative flex w-min break-inside-avoid flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-card-foreground transition-colors focus-within:border-black/10 focus-within:bg-white focus-within:text-black hover:border-black/10 hover:bg-white hover:text-black print:border-2 print:border-black print:bg-white print:text-black',
       className,
     )}
   >
@@ -88,7 +88,7 @@ const QrCard = ({
       ))}
     </span>
     {actions !== undefined && (
-      <div className='absolute right-1 bottom-1 z-10 flex gap-1 rounded-xl bg-white p-1 opacity-0 shadow-md transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 print:hidden [@media(hover:none)]:opacity-100'>
+      <div className='absolute right-1 bottom-1 z-10 flex gap-1 rounded-xl bg-white p-1 opacity-0 shadow-[0_0_0.75rem_0.5rem_white] transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 print:hidden [@media(hover:none)]:opacity-100'>
         {actions}
       </div>
     )}
