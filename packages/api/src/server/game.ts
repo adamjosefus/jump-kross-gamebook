@@ -20,11 +20,13 @@ import type { State } from '@gamebook/core';
 import { Context, Effect, Layer } from 'effect';
 
 import {
+  GameNotStarted,
   InvalidCode,
   InvalidMove,
   InvalidState,
   NotFound,
   StepConflict,
+  type GameInfo,
   type Overview,
   type PlaytestView,
   type PlayerView,
@@ -252,20 +254,23 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     ) {
       const qrCode = yield* qrCodeOf(code);
       const { team, position } = yield* prepareMove(teamId, expectedStep);
-      const moved = yield* commit(
+      return yield* commit(
         team,
         applyScan(story, position, identityOf(team), qrCode.id),
         `scan:${qrCode.id}`,
       );
-      // After a reset the phones stay logged in, so the game starts with the first scan that
-      // moves the team; a code the node does not accept does not start the clock.
-      if (team.startedAt === undefined) yield* store.markStarted(team.id);
-      return moved;
     });
 
-    /** Any device joins a team by its code and continues where the team is. */
+    /**
+     * Any device joins a team by its code and continues where the team is. Only once the
+     * organisers started the game: the team's clock runs from its first login after that.
+     */
     const login = Effect.fn('Game.login')(function* (code: string) {
       const { id } = yield* teamOf(code);
+      if ((yield* store.gameStartedAt()) === undefined)
+        return yield* new GameNotStarted({
+          message: 'Hra ještě nezačala. Počkejte na pokyn organizátorů.',
+        });
       const team = yield* store.ensureTeam(id);
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
       const sessionId = crypto.randomUUID();
@@ -281,7 +286,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       // Times read for another team (the device switched meanwhile) belong to nobody now.
       if (readFor !== undefined && readFor !== teamId) return;
       const team = yield* store.getTeam(teamId);
-      // Reading counts within the game only: from the team's first scan to its end, so a device's
+      // Reading counts within the game only: from the team's first login to its end, so a device's
       // wrong clock or a request after the game cannot inflate it.
       if (team?.startedAt === undefined) return;
       const now = Date.now();
@@ -318,8 +323,19 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       devices,
       ...(team.startedAt === undefined
         ? {}
-        : { playMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime() }),
+        : {
+            startedAt: team.startedAt.toISOString(),
+            playMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime(),
+          }),
+      ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
       readingMs,
+    });
+
+    const gameInfo = (startedAt: Date | undefined): GameInfo =>
+      startedAt === undefined ? {} : { startedAt: startedAt.toISOString() };
+
+    const startGame = Effect.fn('Game.startGame')(function* () {
+      return gameInfo(yield* store.startGame());
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
@@ -335,18 +351,20 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits, readingRows] = yield* Effect.all(
+      const [teams, log, devices, visits, readingRows, gameStartedAt] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
           store.listReading(),
+          store.gameStartedAt(),
         ],
         { concurrency: 'unbounded' },
       );
       const readingMs = readingTotals(readingRows);
       const result: Overview = {
+        game: gameInfo(gameStartedAt),
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) =>
           teamStatus(
@@ -405,20 +423,23 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         action: 'reset',
       });
       yield* store.clearTiming(id);
-      // The row from the move still has the old first scan.
+      // The row from the move still has the old first login.
       return yield* singleTeamStatus({ ...moved, startedAt: undefined });
     });
 
-    /** A new game: every team back on the start, in one write, so no team is left behind. */
+    /**
+     * A new game: every team back on the start, in one write, so no team is left behind. The game
+     * is no longer started and every device is logged out, so the teams log in again once the
+     * organisers start it and their clocks run from then.
+     */
     const resetAll = Effect.fn('Game.resetAll')(function* () {
       const start = startPosition(story);
       const rows = yield* store.resetTeams(
         story.teams.map(({ id }) => id),
         { node: start?.node, state: start?.state ?? {}, finished: false, action: 'reset' },
       );
-      const devices = yield* store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS));
-      // The reading of every team was just cleared.
-      return rows.map((row) => teamStatus(row, devices.get(row.id) ?? 0, 0));
+      // The reading and the devices of every team were just cleared.
+      return rows.map((row) => teamStatus(row, 0, 0));
     });
 
     const moveTeam = Effect.fn('Game.moveTeam')(function* (id: number, node: string, given: State) {
@@ -526,6 +547,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       graph,
       intro,
       overview,
+      startGame,
       singleTeamStatus,
       requireTeam,
       resetTeam,

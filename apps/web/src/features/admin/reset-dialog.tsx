@@ -74,9 +74,9 @@ export const ResetDialog = ({
           </DialogTitle>
           <DialogDescription>
             {team === undefined
-              ? 'Všechny týmy přijdou o celý postup a začnou znovu od startu s výchozím stavem.'
-              : 'Tým přijde o celý postup a začne znovu od startu s výchozím stavem.'}{' '}
-            Projeví se to hned na všech přihlášených telefonech a nejde to vrátit.
+              ? 'Všechny týmy přijdou o celý postup a začnou znovu od startu s výchozím stavem. Hra se zastaví a všechny telefony se odhlásí; přihlásí se zase, až hru znovu spustíte.'
+              : 'Tým přijde o celý postup a začne znovu od startu s výchozím stavem. Jeho telefony se odhlásí a čas týmu začne běžet znovu od jeho dalšího přihlášení.'}{' '}
+            Projeví se to hned na všech telefonech a nejde to vrátit.
           </DialogDescription>
         </DialogHeader>
         <form

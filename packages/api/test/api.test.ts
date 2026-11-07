@@ -127,6 +127,7 @@ describe('api', () => {
   });
 
   it('plays a game end to end', async () => {
+    await admin('POST', '/api/admin/game/start');
     // Teams come from the story; one that never logged in has not started.
     const before = (await admin('GET', '/api/admin/overview')).body.teams;
     expect(before).toMatchObject([
@@ -234,11 +235,11 @@ describe('api', () => {
     const anonymous = { intervals: [{ ms: 1000, agoMs: 0 }] };
     expect((await phone('POST', '/api/player/reading', anonymous)).status).toBe(401);
 
-    // The clock runs from the first scan, which is the login.
+    // The clock runs from the first login.
     const start = (await phone('POST', '/api/player/login', { code: lisky })).body;
     await tablet('POST', '/api/player/login', { code: lisky });
     expect((await team()).playMs).toBeGreaterThanOrEqual(0);
-    // Reading counts from the first scan on, so for the test the scan was ten minutes ago.
+    // Reading counts from the first login on, so for the test the login was ten minutes ago.
     shared.teams.set(2, { ...shared.teams.get(2)!, startedAt: new Date(Date.now() - 600_000) });
 
     // Two phones reading at the same time are one team reading.
@@ -271,9 +272,11 @@ describe('api', () => {
       expectedStep: a2.body.step,
     });
     await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
-    const finished = (await team()).playMs;
+    const done = await team();
     await new Promise((resolve) => setTimeout(resolve, 5));
-    expect((await team()).playMs).toBe(finished);
+    expect((await team()).playMs).toBe(done.playMs);
+    // The times themselves are sent too, so the admin can count to the second.
+    expect(Date.parse(done.finishedAt) - Date.parse(done.startedAt)).toBe(done.playMs);
     // Reading after the end is clipped to the end: with an end right at the start nothing is left.
     const readBefore = (await team()).readingMs;
     const row = shared.teams.get(2)!;
@@ -282,18 +285,16 @@ describe('api', () => {
     expect((await team()).readingMs).toBe(readBefore);
     shared.teams.set(2, row);
 
-    // A reset starts over; with the phones still logged in, the next scan that moves the team
-    // starts the clock, a code the node does not accept does not.
+    // A reset starts over and logs the phones out, so the next login starts the clock.
     const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
-    expect(reset).toMatchObject({ readingMs: 0 });
+    expect(reset).toMatchObject({ readingMs: 0, devices: 0 });
     expect(reset.playMs).toBeUndefined();
+    expect(reset.startedAt).toBeUndefined();
     expect(
       (await phone('POST', '/api/player/scan', { code: studna, expectedStep: reset.step })).status,
-    ).toBe(422);
+    ).toBe(401);
     expect((await team()).playMs).toBeUndefined();
-    const again = await phone('POST', '/api/player/choose', { index: 1, expectedStep: reset.step });
-    expect((await team()).playMs).toBeUndefined();
-    await phone('POST', '/api/player/scan', { code: studna, expectedStep: again.body.step });
+    await phone('POST', '/api/player/login', { code: lisky });
     expect((await team()).playMs).toBeGreaterThanOrEqual(0);
   });
 
@@ -305,11 +306,50 @@ describe('api', () => {
   });
 
   it('resets every team for a new game', async () => {
+    const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const phone = device();
+    expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(200);
+
     const teams = (await admin('POST', '/api/admin/teams/reset')).body;
     expect(teams).toMatchObject([
-      { id: 1, node: 'A1', state: { gold: 100 } },
-      { id: 2, node: 'A1', state: { gold: 100 } },
+      { id: 1, node: 'A1', state: { gold: 100 }, devices: 0 },
+      { id: 2, node: 'A1', state: { gold: 100 }, devices: 0 },
     ]);
+    // The game is not started any more: the phones are logged out and cannot log in until the
+    // organisers start it again.
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    expect((await phone('GET', '/api/player/state')).status).toBe(401);
+    expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(409);
+    await admin('POST', '/api/admin/game/start');
+    expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(200);
+  });
+});
+
+describe('game start', () => {
+  it('lets teams in only once the organisers start the game', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const phone = device(fresh.handler);
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual({});
+    const early = await phone('POST', '/api/player/login', { code: vlci });
+    expect(early).toMatchObject({ status: 409, body: { _tag: 'GameNotStarted' } });
+    expect((await admin('GET', '/api/admin/overview')).body.teams[0].startedAt).toBeUndefined();
+
+    const started = (await admin('POST', '/api/admin/game/start')).body;
+    expect(typeof started.startedAt).toBe('string');
+    // Starting again changes nothing.
+    expect((await admin('POST', '/api/admin/game/start')).body).toEqual(started);
+    expect((await admin('GET', '/api/admin/overview')).body.game).toEqual(started);
+
+    // The team's clock runs from its first login after the start.
+    expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(200);
+    const team = (await admin('GET', '/api/admin/overview')).body.teams[0];
+    expect(Date.parse(team.startedAt)).toBeGreaterThanOrEqual(Date.parse(started.startedAt));
+    expect(team.playMs).toBeGreaterThanOrEqual(0);
+    expect(team.finishedAt).toBeUndefined();
+    await fresh.dispose();
   });
 });
 
@@ -362,6 +402,7 @@ describe('a state the game cannot hold', () => {
     const fresh = makeHandler(config, MemoryStoreLayer(data), SAMPLE);
     const admin = device(fresh.handler);
     await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
     // `{}` alone would make the story count `gold - 20` of nothing: the start's gold fills in.
     const moved = await admin('POST', '/api/admin/teams/1/move', { node: 'A1', state: {} });
     expect(moved.status).toBe(200);
@@ -433,6 +474,7 @@ describe('admin password', () => {
 describe('memory data', () => {
   it('outlives the handler, as when the code reloads in development', async () => {
     const memory = emptyMemoryData();
+    memory.gameStartedAt = new Date();
     const login = async (send: (request: Request) => Promise<Response>) => {
       const code = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
       return send(
@@ -467,6 +509,7 @@ describe('memory data', () => {
 describe('player session', () => {
   it('expires two days after the login, even when the cookie is kept', async () => {
     const memory = emptyMemoryData();
+    memory.gameStartedAt = new Date();
     const { handler: send, dispose: close } = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
     const code = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const response = await send(
@@ -538,6 +581,8 @@ describe('server failures', () => {
       resetTeams: fail,
       markStarted: fail,
       clearTiming: fail,
+      gameStartedAt: fail,
+      startGame: fail,
       addReading: fail,
       listReading: fail,
       createSession: fail,

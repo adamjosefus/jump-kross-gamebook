@@ -190,10 +190,28 @@ export const makePostgresStore = (client: SqlClient) => {
               updated_at = now()
             where id = any(${list}::int[])`,
           sql`delete from reading where team_id = any(${list}::int[])`,
+          sql`delete from session where team_id = any(${list}::int[])`,
+          sql`update game set started_at = null`,
         ]);
         return (await run(sql`select * from team where id = any(${list}::int[]) order by id`)).map(
           toTeam,
         );
+      }),
+
+    gameStartedAt: () =>
+      query(async () => {
+        const [row] = await run(sql`select started_at from game where id = 1`);
+        return row === undefined || row['started_at'] === null
+          ? undefined
+          : timestamp(row['started_at']);
+      }),
+    startGame: () =>
+      query(async () => {
+        const [row] = await run(sql`
+          insert into game (id, started_at) values (1, now())
+          on conflict (id) do update set started_at = coalesce(game.started_at, now())
+          returning started_at`);
+        return timestamp(row!['started_at']);
       }),
 
     markStarted: (id) =>
@@ -208,6 +226,7 @@ export const makePostgresStore = (client: SqlClient) => {
         transaction([
           sql`update team set started_at = null where id = ${id}`,
           sql`delete from reading where team_id = ${id}`,
+          sql`delete from session where team_id = ${id}`,
         ]),
       ),
     addReading: (rows) =>

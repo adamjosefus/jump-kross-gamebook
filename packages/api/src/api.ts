@@ -75,6 +75,13 @@ export class NotFound extends Schema.TaggedError<NotFound>()(
   { httpApiStatus: 404 },
 ) {}
 
+/** The organisers have not started the game yet, so no team can log in. */
+export class GameNotStarted extends Schema.TaggedError<GameNotStarted>()(
+  'GameNotStarted',
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
 // ---------------------------------------------------------------------------------------------
 // Player
 
@@ -151,7 +158,7 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     HttpApiEndpoint.post('login', '/login', {
       payload: Schema.Struct({ code: Schema.String }),
       success: PlayerView,
-      error: [InvalidCode, NotFound],
+      error: [InvalidCode, NotFound, GameNotStarted],
     }),
   )
   .add(
@@ -243,12 +250,23 @@ export const TeamStatus = Schema.Struct({
   updatedAt: Schema.optionalKey(Schema.String),
   /** Devices seen in the last two minutes. */
   devices: Schema.Number,
-  /** From the team's first scan until its end, or until now; missing before the first scan. */
+  /** The team's first login after the game started; missing before it and after a reset. */
+  startedAt: Schema.optionalKey(Schema.String),
+  /** When the team reached the end; missing while it plays. */
+  finishedAt: Schema.optionalKey(Schema.String),
+  /** From `startedAt` until `finishedAt`, or until now; missing before the first login. */
   playMs: Schema.optionalKey(Schema.Number),
   /** How long a text was on at least one of the team's devices. */
   readingMs: Schema.Number,
 });
 export type TeamStatus = typeof TeamStatus.Type;
+
+/** The game as a whole: started by the organisers, or not yet. */
+export const GameInfo = Schema.Struct({
+  /** Missing until the organisers start the game, and after a new game. */
+  startedAt: Schema.optionalKey(Schema.String),
+});
+export type GameInfo = typeof GameInfo.Type;
 
 export const LogEntry = Schema.Struct({
   teamId: Schema.Number,
@@ -261,6 +279,7 @@ export const LogEntry = Schema.Struct({
 export type LogEntry = typeof LogEntry.Type;
 
 export const Overview = Schema.Struct({
+  game: GameInfo,
   teams: Schema.Array(TeamStatus),
   codes: Schema.Array(QrCode),
   log: Schema.Array(LogEntry),
@@ -342,6 +361,8 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       error: [InvalidCode, InvalidMove, InvalidState, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
+    /** Lets the teams log in; the clock of each starts with its first login. */
+    HttpApiEndpoint.post('startGame', '/game/start', { success: GameInfo }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetAll', '/teams/reset', {
       success: Schema.Array(TeamStatus),
     }).middleware(AdminAuth),
