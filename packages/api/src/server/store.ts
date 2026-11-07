@@ -52,6 +52,7 @@ export interface SessionRow {
 export interface SessionClient {
   readonly ip: string | undefined;
   readonly userAgent: string | undefined;
+  /** An id this server gave the device (see `isDeviceId`); undefined when it has none. */
   readonly deviceId: string | undefined;
 }
 

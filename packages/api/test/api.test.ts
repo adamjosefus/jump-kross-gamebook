@@ -492,14 +492,28 @@ describe('closed game', () => {
     const tablet = device(fresh.handler);
     expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(423);
     expect((await tablet('POST', '/api/player/login', { code: studna })).status).toBe(400);
+    // A refused login gives the device no id yet.
+    expect(tablet.jar.get('gb_device')).toBeUndefined();
     // The admin's test run goes on.
     expect((await admin('POST', '/api/admin/playtest', {})).status).toBe(200);
+    // A team that has finished keeps its ending while the game is closed.
+    await admin('POST', '/api/admin/teams/2/move', { node: 'OUTRO', state: {} });
+    const laptop = device(fresh.handler);
+    await admin('POST', '/api/admin/game/closed', { closed: false });
+    const other = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    expect((await laptop('POST', '/api/player/login', { code: other })).status).toBe(200);
+    await admin('POST', '/api/admin/game/closed', { closed: true });
+    expect((await laptop('GET', '/api/player/state')).body).toMatchObject({
+      status: 'finished',
+      node: { id: 'OUTRO' },
+    });
 
     await admin('POST', '/api/admin/game/closed', { closed: false });
     const reopened = (await phone('GET', '/api/player/state')).body;
     expect(reopened).toMatchObject({ status: 'playing', node: { id: 'A1' } });
     expect((await tablet('POST', '/api/player/login', { code: login })).status).toBe(200);
-    expect((await admin('GET', '/api/admin/devices')).body.devices).toHaveLength(2);
+    // The phone, the tablet and the laptop of the finished team.
+    expect((await admin('GET', '/api/admin/devices')).body.devices).toHaveLength(3);
     await fresh.dispose();
   });
 });

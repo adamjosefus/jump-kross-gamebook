@@ -64,8 +64,12 @@ export const DevicesPage = () => {
   const teams = [
     ...new Map(devices.map(({ teamId, teamName }) => [teamId, teamName])).entries(),
   ].toSorted(([first], [second]) => first - second);
+  // A team whose last device left goes out of the filter too, so the list is not left empty; the
+  // filter stays on all teams even once that team logs in again, until the admin picks one.
+  const selected = teams.some(([id]) => String(id) === team) ? team : ALL_TEAMS;
+  if (selected !== team) setTeam(ALL_TEAMS);
   const shown =
-    team === ALL_TEAMS ? devices : devices.filter(({ teamId }) => String(teamId) === team);
+    selected === ALL_TEAMS ? devices : devices.filter(({ teamId }) => String(teamId) === selected);
   const active = devices.filter((device) => device.active).length;
 
   return (
@@ -86,7 +90,7 @@ export const DevicesPage = () => {
               zablokovat.
             </CardDescription>
           </div>
-          <Select value={team} onValueChange={setTeam}>
+          <Select value={selected} onValueChange={setTeam}>
             <SelectTrigger className='w-44 shrink-0' aria-label='Tým'>
               <SelectValue />
             </SelectTrigger>

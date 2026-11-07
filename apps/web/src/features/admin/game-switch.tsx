@@ -23,7 +23,8 @@ import { adminKeys } from './queries';
 
 /**
  * Opens or closes the whole game. Closed, no device logs in or moves; the logged-in ones stay
- * logged in, show that the game is closed and go on where they were once it opens again.
+ * logged in, show that the game is closed and go on where they were once it opens again. A team
+ * already at its ending keeps it: the closing is for the teams still on their way.
  */
 export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
   const queryClient = useQueryClient();
@@ -64,7 +65,7 @@ export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
           </CardTitle>
           <CardDescription>
             {game.closed
-              ? 'Týmy teď nemohou hrát: nové telefony se nepřihlásí a přihlášené jen ukazují, že je hra zavřená. Test v adminu funguje dál.'
+              ? 'Týmy teď nemohou hrát: nové telefony se nepřihlásí a přihlášené jen ukazují, že je hra zavřená. Týmy, které už došly do cíle, zůstávají u svého konce. Test v adminu funguje dál.'
               : 'Týmy mohou hrát. Zavřením hru zastavíte všem najednou, postup týmů zůstane.'}
             {game.closedChangedAt !== undefined && (
               <>
@@ -86,7 +87,7 @@ export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
             <AlertDialogTitle>{next ? 'Zavřít hru?' : 'Otevřít hru?'}</AlertDialogTitle>
             <AlertDialogDescription>
               {next
-                ? 'Všechny týmy hned přestanou hrát: telefony ukážou, že je hra zavřená, a nové se nepřihlásí. Postup týmů zůstane a po otevření pokračují, kde skončily.'
+                ? 'Všechny týmy na cestě hned přestanou hrát: telefony ukážou, že je hra zavřená, a nové se nepřihlásí. Týmy, které už došly do cíle, zůstanou u svého konce. Postup týmů zůstane a po otevření pokračují, kde skončily.'
                 : 'Týmy mohou hned pokračovat a nové telefony se mohou přihlásit.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

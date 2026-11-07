@@ -42,7 +42,7 @@ import { StoryGraph } from '@/features/story/story-graph';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
-import { timeAgo } from './format';
+import { formatTime, timeAgo } from './format';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
@@ -54,9 +54,6 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
 
 /** The current time, refreshed every second, so a running clock ticks between two polls. */
 const useNow = () => {
@@ -386,7 +383,7 @@ const ClosedBar = () => (
     className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
   >
     <IconLock className='size-4 shrink-0' />
-    Hra je zavřená, týmy teď nemohou hrát.
+    Hra je zavřená, týmy na cestě teď nemohou hrát.
     <Link to='/admin/game' className='underline underline-offset-2'>
       Otevřít na stránce Hra
     </Link>

@@ -199,6 +199,16 @@ describe('postgres store', () => {
     );
     expect(await run(store.activeDevices(new Date(Date.now() + 60_000)))).toEqual(new Map());
 
+    // The admin's list has the most recently seen device first.
+    await db.query(
+      `update session set last_seen_at = now() - interval '30 seconds' where id = 'phone'`,
+    );
+    await db.query(
+      `update session set last_seen_at = now() - interval '10 seconds' where id = 'other'`,
+    );
+    const listed = await run(store.listSessions(old));
+    expect(listed.map(({ id }) => id)).toEqual(['tablet', 'other', 'phone']);
+
     const sessions = await run(store.listSessions(old));
     expect(sessions.map(({ id }) => id).toSorted()).toEqual(['other', 'phone', 'tablet']);
     expect(sessions.find(({ id }) => id === 'phone')).toMatchObject({
