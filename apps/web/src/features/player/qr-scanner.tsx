@@ -57,27 +57,27 @@ const STEADY_FRAMES = 6;
 const STEADY_MS = 400;
 
 /**
- * Calls `then` once the camera's picture has settled. On first start iOS Safari paints the video
- * black and then a few frames boxed in the wrong aspect before the picture fills the square, so
- * the video is kept hidden until then. Returns a cleanup that cancels the wait.
+ * Calls `onSteady` once the camera's picture has settled. When the camera starts, iOS Safari paints
+ * the video black and then a few frames boxed in the wrong aspect before the picture fills the
+ * square, so the video is kept hidden until then. Returns a cleanup that cancels the wait.
  */
-const whenSteady = (video: HTMLVideoElement, then: () => void) => {
+const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
-    then();
+    onSteady();
   };
   // Old iPhones (before iOS 15.4) have no frame callbacks; the types claim every browser does.
   const frameCallbacks = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
   if (frameCallbacks) {
     let size = '';
-    let same = 0;
+    let steadyFrames = 0;
     let handle = 0;
     const frame: VideoFrameRequestCallback = (_now, { width, height }) => {
-      same = `${width}×${height}` === size ? same + 1 : 0;
+      steadyFrames = `${width}×${height}` === size ? steadyFrames + 1 : 1;
       size = `${width}×${height}`;
-      if (same + 1 >= STEADY_FRAMES) finish();
+      if (steadyFrames >= STEADY_FRAMES) finish();
       else if (!done) handle = video.requestVideoFrameCallback(frame);
     };
     handle = video.requestVideoFrameCallback(frame);
@@ -224,7 +224,16 @@ const QrScannerView = ({
     const fit = () => coverSquare(video);
     video.addEventListener('loadedmetadata', fit);
     video.addEventListener('resize', fit);
-    const stopWaiting = whenSteady(video, () => video.classList.remove('opacity-0'));
+    // The library stops the camera while the page is hidden and opens it anew when the player
+    // comes back (`emptied` marks the stop), so the picture is hidden and settles again each time.
+    let stopWaiting = () => {};
+    const hideUntilSteady = () => {
+      stopWaiting();
+      video.classList.add('opacity-0');
+      stopWaiting = whenSteady(video, () => video.classList.remove('opacity-0'));
+    };
+    hideUntilSteady();
+    video.addEventListener('emptied', hideUntilSteady);
     container.append(video);
     // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more, to
     // always use its own decoder, as the browser's `BarcodeDetector` may read them, and to ask the
@@ -251,6 +260,7 @@ const QrScannerView = ({
     });
     return () => {
       current = false;
+      video.removeEventListener('emptied', hideUntilSteady);
       stopWaiting();
       video.removeEventListener('loadedmetadata', fit);
       video.removeEventListener('resize', fit);
