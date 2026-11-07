@@ -17,11 +17,11 @@ import { api, errorMessage } from '@/lib/api';
 
 import { adminKeys } from './queries';
 
-const RESET_ALL = 'ZAČÍT ZNOVU';
+const RESET_ALL = 'SMAZAT POSTUP';
 
 /**
  * Puts one team, or every team, back on the start with the initial state. The progress is lost
- * on every device of the team at once, so the admin has to type the team's name (or „ZAČÍT ZNOVU“)
+ * on every device of the team at once, so the admin has to type the team's name (or „SMAZAT POSTUP“)
  * to confirm.
  */
 export const ResetDialog = ({

@@ -1,5 +1,5 @@
 import type { TeamStatus } from '@gamebook/api';
-import { IconLoader2, IconRotate } from '@tabler/icons-react';
+import { IconArrowBackUp, IconLoader2 } from '@tabler/icons-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -15,17 +15,24 @@ import {
 } from '@/components/ui/table';
 import { errorMessage } from '@/lib/api';
 
-import { GameControl } from './game-control';
-import { useOverview } from './queries';
+import { GameControl, teamHasProgress } from './game-control';
+import { useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 
 /**
- * The game's start, whether it is open, its teams and QR codes, the latter two from the story. The
- * admin starts the game, closes and opens it, and puts teams back on the start: one team, or every
- * team for a new game.
+ * A compact table across the whole width of its card: the rows run edge to edge and the outer
+ * cells keep the card's padding, so the text lines up with the card's title.
+ */
+const CARD_TABLE =
+  '[&_td]:py-1 [&_th]:h-8 [&_tr>*:first-child]:pl-(--card-spacing) [&_tr>*:last-child]:pr-(--card-spacing)';
+
+/**
+ * The game's phase, its teams and QR codes, the latter two from the story. The admin starts, pauses
+ * and resumes the game, puts one team back on the start, or wipes every team's progress.
  */
 export const GamePage = () => {
   const overview = useOverview();
+  const startNode = useStoryGraph().data?.start;
   // The team stays set while the dialog animates out; `null` means every team.
   const [reset, setReset] = useState<TeamStatus | null>();
   const [resetOpen, setResetOpen] = useState(false);
@@ -53,14 +60,14 @@ export const GamePage = () => {
             poprvé přihlásí svým kódem.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='px-0'>
+          <Table className={CARD_TABLE}>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-12'>#</TableHead>
                 <TableHead>Název</TableHead>
                 <TableHead>Kde je</TableHead>
-                <TableHead className='w-10' />
+                <TableHead className='w-px' />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,17 +87,20 @@ export const GamePage = () => {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      title='Vrátit na start'
-                      aria-label={`Vrátit tým ${team.name} na start`}
-                      disabled={team.node === undefined}
-                      onClick={() => openReset(team)}
-                    >
-                      <IconRotate />
-                    </Button>
+                  <TableCell className='text-right'>
+                    {/* A team without progress is already where this would put it. */}
+                    {teamHasProgress(team, startNode) && (
+                      <Button
+                        variant='ghost'
+                        size='xs'
+                        className='text-muted-foreground'
+                        title='Vrátit tým na start a smazat jeho postup'
+                        aria-label={`Vrátit tým ${team.name} na start`}
+                        onClick={() => openReset(team)}
+                      >
+                        <IconArrowBackUp /> Na start
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -108,8 +118,8 @@ export const GamePage = () => {
             stránce QR kódy.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='px-0'>
+          <Table className={CARD_TABLE}>
             <TableHeader>
               <TableRow>
                 <TableHead className='w-16'>Číslo</TableHead>

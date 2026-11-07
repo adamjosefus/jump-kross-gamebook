@@ -26,7 +26,7 @@ import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { formatDateTime, formatTime } from './format';
-import { adminKeys } from './queries';
+import { adminKeys, useStoryGraph } from './queries';
 
 /**
  * Where the game is in its life: not started (no team logs in), running, or paused (the admin
@@ -62,6 +62,18 @@ const DESCRIPTION: Readonly<Record<GamePhase, (game: GameInfo) => string>> = {
     `Pozastavená${game.closedChangedAt === undefined ? '' : ` od ${formatDateTime(game.closedChangedAt)}`}. Týmy teď nemohou hrát; po pokračování navážou, kde skončily. Týmy v cíli zůstávají u svého konce. Test v adminu funguje dál.`,
 } as const;
 
+/** The game started, but opening it after a pause failed; its message is for the organizers. */
+class StillPaused extends Error {}
+
+/**
+ * Whether the team has anything to lose by going back to the start: it logged in since the game
+ * started, or the admin moved it off the start. A reset leaves every team on the start node, so the
+ * node alone does not tell. `start` is the story's start node, unknown while the story loads.
+ */
+export const teamHasProgress = (team: TeamStatus, start: string | undefined) =>
+  team.startedAt !== undefined ||
+  (team.node !== undefined && start !== undefined && team.node !== start);
+
 /**
  * The one place that runs the game: its state with the single action that makes sense in it
  * (start, pause or go on), and, apart below, wiping every team's progress for a new game.
@@ -91,16 +103,23 @@ export const GameControl = ({
 
   const start = useMutation({
     mutationFn: async () => {
-      await api((client) => client.admin.startGame());
+      const started = await api((client) => client.admin.startGame());
       // A game paused and then wiped is not started but still closed; starting it lets teams in.
-      if (game.closed)
+      // The server's answer decides, not the page's data, which another organizer may have outdated.
+      if (!started.closed) return;
+      try {
         await api((client) => client.admin.setClosed({ payload: { closed: false } }));
+      } catch (error) {
+        throw new StillPaused(
+          `Hra je spuštěná, ale zůstala pozastavená. Klikněte na Pokračovat. (${errorMessage(error)})`,
+        );
+      }
     },
-    onSuccess: () => {
-      void refresh();
-      toast.success('Hra běží. Týmy se mohou přihlásit.');
-    },
-    onError: (error) => toast.error(errorMessage(error)),
+    onSuccess: () => toast.success('Hra běží. Týmy se mohou přihlásit.'),
+    onError: (error) =>
+      toast.error(error instanceof StillPaused ? error.message : errorMessage(error)),
+    // Even half done (started, still paused), the card has to show what the server has.
+    onSettled: () => void refresh(),
   });
 
   const change = useMutation({
@@ -113,8 +132,9 @@ export const GameControl = ({
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  // Nothing to wipe in a game never started that no team has entered yet.
-  const hasProgress = phase !== 'idle' || teams.some((team) => team.node !== undefined);
+  const startNode = useStoryGraph().data?.start;
+  // Nothing to wipe in a game not started where every team is still on the start untouched.
+  const hasProgress = phase !== 'idle' || teams.some((team) => teamHasProgress(team, startNode));
 
   return (
     <Card className={cn('lg:col-span-2', phase === 'paused' && 'ring-2 ring-destructive')}>
