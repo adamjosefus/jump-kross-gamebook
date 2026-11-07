@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 /**
  * The frame of every player screen: the same column and a navigation bar of a fixed height above
  * the content, so „Zpět“ is at the same place on all of them. The colors of the screen blend into
- * those of the next one.
+ * those of the next one. No text can be selected, so a long press while reading or scanning does
+ * not open the selection or the iOS callout.
  */
 export const PlayerFrame = ({
   onBack,
@@ -28,7 +29,7 @@ export const PlayerFrame = ({
 }) => (
   <div
     className={cn(
-      'flex flex-1 flex-col transition-colors duration-700 ease-in-out motion-reduce:transition-none',
+      'flex flex-1 flex-col transition-colors duration-700 ease-in-out select-none [-webkit-touch-callout:none] motion-reduce:transition-none',
       className,
     )}
   >
