@@ -55,8 +55,11 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const problemIf = (condition: boolean, problem: string): readonly string[] =>
   condition ? [problem] : [];
 
-/** One whole `<svg>` element; a mistake here would otherwise show only as a missing picture. */
-const SVG_ELEMENT = /^\s*<svg[\s>][\s\S]*<\/svg>\s*$/;
+/**
+ * One whole `<svg>` element, closed or self-closing; a mistake here would otherwise show only as a
+ * missing picture.
+ */
+const SVG_ELEMENT = /^\s*<svg(?:[\s>][\s\S]*<\/svg>|(?:\s[^>]*)?\/>)\s*$/;
 
 const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
 /** A picture is enough for a screen, it does not need text too. */
@@ -114,6 +117,9 @@ const structureProblems = (story: Story): readonly string[] =>
   story.order.flatMap((id, index) => [
     ...problemIf(story.order.indexOf(id) !== index, `Uzel ${id} je v order dvakrát.`),
     ...problemIf(!Object.hasOwn(story.nodes, id), `Uzel ${id} z order není v nodes.`),
+    // JavaScript puts integer keys first whatever the order they are written in, so the order
+    // of the story (and with it the start) would not be the one in the file.
+    ...problemIf(/^\d+$/.test(id), `Uzel ${id} má číselný název; pojmenujte ho slovem.`),
   ]);
 
 /** The id goes into a QR code, which carries a positive integer of at most six digits. */
@@ -318,11 +324,36 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
 
 interface Exploration {
   readonly problems: readonly string[];
-  /** Nodes reached in at least one state. */
+  /** Nodes reached in at least one state and checked there. */
   readonly reached: ReadonlySet<string>;
   /** Usage keys of the choices offered in at least one reached state. */
   readonly used: ReadonlySet<string>;
+  /** The exploration hit `maxStates`, so what was not reached may still be reachable. */
+  readonly truncated: boolean;
 }
+
+/**
+ * A problem of a node repeated for every state it has is one problem: the first state is named,
+ * the others counted. The key is the message without the state.
+ */
+const collapseStates = (problems: readonly string[]): readonly string[] => {
+  const keyOf = (problem: string) => problem.replace(/ ve stavu \{.*?\}/, '');
+  const firsts = new Map<string, string>();
+  const counts = new Map<string, number>();
+  for (const problem of problems) {
+    const key = keyOf(problem);
+    if (key === problem) {
+      firsts.set(problem, problem);
+      continue;
+    }
+    if (!firsts.has(key)) firsts.set(key, problem);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...firsts].map(([key, first]) => {
+    const more = (counts.get(key) ?? 1) - 1;
+    return more > 0 ? `${first} (a v dalších ${more} stavech)` : first;
+  });
+};
 
 /**
  * Plays every (node, state) pair `team` can reach from `start`, breadth first, at most `maxStates`
@@ -334,16 +365,20 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
   const queue: Visit[] = [start];
   const seen = new Set([visitKey(start)]);
   const used = new Set<string>();
+  const reached = new Set<string>();
   const problems: string[] = [];
+  let truncated = false;
   // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
   for (const [explored, visit] of queue.entries()) {
     if (explored >= maxStates) {
       problems.push(
-        `Příběh má víc než ${maxStates} kombinací uzlu a stavu, kontrola prošla jen část.`,
+        `Příběh má pro jeden tým víc než ${maxStates} kombinací uzlu a stavu, kontrola prošla jen část.`,
       );
+      truncated = true;
       break;
     }
     const result = step(story, team, visit);
+    reached.add(visit.node);
     problems.push(...result.problems);
     for (const key of result.used) used.add(key);
     for (const next of result.next) {
@@ -353,7 +388,7 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
       queue.push(next);
     }
   }
-  return { problems, reached: new Set(queue.map((visit) => visit.node)), used };
+  return { problems: collapseStates(problems), reached, used, truncated };
 };
 
 /** Choices of a reached node that no reached state offers; a function's list has no fixed ones. */
@@ -422,6 +457,17 @@ export const validateStory = (
   }));
   const reached = new Set(explored.flatMap(({ exploration }) => [...exploration.reached]));
   const used = new Set(explored.flatMap(({ exploration }) => [...exploration.used]));
+  // A team that cannot reach the end while another can; an end nobody reaches is reported with
+  // the other unreachable nodes.
+  const stuck = explored.filter(
+    ({ exploration }) => !exploration.truncated && !exploration.reached.has(story.outroNode),
+  );
+  const endProblems =
+    stuck.length === 0 || !reached.has(story.outroNode)
+      ? []
+      : [
+          `Konec ${story.outroNode} je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: ${stuck.map(({ team }) => team.name).join(', ')})`,
+        ];
   const problems = [
     ...problemIf(
       starts.length > 1,
@@ -434,6 +480,7 @@ export const validateStory = (
     ...locationProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
+    ...endProblems,
     ...played.flatMap((id) =>
       reached.has(id)
         ? unusedProblems(story.nodes[id]!, id, used)

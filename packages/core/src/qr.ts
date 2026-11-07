@@ -33,6 +33,7 @@ const FORMAT = /^([TL])[-:]([1-9]\d{0,5})[-:]([0-9A-Z]{6})$/;
 const encoder = new TextEncoder();
 
 const hmac = async (secret: string, message: string): Promise<Uint8Array> => {
+  if (secret === '') throw new Error('QR kódy potřebují tajemství (QR_SECRET), prázdné nestačí.');
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),

@@ -1,6 +1,14 @@
 import { defineStory } from '@gamebook/core';
 
-type State = {};
+/** What a clan carries through the story; the start sets it, choices change it. */
+type State = {
+  readonly coins: number;
+  readonly hasMap: boolean;
+  readonly courage: number;
+};
+
+/** The prologues of the three waves, in the order of the waves. */
+const PROLOGS = ['PROLOG_1', 'PROLOG_2', 'PROLOG_3'] as const;
 
 /**
  * The gamebook. Every node is one step of the story: `blocks` are its screens (markdown, one
@@ -84,7 +92,7 @@ Potěšení je na mé straně.
         },
         {
           theme: 'intro',
-          content: `Držíte v ruce zařízení, kterým se stane nástrojem pro hraní Hry.`,
+          content: `Držíte v ruce zařízení, které se stane nástrojem pro hraní Hry.`,
         },
         {
           theme: 'intro',
@@ -105,11 +113,11 @@ Není třeba spěchat. Vaše hra ještě nezačala.
         {
           theme: 'intro',
           content: `
-V následující hře budete rozhodnovat o svém příběhu.
+V následující hře budete rozhodovat o svém příběhu.
 
-Vybrání možnosti na displeji je jen poslední krok.
+Výběr možnosti na displeji je jen poslední krok.
 
-Zkutečné rozhodnutí vnikne mezi vámi. Musíte se **shodnout mezi sebou**.
+Skutečné rozhodnutí vznikne mezi vámi. Musíte se **shodnout mezi sebou**.
       `,
         },
         {
@@ -120,18 +128,18 @@ Zkutečné rozhodnutí vnikne mezi vámi. Musíte se **shodnout mezi sebou**.
         {
           theme: 'intro',
           content: `
-Určete ve vašem klanu roli čtenáře, či čtenářky.
+Určete ve vašem klanu roli čtenáře či čtenářky.
 
-Popřípadě pravidlo jak se bude tato pozice mezi vámi střídat.
+Popřípadě pravidlo, jak se bude tato role mezi vámi střídat.
       `,
-          next: 'Dohodli jsem se',
+          next: 'Dohodli jsme se',
         },
         {
           theme: 'intro',
           content: `
 *To rád slyším.*
 
-Ne všechny rozhodnutí budeou takto snadná.
+Ne všechna rozhodnutí budou takto snadná.
 
 Čekají na vás volby nepříjemné, plné dilemat.
       `,
@@ -139,7 +147,7 @@ Ne všechny rozhodnutí budeou takto snadná.
         {
           theme: 'intro',
           content: `
-Pro případ, že byste se snad s rozhodnováním zasekli, mlčky zvedněte ruku.
+Pro případ, že byste se snad s rozhodováním zasekli, mlčky zvedněte ruku.
 
 V případě, že většina bude držet paži vzhůru, postupně hlasujte.
       `,
@@ -147,32 +155,16 @@ V případě, že většina bude držet paži vzhůru, postupně hlasujte.
         {
           theme: 'intro',
           content: `
-A hlasování přijměte ho za své.
+Výsledek hlasování přijměte za svůj.
 Rozhoduje totiž celý klan.
       `,
         },
       ],
-      choices: () => {
-        const count = 3;
-
-        return [
-          {
-            goto: 'PROLOG_1',
-            label: '1. dávka klanů', // TODO: Better label
-            when: (_state, team) => team.id % count === 0,
-          },
-          {
-            goto: 'PROLOG_2',
-            label: '2. dávka klanů', // TODO: Better label
-            when: (_state, team) => team.id % count === 1,
-          },
-          {
-            goto: 'PROLOG_3',
-            label: '3. dávka klanů', // TODO: Better label
-            when: (_state, team) => team.id % count === 2,
-          },
-        ];
-      },
+      // The clans set out in three waves, by their number: I, IV, VII, … first; II, V, VIII, …
+      // second; III, VI, IX, … third. The clan sees one button and nothing of the sorting.
+      choices: (_state, team) => [
+        { goto: PROLOGS[(team.id - 1) % PROLOGS.length]!, label: 'Vyrazit' },
+      ],
     },
     PROLOG_1: {
       scans: [{ location: 1, goto: 'MISTO_1' }],
