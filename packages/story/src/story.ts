@@ -47,12 +47,6 @@ export const story = defineStory<State>()({
     2: 'Místo 2',
     3: 'Místo 3',
     4: 'Místo 4',
-    5: 'Místo 5',
-    6: 'Místo 6',
-    7: 'Místo 7',
-    8: 'Místo 8',
-    9: 'Místo 9',
-    10: 'Místo 10',
   },
   nodes: {
     INTRO: {
@@ -189,36 +183,8 @@ Rozhoduje totiž celý klan.
       blocks: [`Jste na místě 2. Pokračujte na místo 3.`],
     },
     MISTO_3: {
-      scans: [{ code: 4, goto: 'MISTO_4' }],
+      scans: [{ code: 4, goto: 'OUTRO' }],
       blocks: [`Jste na místě 3. Pokračujte na místo 4.`],
-    },
-    MISTO_4: {
-      scans: [{ code: 5, goto: 'MISTO_5' }],
-      blocks: [`Jste na místě 4. Pokračujte na místo 5.`],
-    },
-    MISTO_5: {
-      scans: [{ code: 6, goto: 'MISTO_6' }],
-      blocks: [`Jste na místě 5. Pokračujte na místo 6.`],
-    },
-    MISTO_6: {
-      scans: [{ code: 7, goto: 'MISTO_7' }],
-      blocks: [`Jste na místě 6. Pokračujte na místo 7.`],
-    },
-    MISTO_7: {
-      scans: [{ code: 8, goto: 'MISTO_8' }],
-      blocks: [`Jste na místě 7. Pokračujte na místo 8.`],
-    },
-    MISTO_8: {
-      scans: [{ code: 9, goto: 'MISTO_9' }],
-      blocks: [`Jste na místě 8. Pokračujte na místo 9.`],
-    },
-    MISTO_9: {
-      scans: [{ code: 10, goto: 'MISTO_10' }],
-      blocks: [`Jste na místě 9. Pokračujte na místo 10.`],
-    },
-    MISTO_10: {
-      choices: [{ label: 'Dokončit hru', goto: 'OUTRO' }],
-      blocks: [`Jste na místě 10, posledním na trase.`],
     },
     OUTRO: {
       blocks: (_state, team) => [`Konec hry, ${team.name}.`],
