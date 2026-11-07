@@ -104,7 +104,7 @@ const whenSteady = (video: HTMLVideoElement, then: () => void) => {
 /**
  * Sizes the video element to the picture's own aspect, centered and overflowing the square on its
  * longer side. The square then never shows bars, even in the frames where Safari does not apply
- * `object-fit` yet.
+ * `object-fit` yet, and on cameras that ignore the request for a square picture.
  */
 const coverSquare = (video: HTMLVideoElement) => {
   const { videoWidth: width, videoHeight: height } = video;
@@ -226,8 +226,9 @@ const QrScannerView = ({
     video.addEventListener('resize', fit);
     const stopWaiting = whenSteady(video, () => video.classList.remove('opacity-0'));
     container.append(video);
-    // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more and
-    // to always use its own decoder, as the browser's `BarcodeDetector` may read them.
+    // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more, to
+    // always use its own decoder, as the browser's `BarcodeDetector` may read them, and to ask the
+    // camera for a square picture like the square it is shown in.
     const scanner = new QrScanner(
       video,
       (result) =>
