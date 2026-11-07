@@ -593,6 +593,88 @@ describe('validateStory', () => {
     ).toEqual(['Uzel 10 má číselný název; pojmenujte ho slovem.']);
   });
 
+  it('reports a trap: a reachable state from which the end cannot be reached', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      codes: {},
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        START: {
+          initialState: { n: 0 },
+          blocks: ['Start'],
+          choices: [
+            { label: 'Rovnou', goto: 'A' },
+            { label: 'Oklikou', goto: 'A', nextState: () => ({ n: 1 }) },
+          ],
+        },
+        // With n = 1 the team walks between A and B forever: both always offer a way on.
+        A: {
+          blocks: ['A'],
+          choices: [
+            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
+            { label: 'Do B', goto: 'B' },
+          ],
+        },
+        B: { blocks: ['B'], choices: [{ label: 'Do A', goto: 'A' }] },
+        OUTRO: { blocks: ['Konec'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel A je ve stavu {"n":1} past: odtud se nedá dojít na konec OUTRO.',
+      'Uzel B je ve stavu {"n":1} past: odtud se nedá dojít na konec OUTRO.',
+    ]);
+  });
+
+  it('accepts a loop the team can always leave', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      codes: {},
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [
+            { label: 'Do B', goto: 'B', nextState: (state) => ({ n: Math.min(state.n + 1, 2) }) },
+            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n >= 2 },
+          ],
+        },
+        B: { blocks: ['B'], choices: [{ label: 'Zpět', goto: 'A' }] },
+        OUTRO: { blocks: ['Konec'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([]);
+  });
+
+  it('does not report traps when the exploration is cut short', () => {
+    // Beyond the limit the end could still be reachable, so only the limit is reported.
+    const story = define({
+      teams: { 1: 'Tým' },
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      codes: {},
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [
+            { label: 'Dál', goto: 'A', nextState: (state) => ({ n: state.n + 1 }) },
+            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
+          ],
+        },
+        OUTRO: { blocks: ['Konec'] },
+      },
+    });
+    expect(validateStory(story, { maxStates: 50 })).toEqual([
+      'Příběh má pro jeden tým víc než 50 kombinací uzlu a stavu, kontrola prošla jen část.',
+    ]);
+  });
+
   it('stops exploring endless state spaces', () => {
     const story = define({
       teams: { 1: 'Tým' },
