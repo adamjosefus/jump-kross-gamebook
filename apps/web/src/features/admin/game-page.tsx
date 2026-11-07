@@ -36,7 +36,7 @@ export const GamePage = () => {
   // The last data stay when a refresh fails; the error is the page only without any.
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { teams, locations } = overview.data;
+  const { teams, codes } = overview.data;
 
   return (
     <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
@@ -102,9 +102,9 @@ export const GamePage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Místa</CardTitle>
+          <CardTitle>Kódy</CardTitle>
           <CardDescription>
-            Místa s QR kódy jsou součástí příběhu (<code>locations</code> v{' '}
+            QR kódy, které posouvají týmy dál, jsou součástí příběhu (<code>codes</code> v{' '}
             <code>packages/story/src/story.ts</code>) a mění se s deployem. Kódy k tisku jsou na
             stránce QR kódy.
           </CardDescription>
@@ -118,10 +118,10 @@ export const GamePage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {locations.map((location) => (
-                <TableRow key={location.id}>
-                  <TableCell className='font-mono'>{location.id}</TableCell>
-                  <TableCell>{location.name}</TableCell>
+              {codes.map((qrCode) => (
+                <TableRow key={qrCode.id}>
+                  <TableCell className='font-mono'>{qrCode.id}</TableCell>
+                  <TableCell>{qrCode.name}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

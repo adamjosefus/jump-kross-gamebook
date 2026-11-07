@@ -141,21 +141,21 @@ const teamProblems = (story: Story): readonly string[] => [
   ]),
 ];
 
-const locationProblems = (story: Story): readonly string[] => {
+const codeProblems = (story: Story): readonly string[] => {
   const scanned = new Set(
-    story.order.flatMap((id) => story.nodes[id]!.scans ?? []).map((scan) => scan.location),
+    story.order.flatMap((id) => story.nodes[id]!.scans ?? []).map((scan) => scan.code),
   );
   return [
-    ...story.locations.flatMap(({ id, name }, index) => [
-      ...idProblem('Místo', id, name),
-      ...problemIf(name.trim() === '', `Místo ${id} nemá název.`),
+    ...story.codes.flatMap(({ id, name }, index) => [
+      ...idProblem('Kód', id, name),
+      ...problemIf(name.trim() === '', `Kód ${id} nemá název.`),
       ...problemIf(
-        story.locations.slice(0, index).some((earlier) => earlier.id === id),
-        `Číslo místa ${id} je použito dvakrát.`,
+        story.codes.slice(0, index).some((earlier) => earlier.id === id),
+        `Číslo kódu ${id} je použito dvakrát.`,
       ),
     ]),
-    ...story.locations.flatMap(({ id, name }) =>
-      problemIf(!scanned.has(id), `Místo ${id} („${name}“) nepoužívá žádná QR volba.`),
+    ...story.codes.flatMap(({ id, name }) =>
+      problemIf(!scanned.has(id), `Kód ${id} („${name}“) nepoužívá žádná QR volba.`),
     ),
   ];
 };
@@ -192,16 +192,13 @@ const nodeProblems = (
 ): readonly string[] => [
   ...problemIf(node.scanTitle?.trim() === '', `Uzel ${id} má prázdný titulek skeneru.`),
   ...problemIf(node.scanText?.trim() === '', `Uzel ${id} má prázdný text skeneru.`),
-  ...(node.scans ?? []).flatMap(({ location, goto }) => [
-    ...problemIf(
-      !known.has(location),
-      `QR volba v uzlu ${id} vede přes neznámé místo ${location}.`,
-    ),
+  ...(node.scans ?? []).flatMap(({ code, goto }) => [
+    ...problemIf(!known.has(code), `QR volba v uzlu ${id} vede přes neznámý kód ${code}.`),
     ...problemIf(
       !Object.hasOwn(story.nodes, goto),
-      `QR volba místa ${location} v uzlu ${id} vede na neexistující uzel ${goto}.`,
+      `QR volba kódu ${code} v uzlu ${id} vede na neexistující uzel ${goto}.`,
     ),
-    ...problemIf(goto === story.introNode, `QR volba místa ${location} v uzlu ${id} vede na úvod.`),
+    ...problemIf(goto === story.introNode, `QR volba kódu ${code} v uzlu ${id} vede na úvod.`),
   ]),
   ...(typeof node.choices === 'function' ? [] : choiceProblems(story, id, node.choices ?? [])),
 ];
@@ -216,7 +213,7 @@ const offeredAt = (node: AnyNode, id: string, state: State, team: Team) => [
   ...availableScans(node, state, team).map(({ scan, index }) => ({
     transition: scan,
     key: `${id}@${index}`,
-    name: `QR volby místa ${scan.location}`,
+    name: `QR volby kódu ${scan.code}`,
   })),
 ];
 
@@ -276,8 +273,8 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
       next: [],
     };
   const available = offered.value;
-  const locations = available.flatMap(({ transition }) =>
-    'location' in transition ? [transition.location] : [],
+  const codes = available.flatMap(({ transition }) =>
+    'code' in transition ? [transition.code] : [],
   );
   const moves = available.flatMap(({ transition, name }) =>
     Object.hasOwn(story.nodes, transition.goto)
@@ -300,10 +297,10 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
         available.length === 0,
         `Uzel ${id} je ve stavu ${show(state)} slepá ulička: žádná volba není dostupná.`,
       ),
-      ...locations.flatMap((location, index) =>
+      ...codes.flatMap((code, index) =>
         problemIf(
-          locations.slice(0, index).includes(location),
-          `Uzel ${id} má ve stavu ${show(state)} dvě QR volby pro místo ${location}.`,
+          codes.slice(0, index).includes(code),
+          `Uzel ${id} má ve stavu ${show(state)} dvě QR volby pro kód ${code}.`,
         ),
       ),
       ...moves.flatMap(({ name, result }) =>
@@ -406,7 +403,7 @@ const unusedProblems = (
   ...(node.scans ?? []).flatMap((scan, index) =>
     problemIf(
       !used.has(`${id}@${index}`),
-      `QR volba místa ${scan.location} v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,
+      `QR volba kódu ${scan.code} v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,
     ),
   ),
 ];
@@ -427,7 +424,7 @@ const mergeTeamProblems = (
 /**
  * Mistakes the type checker cannot see. Plays every (node, state) pair each team can reach from the
  * start and reports nodes nobody reaches, choices nobody can take, dead ends, empty screens and labels,
- * blocks that throw, bad team and location numbers and two QR choices for one location.
+ * blocks that throw, bad team and code numbers and two QR choices for one code.
  */
 export const validateStory = (
   story: Story,
@@ -441,7 +438,7 @@ export const validateStory = (
   const start = starts[0];
   if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
 
-  const known = new Set(story.locations.map((location) => location.id));
+  const known = new Set(story.codes.map((code) => code.id));
   // The intro is played by nobody: the login leads from it to the start.
   const played = story.order.filter((id) => id !== story.introNode);
   // Content and conditions may depend on the team, so every team plays the story on its own.
@@ -477,7 +474,7 @@ export const validateStory = (
     ...introProblems(story),
     ...outroProblems(story),
     ...teamProblems(story),
-    ...locationProblems(story),
+    ...codeProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
     ...endProblems,

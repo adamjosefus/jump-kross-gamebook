@@ -2,14 +2,14 @@
 
 A web app for a branching gamebook played by several teams at once in the real world.
 
-Each team plays on their phones. They read the story screen by screen, make choices and move between physical locations, where they scan QR codes to continue. Where a team goes and what it finds depends on its earlier decisions, so every team can take a different path through the story.
+Each team plays on their phones. They read the story screen by screen, make choices and walk to QR codes placed around, which they scan to continue; scanning one of several codes hung side by side is a choice too. Where a team goes and what it finds depends on its earlier decisions, so every team can take a different path through the story.
 
-Organizers get an admin area with a graph of the whole story, a live view of where each team is, a playtest mode and printable QR codes: a login code for every team and one code for every location.
+Organizers get an admin area with a graph of the whole story, a live view of where each team is, a playtest mode and printable QR codes: a login code for every team and the codes that move teams on.
 
 ## Layout
 
 - `packages/core` – the story model, the engine that plays it and the validation of a story.
-- `packages/story` – the story itself: teams, locations and nodes. It changes only with a deploy.
+- `packages/story` – the story itself: teams, QR codes and nodes. It changes only with a deploy.
 - `packages/api` – the HTTP API (Effect `HttpApi`) and its stores: Postgres over Neon's HTTP driver, or memory for local development.
 - `apps/web` – the player app and the admin area (React, TanStack Query and Router, Tailwind).
 - `scripts/build-vercel.ts` – builds the SPA and one Node function for Vercel.

@@ -11,10 +11,10 @@ import type { AnyNode, Choice, Story, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
-  /** Button text, or `Místo N` for a QR choice. */
+  /** Button text, or the code's name for a QR choice. */
   readonly label: string;
-  /** Set on QR choices: the location whose code takes the choice. */
-  readonly location?: number;
+  /** Set on QR choices: the number of the code that takes the choice. */
+  readonly code?: number;
   readonly target: string;
   /** The choice has a `when` or comes from a `choices` function, so it may be hidden. */
   readonly conditional: boolean;
@@ -58,15 +58,13 @@ export interface GameGraph {
 const transitionsOf = (story: Story, node: AnyNode) => [
   ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).map((choice) => ({
     ...choice,
-    location: undefined,
+    code: undefined,
   })),
   ...(node.scans ?? []).map((scan) => ({
     ...scan,
-    // QR edges are labelled with the place, the team never sees a label for them.
-    label:
-      story.locations.find((location) => location.id === scan.location)?.name ??
-      `Místo ${scan.location}`,
-    location: scan.location,
+    // QR edges are labelled with the code's name, the team never sees a label for them.
+    label: story.codes.find((code) => code.id === scan.code)?.name ?? `Kód ${scan.code}`,
+    code: scan.code,
   })),
 ];
 
@@ -188,7 +186,7 @@ export const toGraph = (story: Story): GameGraph => {
           choices: [
             ...transitionsOf(story, node).map((choice) => ({
               label: choice.label,
-              ...(choice.location === undefined ? {} : { location: choice.location }),
+              ...(choice.code === undefined ? {} : { code: choice.code }),
               target: choice.goto,
               conditional: choice.when !== undefined,
               ...(state === undefined || choice.when === undefined

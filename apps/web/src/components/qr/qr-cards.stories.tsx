@@ -16,7 +16,7 @@ export const TeamLogin: StoryObj<typeof TeamLoginQr> = {
 
 export const Progress: StoryObj<typeof ProgressQr> = {
   render: (args) => <ProgressQr {...args} />,
-  args: { value: 'L-32-9FZM7K', locationName: 'Studna na nádvoří' },
+  args: { value: 'L-32-9FZM7K', name: 'Studna na nádvoří' },
 };
 
 export const CodeOnly: StoryObj<typeof QrCode> = {

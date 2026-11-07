@@ -8,7 +8,7 @@ export const fileName = (entry: PrintableCode, extension: string, suffix?: strin
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-  const kind = ({ T: 'tym', L: 'misto' } as const)[entry.kind];
+  const kind = ({ T: 'tym', L: 'kod' } as const)[entry.kind];
   return `qr-${[kind, slug, entry.kind, entry.id, suffix].filter(Boolean).join('-')}.${extension}`;
 };
 

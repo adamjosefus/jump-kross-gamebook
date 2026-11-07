@@ -1,4 +1,4 @@
-/** Kind of printed code: team login or a location. */
+/** Kind of printed code: team login or one of the story's codes. */
 export type QrCardKind = 'T' | 'L';
 
 export interface QrCardText {

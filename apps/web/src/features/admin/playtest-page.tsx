@@ -157,9 +157,9 @@ const viaOf = (from: Step, move: Move | undefined) => {
       from.view.choices.find((choice) => choice.index === move.choice)?.label ??
       `Volba ${move.choice}`
     );
-  const location = 'scan' in move ? move.scan : parseQr(move.code)?.id;
-  const name = from.view.scans.find((place) => place.id === location)?.name;
-  if ('scan' in move) return `${name ?? `Místo ${move.scan}`} (přeskočeno)`;
+  const scanned = 'scan' in move ? move.scan : parseQr(move.code)?.id;
+  const name = from.view.scans.find((qrCode) => qrCode.id === scanned)?.name;
+  if ('scan' in move) return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;
   return from.intro === true ? `Kód týmu ${move.code}` : `QR ${name ?? move.code}`;
 };
 
@@ -529,9 +529,9 @@ export const PlaytestPage = () => {
               </Hint>
               <DropdownMenuContent align='end'>
                 <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
-                {scans.map((location) => (
-                  <DropdownMenuItem key={location.id} onSelect={() => take({ scan: location.id })}>
-                    <IconQrcode /> {location.name}
+                {scans.map((qrCode) => (
+                  <DropdownMenuItem key={qrCode.id} onSelect={() => take({ scan: qrCode.id })}>
+                    <IconQrcode /> {qrCode.name}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

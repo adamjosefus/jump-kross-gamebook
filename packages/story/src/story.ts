@@ -13,10 +13,11 @@ const PROLOGS = ['PROLOG_1', 'PROLOG_2', 'PROLOG_3'] as const;
 /**
  * The gamebook. Every node is one step of the story: `blocks` are its screens (markdown, one
  * screen each, optionally with a `theme`). A node leads on either by `choices` (buttons) or by
- * `scans`: the team scans the QR code of a location and goes where that location leads. The team
- * does not see which locations a node accepts, so the screens have to say where to go.
+ * `scans`: the team scans one of the QR codes and goes where that code leads. Several codes can hang
+ * side by side, so the team decides by which one it scans. The team does not see which codes a node
+ * accepts, so the screens have to say where to go and which code to scan.
  *
- * `teams` are the teams of the game and `locations` the places with QR codes; the admin prints
+ * `teams` are the teams of the game and `codes` the QR codes that move teams on; the admin prints
  * their codes from here. `introNode` is what anyone sees before scanning a team's code; then the
  * team continues where it is, or at START when it has not started yet. `outroNode` is where the
  * game ends.
@@ -41,7 +42,7 @@ export const story = defineStory<State>()({
   },
   introNode: 'INTRO',
   outroNode: 'OUTRO',
-  locations: {
+  codes: {
     1: 'Místo 1',
     2: 'Místo 2',
     3: 'Místo 3',
@@ -167,52 +168,52 @@ Rozhoduje totiž celý klan.
       ],
     },
     PROLOG_1: {
-      scans: [{ location: 1, goto: 'MISTO_1' }],
+      scans: [{ code: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 1'],
     },
     PROLOG_2: {
-      scans: [{ location: 1, goto: 'MISTO_1' }],
+      scans: [{ code: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 2'],
     },
     PROLOG_3: {
-      scans: [{ location: 1, goto: 'MISTO_1' }],
+      scans: [{ code: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 3'],
     },
     // Placeholder trail through every place with a QR code, one after another.
     MISTO_1: {
-      scans: [{ location: 2, goto: 'MISTO_2' }],
+      scans: [{ code: 2, goto: 'MISTO_2' }],
       blocks: [`Jste na místě 1. Pokračujte na místo 2.`],
     },
     MISTO_2: {
-      scans: [{ location: 3, goto: 'MISTO_3' }],
+      scans: [{ code: 3, goto: 'MISTO_3' }],
       blocks: [`Jste na místě 2. Pokračujte na místo 3.`],
     },
     MISTO_3: {
-      scans: [{ location: 4, goto: 'MISTO_4' }],
+      scans: [{ code: 4, goto: 'MISTO_4' }],
       blocks: [`Jste na místě 3. Pokračujte na místo 4.`],
     },
     MISTO_4: {
-      scans: [{ location: 5, goto: 'MISTO_5' }],
+      scans: [{ code: 5, goto: 'MISTO_5' }],
       blocks: [`Jste na místě 4. Pokračujte na místo 5.`],
     },
     MISTO_5: {
-      scans: [{ location: 6, goto: 'MISTO_6' }],
+      scans: [{ code: 6, goto: 'MISTO_6' }],
       blocks: [`Jste na místě 5. Pokračujte na místo 6.`],
     },
     MISTO_6: {
-      scans: [{ location: 7, goto: 'MISTO_7' }],
+      scans: [{ code: 7, goto: 'MISTO_7' }],
       blocks: [`Jste na místě 6. Pokračujte na místo 7.`],
     },
     MISTO_7: {
-      scans: [{ location: 8, goto: 'MISTO_8' }],
+      scans: [{ code: 8, goto: 'MISTO_8' }],
       blocks: [`Jste na místě 7. Pokračujte na místo 8.`],
     },
     MISTO_8: {
-      scans: [{ location: 9, goto: 'MISTO_9' }],
+      scans: [{ code: 9, goto: 'MISTO_9' }],
       blocks: [`Jste na místě 8. Pokračujte na místo 9.`],
     },
     MISTO_9: {
-      scans: [{ location: 10, goto: 'MISTO_10' }],
+      scans: [{ code: 10, goto: 'MISTO_10' }],
       blocks: [`Jste na místě 9. Pokračujte na místo 10.`],
     },
     MISTO_10: {

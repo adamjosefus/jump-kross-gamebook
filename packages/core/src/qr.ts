@@ -3,7 +3,8 @@
  * a link with an unknown scheme and refuse it, while plain text they show. The old `KIND:ID:CHECK`
  * spelling is still accepted when reading.
  *
- * - `T` logs a team in, `L` is a location: scanning it takes the QR choice of that place.
+ * - `T` logs a team in, `L` is one of the story's `codes`: scanning it takes the QR choice of
+ *   that code. The letter is kept from when codes were called locations, so printed codes stay valid.
  * - `CHECK` is 6 Crockford base32 characters (30 bits) of HMAC-SHA256(`KIND:ID`) keyed by a
  *   server secret. The signed message keeps the colon, so the check is the same in both spellings.
  *   It is readable but cannot be computed by hand, so codes cannot be forged in the field, and a

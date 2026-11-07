@@ -28,7 +28,7 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
       {entry.kind === 'T' ? (
         <TeamLoginQr value={entry.code} teamName={entry.label} />
       ) : (
-        <ProgressQr value={entry.code} locationName={entry.label} />
+        <ProgressQr value={entry.code} name={entry.label} />
       )}
       <div className='absolute top-3 right-3 flex gap-1 print:hidden'>
         <Button
@@ -72,8 +72,8 @@ export const PrintPage = () => {
     <div className='flex flex-col gap-4 p-6'>
       <div className='flex items-center gap-4 print:hidden'>
         <p className='text-sm text-muted-foreground'>
-          {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, kód místa platí pro
-          všechny týmy. Týmy i místa jsou součástí příběhu.
+          {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, ostatní kódy platí pro
+          všechny týmy. Týmy i kódy jsou součástí příběhu.
         </p>
       </div>
       <div className='flex flex-wrap gap-4'>

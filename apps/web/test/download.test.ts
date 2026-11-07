@@ -9,12 +9,12 @@ describe('fileName', () => {
     );
     expect(
       fileName({ kind: 'L', id: 3, label: 'Studna na nádvoří', code: 'L-3-AAAAAA' }, 'png', 'a4'),
-    ).toBe('qr-misto-studna-na-nadvori-L-3-a4.png');
+    ).toBe('qr-kod-studna-na-nadvori-L-3-a4.png');
   });
 
   it('survives a label of only punctuation', () => {
     expect(fileName({ kind: 'L', id: 7, label: '???', code: 'L-7-AAAAAA' }, 'svg')).toBe(
-      'qr-misto-L-7.svg',
+      'qr-kod-L-7.svg',
     );
   });
 });

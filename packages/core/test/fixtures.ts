@@ -5,7 +5,7 @@ type State = { readonly gold: number; readonly hatColor: 'red' | 'blue' | 'green
 /** Small story covering QR choices, conditional blocks and choices, and an outro that depends on the state. */
 export const SAMPLE = defineStory<State>()({
   teams: { 1: 'Vlci', 2: 'Lišky' },
-  locations: { 32: 'Místo 32', 33: 'Místo 33' },
+  codes: { 32: 'Místo 32', 33: 'Místo 33' },
   introNode: 'INTRO',
   outroNode: 'OUTRO',
   nodes: {
@@ -48,8 +48,8 @@ export const SAMPLE = defineStory<State>()({
         { theme: 'description', content: 'Setmělo se.' },
       ],
       scans: [
-        { location: 32, goto: 'B1' },
-        { location: 33, goto: 'B1', nextState: (state) => ({ gold: state.gold + 50 }) },
+        { code: 32, goto: 'B1' },
+        { code: 33, goto: 'B1', nextState: (state) => ({ gold: state.gold + 50 }) },
       ],
     },
     B1: {

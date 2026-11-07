@@ -76,7 +76,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
 const actionLabel = (action: string) =>
   ACTION_LABELS[action] ??
   (action.startsWith('scan:')
-    ? `sken místa ${action.slice(5)}`
+    ? `sken kódu ${action.slice(5)}`
     : action.startsWith('choice:')
       ? 'volba'
       : action);
