@@ -13,7 +13,7 @@ import {
   Unauthorized,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
-import { Game, PLAYER_SESSION_TTL_MS } from './game.ts';
+import { Game, isDeviceId, PLAYER_SESSION_TTL_MS } from './game.ts';
 import { Store } from './store.ts';
 import { ADMIN_MAX_AGE, createAdminToken, secretsEqual, verifyAdminToken } from './tokens.ts';
 
@@ -104,8 +104,10 @@ const PlayerHandlers = HttpApiBuilder.group(
       login: Effect.fn(function* ({ payload }) {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const key = clientKey(request);
-        // A device without its own id gets one now; it is renewed with every login.
-        const deviceId = request.cookies[DeviceCookie.key] ?? crypto.randomUUID();
+        // A device without its own id (or with one this server did not give) gets one now; it is
+        // renewed with every login.
+        const sent = request.cookies[DeviceCookie.key];
+        const deviceId = isDeviceId(sent) ? sent : crypto.randomUUID();
         yield* HttpApiBuilder.securitySetCookie(DeviceCookie, deviceId, {
           ...cookie,
           maxAge: DEVICE_MAX_AGE,
@@ -191,6 +193,7 @@ const AdminHandlers = HttpApiBuilder.group(
       overview: () => orDie(game.overview()),
       startGame: () => orDie(game.startGame()),
       setClosed: ({ payload }) => orDie(game.setClosed(payload.closed)),
+      devices: () => orDie(game.devices()),
       logoutDevice: ({ params }) => orDie(game.logoutDevice(params.id)),
       banDevice: ({ params }) => orDie(game.banDevice(params.id)),
       unbanDevice: ({ params }) => orDie(game.unbanDevice(params.id)),

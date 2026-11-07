@@ -289,6 +289,9 @@ describe('postgres store', () => {
     expect(await run(store.touchSession('banned-1', old))).toBeUndefined();
     expect(await run(store.touchSession('banned-2', old))).toBeUndefined();
     expect(await run(store.touchSession('kept', old))).toBe(2);
+    // A session created while the ban was being written is refused all the same.
+    await run(store.createSession('late', 1, device));
+    expect(await run(store.touchSession('late', old))).toBeUndefined();
 
     await run(store.unbanDevice('device-ban'));
     expect(await run(store.isBanned('device-ban'))).toBe(false);

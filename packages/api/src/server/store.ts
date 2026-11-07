@@ -136,7 +136,7 @@ export interface StoreShape {
   ) => Effect.Effect<void, StoreError>;
   /**
    * Resolves a session created after `createdAfter` and records that the device is alive; an
-   * older session resolves to undefined.
+   * older session, or one of a banned device, resolves to undefined.
    */
   readonly touchSession: (
     id: string,

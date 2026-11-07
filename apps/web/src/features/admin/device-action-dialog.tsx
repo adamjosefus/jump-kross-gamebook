@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { api, errorMessage } from '@/lib/api';
 
 import { deviceLabel } from './device-label';
+import { formatDateTime } from './format';
 import { adminKeys } from './queries';
 
 export type DeviceAction = 'logout' | 'ban';
@@ -46,14 +47,6 @@ const TEXTS = {
   },
 } as const;
 
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString('cs-CZ', {
-    day: 'numeric',
-    month: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
 /**
  * Logs a device out or bans it. Both reach a phone in the middle of the game, so the dialog says
  * what happens, shows which device it is and has the admin type a word to confirm.
@@ -78,7 +71,7 @@ export const DeviceActionDialog = ({
         ? api((client) => client.admin.logoutDevice({ params: { id: device.id } }))
         : api((client) => client.admin.banDevice({ params: { id: device.id } })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.devices });
       toast.success(texts.done);
       onClose();
     },
@@ -114,7 +107,7 @@ export const DeviceActionDialog = ({
               </span>
             </dd>
             <dt className='text-muted-foreground'>Přihlášeno</dt>
-            <dd className='tabular-nums'>{formatTime(device.loggedInAt)}</dd>
+            <dd className='tabular-nums'>{formatDateTime(device.loggedInAt)}</dd>
             <dt className='text-muted-foreground'>IP adresa</dt>
             <dd className='font-mono text-xs leading-5'>{device.ip ?? 'neznámá'}</dd>
           </dl>

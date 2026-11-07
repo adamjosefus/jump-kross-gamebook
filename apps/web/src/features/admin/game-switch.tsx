@@ -18,15 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, errorMessage } from '@/lib/api';
 
+import { formatDateTime } from './format';
 import { adminKeys } from './queries';
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString('cs-CZ', {
-    day: 'numeric',
-    month: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
 /**
  * Opens or closes the whole game. Closed, no device logs in or moves; the logged-in ones stay
@@ -35,7 +28,13 @@ const formatTime = (iso: string) =>
 export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
-  const next = !game.closed;
+  // What the dialog asks for is fixed when it opens: a refresh of the overview meanwhile (another
+  // organizer's change) must not turn „Zavřít“ into „Otevřít“ under the admin's cursor.
+  const [next, setNext] = useState(!game.closed);
+  const ask = () => {
+    setNext(!game.closed);
+    setConfirming(true);
+  };
 
   const change = useMutation({
     mutationFn: () => api((client) => client.admin.setClosed({ payload: { closed: next } })),
@@ -70,16 +69,12 @@ export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
             {game.closedChangedAt !== undefined && (
               <>
                 {' '}
-                {game.closed ? 'Zavřená od' : 'Otevřená od'} {formatTime(game.closedChangedAt)}.
+                {game.closed ? 'Zavřená od' : 'Otevřená od'} {formatDateTime(game.closedChangedAt)}.
               </>
             )}
           </CardDescription>
         </div>
-        <Button
-          variant={game.closed ? 'default' : 'destructive'}
-          size='sm'
-          onClick={() => setConfirming(true)}
-        >
+        <Button variant={game.closed ? 'default' : 'destructive'} size='sm' onClick={ask}>
           {game.closed ? <IconLockOpen /> : <IconLock />}
           {game.closed ? 'Otevřít hru' : 'Zavřít hru'}
         </Button>

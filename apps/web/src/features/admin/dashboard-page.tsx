@@ -42,6 +42,7 @@ import { StoryGraph } from '@/features/story/story-graph';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
+import { timeAgo } from './format';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
@@ -53,13 +54,6 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
-
-const timeAgo = (iso: string) => {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  if (seconds < 60) return `před ${seconds} s`;
-  if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
-  return new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-};
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });

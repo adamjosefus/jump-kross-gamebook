@@ -36,28 +36,12 @@ import { api, errorMessage } from '@/lib/api';
 
 import { DeviceActionDialog, type DeviceAction } from './device-action-dialog';
 import { deviceLabel } from './device-label';
-import { adminKeys, useOverview } from './queries';
+import { formatDateTime, timeAgo } from './format';
+import { adminKeys, useDevices } from './queries';
 
 const POLL_MS = 10_000;
 
 const ALL_TEAMS = 'all';
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString('cs-CZ', {
-    day: 'numeric',
-    month: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-
-const timeAgo = (iso: string) => {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
-  if (seconds < 60) return `před ${seconds} s`;
-  if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
-  if (seconds < 86_400) return `před ${Math.round(seconds / 3600)} h`;
-  return formatTime(iso);
-};
 
 /**
  * Every device logged in to a team: when it logged in, from which address, what it is and when
@@ -65,7 +49,7 @@ const timeAgo = (iso: string) => {
  * The admin can log a device out or ban it; banned devices are listed below, to be unbanned.
  */
 export const DevicesPage = () => {
-  const overview = useOverview(POLL_MS);
+  const overview = useDevices(POLL_MS);
   const [team, setTeam] = useState(ALL_TEAMS);
   const [acting, setActing] = useState<{
     readonly device: Device;
@@ -75,7 +59,11 @@ export const DevicesPage = () => {
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { devices, teams, bans } = overview.data;
+  const { devices, bans } = overview.data;
+  // The teams that have a device, for the filter.
+  const teams = [
+    ...new Map(devices.map(({ teamId, teamName }) => [teamId, teamName])).entries(),
+  ].toSorted(([first], [second]) => first - second);
   const shown =
     team === ALL_TEAMS ? devices : devices.filter(({ teamId }) => String(teamId) === team);
   const active = devices.filter((device) => device.active).length;
@@ -104,7 +92,7 @@ export const DevicesPage = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_TEAMS}>Všechny týmy</SelectItem>
-              {teams.map(({ id, name }) => (
+              {teams.map(([id, name]) => (
                 <SelectItem key={id} value={String(id)}>
                   {name}
                 </SelectItem>
@@ -183,8 +171,13 @@ const DeviceRow = ({
         <span className='font-mono text-xs text-muted-foreground'>{device.id.slice(0, 6)}</span>
       </span>
     </TableCell>
-    <TableCell className='tabular-nums'>{formatTime(device.loggedInAt)}</TableCell>
-    <TableCell className='tabular-nums' title={formatTime(device.lastSeenAt)}>
+    <TableCell className='tabular-nums'>
+      {formatDateTime(device.loggedInAt, { seconds: true })}
+    </TableCell>
+    <TableCell
+      className='tabular-nums'
+      title={formatDateTime(device.lastSeenAt, { seconds: true })}
+    >
       <span className='flex items-center gap-2'>
         {device.active ? (
           <Badge variant='secondary'>aktivní</Badge>
@@ -238,7 +231,7 @@ const BansCard = ({ bans }: { readonly bans: readonly BannedDevice[] }) => {
     mutationFn: (ban: BannedDevice) =>
       api((client) => client.admin.unbanDevice({ params: { id: ban.id } })),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.devices });
       toast.success('Zařízení je odblokované.');
       setOpen(false);
     },
@@ -277,7 +270,7 @@ const BansCard = ({ bans }: { readonly bans: readonly BannedDevice[] }) => {
                   </span>
                 </TableCell>
                 <TableCell title={ban.userAgent}>{deviceLabel(ban.userAgent)}</TableCell>
-                <TableCell className='tabular-nums'>{formatTime(ban.bannedAt)}</TableCell>
+                <TableCell className='tabular-nums'>{formatDateTime(ban.bannedAt)}</TableCell>
                 <TableCell className='font-mono text-xs'>
                   {ban.ip ?? <span className='text-muted-foreground'>neznámá</span>}
                 </TableCell>

@@ -288,7 +288,8 @@ export const makePostgresStore = (client: SqlClient) => {
               and last_seen_at < now() - interval '30 seconds'
           )
           select team_id from session
-          where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz`);
+          where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz
+            and not exists (select 1 from device_ban where device_ban.device_id = session.device_id)`);
         return row === undefined ? undefined : Number(row['team_id']);
       }),
     deleteSession: (id) =>

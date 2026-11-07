@@ -149,6 +149,8 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         const session = sessions.get(id);
         if (session === undefined || !teams.has(session.teamId)) return undefined;
         if (session.createdAt <= createdAfter) return undefined;
+        // A session that slipped in while its device was being banned is refused too.
+        if (session.deviceId !== undefined && bans.has(session.deviceId)) return undefined;
         sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),

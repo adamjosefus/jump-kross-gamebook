@@ -76,6 +76,13 @@ export class DeviceBanned extends Schema.TaggedError<DeviceBanned>()(
   { httpApiStatus: 403 },
 ) {}
 
+/** The device logged in before devices had their own id, so it can be logged out but not banned. */
+export class DeviceNotBannable extends Schema.TaggedError<DeviceNotBannable>()(
+  'DeviceNotBannable',
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
 /** The admin closed the game: nobody logs in or moves until it opens again. */
 export class GameClosed extends Schema.TaggedError<GameClosed>()(
   'GameClosed',
@@ -338,16 +345,21 @@ export type BannedDevice = typeof BannedDevice.Type;
 export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
-  /** Every device logged in to a team, the most recently seen first. */
-  devices: Schema.Array(Device),
-  /** Banned devices, the most recent ban first. */
-  bans: Schema.Array(BannedDevice),
   codes: Schema.Array(QrCode),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
   visits: Schema.Record(Schema.String, Schema.Number),
 });
 export type Overview = typeof Overview.Type;
+
+/** The devices of the game, apart from the overview, which the live view polls often. */
+export const Devices = Schema.Struct({
+  /** Every device logged in to a team, the most recently seen first. */
+  devices: Schema.Array(Device),
+  /** Banned devices, the most recent ban first. */
+  bans: Schema.Array(BannedDevice),
+});
+export type Devices = typeof Devices.Type;
 
 export const PrintableCode = Schema.Struct({
   kind: Schema.Literals(['T', 'L']),
@@ -428,6 +440,7 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       payload: Schema.Struct({ closed: Schema.Boolean }),
       success: GameInfo,
     }).middleware(AdminAuth),
+    HttpApiEndpoint.get('devices', '/devices', { success: Devices }).middleware(AdminAuth),
     /** Ends the device's session; it can log in again with a team code. */
     HttpApiEndpoint.post('logoutDevice', '/devices/:id/logout', {
       params: { id: Schema.String },
@@ -436,7 +449,7 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     /** Ends every session of the device and refuses its logins until it is unbanned. */
     HttpApiEndpoint.post('banDevice', '/devices/:id/ban', {
       params: { id: Schema.String },
-      error: NotFound,
+      error: [NotFound, DeviceNotBannable],
     }).middleware(AdminAuth),
     HttpApiEndpoint.post('unbanDevice', '/bans/:id/remove', {
       params: { id: Schema.String },
