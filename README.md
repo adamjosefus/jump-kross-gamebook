@@ -41,3 +41,5 @@ The app deploys to Vercel with `pnpm build:vercel` (see `vercel.json`). A deploy
 - `SESSION_SECRET` – signs the admin cookie.
 
 The database schema is applied by the function itself on its first request. Pick the function's region close to the database's; every query is one HTTPS round trip.
+
+Neon's Vercel integration gives every deployed git branch its own database branch and removes it only when the git branch is deleted; the free plan allows ten branches per project. The workflow `Delete merged branch` therefore deletes the head branch of every merged pull request, so no more than nine pull requests should be open with a preview at once.

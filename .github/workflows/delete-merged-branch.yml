@@ -1,0 +1,60 @@
+name: Delete merged branch
+
+# Deletes the head branch of a pull request once it is merged, like the repository setting
+# "Automatically delete head branches" would, but kept in the repository so it cannot be forgotten.
+#
+# It matters for the preview databases: the Neon integration on Vercel creates a database branch
+# for every git branch it deploys and removes it only when the git branch is deleted. Neon's free
+# plan allows ten branches per project; with merged branches left behind, the eleventh preview
+# deployment fails with "Resource provisioning failed".
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  delete:
+    name: head branch
+    # Only merged pull requests from this repository: a closed one may still be reopened, and a
+    # fork's branch is not ours to delete.
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete the head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "Not deleting the default branch."
+            exit
+          fi
+          # A branch name is a URL path here; it may hold characters such as '#' that a URL reads
+          # differently, so every segment is encoded and the slashes are kept.
+          encoded=$(jq -rn --arg branch "$BRANCH" '$branch | split("/") | map(@uri) | join("/")')
+          # Another open pull request from the same branch would be closed by the deletion, and
+          # a branch protected against deletion is protected on purpose.
+          open=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}:$BRANCH" -q length)
+          if [ "$open" != 0 ]; then
+            echo "Not deleting $BRANCH: it is the head of an open pull request."
+            exit
+          fi
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY/branches/$encoded" -q .protected 2>/dev/null)" = true ]; then
+            echo "Not deleting $BRANCH: it is protected."
+            exit
+          fi
+          # The status line tells a deleted branch (204) from one already gone (422) and from a
+          # failure, which must not pass as a deletion.
+          status=$(gh api -i -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$encoded" 2>/dev/null | head -1 | cut -d' ' -f2) || true
+          case "$status" in
+            204) echo "Deleted $BRANCH." ;;
+            422) echo "$BRANCH was already deleted." ;;
+            *) echo "Deleting $BRANCH failed (HTTP ${status:-no response})."; exit 1 ;;
+          esac
