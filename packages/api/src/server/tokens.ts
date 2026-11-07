@@ -32,21 +32,29 @@ export const secretsEqual = (expected: string, given: string): boolean => {
   return difference === 0;
 };
 
+/** What signs the admin cookie: the session secret and the password, so a new password logs everyone out. */
+export interface AdminKey {
+  readonly sessionSecret: string;
+  readonly adminPassword: string;
+}
+
+const keyOf = ({ sessionSecret, adminPassword }: AdminKey) => `${sessionSecret}\n${adminPassword}`;
+
 /** Stateless admin session: `<expiry>.<hmac>`. */
-export const createAdminToken = async (secret: string, now = Date.now()): Promise<string> => {
+export const createAdminToken = async (key: AdminKey, now = Date.now()): Promise<string> => {
   const expires = String(now + ADMIN_TTL_MS);
-  return `${expires}.${await sign(secret, `admin:${expires}`)}`;
+  return `${expires}.${await sign(keyOf(key), `admin:${expires}`)}`;
 };
 
 export const verifyAdminToken = async (
-  secret: string,
+  key: AdminKey,
   token: string,
   now = Date.now(),
 ): Promise<boolean> => {
   const [expires, signature, ...rest] = token.split('.');
   if (expires === undefined || signature === undefined || rest.length > 0) return false;
   if (!/^\d+$/.test(expires) || Number(expires) < now) return false;
-  return secretsEqual(await sign(secret, `admin:${expires}`), signature);
+  return secretsEqual(await sign(keyOf(key), `admin:${expires}`), signature);
 };
 
 export const ADMIN_MAX_AGE = `${ADMIN_TTL_MS / 1000} seconds` as const;

@@ -1,9 +1,16 @@
+import type { State, Value } from '@gamebook/core';
 import { neon } from '@neondatabase/serverless';
 import { Effect, Layer, Schema } from 'effect';
 
-import { GameState } from '../api.ts';
 import { SCHEMA } from './schema.ts';
-import { Store, StoreError, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
+import {
+  Store,
+  StoreError,
+  type AdminFailures,
+  type LogRow,
+  type ReadingRow,
+  type TeamRow,
+} from './store.ts';
 
 export type Row = Readonly<Record<string, unknown>>;
 
@@ -51,12 +58,24 @@ export const schemaStatements = (): readonly SqlStatement[] =>
 
 // Rows come back untyped, so every column is decoded; a mismatch throws and surfaces as StoreError.
 const decodeText = Schema.decodeUnknownSync(Schema.String);
-const decodeState = Schema.decodeUnknownSync(GameState);
+const decodeObject = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.Unknown));
 const decodeTimestamp = Schema.decodeUnknownSync(Schema.Union([Schema.String, Schema.Date]));
 
 const text = (value: unknown) => decodeText(value);
 const optionalText = (value: unknown) => (value === null ? undefined : decodeText(value));
 const timestamp = (value: unknown) => new Date(decodeTimestamp(value));
+/**
+ * A state is read leniently: a value the game cannot hold (a `null` from a `NaN`, an object) is
+ * dropped rather than making the row, and with it every list of teams, unreadable for good.
+ */
+const isValue = (entry: unknown): entry is Value =>
+  typeof entry === 'string' || typeof entry === 'boolean' || Number.isFinite(entry);
+const decodeState = (value: unknown): State =>
+  Object.fromEntries(
+    Object.entries(decodeObject(value)).flatMap(([key, entry]): readonly [string, Value][] =>
+      isValue(entry) ? [[key, entry]] : [],
+    ),
+  );
 
 const toTeam = (row: Row): TeamRow => ({
   id: Number(row['id']),
@@ -77,6 +96,11 @@ const toLog = (row: Row): LogRow => ({
   state: decodeState(row['state']),
 });
 
+const toFailures = (row: Row): AdminFailures => ({
+  failures: Number(row['failures']),
+  lastAt: timestamp(row['last_at']),
+});
+
 const toReading = (row: Row): ReadingRow => ({
   teamId: Number(row['team_id']),
   startedAt: timestamp(row['started_at']),
@@ -86,10 +110,14 @@ const toReading = (row: Row): ReadingRow => ({
 /** The store on a Postgres database reached through `client`; the schema is applied on the first query. */
 export const makePostgresStore = (client: SqlClient) => {
   const { query: run, transaction } = client;
-  // The migration runs once per instance and is retried after a failure, so its promise is
-  // kept in a `let`.
+  // The migration runs once per instance and is retried only after it failed itself, so its
+  // promise is kept in a `let`. A failed query must not run the DDL (and take its locks) again.
   let ready: Promise<unknown> | undefined;
-  const migrate = () => (ready ??= transaction(schemaStatements()));
+  const migrate = () =>
+    (ready ??= transaction(schemaStatements()).catch((cause: unknown) => {
+      ready = undefined;
+      throw cause;
+    }));
 
   const query = <A>(compute: () => Promise<A>) =>
     Effect.tryPromise({
@@ -97,10 +125,8 @@ export const makePostgresStore = (client: SqlClient) => {
         await migrate();
         return await compute();
       },
-      catch: (cause) => {
-        ready = undefined; // retry the migration on the next request
-        return new StoreError({ message: cause instanceof Error ? cause.message : String(cause) });
-      },
+      catch: (cause) =>
+        new StoreError({ message: cause instanceof Error ? cause.message : String(cause) }),
     });
 
   return Store.of({
@@ -142,6 +168,32 @@ export const makePostgresStore = (client: SqlClient) => {
           )
           select * from updated`);
         return row === undefined ? undefined : toTeam(row);
+      }),
+
+    resetTeams: (ids, start) =>
+      query(async () => {
+        const list = [...ids];
+        const state = JSON.stringify(start.state);
+        await transaction([
+          sql`insert into team (id) select unnest(${list}::int[]) on conflict (id) do nothing`,
+          sql`
+            insert into step_log (team_id, action, from_node, to_node, state)
+            select id, ${start.action}, node, ${start.node ?? null}, ${state}::jsonb
+            from team where id = any(${list}::int[]) order by id`,
+          sql`
+            update team set
+              node = ${start.node ?? null},
+              state = ${state}::jsonb,
+              step = step + 1,
+              finished_at = case when ${start.finished} then coalesce(finished_at, now()) else null end,
+              started_at = null,
+              updated_at = now()
+            where id = any(${list}::int[])`,
+          sql`delete from reading where team_id = any(${list}::int[])`,
+        ]);
+        return (await run(sql`select * from team where id = any(${list}::int[]) order by id`)).map(
+          toTeam,
+        );
       }),
 
     markStarted: (id) =>
@@ -198,6 +250,21 @@ export const makePostgresStore = (client: SqlClient) => {
           where last_seen_at >= ${since.toISOString()}::timestamptz group by team_id`);
         return new Map(rows.map((row) => [Number(row['team_id']), Number(row['devices'])]));
       }),
+
+    adminFailures: (key) =>
+      query(async () => {
+        const [row] = await run(sql`select failures, last_at from admin_login where key = ${key}`);
+        return row === undefined ? undefined : toFailures(row);
+      }),
+    recordAdminFailure: (key) =>
+      query(
+        async () =>
+          void (await run(sql`
+            insert into admin_login (key, failures, last_at) values (${key}, 1, now())
+            on conflict (key) do update set failures = admin_login.failures + 1, last_at = now()`)),
+      ),
+    clearAdminFailures: (key) =>
+      query(async () => void (await run(sql`delete from admin_login where key = ${key}`))),
 
     recentLog: (limit) =>
       query(async () =>

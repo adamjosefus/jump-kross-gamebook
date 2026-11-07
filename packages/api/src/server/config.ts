@@ -61,13 +61,28 @@ export const configFromEnv = (
   };
 };
 
+export const missingMessage = (missing: readonly string[]) =>
+  `Missing environment variables ${missing.join(', ')}. Set them in the Vercel project settings and redeploy.`;
+
+/** Whether the connection string is one the driver takes, checked without echoing it anywhere. */
+export const isDatabaseUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return (
+      (parsed.protocol === 'postgres:' || parsed.protocol === 'postgresql:') &&
+      parsed.hostname !== ''
+    );
+  } catch {
+    return false;
+  }
+};
+
 /**
- * Stands in for the API while a deployment lacks secrets: every request gets a 503 that names the
- * variables to set, instead of the function crashing on start with an anonymous 500. The message is
- * technical, for the console; the app shows players its own.
+ * Stands in for the API while a deployment is misconfigured: every request gets a 503 with the
+ * message, instead of the function crashing on start with an anonymous 500. The message is
+ * technical, for the console, and never contains a secret; the app shows players its own.
  */
-export const misconfiguredHandler = (missing: readonly string[]) => {
-  const message = `Missing environment variables ${missing.join(', ')}. Set them in the Vercel project settings and redeploy.`;
+export const misconfiguredHandler = (message: string) => {
   console.error(`${message} Until then the API answers every request with 503.`);
   return {
     handler: async (_request: Request): Promise<Response> =>

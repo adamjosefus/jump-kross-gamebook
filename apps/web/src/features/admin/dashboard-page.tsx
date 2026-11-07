@@ -245,7 +245,8 @@ export const DashboardPage = () => {
                     {formatState(team.state)}
                   </div>
                   <div className='text-xs text-muted-foreground'>
-                    {team.devices} zař. · {timeAgo(team.updatedAt)}
+                    {team.devices} zař. ·{' '}
+                    {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
                   </div>
                   {team.playMs !== undefined && (
                     <div className='text-xs text-muted-foreground'>

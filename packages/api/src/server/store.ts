@@ -34,6 +34,11 @@ export interface ReadingRow {
   readonly endedAt: Date;
 }
 
+export interface AdminFailures {
+  readonly failures: number;
+  readonly lastAt: Date;
+}
+
 export interface TeamMove {
   readonly node: string | undefined;
   readonly state: State;
@@ -62,6 +67,15 @@ export interface StoreShape {
     move: TeamMove,
   ) => Effect.Effect<TeamRow | undefined, StoreError>;
 
+  /**
+   * A new game for these teams in one go: rows created where missing, every team moved to `start`
+   * whatever its step, the first scan and the reading forgotten. Returns the rows as they are then.
+   */
+  readonly resetTeams: (
+    ids: readonly number[],
+    start: TeamMove,
+  ) => Effect.Effect<readonly TeamRow[], StoreError>;
+
   /** Records the team's first scan; later calls change nothing. */
   readonly markStarted: (id: number) => Effect.Effect<void, StoreError>;
   /** Forgets the first scan and the reading, for a new game of the team. */
@@ -81,6 +95,11 @@ export interface StoreShape {
   readonly deleteSession: (id: string) => Effect.Effect<void, StoreError>;
   /** Devices seen since `since`, per team. */
   readonly activeDevices: (since: Date) => Effect.Effect<ReadonlyMap<number, number>, StoreError>;
+
+  /** Failed admin logins from `key` (the client's address) since the last success. */
+  readonly adminFailures: (key: string) => Effect.Effect<AdminFailures | undefined, StoreError>;
+  readonly recordAdminFailure: (key: string) => Effect.Effect<void, StoreError>;
+  readonly clearAdminFailures: (key: string) => Effect.Effect<void, StoreError>;
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
   /** Arrivals per node over the whole game, by choice, scan, start, reset or admin move. */

@@ -19,18 +19,24 @@ const config: ServerConfigShape = {
   sessionSecret: 'session-secret',
   insecureCookies: true,
 };
-const { handler, dispose } = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+/** The data behind the shared handler, so a test can put a team's first scan into the past. */
+const shared = emptyMemoryData();
+const { handler, dispose } = makeHandler(config, MemoryStoreLayer(shared), SAMPLE);
 afterAll(() => dispose());
 
 /** Minimal client with its own cookie jar, like one phone. */
-const device = (handle = handler) => {
+const device = (
+  handle = handler,
+  extraHeaders: Readonly<Record<string, string>> = {},
   // The jar is updated in place as cookies arrive, like a browser's.
-  const jar = new Map<string, string>();
-  return async (method: string, path: string, body?: unknown) => {
+  jar = new Map<string, string>(),
+) => {
+  const call = async (method: string, path: string, body?: unknown) => {
     const response = await handle(
       new Request(`http://localhost${path}`, {
         method,
         headers: {
+          ...extraHeaders,
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
           cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; '),
         },
@@ -45,6 +51,7 @@ const device = (handle = handler) => {
     const text = await response.text();
     return { status: response.status, body: text === '' ? undefined : JSON.parse(text) };
   };
+  return Object.assign(call, { jar });
 };
 
 describe('api', () => {
@@ -226,6 +233,8 @@ describe('api', () => {
     const start = (await phone('POST', '/api/player/login', { code: lisky })).body;
     await tablet('POST', '/api/player/login', { code: lisky });
     expect((await team()).playMs).toBeGreaterThanOrEqual(0);
+    // Reading counts from the first scan on, so for the test the scan was ten minutes ago.
+    shared.teams.set(2, { ...shared.teams.get(2)!, startedAt: new Date(Date.now() - 600_000) });
 
     // Two phones reading at the same time are one team reading.
     const read = (who: typeof phone, ms: number, agoMs: number) =>
@@ -236,9 +245,15 @@ describe('api', () => {
     expect((await team()).readingMs).toBeGreaterThanOrEqual(89_000);
     expect((await team()).readingMs).toBeLessThanOrEqual(91_000);
 
-    // A phone left on a text counts for 5 minutes at most; nonsense counts for nothing.
-    await read(phone, 3_600_000, 1_000_000);
+    // A phone left on a text counts for 5 minutes at most; nonsense counts for nothing, and
+    // neither does reading before the first scan or reading reported for another team.
+    await read(phone, 3_600_000, 200_000);
     await read(phone, -5, 0);
+    await read(phone, 60_000, 1_000_000);
+    await phone('POST', '/api/player/reading', {
+      teamId: 1,
+      intervals: [{ ms: 60_000, agoMs: 0 }],
+    });
     const capped = (await team()).readingMs;
     expect(capped).toBeGreaterThanOrEqual(389_000);
     expect(capped).toBeLessThanOrEqual(391_000);
@@ -254,11 +269,23 @@ describe('api', () => {
     const finished = (await team()).playMs;
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect((await team()).playMs).toBe(finished);
+    // Reading after the end is clipped to the end: with an end right at the start nothing is left.
+    const readBefore = (await team()).readingMs;
+    const row = shared.teams.get(2)!;
+    shared.teams.set(2, { ...row, finishedAt: row.startedAt });
+    await read(phone, 60_000, 0);
+    expect((await team()).readingMs).toBe(readBefore);
+    shared.teams.set(2, row);
 
-    // A reset starts over; with the phones still logged in, the next scan starts the clock.
+    // A reset starts over; with the phones still logged in, the next scan that moves the team
+    // starts the clock, one at a wrong place does not.
     const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
     expect(reset).toMatchObject({ readingMs: 0 });
     expect(reset.playMs).toBeUndefined();
+    expect(
+      (await phone('POST', '/api/player/scan', { code: studna, expectedStep: reset.step })).status,
+    ).toBe(422);
+    expect((await team()).playMs).toBeUndefined();
     const again = await phone('POST', '/api/player/choose', { index: 1, expectedStep: reset.step });
     expect((await team()).playMs).toBeUndefined();
     await phone('POST', '/api/player/scan', { code: studna, expectedStep: again.body.step });
@@ -319,6 +346,82 @@ describe('admin against the players', () => {
     const log = await Effect.runPromise(inner.recentLog(10));
     expect(log.map((entry) => entry.action)).toEqual(['admin', 'choice:0', 'reset', 'choice:0']);
     await raced.dispose();
+  });
+});
+
+describe('a state the game cannot hold', () => {
+  const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
+
+  it('fills the keys an admin leaves out from the start and refuses NaN', async () => {
+    const data = emptyMemoryData();
+    const fresh = makeHandler(config, MemoryStoreLayer(data), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    // `{}` alone would make the story count `gold - 20` of nothing: the start's gold fills in.
+    const moved = await admin('POST', '/api/admin/teams/1/move', { node: 'A1', state: {} });
+    expect(moved.status).toBe(200);
+    expect(moved.body.state).toEqual({ gold: 100, hatColor: 'red' });
+    expect(
+      (await admin('POST', '/api/admin/teams/1/move', { node: 'toString', state: {} })).status,
+    ).toBe(404);
+    expect(
+      (await admin('POST', '/api/admin/playtest', { position: { node: '__proto__', state: {} } }))
+        .status,
+    ).toBe(404);
+
+    // A move whose nextState gives NaN is refused and the team stays; the row stays readable.
+    const phone = device(fresh.handler);
+    const login = (await admin('GET', '/api/admin/codes')).body.find(
+      (entry: { kind: string; id: number }) => entry.kind === 'T' && entry.id === 1,
+    ).code;
+    await phone('POST', '/api/player/login', { code: login });
+    const before = await run(makeMemoryStore(data).getTeam(1));
+    const broken = { ...before!, state: { gold: 'sto' } };
+    data.teams.set(1, broken);
+    const chosen = await phone('POST', '/api/player/choose', {
+      index: 1,
+      expectedStep: broken.step,
+    });
+    expect(chosen.status).toBe(422);
+    expect(chosen.body).toMatchObject({ _tag: 'InvalidMove', reason: 'broken-state' });
+    expect((await run(makeMemoryStore(data).getTeam(1)))?.step).toBe(broken.step);
+    expect((await admin('GET', '/api/admin/overview')).status).toBe(200);
+    await fresh.dispose();
+  });
+});
+
+describe('admin password', () => {
+  it('locks an address out after repeated wrong passwords and lets the right one in', async () => {
+    const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const attacker = device(fresh.handler);
+    const wrong = () => attacker('POST', '/api/admin/login', { password: 'nope' });
+    const statuses = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) statuses.push((await wrong()).body.message);
+    expect(statuses.slice(0, 3)).toEqual(['Špatné heslo.', 'Špatné heslo.', 'Špatné heslo.']);
+    expect(statuses[3]).toMatch(/^Příliš mnoho pokusů/);
+    // Even the right password waits while the address is locked.
+    const right = await attacker('POST', '/api/admin/login', { password: config.adminPassword });
+    expect(right.status).toBe(401);
+    expect(right.body.message).toMatch(/^Příliš mnoho pokusů/);
+    // Another address is not affected.
+    const other = device(fresh.handler, { 'x-forwarded-for': '10.0.0.2, 10.0.0.1' });
+    expect(
+      (await other('POST', '/api/admin/login', { password: config.adminPassword })).status,
+    ).toBe(204);
+    await fresh.dispose();
+  }, 15_000);
+
+  it('logs every admin out when the password changes', async () => {
+    const first = makeHandler(config, MemoryStoreLayer(), SAMPLE);
+    const admin = device(first.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    expect((await admin('GET', '/api/admin/me')).status).toBe(204);
+    const changed = makeHandler({ ...config, adminPassword: 'jiné' }, MemoryStoreLayer(), SAMPLE);
+    // The same cookie jar against the server with the new password.
+    const sameJar = device(changed.handler, undefined, admin.jar);
+    expect((await sameJar('GET', '/api/admin/me')).status).toBe(401);
+    await first.dispose();
+    await changed.dispose();
   });
 });
 
@@ -427,6 +530,7 @@ describe('server failures', () => {
       getTeam: fail,
       ensureTeam: fail,
       moveTeam: fail,
+      resetTeams: fail,
       markStarted: fail,
       clearTiming: fail,
       addReading: fail,
@@ -435,6 +539,9 @@ describe('server failures', () => {
       touchSession: fail,
       deleteSession: fail,
       activeDevices: fail,
+      adminFailures: fail,
+      recordAdminFailure: fail,
+      clearAdminFailures: fail,
       recentLog: fail,
       visitCounts: fail,
     };

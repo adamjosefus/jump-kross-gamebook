@@ -197,7 +197,82 @@ describe('postgres store', () => {
     expect((await run(unlucky.listTeams())).map(({ id }) => id)).toEqual([1, 2]);
     // The migration was tried on the first call and again on the second, then not anymore.
     await run(unlucky.listTeams());
-    expect(calls).toEqual(['create table', 'create table']);
+    expect(calls).toEqual(['select pg_ad', 'select pg_ad']);
+  });
+
+  it('does not run the migration again after a failed query', async () => {
+    const calls: string[] = [];
+    const client = pgliteClient(db);
+    const counting: SqlClient = {
+      query: client.query,
+      transaction: (statements) => {
+        calls.push(statements[0]!.text.slice(0, 12));
+        return client.transaction(statements);
+      },
+    };
+    const counted = makePostgresStore(counting);
+    await run(counted.listTeams());
+    const failed = await Effect.runPromise(
+      Effect.flip(
+        counted.moveTeam(Number.NaN, 0, { node: 'A1', state: {}, finished: false, action: 'x' }),
+      ),
+    );
+    expect(failed._tag).toBe('StoreError');
+    await run(counted.listTeams());
+    expect(calls).toEqual(['select pg_ad']);
+  });
+
+  it('reads a state with a value it cannot hold leniently', async () => {
+    await db.query(
+      `update team set state = '{"gold": null, "bag": {"a": 1}, "ok": 3}'::jsonb where id = 2`,
+    );
+    expect((await run(store.getTeam(2)))?.state).toEqual({ ok: 3 });
+    expect((await run(store.listTeams())).map(({ id }) => id)).toEqual([1, 2]);
+  });
+
+  it('resets several teams in one go', async () => {
+    await run(store.createSession('again', 1));
+    await run(store.markStarted(1));
+    const rows = await run(
+      store.resetTeams([1, 2, 3], {
+        node: 'A1',
+        state: { gold: 100 },
+        finished: false,
+        action: 'reset',
+      }),
+    );
+    expect(
+      rows.map(({ id, node, state, startedAt, finishedAt }) => [
+        id,
+        node,
+        state,
+        startedAt,
+        finishedAt,
+      ]),
+    ).toEqual([
+      [1, 'A1', { gold: 100 }, undefined, undefined],
+      [2, 'A1', { gold: 100 }, undefined, undefined],
+      [3, 'A1', { gold: 100 }, undefined, undefined],
+    ]);
+    expect(rows.map(({ step }) => step)).toEqual([rows[0]!.step, 1, 1]);
+    expect(await run(store.listReading())).toEqual([]);
+    const log = await run(store.recentLog(3));
+    expect(log.map(({ teamId, action, toNode }) => [teamId, action, toNode])).toEqual([
+      [3, 'reset', 'A1'],
+      [2, 'reset', 'A1'],
+      [1, 'reset', 'A1'],
+    ]);
+  });
+
+  it('counts failed admin logins per address', async () => {
+    expect(await run(store.adminFailures('1.2.3.4'))).toBeUndefined();
+    await run(store.recordAdminFailure('1.2.3.4'));
+    await run(store.recordAdminFailure('1.2.3.4'));
+    const failures = await run(store.adminFailures('1.2.3.4'));
+    expect(failures?.failures).toBe(2);
+    expect(failures?.lastAt).toBeInstanceOf(Date);
+    await run(store.clearAdminFailures('1.2.3.4'));
+    expect(await run(store.adminFailures('1.2.3.4'))).toBeUndefined();
   });
 });
 

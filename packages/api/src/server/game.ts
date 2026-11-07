@@ -9,17 +9,20 @@ import {
   sampleTeam,
   startPosition,
   toGraph,
+  unsoundStateKeys,
   verifyQr,
   type GameGraph,
   type MoveError,
   type MoveResult,
   type Story,
 } from '@gamebook/core';
+import type { State } from '@gamebook/core';
 import { Context, Effect, Layer } from 'effect';
 
 import {
   InvalidCode,
   InvalidMove,
+  InvalidState,
   NotFound,
   StepConflict,
   type Overview,
@@ -32,7 +35,7 @@ import { ServerConfig } from './config.ts';
 import { readingTotals } from './reading.ts';
 import { Store, type TeamMove, type TeamRow } from './store.ts';
 
-const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started', string>> = {
+const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
   'wrong-location': 'Tady to není. Jste na špatném místě.',
   'scan-required': 'Pokračujte naskenováním QR kódu.',
   'no-scan': 'Teď se vybírá v aplikaci, ne skenováním.',
@@ -41,6 +44,7 @@ const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started', string>> = {
   'unknown-node': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
   'missing-target': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
   'not-started': 'Hra ještě nezačala.',
+  'broken-state': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
 };
 
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;
@@ -50,10 +54,12 @@ const DEVICE_WINDOW_MS = 2 * 60 * 1000;
  * team walks is not reading.
  */
 const MAX_READING_MS = 5 * 60 * 1000;
-/** More than a device can have waiting, so one request cannot flood the table. */
-const MAX_READING_BATCH = 500;
-/** Reading older than a game's time counts as if it ended then, so a wrong clock cannot predate it. */
-const MAX_READING_AGO_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** The state the game cannot hold, named for the admin. */
+const invalidState = (state: State) =>
+  new InvalidState({
+    message: `Stav má hodnoty, které nejsou text, číslo ani ano/ne: ${unsoundStateKeys(state).join(', ')}.`,
+  });
 
 /** Small pause after a wrong code, so codes cannot be guessed quickly. */
 const penalty = Effect.sleep('400 millis');
@@ -158,6 +164,19 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           reason: result.error,
           message: MOVE_MESSAGES[result.error],
         });
+      // A `NaN` or an object in the state is a mistake in the story (or an admin's state without a
+      // key the story counts on). Stored, it would make the team's row unreadable; refused, the
+      // team stays where it is and the admin can mend the state.
+      const broken = unsoundStateKeys(result.position.state);
+      if (broken.length > 0) {
+        console.error(
+          `Tah ${action} týmu ${team.id} z uzlu ${team.node} dal neplatný stav (${broken.join(', ')}): ${JSON.stringify(result.position.state)}`,
+        );
+        return yield* new InvalidMove({
+          reason: 'broken-state',
+          message: MOVE_MESSAGES['broken-state'],
+        });
+      }
       const moved = yield* store.moveTeam(team.id, team.step, moveOf(result, action));
       if (moved === undefined)
         return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
@@ -230,13 +249,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     ) {
       const location = yield* locationOf(code);
       const { team, position } = yield* prepareMove(teamId, expectedStep);
-      // After a reset the phones stay logged in, so the first scan is at a location.
-      if (team.startedAt === undefined) yield* store.markStarted(team.id);
-      return yield* commit(
+      const moved = yield* commit(
         team,
         applyScan(story, position, identityOf(team), location.id),
         `scan:${location.id}`,
       );
+      // After a reset the phones stay logged in, so the game starts with the first scan that
+      // moves the team; one at a wrong place does not start the clock.
+      if (team.startedAt === undefined) yield* store.markStarted(team.id);
+      return moved;
     });
 
     /** Any device joins a team by its code and continues where the team is. */
@@ -251,17 +272,26 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const reading = Effect.fn('Game.reading')(function* (
       teamId: number,
+      readFor: number | undefined,
       intervals: readonly { readonly ms: number; readonly agoMs: number }[],
     ) {
+      // Times read for another team (the device switched meanwhile) belong to nobody now.
+      if (readFor !== undefined && readFor !== teamId) return;
+      const team = yield* store.getTeam(teamId);
+      // Reading counts within the game only: from the team's first scan to its end, so a device's
+      // wrong clock or a request after the game cannot inflate it.
+      if (team?.startedAt === undefined) return;
       const now = Date.now();
+      const from = team.startedAt.getTime();
+      const to = Math.min(team.finishedAt?.getTime() ?? now, now);
       // A device's numbers are not trusted: a non-finite one would make an invalid date and fail
       // the insert, so such an interval is dropped like one of no length.
-      const rows = intervals.slice(0, MAX_READING_BATCH).flatMap(({ ms, agoMs }) => {
+      const rows = intervals.flatMap(({ ms, agoMs }) => {
         if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
-        const counted = Math.min(ms, MAX_READING_MS);
-        const ended = now - Math.min(Math.max(agoMs, 0), MAX_READING_AGO_MS);
-        return counted > 0
-          ? [{ teamId, startedAt: new Date(ended - counted), endedAt: new Date(ended) }]
+        const ended = Math.min(now - Math.max(agoMs, 0), to);
+        const started = Math.max(ended - Math.min(ms, MAX_READING_MS), from);
+        return ended > started
+          ? [{ teamId, startedAt: new Date(started), endedAt: new Date(ended) }]
           : [];
       });
       if (rows.length > 0) yield* store.addReading(rows);
@@ -278,7 +308,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       state: team.state,
       step: team.step,
       finished: team.finishedAt !== undefined,
-      updatedAt: team.updatedAt.toISOString(),
+      // A team without a row never logged in and has no last move.
+      ...(team.node === undefined && team.step === 0
+        ? {}
+        : { updatedAt: team.updatedAt.toISOString() }),
       devices,
       ...(team.startedAt === undefined
         ? {}
@@ -373,20 +406,26 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* singleTeamStatus({ ...moved, startedAt: undefined });
     });
 
-    /** A new game: every team back on the start. */
+    /** A new game: every team back on the start, in one write, so no team is left behind. */
     const resetAll = Effect.fn('Game.resetAll')(function* () {
-      // Every id comes from the story, so none is missing.
-      return yield* Effect.forEach(story.teams, ({ id }) => resetTeam(id)).pipe(
-        Effect.catchTag('NotFound', (error) => Effect.die(error)),
+      const start = startPosition(story);
+      const rows = yield* store.resetTeams(
+        story.teams.map(({ id }) => id),
+        { node: start?.node, state: start?.state ?? {}, finished: false, action: 'reset' },
       );
+      const devices = yield* store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS));
+      // The reading of every team was just cleared.
+      return rows.map((row) => teamStatus(row, devices.get(row.id) ?? 0, 0));
     });
 
-    const moveTeam = Effect.fn('Game.moveTeam')(function* (
-      id: number,
-      node: string,
-      state: TeamRow['state'],
-    ) {
+    const moveTeam = Effect.fn('Game.moveTeam')(function* (id: number, node: string, given: State) {
       const team = yield* requireTeam(id);
+      // `story.nodes[node]` alone would find `toString` and the like on the prototype.
+      if (!Object.hasOwn(story.nodes, node)) return yield* notFound(`Uzel ${node}`);
+      // A key the admin leaves out keeps the start's value, so the story does not count with a
+      // missing one later (`state.gold - 20` of nothing is `NaN`).
+      const state: State = { ...startPosition(story)?.state, ...given };
+      if (unsoundStateKeys(state).length > 0) return yield* invalidState(state);
       const moved = yield* adminMove(team, {
         node,
         state,
@@ -412,6 +451,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           : undefined;
       const team =
         scanned ?? story.teams.find((known) => known.id === input.team) ?? sampleTeam(story);
+      if (input.position !== undefined) {
+        if (!Object.hasOwn(story.nodes, input.position.node))
+          return yield* notFound(`Uzel ${input.position.node}`);
+        if (unsoundStateKeys(input.position.state).length > 0)
+          return yield* invalidState(input.position.state);
+      }
       const start = input.position ?? startPosition(story);
       if (start === undefined) return yield* notFound('Start');
       const result: MoveResult =

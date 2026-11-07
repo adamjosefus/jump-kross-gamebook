@@ -7,6 +7,7 @@ import {
   sampleTeam,
   screensOf,
   stateKey,
+  unsoundStateKeys,
   type RenderedScreen,
 } from './engine.ts';
 import { isQrId, MAX_QR_ID } from './qr.ts';
@@ -39,18 +40,8 @@ const attempt = <T>(compute: () => T): Attempt<T> => {
 
 const visitKey = ({ node, state }: Visit) => JSON.stringify([node, stateKey(state)]);
 
-/**
- * Keys of the state whose values are not a string, a number or a boolean. The type allows nothing
- * else, but a story written with `any` or a wrong cast gets here with an object, which the API
- * cannot send and the database cannot compare.
- */
-const badStateKeys = (state: State): readonly string[] =>
-  Object.entries(state).flatMap(([key, value]) =>
-    typeof value === 'string' || typeof value === 'boolean' || Number.isFinite(value) ? [] : [key],
-  );
-
 const stateProblem = (where: string, state: State): readonly string[] => {
-  const keys = badStateKeys(state);
+  const keys = unsoundStateKeys(state);
   return problemIf(
     keys.length > 0,
     `${where} má ve stavu hodnoty, které nejsou text, číslo ani ano/ne: ${keys.join(', ')}.`,
@@ -318,7 +309,7 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
     used: available.map(({ key }) => key),
     // A state with a bad value is not followed: it would be found again at every step after it.
     next: moves.flatMap(({ target, result }) =>
-      result.ok && badStateKeys(result.value).length === 0
+      result.ok && unsoundStateKeys(result.value).length === 0
         ? [{ node: target, state: result.value }]
         : [],
     ),

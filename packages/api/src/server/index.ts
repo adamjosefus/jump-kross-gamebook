@@ -7,7 +7,9 @@ import { HttpApiBuilder } from 'effect/http-api';
 import { Api } from '../api.ts';
 import {
   configFromEnv,
+  isDatabaseUrl,
   misconfiguredHandler,
+  missingMessage,
   missingSecrets,
   ServerConfig,
   type ServerConfigShape,
@@ -58,9 +60,15 @@ export const handlerFromEnv = (
   memory?: MemoryData,
 ) => {
   const missing = missingSecrets(env);
-  if (missing.length > 0) return misconfiguredHandler(missing);
+  if (missing.length > 0) return misconfiguredHandler(missingMessage(missing));
   const url = env['DATABASE_URL'];
-  const store =
-    url === undefined || url === '' ? MemoryStoreLayer(memory) : PostgresStoreLayer(url);
-  return makeHandler(configFromEnv(env), store);
+  if (url === undefined || url === '')
+    return makeHandler(configFromEnv(env), MemoryStoreLayer(memory));
+  // The driver would report a malformed URL with the password in it; this message names only the variable.
+  if (!isDatabaseUrl(url)) {
+    return misconfiguredHandler(
+      'DATABASE_URL is not a postgres:// URL (a password with special characters has to be percent-encoded). Fix it in the Vercel project settings and redeploy.',
+    );
+  }
+  return makeHandler(configFromEnv(env), PostgresStoreLayer(url));
 };

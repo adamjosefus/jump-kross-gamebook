@@ -1,6 +1,13 @@
 import { Effect, Layer } from 'effect';
 
-import { Store, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
+import {
+  Store,
+  type AdminFailures,
+  type LogRow,
+  type ReadingRow,
+  type TeamMove,
+  type TeamRow,
+} from './store.ts';
 
 interface SessionRow {
   readonly teamId: number;
@@ -22,6 +29,7 @@ const countBy = <K>(keys: readonly K[]): ReadonlyMap<K, number> =>
 export interface MemoryData {
   readonly teams: Map<number, TeamRow>;
   readonly sessions: Map<string, SessionRow>;
+  readonly adminFailures: Map<string, AdminFailures>;
   log: readonly LogRow[];
   reading: readonly ReadingRow[];
 }
@@ -29,61 +37,78 @@ export interface MemoryData {
 export const emptyMemoryData = (): MemoryData => ({
   teams: new Map(),
   sessions: new Map(),
+  adminFailures: new Map(),
   log: [],
   reading: [],
 });
 
 /** In-process store for local development without a database and for tests. */
 export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
-  const { teams, sessions } = data;
+  const { teams, sessions, adminFailures } = data;
+
+  const ensure = (id: number): TeamRow => {
+    const existing = teams.get(id);
+    if (existing !== undefined) return existing;
+    const team: TeamRow = {
+      id,
+      node: undefined,
+      state: {},
+      step: 0,
+      startedAt: undefined,
+      finishedAt: undefined,
+      updatedAt: new Date(),
+    };
+    teams.set(id, team);
+    return team;
+  };
+
+  const move = (team: TeamRow, next: TeamMove, now: Date): TeamRow => {
+    const updated: TeamRow = {
+      ...team,
+      node: next.node,
+      state: next.state,
+      step: team.step + 1,
+      finishedAt: next.finished ? (team.finishedAt ?? now) : undefined,
+      updatedAt: now,
+    };
+    teams.set(team.id, updated);
+    data.log = [
+      ...data.log,
+      {
+        teamId: team.id,
+        at: now,
+        action: next.action,
+        fromNode: team.node,
+        toNode: next.node,
+        state: next.state,
+      },
+    ];
+    return updated;
+  };
 
   return Store.of({
     listTeams: () =>
       Effect.sync(() => [...teams.values()].toSorted((first, second) => first.id - second.id)),
     getTeam: (id) => Effect.sync(() => teams.get(id)),
-    ensureTeam: (id) =>
-      Effect.sync(() => {
-        const existing = teams.get(id);
-        if (existing !== undefined) return existing;
-        const team: TeamRow = {
-          id,
-          node: undefined,
-          state: {},
-          step: 0,
-          startedAt: undefined,
-          finishedAt: undefined,
-          updatedAt: new Date(),
-        };
-        teams.set(id, team);
-        return team;
-      }),
-    moveTeam: (id, expectedStep, move) =>
+    ensureTeam: (id) => Effect.sync(() => ensure(id)),
+    moveTeam: (id, expectedStep, next) =>
       Effect.sync(() => {
         const team = teams.get(id);
         if (team === undefined) return undefined;
         if (expectedStep !== undefined && team.step !== expectedStep) return undefined;
+        return move(team, next, new Date());
+      }),
+    resetTeams: (ids, start) =>
+      Effect.sync(() => {
         const now = new Date();
-        const updated: TeamRow = {
-          ...team,
-          node: move.node,
-          state: move.state,
-          step: team.step + 1,
-          finishedAt: move.finished ? (team.finishedAt ?? now) : undefined,
-          updatedAt: now,
-        };
-        teams.set(id, updated);
-        data.log = [
-          ...data.log,
-          {
-            teamId: id,
-            at: now,
-            action: move.action,
-            fromNode: team.node,
-            toNode: move.node,
-            state: move.state,
-          },
-        ];
-        return updated;
+        const reset = ids.map((id) => {
+          const moved = move(ensure(id), start, now);
+          const cleared = { ...moved, startedAt: undefined };
+          teams.set(id, cleared);
+          return cleared;
+        });
+        data.reading = data.reading.filter((row) => !ids.includes(row.teamId));
+        return reset;
       }),
 
     markStarted: (id) =>
@@ -125,6 +150,14 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             .map((session) => session.teamId),
         ),
       ),
+
+    adminFailures: (key) => Effect.sync(() => adminFailures.get(key)),
+    recordAdminFailure: (key) =>
+      Effect.sync(() => {
+        const current = adminFailures.get(key);
+        adminFailures.set(key, { failures: (current?.failures ?? 0) + 1, lastAt: new Date() });
+      }),
+    clearAdminFailures: (key) => Effect.sync(() => void adminFailures.delete(key)),
 
     recentLog: (limit) => Effect.sync(() => data.log.slice(-limit).toReversed()),
     visitCounts: () =>
