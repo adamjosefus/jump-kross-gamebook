@@ -23,7 +23,8 @@ import { adminKeys } from './queries';
 
 /**
  * Opens or closes the whole game. Closed, no device logs in or moves; the logged-in ones stay
- * logged in, show that the game is closed and go on where they were once it opens again.
+ * logged in, show that the game is closed and go on where they were once it opens again. A team
+ * already at its ending keeps it: the closing is for the teams still on their way.
  */
 export const GameSwitch = ({ game }: { readonly game: GameInfo }) => {
   const queryClient = useQueryClient();

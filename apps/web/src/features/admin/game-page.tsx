@@ -17,16 +17,10 @@ import {
 } from '@/components/ui/table';
 import { api, errorMessage } from '@/lib/api';
 
+import { formatTime } from './format';
 import { GameSwitch } from './game-switch';
 import { adminKeys, useOverview } from './queries';
 import { ResetDialog } from './reset-dialog';
-
-const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('cs-CZ', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
 
 /**
  * Whether the teams may log in. Until the organisers start the game no team gets in; from then
@@ -50,7 +44,7 @@ const GameCard = ({ game }: { readonly game: GameInfo }) => {
           <CardDescription>
             {game.startedAt === undefined
               ? 'Hra neběží: týmy se zatím nemohou přihlásit. Spusťte ji, až budou týmy připravené naskenovat svůj kód.'
-              : `Hra běží od ${formatTime(game.startedAt)}. Čas každého týmu se počítá od jeho prvního přihlášení.`}
+              : `Hra běží od ${formatTime(game.startedAt, { seconds: true })}. Čas každého týmu se počítá od jeho prvního přihlášení.`}
           </CardDescription>
         </div>
         {game.startedAt === undefined ? (

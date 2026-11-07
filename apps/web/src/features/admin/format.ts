@@ -8,9 +8,13 @@ export const formatDateTime = (iso: string, { seconds = false } = {}) =>
     ...(seconds ? { second: '2-digit' } : {}),
   });
 
-/** A time of day, such as „09:51“, for what happened today. */
-export const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+/** A time of day, such as „09:51“, for what happened today; with seconds when they matter. */
+export const formatTime = (iso: string, { seconds = false } = {}) =>
+  new Date(iso).toLocaleTimeString('cs-CZ', {
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(seconds ? { second: '2-digit' } : {}),
+  });
 
 const isToday = (date: Date, now: Date) =>
   date.getFullYear() === now.getFullYear() &&
