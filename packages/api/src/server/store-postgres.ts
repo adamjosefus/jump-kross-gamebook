@@ -5,7 +5,49 @@ import { GameState } from '../api.ts';
 import { SCHEMA } from './schema.ts';
 import { Store, StoreError, type LogRow, type ReadingRow, type TeamRow } from './store.ts';
 
-type Row = Readonly<Record<string, unknown>>;
+export type Row = Readonly<Record<string, unknown>>;
+
+/** One SQL statement with `$1`, `$2`, … in place of its parameters. */
+export interface SqlStatement {
+  readonly text: string;
+  readonly params: readonly unknown[];
+}
+
+/**
+ * What the store needs of a database: the two ways Neon's HTTP driver runs statements. Tests run
+ * the same store on an embedded Postgres through this.
+ */
+export interface SqlClient {
+  /** Runs one statement and returns its rows. */
+  readonly query: (statement: SqlStatement) => Promise<readonly Row[]>;
+  /** Runs the statements in order, in one transaction. */
+  readonly transaction: (statements: readonly SqlStatement[]) => Promise<void>;
+}
+
+/** Writes a statement: the values of the template become its parameters, in order. */
+const sql = (strings: TemplateStringsArray, ...values: readonly unknown[]): SqlStatement => ({
+  text: strings.slice(1).reduce((text, part, index) => `${text}$${index + 1}${part}`, strings[0]!),
+  params: values,
+});
+
+/** Neon over HTTP: one round trip per query, no connection to keep warm in a serverless function. */
+export const neonClient = (url: string): SqlClient => {
+  const run = neon(url);
+  return {
+    query: async ({ text, params }) => (await run.query(text, [...params])) as readonly Row[],
+    transaction: async (statements) =>
+      void (await run.transaction(
+        statements.map(({ text, params }) => run.query(text, [...params])),
+      )),
+  };
+};
+
+/** The schema as the statements to run, in order. */
+export const schemaStatements = (): readonly SqlStatement[] =>
+  SCHEMA.split(/;\s*$/m)
+    .map((statement) => statement.trim())
+    .filter((statement) => statement !== '')
+    .map((text) => ({ text, params: [] }));
 
 // Rows come back untyped, so every column is decoded; a mismatch throws and surfaces as StoreError.
 const decodeText = Schema.decodeUnknownSync(Schema.String);
@@ -41,25 +83,19 @@ const toReading = (row: Row): ReadingRow => ({
   endedAt: timestamp(row['ended_at']),
 });
 
-/** Neon over HTTP: one round trip per query, no connection to keep warm in a serverless function. */
-export const makePostgresStore = (url: string) => {
-  const sql = neon(url);
+/** The store on a Postgres database reached through `client`; the schema is applied on the first query. */
+export const makePostgresStore = (client: SqlClient) => {
+  const { query: run, transaction } = client;
   // The migration runs once per instance and is retried after a failure, so its promise is
   // kept in a `let`.
   let ready: Promise<unknown> | undefined;
-  const migrate = () =>
-    (ready ??= sql.transaction(
-      SCHEMA.split(/;\s*$/m)
-        .map((statement) => statement.trim())
-        .filter((statement) => statement !== '')
-        .map((statement) => sql.query(statement)),
-    ));
+  const migrate = () => (ready ??= transaction(schemaStatements()));
 
-  const query = <A>(run: () => Promise<A>) =>
+  const query = <A>(compute: () => Promise<A>) =>
     Effect.tryPromise({
       try: async () => {
         await migrate();
-        return await run();
+        return await compute();
       },
       catch: (cause) => {
         ready = undefined; // retry the migration on the next request
@@ -68,26 +104,27 @@ export const makePostgresStore = (url: string) => {
     });
 
   return Store.of({
-    listTeams: () => query(async () => (await sql`select * from team order by id`).map(toTeam)),
+    listTeams: () =>
+      query(async () => (await run(sql`select * from team order by id`)).map(toTeam)),
     getTeam: (id) =>
       query(async () => {
-        const [row] = await sql`select * from team where id = ${id}`;
+        const [row] = await run(sql`select * from team where id = ${id}`);
         return row === undefined ? undefined : toTeam(row);
       }),
     ensureTeam: (id) =>
       query(async () => {
         // The no-op update makes `returning` yield the row when it already exists.
-        const [row] = await sql`
+        const [row] = await run(sql`
           insert into team (id) values (${id})
           on conflict (id) do update set id = excluded.id
-          returning *`;
+          returning *`);
         return toTeam(row!);
       }),
     moveTeam: (id, expectedStep, move) =>
       query(async () => {
         // CTEs see the table as it was before the update, so `previous` holds the old node. A
         // null expected step matches any step.
-        const [row] = await sql`
+        const [row] = await run(sql`
           with previous as (select node from team where id = ${id}),
           updated as (
             update team set
@@ -103,75 +140,80 @@ export const makePostgresStore = (url: string) => {
             insert into step_log (team_id, action, from_node, to_node, state)
             select updated.id, ${move.action}, (select node from previous), updated.node, updated.state from updated
           )
-          select * from updated`;
+          select * from updated`);
         return row === undefined ? undefined : toTeam(row);
       }),
 
     markStarted: (id) =>
       query(
         async () =>
-          void (await sql`update team set started_at = coalesce(started_at, now()) where id = ${id}`),
-      ),
-    clearTiming: (id) =>
-      query(
-        async () =>
-          void (await sql.transaction([
-            sql`update team set started_at = null where id = ${id}`,
-            sql`delete from reading where team_id = ${id}`,
-          ])),
-      ),
-    addReading: (rows) =>
-      query(
-        async () =>
-          void (await sql.transaction(
-            rows.map(
-              ({ teamId, startedAt, endedAt }) => sql`
-                insert into reading (team_id, started_at, ended_at)
-                values (${teamId}, ${startedAt.toISOString()}, ${endedAt.toISOString()})`,
-            ),
+          void (await run(
+            sql`update team set started_at = coalesce(started_at, now()) where id = ${id}`,
           )),
       ),
-    listReading: () => query(async () => (await sql`select * from reading`).map(toReading)),
+    clearTiming: (id) =>
+      query(() =>
+        transaction([
+          sql`update team set started_at = null where id = ${id}`,
+          sql`delete from reading where team_id = ${id}`,
+        ]),
+      ),
+    addReading: (rows) =>
+      query(() =>
+        transaction(
+          rows.map(
+            ({ teamId, startedAt, endedAt }) => sql`
+              insert into reading (team_id, started_at, ended_at)
+              values (${teamId}, ${startedAt.toISOString()}::timestamptz, ${endedAt.toISOString()}::timestamptz)`,
+          ),
+        ),
+      ),
+    listReading: () =>
+      query(async () => (await run(sql`select * from reading order by id`)).map(toReading)),
 
     createSession: (id, teamId) =>
       query(
-        async () => void (await sql`insert into session (id, team_id) values (${id}, ${teamId})`),
+        async () =>
+          void (await run(sql`insert into session (id, team_id) values (${id}, ${teamId})`)),
       ),
     touchSession: (id, createdAfter) =>
       query(async () => {
         // Only write when the last touch is older than 30 s, so polling stays a read.
-        const [row] = await sql`
+        const [row] = await run(sql`
           with touched as (
             update session set last_seen_at = now()
-            where id = ${id} and created_at > ${createdAfter.toISOString()}
+            where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz
               and last_seen_at < now() - interval '30 seconds'
           )
           select team_id from session
-          where id = ${id} and created_at > ${createdAfter.toISOString()}`;
+          where id = ${id} and created_at > ${createdAfter.toISOString()}::timestamptz`);
         return row === undefined ? undefined : Number(row['team_id']);
       }),
     deleteSession: (id) =>
-      query(async () => void (await sql`delete from session where id = ${id}`)),
+      query(async () => void (await run(sql`delete from session where id = ${id}`))),
     activeDevices: (since) =>
       query(async () => {
-        const rows = await sql`
+        const rows = await run(sql`
           select team_id, count(*)::int as devices from session
-          where last_seen_at >= ${since.toISOString()} group by team_id`;
+          where last_seen_at >= ${since.toISOString()}::timestamptz group by team_id`);
         return new Map(rows.map((row) => [Number(row['team_id']), Number(row['devices'])]));
       }),
 
     recentLog: (limit) =>
       query(async () =>
-        (await sql`select * from step_log order by at desc, id desc limit ${limit}`).map(toLog),
+        (await run(sql`select * from step_log order by at desc, id desc limit ${limit}`)).map(
+          toLog,
+        ),
       ),
     visitCounts: () =>
       query(async () => {
-        const rows = await sql`
+        const rows = await run(sql`
           select to_node, count(*)::int as visits from step_log
-          where to_node is not null group by to_node`;
+          where to_node is not null group by to_node`);
         return new Map(rows.map((row) => [text(row['to_node']), Number(row['visits'])]));
       }),
   });
 };
 
-export const PostgresStoreLayer = (url: string) => Layer.sync(Store, () => makePostgresStore(url));
+export const PostgresStoreLayer = (url: string) =>
+  Layer.sync(Store, () => makePostgresStore(neonClient(url)));
