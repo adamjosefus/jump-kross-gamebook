@@ -40,16 +40,37 @@ interface Paging {
   readonly ranks: Readonly<Record<string, number>>;
 }
 
+/** FNV-1a, 32 bits: a small, even spread of the text's characters, the same wherever it runs. */
+const hash = (text: string) => {
+  let value = 0x811c9dc5;
+  for (const char of text) {
+    value ^= char.codePointAt(0)!;
+    value = Math.imul(value, 0x01000193) >>> 0;
+  }
+  return value;
+};
+
 /**
- * Paging starts on the first screen; the choices get a random order, kept for the whole visit so
- * polling does not reshuffle them.
+ * Paging starts on the first screen; the choices get an order that looks random but is the same on
+ * every device of the team at this step, so teammates can talk about „the second button“, and
+ * polling does not reshuffle it.
  */
-const freshPaging = (node: PlayerNode, step: number, index: number): Paging => ({
+const freshPaging = (
+  node: PlayerNode,
+  step: number,
+  index: number,
+  visitScope: string,
+): Paging => ({
   node: node.id,
   step,
   index,
   seen: [],
-  ranks: Object.fromEntries(node.choices.map((choice) => [choice.index, Math.random()])),
+  ranks: Object.fromEntries(
+    node.choices.map((choice) => [
+      choice.index,
+      hash(`${visitScope}/${node.id}/${step}/${choice.index}`),
+    ]),
+  ),
 });
 
 /**
@@ -97,9 +118,9 @@ export const NodeScreens = ({
 }) => {
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
-  const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex));
+  const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex, visitScope));
   if (paging.node !== node.id || paging.step !== step)
-    setPaging(freshPaging(node, step, initialIndex));
+    setPaging(freshPaging(node, step, initialIndex, visitScope));
   const index = Math.max(Math.min(paging.index, count - 1), 0);
   const go = (to: number) => {
     setPaging({ ...paging, index: to });

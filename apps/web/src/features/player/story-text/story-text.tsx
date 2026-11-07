@@ -78,6 +78,11 @@ const loadedFonts = new Set<string>();
 /** How long to wait for the styles with the `@font-face` rules before measuring anyway. */
 const FACE_RETRY_MS = 100;
 const FACE_RETRIES = 20;
+/**
+ * How long a font may take to arrive before the text is shown in the fallback font: a slow or
+ * broken connection in the field must not leave the screen empty.
+ */
+const FONT_TIMEOUT_MS = 4000;
 
 /**
  * Loaded for this text: a font comes in parts by alphabet, so a font loaded for another text may
@@ -86,7 +91,10 @@ const FACE_RETRIES = 20;
 const isMeasurable = (font: string, sample: string) =>
   loadedFonts.has(font) && document.fonts.check(font, sample);
 
-/** Loads the font; no faces means the styles are not applied yet, so it tries again. */
+/**
+ * Loads the font; no faces means the styles are not applied yet, so it tries again. A font that
+ * fails to load (no network) is left for the next text to try; this one goes on without it.
+ */
 const loadFont = async (
   font: string,
   sample: string,
@@ -94,14 +102,20 @@ const loadFont = async (
   retry = 0,
 ): Promise<void> => {
   if (retry >= FACE_RETRIES || isCancelled()) return;
-  const faces = await document.fonts.load(font, sample);
-  if (faces.length > 0) {
-    loadedFonts.add(font);
+  try {
+    const faces = await document.fonts.load(font, sample);
+    if (faces.length > 0) {
+      loadedFonts.add(font);
+      return;
+    }
+  } catch {
     return;
   }
   await new Promise((resolve) => setTimeout(resolve, FACE_RETRY_MS));
   return loadFont(font, sample, isCancelled, retry + 1);
 };
+
+const after = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * Whether the fonts can be measured: Pretext needs the web font loaded, or it measures the
@@ -117,7 +131,11 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
     // Loading cannot be aborted, so the cleanup flags the effect as over instead.
     let cancelled = false;
     const isCancelled = () => cancelled;
-    void Promise.all(fonts.map((font) => loadFont(font, sample, isCancelled))).then(() => {
+    // Whatever happens to the fonts, the text is shown after the timeout at the latest.
+    void Promise.race([
+      Promise.all(fonts.map((font) => loadFont(font, sample, isCancelled))),
+      after(FONT_TIMEOUT_MS),
+    ]).then(() => {
       if (!cancelled) setLoaded(key);
     });
     return () => {

@@ -147,6 +147,7 @@ const FloatingPanel = ({
           variant={state.pinned ? 'secondary' : 'ghost'}
           size='icon'
           title={state.pinned ? 'Odepnout' : 'Připnout, aby panel zůstal otevřený'}
+          aria-label={state.pinned ? 'Odepnout panel' : 'Připnout panel'}
           aria-pressed={state.pinned}
           onClick={() => onChange({ ...state, pinned: !state.pinned })}
         >
@@ -156,6 +157,7 @@ const FloatingPanel = ({
           variant='ghost'
           size='icon'
           title='Skrýt'
+          aria-label='Skrýt panel'
           onClick={() => onChange({ ...state, open: false })}
         >
           <IconChevronsRight />
@@ -255,6 +257,7 @@ export const DashboardPage = () => {
                   variant='ghost'
                   size='icon'
                   title='Přesunout tým'
+                  aria-label={`Přesunout tým ${team.name}`}
                   onClick={() => setMoving(team)}
                 >
                   <IconArrowNarrowRight />

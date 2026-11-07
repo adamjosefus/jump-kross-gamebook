@@ -85,6 +85,7 @@ export const GamePage = () => {
                       variant='ghost'
                       size='icon'
                       title='Vrátit na start'
+                      aria-label={`Vrátit tým ${team.name} na start`}
                       disabled={team.node === undefined}
                       onClick={() => openReset(team)}
                     >

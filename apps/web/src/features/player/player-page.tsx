@@ -1,10 +1,11 @@
 import type { PlayerView } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
-import { IconLoader2 } from '@tabler/icons-react';
+import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
+import { ActionButton } from '@/components/action-button';
 import { api, errorMessage, isApiError } from '@/lib/api';
 import { APP_VERSION } from '@/lib/version';
 
@@ -21,6 +22,9 @@ const STATE_KEY = ['player', 'state'] as const;
 const refetchInterval = (view: PlayerView | null | undefined) =>
   view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 
+/** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
+const RETRY_MS = 10_000;
+
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
   const search = useSearch({ from: '/' });
@@ -36,7 +40,8 @@ export const PlayerPage = () => {
         if (isApiError(error, 'Unauthorized')) return null;
         throw error;
       }),
-    refetchInterval: (query) => refetchInterval(query.state.data),
+    refetchInterval: (query) =>
+      query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data),
   });
   const view = state.data;
 
@@ -118,7 +123,31 @@ export const PlayerPage = () => {
       </main>
     );
 
-  const aside = view != null && busy && <IconLoader2 className='size-4 animate-spin' />;
+  // The last state is kept while the server cannot be reached; the bar says so instead of the
+  // game pretending that nothing happened.
+  const aside =
+    view != null &&
+    (busy ? (
+      <IconLoader2 className='size-4 animate-spin' />
+    ) : state.isError ? (
+      <span className='flex items-center gap-1 text-destructive' role='status'>
+        <IconWifiOff className='size-4' aria-hidden />
+        <span className='sr-only'>{errorMessage(state.error)}</span>
+      </span>
+    ) : undefined);
+
+  // Without a state to show (the first load failed) the device may well be logged in: the login
+  // screen would be wrong, so the problem is shown with a way to try again.
+  if (view === undefined && state.isError)
+    return (
+      <main className={PAGE}>
+        <PlayerFrame>
+          <Centered>
+            <Problem message={errorMessage(state.error)} onRetry={() => void state.refetch()} />
+          </Centered>
+        </PlayerFrame>
+      </main>
+    );
 
   return (
     <main className={PAGE}>
@@ -185,6 +214,24 @@ const Centered = ({ children }: { readonly children: ReactNode }) => (
   <div className='flex min-h-[60dvh] flex-1 items-center justify-center'>{children}</div>
 );
 
+/** A request that did not go through, with the button to send it again. */
+const Problem = ({
+  message,
+  onRetry,
+}: {
+  readonly message: string;
+  readonly onRetry: () => void;
+}) => (
+  <div className='flex w-full flex-col items-center gap-6'>
+    <p className='text-center text-balance' role='alert'>
+      {message}
+    </p>
+    <ActionButton icon={<IconRefresh className='size-5' />} onClick={onRetry}>
+      Zkusit znovu
+    </ActionButton>
+  </div>
+);
+
 /**
  * Before login: the story's intro, the same for every team, and after it the scanner like at the
  * end of any node. Scanning a team's code logs the device in.
@@ -217,7 +264,7 @@ const Intro = ({
     return (
       <PlayerFrame>
         <Centered>
-          <p className='text-center text-balance text-destructive'>{errorMessage(intro.error)}</p>
+          <Problem message={errorMessage(intro.error)} onRetry={() => void intro.refetch()} />
         </Centered>
       </PlayerFrame>
     );
