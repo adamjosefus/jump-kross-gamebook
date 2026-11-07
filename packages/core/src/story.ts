@@ -187,7 +187,8 @@ export type AnyNode = StoryNode<State, string> | IntroNode | OutroNode<State>;
 
 /**
  * A printed QR code that moves teams on; teams scan it to take a QR choice. The name tells the
- * organisers where to put it; the players do not see it.
+ * organisers where to put it and is printed on the card, so the players see it too: it must not
+ * give away where a code leads.
  */
 export interface QrCode {
   readonly id: number;
@@ -224,8 +225,8 @@ export interface StoryDefinition<
   /** Teams: number → name. Each team gets a login QR code with its number. */
   readonly teams: Readonly<Record<number, string>>;
   /**
-   * QR codes that move teams on: number → name for the organisers, e.g. where it hangs. Only
-   * these numbers can appear in `scans`.
+   * QR codes that move teams on: number → name, e.g. where it hangs. The name is printed on the
+   * card, so the players see it too. Only these numbers can appear in `scans`.
    */
   readonly codes: Readonly<Record<C, string>>;
   /**

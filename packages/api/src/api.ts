@@ -45,6 +45,8 @@ export class InvalidMove extends Schema.TaggedError<InvalidMove>()(
     reason: Schema.Literals([
       // The engine's `wrong-code`, sent under its former name: a phone still running the build
       // from before codes were renamed would not decode the new one and show a generic error.
+      // Once no such build is in use (after the next deploy outside a game), send `wrong-code`
+      // and drop `reasonOf` in the game server.
       'wrong-location',
       'scan-required',
       'no-scan',

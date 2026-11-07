@@ -35,7 +35,7 @@ describe('engine', () => {
           initialState: { gold: 0 },
           blocks: ['A'],
           scanTitle: 'Kde jste?',
-          scanText: 'Namiřte na kód místa.',
+          scanText: 'Namiřte na kód.',
           scans: [{ code: 1, goto: 'B' }],
         },
         B: { blocks: ['B'] },
@@ -47,7 +47,7 @@ describe('engine', () => {
     });
     expect(renderNode(titled, startPosition(titled)!, VLCI)).toMatchObject({
       scanTitle: 'Kde jste?',
-      scanText: 'Namiřte na kód místa.',
+      scanText: 'Namiřte na kód.',
     });
     expect(renderNode(titled, { node: 'B', state: { gold: 0 } }, VLCI)).not.toHaveProperty(
       'scanTitle',

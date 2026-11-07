@@ -47,7 +47,7 @@ const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state',
   'broken-state': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
 };
 
-/** The reason a refused move is sent with; see `InvalidMove`. */
+/** The reason a refused move is sent with; a temporary alias, see `InvalidMove`. */
 const reasonOf = (error: MoveError) => (error === 'wrong-code' ? 'wrong-location' : error);
 
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;

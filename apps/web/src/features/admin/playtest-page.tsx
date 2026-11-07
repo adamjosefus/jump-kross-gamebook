@@ -127,7 +127,7 @@ interface Step extends PlaytestView {
 }
 
 /**
- * Moves in the URL, separated by dots: `c2` the choice with index 2, `s1` the QR code of place 1
+ * Moves in the URL, separated by dots: `c2` the choice with index 2, `s1` scanning code 1
  * skipped, `qL-1-5FV2XY` a scanned code, `x` the login skipped.
  */
 const encodeMove = (move: Move | undefined) =>
@@ -223,7 +223,7 @@ const CodeEntry = ({
   busy,
   onCode,
 }: {
-  /** The codes that make sense here: teams at the login, places in the story. */
+  /** The codes that make sense here: teams at the login, the story's codes after it. */
   readonly kind: PrintableCode['kind'];
   readonly disabled: boolean;
   readonly busy: boolean;

@@ -19,7 +19,7 @@ import { useOverview } from './queries';
 import { ResetDialog } from './reset-dialog';
 
 /**
- * The game's teams and places, both from the story. The admin only puts teams back on the start:
+ * The game's teams and QR codes, both from the story. The admin only puts teams back on the start:
  * one team, or every team for a new game.
  */
 export const GamePage = () => {
@@ -102,7 +102,7 @@ export const GamePage = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Kódy</CardTitle>
+          <CardTitle>Kódy v příběhu</CardTitle>
           <CardDescription>
             QR kódy, které posouvají týmy dál, jsou součástí příběhu (<code>codes</code> v{' '}
             <code>packages/story/src/story.ts</code>) a mění se s deployem. Kódy k tisku jsou na

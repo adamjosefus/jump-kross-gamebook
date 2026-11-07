@@ -179,7 +179,7 @@ Rozhoduje totiž celý klan.
       scans: [{ code: 1, goto: 'MISTO_1' }],
       blocks: ['ABC 3'],
     },
-    // Placeholder trail through every place with a QR code, one after another.
+    // Placeholder trail through the QR codes, one after another.
     MISTO_1: {
       scans: [{ code: 2, goto: 'MISTO_2' }],
       blocks: [`Jste na místě 1. Pokračujte na místo 2.`],

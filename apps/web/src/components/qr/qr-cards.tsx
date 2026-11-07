@@ -1,4 +1,4 @@
-import { IconLogin, IconMapPin } from '@tabler/icons-react';
+import { IconLogin, IconQrcode } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -52,7 +52,9 @@ export const TeamLoginQr = ({
   <QrCard {...props} {...qrCardText('T', teamName)} icon={<IconLogin className='size-3.5' />} />
 );
 
-/** Moves any team on; the name, printed on the card, tells the organisers where to put it. */
+/**
+ * Moves any team on. The name tells the organisers where to put the card; the players see it too.
+ */
 export const ProgressQr = ({ name, ...props }: QrCardProps & { readonly name?: string }) => (
-  <QrCard {...props} {...qrCardText('L', name)} icon={<IconMapPin className='size-3.5' />} />
+  <QrCard {...props} {...qrCardText('L', name)} icon={<IconQrcode className='size-3.5' />} />
 );

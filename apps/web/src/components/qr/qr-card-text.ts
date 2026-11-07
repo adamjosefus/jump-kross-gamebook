@@ -16,7 +16,7 @@ export const qrCardText = (kind: QrCardKind, label?: string): QrCardText =>
       hint: 'Naskenujte v aplikaci pro přihlášení týmu.',
     },
     L: {
-      eyebrow: label ?? 'Stanoviště',
+      eyebrow: label ?? 'Kód příběhu',
       title: undefined,
       hint: 'Naskenujte v aplikaci a pokračujte v příběhu.',
     },
