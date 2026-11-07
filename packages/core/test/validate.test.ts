@@ -17,7 +17,7 @@ describe('validateStory', () => {
           teams: { 1: 'Tým' },
           introNode: 'INTRO',
           outroNode: 'A',
-          locations: {},
+          codes: {},
           nodes: { INTRO: { blocks: ['Úvod'] }, A: { blocks: ['A'] } },
         }),
       ),
@@ -27,7 +27,7 @@ describe('validateStory', () => {
   it('requires one start, an intro and teams', () => {
     const story = define({
       teams: { 0: ' ' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -56,7 +56,7 @@ describe('validateStory', () => {
   it('reports a next button that would never show; an empty one is just an arrow', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: { 1: 'Místo' },
+      codes: { 1: 'Místo' },
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -67,7 +67,7 @@ describe('validateStory', () => {
             { content: 'A', next: 'Dál' },
             { content: 'A2', next: 'Ke kódu' },
           ],
-          scans: [{ location: 1, goto: 'B' }],
+          scans: [{ code: 1, goto: 'B' }],
         },
         B: {
           blocks: [
@@ -90,7 +90,7 @@ describe('validateStory', () => {
       teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -109,7 +109,7 @@ describe('validateStory', () => {
   it('reports unreachable nodes and choices nobody can take', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -139,7 +139,7 @@ describe('validateStory', () => {
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'C',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -168,7 +168,7 @@ describe('validateStory', () => {
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -193,7 +193,7 @@ describe('validateStory', () => {
   it('reports empty content, labels and duplicate choices', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -225,7 +225,7 @@ describe('validateStory', () => {
       teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
       outroNode: 'C',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -252,7 +252,7 @@ describe('validateStory', () => {
       teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -274,7 +274,7 @@ describe('validateStory', () => {
       teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -301,7 +301,7 @@ describe('validateStory', () => {
   it('reports a `choices` function that throws', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -326,7 +326,7 @@ describe('validateStory', () => {
     const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -342,7 +342,7 @@ describe('validateStory', () => {
     const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -365,21 +365,21 @@ describe('validateStory', () => {
     ]);
   });
 
-  it('reports bad locations, two QR choices for one location and blocks that throw', () => {
+  it('reports bad codes, two QR choices for one code and blocks that throw', () => {
     const story = define({
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'C',
-      locations: { 0: 'Místo 0', 3: 'Místo 3' },
+      codes: { 0: 'Místo 0', 3: 'Místo 3' },
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { n: 0 },
           blocks: ['Sken'],
           scans: [
-            { location: 0, goto: 'B' },
-            { location: 3, goto: 'B' },
-            { location: 3, goto: 'C' },
+            { code: 0, goto: 'B' },
+            { code: 3, goto: 'B' },
+            { code: 3, goto: 'C' },
           ],
         },
         B: {
@@ -392,8 +392,8 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Místo „Místo 0“ má neplatné číslo 0: musí být celé, od 1 do 999999.',
-      'Uzel A má ve stavu {"n":0} dvě QR volby pro místo 3.',
+      'Kód „Místo 0“ má neplatné číslo 0: musí být celé, od 1 do 999999.',
+      'Uzel A má ve stavu {"n":0} dvě QR volby pro kód 3.',
       'Obsah uzlu B ve stavu {"n":0} spadl: chyba',
     ]);
   });
@@ -401,20 +401,20 @@ describe('validateStory', () => {
   it('reports a goto to a missing node in an untyped story', () => {
     const story: Story = {
       teams: [{ id: 1, name: 'Tým' }],
-      locations: [{ id: 1, name: 'Studna' }],
+      codes: [{ id: 1, name: 'Studna' }],
       introNode: 'I',
       outroNode: 'O',
       order: ['A'],
       nodes: {
         I: { blocks: ['Úvod'] },
         O: { blocks: ['O'] },
-        A: { initialState: {}, blocks: ['A'], scans: [{ location: 2, goto: 'A' }] },
+        A: { initialState: {}, blocks: ['A'], scans: [{ code: 2, goto: 'A' }] },
         B: { initialState: {}, blocks: ['B'], choices: [{ label: 'Pryč', goto: 'X' }] },
       },
     };
     expect(validateStory(story)).toEqual([
-      'Místo 1 („Studna“) nepoužívá žádná QR volba.',
-      'QR volba v uzlu A vede přes neznámé místo 2.',
+      'Kód 1 („Studna“) nepoužívá žádná QR volba.',
+      'QR volba v uzlu A vede přes neznámý kód 2.',
     ]);
     expect(validateStory({ ...story, order: ['B'] })).toContain(
       'Volba „Pryč“ v uzlu B vede na neexistující uzel X.',
@@ -424,7 +424,7 @@ describe('validateStory', () => {
   it('reports ids that do not fit a QR code and ids used twice', () => {
     const story = define({
       teams: { 1: 'Tým', 1000000: 'Daleký' },
-      locations: { 1: 'Místo', 1000000: 'Daleké' },
+      codes: { 1: 'Místo', 1000000: 'Daleké' },
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -433,8 +433,8 @@ describe('validateStory', () => {
           initialState: { n: 0 },
           blocks: ['A'],
           scans: [
-            { location: 1, goto: 'C' },
-            { location: 1000000, goto: 'C' },
+            { code: 1, goto: 'C' },
+            { code: 1000000, goto: 'C' },
           ],
         },
         C: { blocks: ['C'] },
@@ -442,7 +442,7 @@ describe('validateStory', () => {
     });
     expect(validateStory(story)).toEqual([
       'Tým „Daleký“ má neplatné číslo 1000000: musí být celé, od 1 do 999999.',
-      'Místo „Daleké“ má neplatné číslo 1000000: musí být celé, od 1 do 999999.',
+      'Kód „Daleké“ má neplatné číslo 1000000: musí být celé, od 1 do 999999.',
     ]);
     const twice: Story = {
       ...story,
@@ -450,7 +450,7 @@ describe('validateStory', () => {
         { id: 1, name: 'Tým' },
         { id: 1, name: 'Zase tým' },
       ],
-      locations: [
+      codes: [
         { id: 1, name: 'Místo' },
         { id: 1, name: 'Zase místo' },
       ],
@@ -458,7 +458,7 @@ describe('validateStory', () => {
     expect(validateStory(twice)).toEqual(
       expect.arrayContaining([
         'Číslo týmu 1 je použito dvakrát.',
-        'Číslo místa 1 je použito dvakrát.',
+        'Číslo kódu 1 je použito dvakrát.',
       ]),
     );
   });
@@ -466,7 +466,7 @@ describe('validateStory', () => {
   it('reports order and nodes that disagree before anything else', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -486,7 +486,7 @@ describe('validateStory', () => {
     const parsed = (json: string): Value => JSON.parse(json);
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -513,7 +513,7 @@ describe('validateStory', () => {
   it('reports a team that can never reach the end', () => {
     const story = define({
       teams: { 1: 'Vlci', 2: 'Lišky' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
@@ -538,7 +538,7 @@ describe('validateStory', () => {
   it('names a problem of many states once, with their count', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
@@ -570,7 +570,7 @@ describe('validateStory', () => {
   it('accepts a self-closing svg and refuses a numeric node name', () => {
     const story = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
@@ -598,7 +598,7 @@ describe('validateStory', () => {
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {

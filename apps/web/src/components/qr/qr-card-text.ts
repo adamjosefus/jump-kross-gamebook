@@ -1,4 +1,4 @@
-/** Kind of printed code: team login or a location. */
+/** Kind of printed code: team login or one of the story's codes. */
 export type QrCardKind = 'T' | 'L';
 
 export interface QrCardText {
@@ -16,7 +16,7 @@ export const qrCardText = (kind: QrCardKind, label?: string): QrCardText =>
       hint: 'Naskenujte v aplikaci pro přihlášení týmu.',
     },
     L: {
-      eyebrow: label ?? 'Stanoviště',
+      eyebrow: label ?? 'Kód příběhu',
       title: undefined,
       hint: 'Naskenujte v aplikaci a pokračujte v příběhu.',
     },

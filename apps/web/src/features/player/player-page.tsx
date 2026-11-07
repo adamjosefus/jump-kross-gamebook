@@ -18,7 +18,7 @@ import { useReadingReport } from './reading';
 
 const STATE_KEY = ['player', 'state'] as const;
 
-/** Polling keeps every device of a team on the same node; slower while the team walks to a location. */
+/** Polling keeps every device of a team on the same node; slower while the team walks to a code. */
 const refetchInterval = (view: PlayerView | null | undefined) =>
   view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 

@@ -36,7 +36,7 @@ import { readingTotals } from './reading.ts';
 import { Store, type TeamMove, type TeamRow } from './store.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
-  'wrong-location': 'Tady to není. Jste na špatném místě.',
+  'wrong-code': 'Tento kód vás teď nikam nevede.',
   'scan-required': 'Pokračujte naskenováním QR kódu.',
   'no-scan': 'Teď se vybírá v aplikaci, ne skenováním.',
   'unavailable-choice': 'Tuto volbu teď nelze vybrat.',
@@ -46,6 +46,9 @@ const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state',
   'not-started': 'Hra ještě nezačala.',
   'broken-state': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
 };
+
+/** The reason a refused move is sent with; a temporary alias, see `InvalidMove`. */
+const reasonOf = (error: MoveError) => (error === 'wrong-code' ? 'wrong-location' : error);
 
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;
 
@@ -161,7 +164,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     ) {
       if (!result.ok)
         return yield* new InvalidMove({
-          reason: result.error,
+          reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
       // A `NaN` or an object in the state is a mistake in the story (or an admin's state without a
@@ -227,8 +230,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return team;
     });
 
-    /** The story's location a scanned code belongs to. */
-    const locationOf = Effect.fn('Game.locationOf')(function* (code: string) {
+    /** The story's code a scanned QR code is. */
+    const qrCodeOf = Effect.fn('Game.qrCodeOf')(function* (code: string) {
       const payload = yield* Effect.promise(() => verifyQr(config.qrSecret, code));
       if (payload === undefined) {
         yield* penalty;
@@ -236,10 +239,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       }
       if (payload.kind === 'T')
         return yield* new InvalidCode({ message: 'Tohle je přihlašovací kód týmu.' });
-      const location = story.locations.find((candidate) => candidate.id === payload.id);
-      if (location === undefined)
+      const qrCode = story.codes.find((candidate) => candidate.id === payload.id);
+      if (qrCode === undefined)
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
-      return location;
+      return qrCode;
     });
 
     const scan = Effect.fn('Game.scan')(function* (
@@ -247,15 +250,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       code: string,
       expectedStep: number,
     ) {
-      const location = yield* locationOf(code);
+      const qrCode = yield* qrCodeOf(code);
       const { team, position } = yield* prepareMove(teamId, expectedStep);
       const moved = yield* commit(
         team,
-        applyScan(story, position, identityOf(team), location.id),
-        `scan:${location.id}`,
+        applyScan(story, position, identityOf(team), qrCode.id),
+        `scan:${qrCode.id}`,
       );
       // After a reset the phones stay logged in, so the game starts with the first scan that
-      // moves the team; one at a wrong place does not start the clock.
+      // moves the team; a code the node does not accept does not start the clock.
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
       return moved;
     });
@@ -352,7 +355,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
             readingMs.get(id) ?? 0,
           ),
         ),
-        locations: story.locations,
+        codes: story.codes,
         log: log.map((entry) => ({
           teamId: entry.teamId,
           at: entry.at.toISOString(),
@@ -468,11 +471,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
                 story,
                 start,
                 team,
-                'scan' in input.move ? input.move.scan : (yield* locationOf(input.move.code)).id,
+                'scan' in input.move ? input.move.scan : (yield* qrCodeOf(input.move.code)).id,
               );
       if (!result.ok)
         return yield* new InvalidMove({
-          reason: result.error,
+          reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
       const { position } = result;
@@ -487,8 +490,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         view: {
           ...rendered,
           scans: availableScans(node, position.state, team).flatMap(
-            (option) =>
-              story.locations.find((location) => location.id === option.scan.location) ?? [],
+            (option) => story.codes.find((qrCode) => qrCode.id === option.scan.code) ?? [],
           ),
         },
       };
@@ -496,18 +498,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const codes = Effect.fn('Game.codes')(function* () {
-      // Teams and places come from the story, so their codes change only with a deploy.
+      // Teams and codes come from the story, so their codes change only with a deploy.
       const entries: readonly {
         readonly kind: PrintableCode['kind'];
         readonly id: number;
         readonly label: string;
       }[] = [
         ...story.teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
-        ...story.locations.map((location) => ({
-          kind: 'L' as const,
-          id: location.id,
-          label: location.name,
-        })),
+        ...story.codes.map((qrCode) => ({ kind: 'L' as const, id: qrCode.id, label: qrCode.name })),
       ];
       return yield* Effect.promise(() =>
         Promise.all(

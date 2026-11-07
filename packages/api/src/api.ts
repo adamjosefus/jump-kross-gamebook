@@ -38,11 +38,15 @@ export class StepConflict extends Schema.TaggedError<StepConflict>()(
   { httpApiStatus: 409 },
 ) {}
 
-/** A move the story does not allow right now (wrong location, hidden choice, …). */
+/** A move the story does not allow right now (wrong code, hidden choice, …). */
 export class InvalidMove extends Schema.TaggedError<InvalidMove>()(
   'InvalidMove',
   {
     reason: Schema.Literals([
+      // The engine's `wrong-code`, sent under its former name: a phone still running the build
+      // from before codes were renamed would not decode the new one and show a generic error.
+      // Once no such build is in use (after the next deploy outside a game), send `wrong-code`
+      // and drop `reasonOf` in the game server.
       'wrong-location',
       'scan-required',
       'no-scan',
@@ -209,7 +213,7 @@ export const StoryGraph = Schema.Struct({
         Schema.Struct({
           label: Schema.String,
           /** Set on QR choices. */
-          location: Schema.optionalKey(Schema.Number),
+          code: Schema.optionalKey(Schema.Number),
           target: Schema.String,
           conditional: Schema.Boolean,
           available: Schema.optionalKey(Schema.Boolean),
@@ -219,11 +223,11 @@ export const StoryGraph = Schema.Struct({
   ),
 });
 
-export const Location = Schema.Struct({
+export const QrCode = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
 });
-export type Location = typeof Location.Type;
+export type QrCode = typeof QrCode.Type;
 
 export const TeamStatus = Schema.Struct({
   id: Schema.Number,
@@ -258,7 +262,7 @@ export type LogEntry = typeof LogEntry.Type;
 
 export const Overview = Schema.Struct({
   teams: Schema.Array(TeamStatus),
-  locations: Schema.Array(Location),
+  codes: Schema.Array(QrCode),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
   visits: Schema.Record(Schema.String, Schema.Number),
@@ -285,7 +289,7 @@ export const PlaytestInput = Schema.Struct({
   move: Schema.optionalKey(
     Schema.Union([
       Schema.Struct({ choice: Schema.Number }),
-      /** Skips the QR code: moves as if the location's code was scanned. */
+      /** Skips the QR code: moves as if the code with this number was scanned. */
       Schema.Struct({ scan: Schema.Number }),
       /** A scanned or typed QR code, checked like in the game. */
       Schema.Struct({ code: Schema.String }),
@@ -298,7 +302,7 @@ export const PlaytestView = Schema.Struct({
   team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
   node: Schema.String,
   state: GameState,
-  /** What the players see; unlike `PlayerView` it names the locations the node can be left by. */
+  /** What the players see; unlike `PlayerView` it names the codes the node can be left by. */
   view: Schema.Struct({
     id: Schema.String,
     type: NodeType,
@@ -307,7 +311,7 @@ export const PlaytestView = Schema.Struct({
     scan: Schema.Boolean,
     scanTitle: Schema.optionalKey(Schema.String),
     scanText: Schema.optionalKey(Schema.String),
-    scans: Schema.Array(Location),
+    scans: Schema.Array(QrCode),
   }),
 });
 export type PlaytestView = typeof PlaytestView.Type;

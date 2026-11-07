@@ -50,14 +50,15 @@ export interface Choice<S, K extends string> extends Transition<S, K> {
 }
 
 /**
- * Taken by scanning the QR code of `location` there. The team sees only a scan button, not
- * where the codes are or where they lead.
+ * Taken by scanning the QR code numbered `code`. The team sees only a scan button, not which
+ * codes the node accepts or where they lead. Several codes can hang side by side, so the team
+ * decides by which one it scans.
  */
-export interface ScanChoice<S, K extends string, L extends number = number> extends Transition<
+export interface ScanChoice<S, K extends string, C extends number = number> extends Transition<
   S,
   K
 > {
-  readonly location: L;
+  readonly code: C;
 }
 
 /** Falsy entries are skipped, so choices can be written as `condition && choice`. */
@@ -72,7 +73,7 @@ interface NodeBase<S> {
 }
 
 /** A node offers buttons or waits for a QR scan, never both; the intro and the outro are apart. */
-export type StoryNode<S, K extends string, L extends number = number> =
+export type StoryNode<S, K extends string, C extends number = number> =
   | (NodeBase<S> & {
       /**
        * Evaluated once per render, like `blocks`, so a function has to give the same list for the
@@ -87,7 +88,7 @@ export type StoryNode<S, K extends string, L extends number = number> =
     })
   | (NodeBase<S> & {
       readonly choices?: never;
-      readonly scans: readonly [ScanChoice<S, K, L>, ...ScanChoice<S, K, L>[]];
+      readonly scans: readonly [ScanChoice<S, K, C>, ...ScanChoice<S, K, C>[]];
       /** The heading of the scan screen; the player's default one without it. */
       readonly scanTitle?: string;
       /** The text under that heading; the player's default one without it. */
@@ -122,7 +123,7 @@ export interface LoginMessages {
   readonly sameTeam?: TeamText;
   /** The scanned code does not belong to the game. */
   readonly foreignCode?: string;
-  /** A location's code scanned at the login instead of a team's. */
+  /** A code from `codes` scanned at the login instead of a team's. */
   readonly notTeamCode?: string;
   /** The code of a team that is no longer in the story. */
   readonly unknownTeam?: string;
@@ -184,8 +185,12 @@ export interface OutroNode<S> {
 /** Any node of a story the engine runs. */
 export type AnyNode = StoryNode<State, string> | IntroNode | OutroNode<State>;
 
-/** A physical place with a QR code; teams scan it to take a QR choice. */
-export interface Location {
+/**
+ * A printed QR code that moves teams on; teams scan it to take a QR choice. The name tells the
+ * organisers where to put it and is printed on the card, so the players see it too: it must not
+ * give away where a code leads.
+ */
+export interface QrCode {
   readonly id: number;
   readonly name: string;
 }
@@ -199,8 +204,8 @@ export interface Team {
 export interface Story {
   /** Teams, by id; the list is fixed for the game. */
   readonly teams: readonly Team[];
-  /** Places with QR codes, by id. */
-  readonly locations: readonly Location[];
+  /** QR codes that move teams on, by id. */
+  readonly codes: readonly QrCode[];
   /** The node anyone sees before scanning a team's login code; the same for every team. */
   readonly introNode: string;
   /** The node the game ends at. */
@@ -215,12 +220,15 @@ export interface StoryDefinition<
   K extends string,
   I extends K,
   O extends Exclude<K, I>,
-  L extends number,
+  C extends number,
 > {
   /** Teams: number → name. Each team gets a login QR code with its number. */
   readonly teams: Readonly<Record<number, string>>;
-  /** Places with QR codes: number → name. Only these numbers can appear in `scans`. */
-  readonly locations: Readonly<Record<L, string>>;
+  /**
+   * QR codes that move teams on: number → name, e.g. where it hangs. The name is printed on the
+   * card, so the players see it too. Only these numbers can appear in `scans`.
+   */
+  readonly codes: Readonly<Record<C, string>>;
   /**
    * The node shown before login, without any team or state: the story and the rules. After it
    * the player scans the team's code; a team that has not started yet begins at the start node.
@@ -236,10 +244,10 @@ export interface StoryDefinition<
    */
   readonly nodes: {
     readonly [Id in K]:
-      | StoryNode<S, Exclude<NoInfer<K>, NoInfer<I>>, NoInfer<L>>
+      | StoryNode<S, Exclude<NoInfer<K>, NoInfer<I>>, NoInfer<C>>
       | IntroNode
       | OutroNode<S>;
-  } & NodeShapes<S, NoInfer<K>, NoInfer<I>, NoInfer<O>, NoInfer<L>>;
+  } & NodeShapes<S, NoInfer<K>, NoInfer<I>, NoInfer<O>, NoInfer<C>>;
 }
 
 /**
@@ -248,32 +256,32 @@ export interface StoryDefinition<
  * the way until then, otherwise every node would be typed as the intro and literals in the nodes
  * would lose their types.
  */
-type NodeShapes<S, K extends string, I extends string, O extends string, L extends number> = {
+type NodeShapes<S, K extends string, I extends string, O extends string, C extends number> = {
   readonly [Id in K]: string extends I
     ? unknown
     : Id extends I
       ? IntroNode
       : Id extends O
         ? OutroNode<S>
-        : StoryNode<S, Exclude<K, I>, L>;
+        : StoryNode<S, Exclude<K, I>, C>;
 };
 
 /**
  * Defines the story. The first call fixes the state type, the second infers the node ids and the
- * location numbers, so a `goto` to a missing node or a scan of an unknown place is a type error.
+ * code numbers, so a `goto` to a missing node or a scan of an unknown code is a type error.
  * `introNode` names the node shown before login and `outroNode` the one the game ends at.
- * `choices` are buttons, `scans` are QR codes of `locations`: `{ location: 1, goto: 'WELL' }`
- * moves the team on when it scans the code of place 1.
+ * `choices` are buttons, `scans` are QR codes from `codes`: `{ code: 1, goto: 'WELL' }` moves
+ * the team on when it scans code 1.
  *
  * ```ts
  * defineStory<{ gold: number }>()({
  *   teams: { 1: 'Vlci', 2: 'Lišky' },
- *   locations: { 1: 'Studna' },
+ *   codes: { 1: 'Studna' },
  *   introNode: 'INTRO',
  *   outroNode: 'OUTRO',
  *   nodes: {
  *     INTRO: { blocks: ['# Hra\n\nNaskenujte kód svého týmu.'] },
- *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ location: 1, goto: 'OUTRO' }] },
+ *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ code: 1, goto: 'OUTRO' }] },
  *     OUTRO: { blocks: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
  *   },
  * })
@@ -281,15 +289,15 @@ type NodeShapes<S, K extends string, I extends string, O extends string, L exten
  */
 export const defineStory =
   <S extends State>() =>
-  <K extends string, I extends K, O extends Exclude<K, I>, L extends number = never>({
+  <K extends string, I extends K, O extends Exclude<K, I>, C extends number = never>({
     teams,
-    locations,
+    codes,
     introNode,
     outroNode,
     nodes,
-  }: StoryDefinition<S, K, I, O, L>): Story => ({
+  }: StoryDefinition<S, K, I, O, C>): Story => ({
     teams: byId(teams),
-    locations: byId(locations),
+    codes: byId(codes),
     introNode,
     outroNode,
     order: Object.keys(nodes),

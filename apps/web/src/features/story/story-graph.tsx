@@ -121,7 +121,7 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
                   labels: [
                     {
                       text: choice.label,
-                      ...labelSize(choice.label, choice.location !== undefined),
+                      ...labelSize(choice.label, choice.code !== undefined),
                     },
                   ],
                 },
@@ -499,7 +499,7 @@ export const StoryGraph = ({
               data: {
                 points: route?.points ?? [],
                 text: choice.label,
-                qr: choice.location !== undefined,
+                qr: choice.code !== undefined,
                 ...(route?.label === undefined ? {} : { label: route.label }),
                 // Paths the start never takes are dimmed.
                 dimmed: choice.available === false || !graph.nodes[id]!.reached,

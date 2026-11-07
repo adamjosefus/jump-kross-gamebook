@@ -50,7 +50,7 @@ export type MoveError =
   | 'scan-required'
   | 'no-scan'
   | 'unavailable-choice'
-  | 'wrong-location'
+  | 'wrong-code'
   | 'missing-target';
 
 export type MoveResult =
@@ -222,20 +222,20 @@ export const applyChoice = (
   return take(story, position, available.choice);
 };
 
-/** Takes the QR choice of the scanned location, if the node offers one. */
+/** Takes the QR choice of the scanned code, given by its number, if the node offers one. */
 export const applyScan = (
   story: Story,
   position: Position,
   team: Team,
-  location: number,
+  codeId: number,
 ): MoveResult => {
   const node = story.nodes[position.node];
   if (node === undefined) return { ok: false, error: 'unknown-node' };
   if (position.node === story.outroNode) return { ok: false, error: 'finished' };
   if (node.scans === undefined) return { ok: false, error: 'no-scan' };
   const available = availableScans(node, position.state, team).find(
-    ({ scan }) => scan.location === location,
+    ({ scan }) => scan.code === codeId,
   );
-  if (available === undefined) return { ok: false, error: 'wrong-location' };
+  if (available === undefined) return { ok: false, error: 'wrong-code' };
   return take(story, position, available.scan);
 };

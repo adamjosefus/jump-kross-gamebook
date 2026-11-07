@@ -26,7 +26,7 @@ describe('engine', () => {
   it('passes the scan texts of a node to the player', () => {
     const titled = defineStory<{ gold: number }>()({
       teams: { 1: 'Tým' },
-      locations: { 1: 'Studna' },
+      codes: { 1: 'Studna' },
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -35,8 +35,8 @@ describe('engine', () => {
           initialState: { gold: 0 },
           blocks: ['A'],
           scanTitle: 'Kde jste?',
-          scanText: 'Namiřte na kód místa.',
-          scans: [{ location: 1, goto: 'B' }],
+          scanText: 'Namiřte na kód.',
+          scans: [{ code: 1, goto: 'B' }],
         },
         B: { blocks: ['B'] },
       },
@@ -47,7 +47,7 @@ describe('engine', () => {
     });
     expect(renderNode(titled, startPosition(titled)!, VLCI)).toMatchObject({
       scanTitle: 'Kde jste?',
-      scanText: 'Namiřte na kód místa.',
+      scanText: 'Namiřte na kód.',
     });
     expect(renderNode(titled, { node: 'B', state: { gold: 0 } }, VLCI)).not.toHaveProperty(
       'scanTitle',
@@ -63,7 +63,7 @@ describe('engine', () => {
   it('keeps the svg of a screen', () => {
     const withSvg = defineStory<{ readonly n: number }>()({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -81,7 +81,7 @@ describe('engine', () => {
   it('passes the text of the next button on', () => {
     const texts = defineStory<{ n: number }>()({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -127,7 +127,7 @@ describe('engine', () => {
     });
   });
 
-  it('moves on by scanning the QR code of one of the offered locations', () => {
+  it('moves on by scanning the QR code of one of the offered codes', () => {
     const moved = applyChoice(story, start, VLCI, 1);
     if (!moved.ok) throw new Error(moved.error);
     const atWell = moved.position;
@@ -144,7 +144,7 @@ describe('engine', () => {
       scan: true,
     });
     expect(applyChoice(story, atWell, VLCI, 0)).toEqual({ ok: false, error: 'scan-required' });
-    expect(applyScan(story, atWell, VLCI, 34)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyScan(story, atWell, VLCI, 34)).toEqual({ ok: false, error: 'wrong-code' });
 
     const viaWell = applyScan(story, atWell, VLCI, 32);
     expect(viaWell.ok && viaWell.position).toEqual({
@@ -164,22 +164,22 @@ describe('engine', () => {
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: { 1: 'Místo 1', 2: 'Místo 2' },
+      codes: { 1: 'Místo 1', 2: 'Místo 2' },
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
           initialState: { key: false },
           blocks: ['A'],
           scans: [
-            { location: 1, goto: 'B' },
-            { location: 2, goto: 'B', when: (state) => state.key },
+            { code: 1, goto: 'B' },
+            { code: 2, goto: 'B', when: (state) => state.key },
           ],
         },
         B: { blocks: ['B'] },
       },
     });
     const locked = { node: 'A', state: { key: false } };
-    expect(applyScan(gated, locked, VLCI, 2)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyScan(gated, locked, VLCI, 2)).toEqual({ ok: false, error: 'wrong-code' });
     expect(applyScan(gated, { ...locked, state: { key: true } }, VLCI, 2)).toMatchObject({
       ok: true,
     });
@@ -238,7 +238,7 @@ describe('`when` with a team', () => {
     teams: { 1: 'Vlci', 2: 'Lišky' },
     introNode: 'INTRO',
     outroNode: 'B',
-    locations: { 1: 'Studna' },
+    codes: { 1: 'Studna' },
     nodes: {
       INTRO: { blocks: ['Úvod'] },
       A: {
@@ -251,7 +251,7 @@ describe('`when` with a team', () => {
       },
       S: {
         blocks: ['S'],
-        scans: [{ location: 1, goto: 'B', when: (_state, team) => team.id === 2 }],
+        scans: [{ code: 1, goto: 'B', when: (_state, team) => team.id === 2 }],
       },
       B: { blocks: ['B'] },
     },
@@ -272,7 +272,7 @@ describe('`when` with a team', () => {
       error: 'unavailable-choice',
     });
     expect(applyChoice(teamStory, atStart, LISKY, 1)).toMatchObject({ ok: true });
-    expect(applyScan(teamStory, atScan, VLCI, 1)).toEqual({ ok: false, error: 'wrong-location' });
+    expect(applyScan(teamStory, atScan, VLCI, 1)).toEqual({ ok: false, error: 'wrong-code' });
     expect(applyScan(teamStory, atScan, LISKY, 1)).toMatchObject({ ok: true });
   });
 });
@@ -281,7 +281,7 @@ describe('`choices` as a function', () => {
   const LISKY = { id: 2, name: 'Lišky' };
   const dynamic = defineStory<{ gold: number }>()({
     teams: { 1: 'Vlci', 2: 'Lišky' },
-    locations: {},
+    codes: {},
     introNode: 'INTRO',
     outroNode: 'OUTRO',
     nodes: {
@@ -317,7 +317,7 @@ describe('`choices` as a function', () => {
       teams: { 1: 'Vlci' },
       introNode: 'INTRO',
       outroNode: 'B',
-      locations: {},
+      codes: {},
       nodes: {
         INTRO: { blocks: ['Úvod'] },
         A: {
@@ -366,7 +366,7 @@ describe('graph', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Tým' },
-        locations: {},
+        codes: {},
         introNode: 'INTRO',
         outroNode: 'OUTRO',
         nodes: {
@@ -418,8 +418,8 @@ describe('graph', () => {
     expect(graph.nodes['A2']).toMatchObject({
       preview: { state: { gold: 80, hatColor: 'green' } },
       choices: [
-        { label: 'Místo 32', location: 32, target: 'B1', conditional: false },
-        { label: 'Místo 33', location: 33, target: 'B1', conditional: false },
+        { label: 'Místo 32', code: 32, target: 'B1', conditional: false },
+        { label: 'Místo 33', code: 33, target: 'B1', conditional: false },
       ],
     });
     expect(graphProblems(graph)).toEqual([]);
@@ -431,7 +431,7 @@ describe('graph', () => {
         teams: { 1: 'Vlci', 2: 'Lišky' },
         introNode: 'INTRO',
         outroNode: 'B',
-        locations: {},
+        codes: {},
         nodes: {
           INTRO: { blocks: ['Úvod'] },
           A: {
@@ -453,7 +453,7 @@ describe('graph', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Tým' },
-        locations: {},
+        codes: {},
         introNode: 'INTRO',
         outroNode: 'B',
         nodes: {
@@ -471,7 +471,7 @@ describe('graph', () => {
     const graph = toGraph(
       define({
         teams: { 1: 'Tým' },
-        locations: {},
+        codes: {},
         introNode: 'INTRO',
         outroNode: 'OUTRO',
         nodes: {
@@ -503,13 +503,13 @@ describe('graph', () => {
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'A',
-      locations: {},
+      codes: {},
       nodes: { INTRO: { blocks: ['Úvod'] }, A: { blocks: ['A'] } },
     });
     expect(graphProblems(toGraph(noStart))).toEqual(['Příběh nemá start (uzel s initialState).']);
     const orphan = define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -529,7 +529,7 @@ const _typeErrors = () => {
     const define = defineStory<{ gold: number }>();
     define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
@@ -554,7 +554,7 @@ const _typeErrors = () => {
     });
     define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -566,7 +566,7 @@ const _typeErrors = () => {
     });
     define({
       teams: { 1: 'Tým' },
-      locations: { 1: 'Místo 1' },
+      codes: { 1: 'Místo 1' },
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -576,14 +576,14 @@ const _typeErrors = () => {
           initialState: { gold: 0 },
           blocks: [],
           choices: [{ label: 'Dál', goto: 'B' }],
-          scans: [{ location: 1, goto: 'B' }],
+          scans: [{ code: 1, goto: 'B' }],
         },
         B: { blocks: ['B'] },
       },
     });
     define({
       teams: { 1: 'Tým' },
-      locations: { 1: 'Studna' },
+      codes: { 1: 'Studna' },
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
@@ -592,23 +592,23 @@ const _typeErrors = () => {
           initialState: { gold: 0 },
           blocks: [],
           scans: [
-            { location: 1, goto: 'B' },
-            // @ts-expect-error: a QR choice must use a place from `locations`
-            { location: 2, goto: 'B' },
+            { code: 1, goto: 'B' },
+            // @ts-expect-error: a QR choice must use a code from `codes`
+            { code: 2, goto: 'B' },
           ],
         },
         B: { blocks: ['B'] },
       },
     });
     // A wrong id makes the other nodes mistyped too, so these stay on one line each.
-    const base = { teams: {}, locations: {} } as const;
+    const base = { teams: {}, codes: {} } as const;
     // @ts-expect-error: the intro has to be a node of the story
     define({ ...base, introNode: 'X', outroNode: 'B', nodes: { B: { blocks: [] } } });
     // @ts-expect-error: the outro is another node than the intro
     define({ ...base, introNode: 'B', outroNode: 'B', nodes: { B: { blocks: [] } } });
     define({
       teams: { 1: 'Tým' },
-      locations: {},
+      codes: {},
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {

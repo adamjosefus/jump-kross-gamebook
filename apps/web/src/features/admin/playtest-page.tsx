@@ -127,7 +127,7 @@ interface Step extends PlaytestView {
 }
 
 /**
- * Moves in the URL, separated by dots: `c2` the choice with index 2, `s1` the QR code of place 1
+ * Moves in the URL, separated by dots: `c2` the choice with index 2, `s1` scanning code 1
  * skipped, `qL-1-5FV2XY` a scanned code, `x` the login skipped.
  */
 const encodeMove = (move: Move | undefined) =>
@@ -157,9 +157,9 @@ const viaOf = (from: Step, move: Move | undefined) => {
       from.view.choices.find((choice) => choice.index === move.choice)?.label ??
       `Volba ${move.choice}`
     );
-  const location = 'scan' in move ? move.scan : parseQr(move.code)?.id;
-  const name = from.view.scans.find((place) => place.id === location)?.name;
-  if ('scan' in move) return `${name ?? `Místo ${move.scan}`} (přeskočeno)`;
+  const scanned = 'scan' in move ? move.scan : parseQr(move.code)?.id;
+  const name = from.view.scans.find((qrCode) => qrCode.id === scanned)?.name;
+  if ('scan' in move) return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;
   return from.intro === true ? `Kód týmu ${move.code}` : `QR ${name ?? move.code}`;
 };
 
@@ -223,7 +223,7 @@ const CodeEntry = ({
   busy,
   onCode,
 }: {
-  /** The codes that make sense here: teams at the login, places in the story. */
+  /** The codes that make sense here: teams at the login, the story's codes after it. */
   readonly kind: PrintableCode['kind'];
   readonly disabled: boolean;
   readonly busy: boolean;
@@ -261,7 +261,7 @@ const CodeEntry = ({
         <PopoverArrow />
         <section className='flex flex-col'>
           <h3 className='-mx-3 border-b px-3 pb-2 text-sm font-medium'>
-            {kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}
+            {kind === 'T' ? 'Kódy týmů' : 'Ostatní kódy'}
           </h3>
           {codes.isError ? (
             <p className='my-3 text-xs text-destructive'>{errorMessage(codes.error)}</p>
@@ -529,9 +529,9 @@ export const PlaytestPage = () => {
               </Hint>
               <DropdownMenuContent align='end'>
                 <DropdownMenuLabel>Jako by tým naskenoval</DropdownMenuLabel>
-                {scans.map((location) => (
-                  <DropdownMenuItem key={location.id} onSelect={() => take({ scan: location.id })}>
-                    <IconQrcode /> {location.name}
+                {scans.map((qrCode) => (
+                  <DropdownMenuItem key={qrCode.id} onSelect={() => take({ scan: qrCode.id })}>
+                    <IconQrcode /> {qrCode.name}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

@@ -95,18 +95,18 @@ describe('api', () => {
     expect(b1Path.team.name).toBe('Lišky');
     const c1 = await play({ position: at(b1Path), team: 2, move: { choice: 0 } });
     expect(c1.body.view.screens[0].content).toBe('Prohráli jste, týme Lišky.');
-    const place = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
-    expect((await play({ move: { code: place } })).body._tag).toBe('InvalidCode');
+    const qrCode = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    expect((await play({ move: { code: qrCode } })).body._tag).toBe('InvalidCode');
 
     const a2 = (await play({ position: at(start), move: { choice: 1 } })).body;
-    // The test run names the places, so the admin can skip the QR code.
+    // The test run names the codes, so the admin can skip scanning one.
     expect(a2).toMatchObject({
       node: 'A2',
       state: { gold: 80, hatColor: 'green' },
       view: { scan: true, scans: [{ id: 32, name: 'Místo 32' }, { id: 33 }] },
     });
     // A real code works too and is checked like in the game.
-    expect((await play({ position: at(a2), move: { code: place } })).body.node).toBe('B1');
+    expect((await play({ position: at(a2), move: { code: qrCode } })).body.node).toBe('B1');
     expect((await play({ position: at(a2), move: { code: 'L-32-AAAA' } })).body._tag).toBe(
       'InvalidCode',
     );
@@ -118,6 +118,11 @@ describe('api', () => {
     ]);
 
     expect((await play({ position: at(b1), move: { scan: 32 } })).body.reason).toBe('no-scan');
+    // Sent under its former name, so phones on the previous build still decode it.
+    expect((await play({ position: at(a2), move: { scan: 34 } })).body).toMatchObject({
+      reason: 'wrong-location',
+      message: 'Tento kód vás teď nikam nevede.',
+    });
     expect((await admin('GET', '/api/admin/overview')).body.log).toEqual([]);
   });
 
@@ -134,7 +139,7 @@ describe('api', () => {
       (await admin('GET', '/api/admin/codes')).body;
     const login = codes.find((entry) => entry.kind === 'T')!.code;
     const studna = codes.find((entry) => entry.kind === 'L' && entry.id === 32)!.code;
-    // Places come from the story; a valid code of a place it does not have is refused.
+    // Codes come from the story; a validly signed code it does not have is refused.
     expect(codes.filter((entry) => entry.kind === 'L').map((entry) => entry.id)).toEqual([32, 33]);
     expect(codes.filter((entry) => entry.kind === 'T').map((entry) => entry.id)).toEqual([1, 2]);
     const gone = await encodeQr(config.qrSecret, { kind: 'T', id: 3 });
@@ -278,7 +283,7 @@ describe('api', () => {
     shared.teams.set(2, row);
 
     // A reset starts over; with the phones still logged in, the next scan that moves the team
-    // starts the clock, one at a wrong place does not.
+    // starts the clock, a code the node does not accept does not.
     const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
     expect(reset).toMatchObject({ readingMs: 0 });
     expect(reset.playMs).toBeUndefined();
