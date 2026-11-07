@@ -1,5 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,8 +27,11 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
 
-/** While the admin keeps the game closed, the device asks now and then whether it opened. */
-const CLOSED_POLL_MS = 15_000;
+/**
+ * While the game is not started yet or the admin keeps it closed, the device asks now and then
+ * whether the teams can log in.
+ */
+const WAITING_POLL_MS = 15_000;
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -73,8 +76,8 @@ export const PlayerPage = () => {
     ) {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
-    // The intro shows the closed game in place of the scanner.
-    if (isApiError(error, 'GameClosed'))
+    // The intro shows a game not started or closed in place of the scanner.
+    if (isApiError(error, 'GameClosed') || isApiError(error, 'GameNotStarted'))
       void queryClient.invalidateQueries({ queryKey: INTRO_KEY });
   };
 
@@ -282,9 +285,13 @@ const Intro = ({
   const intro = useQuery({
     queryKey: INTRO_KEY,
     queryFn: ({ signal }) => api((client) => client.player.intro(), { signal }),
-    // The story changes only with a deploy; only a closed game is asked again, until it opens.
+    // The story changes only with a deploy; only a game the teams cannot log in to yet is asked
+    // again, until they can.
     staleTime: Infinity,
-    refetchInterval: (query) => (query.state.data?.closed === true ? CLOSED_POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data !== undefined && (!query.state.data.started || query.state.data.closed)
+        ? WAITING_POLL_MS
+        : false,
   });
   if (intro.isPending)
     return (
@@ -302,7 +309,7 @@ const Intro = ({
         </Centered>
       </PlayerFrame>
     );
-  const { closed, ...content } = intro.data;
+  const { started, closed, ...content } = intro.data;
   if (closed)
     return (
       <PlayerFrame lead={APP_VERSION}>
@@ -322,6 +329,8 @@ const Intro = ({
       initialIndex={initialIndex}
       onIndexChange={onIndexChange}
       requireCamera
+      // Before the start the intro reads as usual, but there is nothing to scan yet.
+      {...(started ? {} : { scanStandIn: GAME_NOT_STARTED_MESSAGE })}
       corner={APP_VERSION}
     />
   );

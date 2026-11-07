@@ -73,6 +73,7 @@ describe('api', () => {
 
   it('shows the intro to anyone', async () => {
     expect((await device()('GET', '/api/player/intro')).body).toEqual({
+      started: false,
       closed: false,
       screens: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
     });
@@ -442,7 +443,11 @@ describe('closed game', () => {
     const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
     const admin = device(fresh.handler);
     await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    // Before the start the intro says so and the login is refused.
+    const intro = () => device(fresh.handler)('GET', '/api/player/intro');
+    expect((await intro()).body).toMatchObject({ started: false, closed: false });
     await admin('POST', '/api/admin/game/start');
+    expect((await intro()).body).toMatchObject({ started: true, closed: false });
     const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
     const phone = device(fresh.handler, {
@@ -523,7 +528,11 @@ describe('devices from the admin', () => {
     const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
     const admin = device(fresh.handler);
     await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    // Before the start the intro says so and the login is refused.
+    const intro = () => device(fresh.handler)('GET', '/api/player/intro');
+    expect((await intro()).body).toMatchObject({ started: false, closed: false });
     await admin('POST', '/api/admin/game/start');
+    expect((await intro()).body).toMatchObject({ started: true, closed: false });
     const login = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const other = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
     type Listed = readonly { readonly id: string; readonly bannable: boolean }[];

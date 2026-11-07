@@ -24,6 +24,7 @@ import {
   DeviceNotBannable,
   GAME_CLOSED_MESSAGE,
   GameClosed,
+  GAME_NOT_STARTED_MESSAGE,
   GameNotStarted,
   InvalidCode,
   InvalidMove,
@@ -232,10 +233,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return yield* ensureStarted(team);
     });
 
-    /** What the players see before the login; it says whether the game is closed. */
+    /** What the players see before the login; it says whether the game started and is closed. */
     const intro = Effect.fn('Game.intro')(function* () {
-      const { closed } = yield* gameSettings();
-      return { closed, ...introContent };
+      const [startedAt, { closed }] = yield* Effect.all([store.gameStartedAt(), gameSettings()], {
+        concurrency: 'unbounded',
+      });
+      return { started: startedAt !== undefined, closed, ...introContent };
     });
 
     /** Fails when the admin closed the game. */
@@ -374,9 +377,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const login = Effect.fn('Game.login')(function* (code: string, client: SessionClient) {
       const { id } = yield* teamOf(code);
       if ((yield* store.gameStartedAt()) === undefined)
-        return yield* new GameNotStarted({
-          message: 'Hra ještě nezačala. Počkejte na pokyn organizátorů.',
-        });
+        return yield* new GameNotStarted({ message: GAME_NOT_STARTED_MESSAGE });
       const { deviceId } = client;
       const [, banned] = yield* Effect.all(
         [requireOpen(), deviceId === undefined ? Effect.succeed(false) : store.isBanned(deviceId)],
