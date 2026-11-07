@@ -12,10 +12,18 @@ export const formatDateTime = (iso: string, { seconds = false } = {}) =>
 export const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
 
-/** How long ago, such as „před 5 min“; after an hour the time itself. */
-export const timeAgo = (iso: string) => {
-  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+const isToday = (date: Date, now: Date) =>
+  date.getFullYear() === now.getFullYear() &&
+  date.getMonth() === now.getMonth() &&
+  date.getDate() === now.getDate();
+
+/**
+ * How long ago, such as „před 5 min“; after an hour the time itself, and with the date once it is
+ * not from today, so „14:30“ never stands for yesterday's afternoon.
+ */
+export const timeAgo = (iso: string, now = new Date()) => {
+  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 1000));
   if (seconds < 60) return `před ${seconds} s`;
   if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
-  return formatTime(iso);
+  return isToday(new Date(iso), now) ? formatTime(iso) : formatDateTime(iso);
 };

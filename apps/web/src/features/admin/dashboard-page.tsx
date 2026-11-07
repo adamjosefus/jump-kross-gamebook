@@ -383,7 +383,7 @@ const ClosedBar = () => (
     className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-amber-500 px-4 py-1.5 text-sm text-black'
   >
     <IconLock className='size-4 shrink-0' />
-    Hra je zavřená, týmy teď nemohou hrát.
+    Hra je zavřená, týmy na cestě teď nemohou hrát.
     <Link to='/admin/game' className='underline underline-offset-2'>
       Otevřít na stránce Hra
     </Link>
