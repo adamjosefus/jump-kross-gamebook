@@ -104,14 +104,10 @@ const PlayerHandlers = HttpApiBuilder.group(
       login: Effect.fn(function* ({ payload }) {
         const request = yield* HttpServerRequest.HttpServerRequest;
         const key = clientKey(request);
-        // A device without its own id (or with one this server did not give) gets one now; it is
-        // renewed with every login.
+        // A device without its own id (or with one this server did not give) gets one with its
+        // first successful login; every later login renews the cookie.
         const sent = request.cookies[DeviceCookie.key];
         const deviceId = isDeviceId(sent) ? sent : crypto.randomUUID();
-        yield* HttpApiBuilder.securitySetCookie(DeviceCookie, deviceId, {
-          ...cookie,
-          maxAge: DEVICE_MAX_AGE,
-        });
         const { sessionId, view } = yield* orDie(
           game.login(payload.code, {
             ip: key === 'unknown' ? undefined : key,
@@ -119,6 +115,10 @@ const PlayerHandlers = HttpApiBuilder.group(
             deviceId,
           }),
         );
+        yield* HttpApiBuilder.securitySetCookie(DeviceCookie, deviceId, {
+          ...cookie,
+          maxAge: DEVICE_MAX_AGE,
+        });
         yield* HttpApiBuilder.securitySetCookie(PlayerSessionCookie, sessionId, {
           ...cookie,
           maxAge: PLAYER_MAX_AGE,

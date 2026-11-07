@@ -22,6 +22,7 @@ import { Context, Effect, Layer } from 'effect';
 import {
   DeviceBanned,
   DeviceNotBannable,
+  GAME_CLOSED_MESSAGE,
   GameClosed,
   GameNotStarted,
   InvalidCode,
@@ -74,8 +75,7 @@ const DEVICE_WINDOW_MS = 2 * 60 * 1000;
  */
 export const PLAYER_SESSION_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
-const CLOSED_MESSAGE = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
-const gameClosed = () => new GameClosed({ message: CLOSED_MESSAGE });
+const gameClosed = () => new GameClosed({ message: GAME_CLOSED_MESSAGE });
 
 const BANNED_MESSAGE = 'Toto zařízení organizátoři zablokovali. Pokud jde o omyl, ozvěte se jim.';
 
@@ -244,9 +244,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       if (closed) yield* gameClosed();
     });
 
-    /** A closed game shows the team without its node; the devices keep polling until it opens. */
+    /**
+     * A closed game shows the team without its node; the devices keep polling until it opens. A
+     * team that has finished keeps its ending: the closing is for the teams still on their way.
+     */
     const closedView = (team: TeamRow): PlayerView => {
-      const { node: _node, ...rest } = view(team);
+      const open = view(team);
+      if (open.status === 'finished') return open;
+      const { node: _node, ...rest } = open;
       return { ...rest, status: 'closed' };
     };
 
@@ -372,7 +377,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         return yield* new GameNotStarted({
           message: 'Hra ještě nezačala. Počkejte na pokyn organizátorů.',
         });
-      const deviceId = isDeviceId(client.deviceId) ? client.deviceId : undefined;
+      const { deviceId } = client;
       const [, banned] = yield* Effect.all(
         [requireOpen(), deviceId === undefined ? Effect.succeed(false) : store.isBanned(deviceId)],
         { concurrency: 'unbounded' },
@@ -443,7 +448,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const startGame = Effect.fn('Game.startGame')(function* () {
-      return gameInfo(yield* store.startGame(), yield* store.gameSettings());
+      const [startedAt, settings] = yield* Effect.all([store.startGame(), store.gameSettings()], {
+        concurrency: 'unbounded',
+      });
+      return gameInfo(startedAt, settings);
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
@@ -715,10 +723,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     /** Opens or closes the game for every team at once; the admin's own test runs go on. */
     const setClosed = Effect.fn('Game.setClosed')(function* (closed: boolean) {
-      const row = yield* store.setGameClosed(closed);
+      const [row, startedAt] = yield* Effect.all(
+        [store.setGameClosed(closed), store.gameStartedAt()],
+        { concurrency: 'unbounded' },
+      );
       // This instance knows at once; the others within `SETTINGS_TTL_MS`.
       cachedSettings = { row, at: Date.now() };
-      return gameInfo(yield* store.gameStartedAt(), row);
+      return gameInfo(startedAt, row);
     });
 
     const codes = Effect.fn('Game.codes')(function* () {

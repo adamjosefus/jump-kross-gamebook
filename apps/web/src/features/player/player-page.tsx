@@ -1,4 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -28,8 +29,6 @@ const RETRY_MS = 10_000;
 
 /** While the admin keeps the game closed, the device asks now and then whether it opened. */
 const CLOSED_POLL_MS = 15_000;
-
-const CLOSED_TEXT = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -188,7 +187,7 @@ export const PlayerPage = () => {
       ) : view.status === 'closed' ? (
         <PlayerFrame aside={aside}>
           <Centered>
-            <p className='text-center text-balance'>{CLOSED_TEXT}</p>
+            <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
           </Centered>
         </PlayerFrame>
       ) : view.status === 'not-ready' || view.node === undefined ? (
@@ -308,7 +307,7 @@ const Intro = ({
     return (
       <PlayerFrame lead={APP_VERSION}>
         <Centered>
-          <p className='text-center text-balance'>{CLOSED_TEXT}</p>
+          <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
         </Centered>
       </PlayerFrame>
     );

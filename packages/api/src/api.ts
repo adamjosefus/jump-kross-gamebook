@@ -83,6 +83,9 @@ export class DeviceNotBannable extends Schema.TaggedError<DeviceNotBannable>()(
   { httpApiStatus: 409 },
 ) {}
 
+/** What a player reads while the game is closed, on the screen and in the refused request. */
+export const GAME_CLOSED_MESSAGE = 'Hra je teď zavřená. Vyčkejte na pokyn organizátorů.';
+
 /** The admin closed the game: nobody logs in or moves until it opens again. */
 export class GameClosed extends Schema.TaggedError<GameClosed>()(
   'GameClosed',
