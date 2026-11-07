@@ -25,7 +25,7 @@ Platí to na každé obrazovce, i na té, kterou už tým viděl a jejíž text 
 
 ## Žádné přeskakování a žádné nápovědy
 
-Klepnutí na text nic nedělá: text se nedá zobrazit celý najednou a hráč počká, až se objeví sám. Pod textem ani jinde na obrazovce se nezobrazuje žádná nápověda typu „Klepnutím zobrazíte celý text“.
+Klepnutí na text nic nedělá: text se nedá zobrazit celý najednou a hráč počká, až se objeví sám. Text na obrazovce hráče ani v potvrzovacím dialogu nejde označit a dlouhé podržení neotevře žádnou nabídku. Pod textem ani jinde na obrazovce se nezobrazuje žádná nápověda typu „Klepnutím zobrazíte celý text“.
 
 Do obrazovky s textem příběhu nepřidávej žádné pomocné ani vysvětlující texty, které nejsou v příběhu, ani nové interakce. Když se zdá, že by něco takového pomohlo, nejdřív se zeptej.
 

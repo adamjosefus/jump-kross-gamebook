@@ -55,7 +55,7 @@ export const ConfirmDialog = ({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
-        className='w-[calc(100%-2rem)] max-w-sm gap-6 rounded-3xl p-6 font-story data-[size=default]:max-w-sm data-[size=default]:sm:max-w-sm'
+        className='w-[calc(100%-2rem)] max-w-sm gap-6 rounded-3xl p-6 font-story select-none [-webkit-touch-callout:none] data-[size=default]:max-w-sm data-[size=default]:sm:max-w-sm'
         // Focus would arm the safe button for the Enter key; nothing is focused until it unlocks.
         onOpenAutoFocus={(event) => event.preventDefault()}
       >

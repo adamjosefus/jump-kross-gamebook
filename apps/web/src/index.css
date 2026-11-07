@@ -255,10 +255,13 @@ html:has(.player-page) {
   overscroll-behavior: none;
 }
 
-/* Content kept clear of the notch, the home indicator and rounded corners. */
+/* Content kept clear of the notch, the home indicator and rounded corners. The side paddings are
+   variables, so content can reach past them to the screen's edges (the player's camera). */
 .safe-area-padding {
-  padding: calc(var(--safe-area-inset-top) + 1rem) calc(var(--safe-area-inset-right) + 1.25rem)
-    calc(var(--safe-area-inset-bottom) + 1rem) calc(var(--safe-area-inset-left) + 1.25rem);
+  --safe-area-padding-left: calc(var(--safe-area-inset-left) + 1.25rem);
+  --safe-area-padding-right: calc(var(--safe-area-inset-right) + 1.25rem);
+  padding: calc(var(--safe-area-inset-top) + 1rem) var(--safe-area-padding-right)
+    calc(var(--safe-area-inset-bottom) + 1rem) var(--safe-area-padding-left);
 }
 
 /* The admin's phone preview: insets of a phone with a Dynamic Island and a home indicator, as the

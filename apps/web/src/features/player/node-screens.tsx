@@ -180,7 +180,7 @@ export const NodeScreens = ({
       lead={
         corner !== undefined &&
         index === 0 && (
-          <span className='font-mono text-[0.625rem] tracking-[0.2em] text-muted-foreground/35 tabular-nums select-none'>
+          <span className='font-mono text-[0.625rem] tracking-[0.2em] text-muted-foreground/35 tabular-nums'>
             {corner}
           </span>
         )
