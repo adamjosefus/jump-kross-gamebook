@@ -147,6 +147,7 @@ const FloatingPanel = ({
           variant={state.pinned ? 'secondary' : 'ghost'}
           size='icon'
           title={state.pinned ? 'Odepnout' : 'Připnout, aby panel zůstal otevřený'}
+          aria-label={state.pinned ? 'Odepnout panel' : 'Připnout panel'}
           aria-pressed={state.pinned}
           onClick={() => onChange({ ...state, pinned: !state.pinned })}
         >
@@ -156,6 +157,7 @@ const FloatingPanel = ({
           variant='ghost'
           size='icon'
           title='Skrýt'
+          aria-label='Skrýt panel'
           onClick={() => onChange({ ...state, open: false })}
         >
           <IconChevronsRight />
@@ -179,13 +181,15 @@ export const DashboardPage = () => {
   const [panels, setPanels] = usePanels();
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
-  if (overview.isError)
+  // Without anything to show the error is the page; with the last data it is a bar above them.
+  if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { teams, log } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
 
   return (
     <div className='relative h-full'>
+      {overview.isError && <StaleBar at={overview.dataUpdatedAt} error={overview.error} />}
       {graph === undefined ? (
         <IconLoader2 className='m-8 size-6 animate-spin' />
       ) : (
@@ -243,7 +247,8 @@ export const DashboardPage = () => {
                     {formatState(team.state)}
                   </div>
                   <div className='text-xs text-muted-foreground'>
-                    {team.devices} zař. · {timeAgo(team.updatedAt)}
+                    {team.devices} zař. ·{' '}
+                    {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
                   </div>
                   {team.playMs !== undefined && (
                     <div className='text-xs text-muted-foreground'>
@@ -255,6 +260,7 @@ export const DashboardPage = () => {
                   variant='ghost'
                   size='icon'
                   title='Přesunout tým'
+                  aria-label={`Přesunout tým ${team.name}`}
                   onClick={() => setMoving(team)}
                 >
                   <IconArrowNarrowRight />
@@ -296,22 +302,43 @@ export const DashboardPage = () => {
       </div>
 
       {moving !== undefined && graph !== undefined && (
-        <MoveDialog team={moving} graph={graph} onClose={() => setMoving(undefined)} />
+        <MoveDialog
+          team={moving}
+          current={teams.find((team) => team.id === moving.id)}
+          graph={graph}
+          onClose={() => setMoving(undefined)}
+        />
       )}
     </div>
   );
 };
 
+/** The last poll failed: what is shown is from `at`. */
+const StaleBar = ({ at, error }: { readonly at: number; readonly error: unknown }) => (
+  <div
+    role='alert'
+    className='absolute inset-x-0 top-0 z-20 flex items-center gap-2 bg-destructive px-4 py-1.5 text-sm text-white'
+  >
+    <IconAlertTriangle className='size-4 shrink-0' />
+    Nepodařilo se obnovit ({errorMessage(error)}). Zobrazená data jsou z{' '}
+    {new Date(at).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}.
+  </div>
+);
+
 /**
  * Changes the node and state of a team in the running game. It reaches the team's phones at once
  * and can break their game, so the dialog warns loudly and the admin has to type the team's name.
+ * `current` is the team as the last poll saw it: the move writes over whatever the team does
+ * meanwhile, so a team that moved since the dialog opened is pointed out.
  */
 const MoveDialog = ({
   team,
+  current,
   graph,
   onClose,
 }: {
   readonly team: TeamStatus;
+  readonly current: TeamStatus | undefined;
   readonly graph: GameGraph;
   readonly onClose: () => void;
 }) => {
@@ -320,6 +347,15 @@ const MoveDialog = ({
   const [resetting, setResetting] = useState(false);
   const [typed, setTyped] = useState('');
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2));
+  // The step the form was filled from; the team may have moved on since.
+  const [filledFrom, setFilledFrom] = useState(team.step);
+  const movedSince = current !== undefined && current.step !== filledFrom;
+  const refill = () => {
+    if (current === undefined) return;
+    setNode(current.node ?? graph.start ?? graph.order[0] ?? '');
+    setStateText(JSON.stringify(current.state, null, 2));
+    setFilledFrom(current.step);
+  };
 
   const parsedState = (() => {
     try {
@@ -373,6 +409,21 @@ const MoveDialog = ({
                 <li>Automaticky ji vrátit nejde.</li>
               </ul>
             </div>
+            {movedSince && (
+              <div
+                role='alert'
+                className='flex items-center gap-2 rounded-lg border border-destructive p-3 text-sm'
+              >
+                <IconAlertTriangle className='size-4 shrink-0 text-destructive' />
+                <span className='flex-1'>
+                  Tým se mezitím posunul (krok {filledFrom} → {current.step}); zásah by přepsal jeho
+                  nový stav.
+                </span>
+                <Button type='button' variant='outline' size='sm' onClick={refill}>
+                  Načíst aktuální
+                </Button>
+              </div>
+            )}
             <Select value={node} onValueChange={setNode}>
               <SelectTrigger className='w-full'>
                 <SelectValue />

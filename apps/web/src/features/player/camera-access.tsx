@@ -7,6 +7,9 @@ import { CameraHelp } from './camera-help';
 
 type CameraAccess = 'checking' | 'prompt' | 'requesting' | 'granted' | 'denied' | 'missing';
 
+/** Time the hardware gets to let go of the stream the permission check opened. */
+const CAMERA_RELEASE_MS = 300;
+
 /**
  * Whether the page may use the camera. The permission is read without asking and followed while
  * the page is open, so allowing it in the browser's settings is picked up at once; `request()`
@@ -14,7 +17,10 @@ type CameraAccess = 'checking' | 'prompt' | 'requesting' | 'granted' | 'denied' 
  * `prompt`.
  */
 const useCameraAccess = () => {
-  const [state, setState] = useState<CameraAccess>('checking');
+  // Older iPhones have no Permissions API at all; they start at `prompt` like Firefox.
+  const [state, setState] = useState<CameraAccess>(() =>
+    navigator.permissions === undefined ? 'prompt' : 'checking',
+  );
   useEffect(() => {
     // The status arrives asynchronously and the query cannot be aborted, so the cleanup has to
     // flag the effect as over and the listener has to find the status it was added to.
@@ -27,8 +33,9 @@ const useCameraAccess = () => {
         status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'prompt',
       );
     };
-    navigator.permissions
-      .query({ name: 'camera' })
+    const query = navigator.permissions?.query({ name: 'camera' });
+    if (query === undefined) return undefined;
+    query
       .then((result) => {
         status = result;
         status.addEventListener('change', follow);
@@ -48,6 +55,9 @@ const useCameraAccess = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       for (const track of stream.getTracks()) track.stop();
+      // Some Android phones free the camera a moment after the track ends; the scanner opening
+      // it right away would be told it is in use by another app.
+      await new Promise((resolve) => setTimeout(resolve, CAMERA_RELEASE_MS));
       setState('granted');
     } catch (error) {
       const name = error instanceof Error ? error.name : '';

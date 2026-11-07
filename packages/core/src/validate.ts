@@ -7,8 +7,10 @@ import {
   sampleTeam,
   screensOf,
   stateKey,
+  unsoundStateKeys,
   type RenderedScreen,
 } from './engine.ts';
+import { isQrId, MAX_QR_ID } from './qr.ts';
 import { loginMessages, type AnyNode, type Choice, type Story, type Team } from './story.ts';
 import type { State } from './types.ts';
 
@@ -38,6 +40,14 @@ const attempt = <T>(compute: () => T): Attempt<T> => {
 
 const visitKey = ({ node, state }: Visit) => JSON.stringify([node, stateKey(state)]);
 
+const stateProblem = (where: string, state: State): readonly string[] => {
+  const keys = unsoundStateKeys(state);
+  return problemIf(
+    keys.length > 0,
+    `${where} má ve stavu hodnoty, které nejsou text, číslo ani ano/ne: ${keys.join(', ')}.`,
+  );
+};
+
 const show = (state: State) => JSON.stringify(state);
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -45,8 +55,11 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const problemIf = (condition: boolean, problem: string): readonly string[] =>
   condition ? [problem] : [];
 
-/** One whole `<svg>` element; a mistake here would otherwise show only as a missing picture. */
-const SVG_ELEMENT = /^\s*<svg[\s>][\s\S]*<\/svg>\s*$/;
+/**
+ * One whole `<svg>` element, closed or self-closing; a mistake here would otherwise show only as a
+ * missing picture.
+ */
+const SVG_ELEMENT = /^\s*<svg(?:[\s>][\s\S]*<\/svg>|(?:\s[^>]*)?\/>)\s*$/;
 
 const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
 /** A picture is enough for a screen, it does not need text too. */
@@ -95,11 +108,36 @@ const outroProblems = (story: Story): readonly string[] => {
   ];
 };
 
+/**
+ * Every id in `order` has to be a node, once: the rest of the checks (and the engine) look the
+ * nodes up by it. `defineStory` keeps them together; a story built by hand may not. Nodes outside
+ * `order` are allowed, they are only played when a choice leads to them.
+ */
+const structureProblems = (story: Story): readonly string[] =>
+  story.order.flatMap((id, index) => [
+    ...problemIf(story.order.indexOf(id) !== index, `Uzel ${id} je v order dvakrát.`),
+    ...problemIf(!Object.hasOwn(story.nodes, id), `Uzel ${id} z order není v nodes.`),
+    // JavaScript puts integer keys first whatever the order they are written in, so the order
+    // of the story (and with it the start) would not be the one in the file.
+    ...problemIf(/^\d+$/.test(id), `Uzel ${id} má číselný název; pojmenujte ho slovem.`),
+  ]);
+
+/** The id goes into a QR code, which carries a positive integer of at most six digits. */
+const idProblem = (what: string, id: number, name: string) =>
+  problemIf(
+    !isQrId(id),
+    `${what} „${name}“ má neplatné číslo ${id}: musí být celé, od 1 do ${MAX_QR_ID}.`,
+  );
+
 const teamProblems = (story: Story): readonly string[] => [
   ...problemIf(story.teams.length === 0, 'Příběh nemá žádný tým.'),
-  ...story.teams.flatMap(({ id, name }) => [
-    ...problemIf(!Number.isInteger(id) || id <= 0, `Tým „${name}“ má neplatné číslo ${id}.`),
+  ...story.teams.flatMap(({ id, name }, index) => [
+    ...idProblem('Tým', id, name),
     ...problemIf(name.trim() === '', `Tým ${id} nemá název.`),
+    ...problemIf(
+      story.teams.slice(0, index).some((earlier) => earlier.id === id),
+      `Číslo týmu ${id} je použito dvakrát.`,
+    ),
   ]),
 ];
 
@@ -108,9 +146,13 @@ const locationProblems = (story: Story): readonly string[] => {
     story.order.flatMap((id) => story.nodes[id]!.scans ?? []).map((scan) => scan.location),
   );
   return [
-    ...story.locations.flatMap(({ id, name }) => [
-      ...problemIf(!Number.isInteger(id) || id <= 0, `Místo „${name}“ má neplatné číslo ${id}.`),
+    ...story.locations.flatMap(({ id, name }, index) => [
+      ...idProblem('Místo', id, name),
       ...problemIf(name.trim() === '', `Místo ${id} nemá název.`),
+      ...problemIf(
+        story.locations.slice(0, index).some((earlier) => earlier.id === id),
+        `Číslo místa ${id} je použito dvakrát.`,
+      ),
     ]),
     ...story.locations.flatMap(({ id, name }) =>
       problemIf(!scanned.has(id), `Místo ${id} („${name}“) nepoužívá žádná QR volba.`),
@@ -265,23 +307,53 @@ const step = (story: Story, team: Team, { node: id, state }: Visit): Step => {
         ),
       ),
       ...moves.flatMap(({ name, result }) =>
-        result.ok ? [] : [`nextState ${name} v uzlu ${id} spadl: ${message(result.error)}`],
+        result.ok
+          ? stateProblem(`nextState ${name} v uzlu ${id}`, result.value)
+          : [`nextState ${name} v uzlu ${id} spadl: ${message(result.error)}`],
       ),
     ],
     used: available.map(({ key }) => key),
+    // A state with a bad value is not followed: it would be found again at every step after it.
     next: moves.flatMap(({ target, result }) =>
-      result.ok ? [{ node: target, state: result.value }] : [],
+      result.ok && unsoundStateKeys(result.value).length === 0
+        ? [{ node: target, state: result.value }]
+        : [],
     ),
   };
 };
 
 interface Exploration {
   readonly problems: readonly string[];
-  /** Nodes reached in at least one state. */
+  /** Nodes reached in at least one state and checked there. */
   readonly reached: ReadonlySet<string>;
   /** Usage keys of the choices offered in at least one reached state. */
   readonly used: ReadonlySet<string>;
+  /** The exploration hit `maxStates`, so what was not reached may still be reachable. */
+  readonly truncated: boolean;
 }
+
+/**
+ * A problem of a node repeated for every state it has is one problem: the first state is named,
+ * the others counted. The key is the message without the state.
+ */
+const collapseStates = (problems: readonly string[]): readonly string[] => {
+  const keyOf = (problem: string) => problem.replace(/ ve stavu \{.*?\}/, '');
+  const firsts = new Map<string, string>();
+  const counts = new Map<string, number>();
+  for (const problem of problems) {
+    const key = keyOf(problem);
+    if (key === problem) {
+      firsts.set(problem, problem);
+      continue;
+    }
+    if (!firsts.has(key)) firsts.set(key, problem);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...firsts].map(([key, first]) => {
+    const more = (counts.get(key) ?? 1) - 1;
+    return more > 0 ? `${first} (a v dalších ${more} stavech)` : first;
+  });
+};
 
 /**
  * Plays every (node, state) pair `team` can reach from `start`, breadth first, at most `maxStates`
@@ -293,16 +365,20 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
   const queue: Visit[] = [start];
   const seen = new Set([visitKey(start)]);
   const used = new Set<string>();
+  const reached = new Set<string>();
   const problems: string[] = [];
+  let truncated = false;
   // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
   for (const [explored, visit] of queue.entries()) {
     if (explored >= maxStates) {
       problems.push(
-        `Příběh má víc než ${maxStates} kombinací uzlu a stavu, kontrola prošla jen část.`,
+        `Příběh má pro jeden tým víc než ${maxStates} kombinací uzlu a stavu, kontrola prošla jen část.`,
       );
+      truncated = true;
       break;
     }
     const result = step(story, team, visit);
+    reached.add(visit.node);
     problems.push(...result.problems);
     for (const key of result.used) used.add(key);
     for (const next of result.next) {
@@ -312,7 +388,7 @@ const explore = (story: Story, team: Team, start: Visit, maxStates: number): Exp
       queue.push(next);
     }
   }
-  return { problems, reached: new Set(queue.map((visit) => visit.node)), used };
+  return { problems: collapseStates(problems), reached, used, truncated };
 };
 
 /** Choices of a reached node that no reached state offers; a function's list has no fixed ones. */
@@ -357,6 +433,10 @@ export const validateStory = (
   story: Story,
   { maxStates = 10_000 }: ValidateOptions = {},
 ): readonly string[] => {
+  // Everything below looks nodes up by `order`, so a story whose order names no node gets only
+  // that reported.
+  const structure = structureProblems(story);
+  if (structure.length > 0) return structure;
   const starts = story.order.filter((id) => story.nodes[id]!.initialState !== undefined);
   const start = starts[0];
   if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
@@ -377,17 +457,30 @@ export const validateStory = (
   }));
   const reached = new Set(explored.flatMap(({ exploration }) => [...exploration.reached]));
   const used = new Set(explored.flatMap(({ exploration }) => [...exploration.used]));
+  // A team that cannot reach the end while another can; an end nobody reaches is reported with
+  // the other unreachable nodes.
+  const stuck = explored.filter(
+    ({ exploration }) => !exploration.truncated && !exploration.reached.has(story.outroNode),
+  );
+  const endProblems =
+    stuck.length === 0 || !reached.has(story.outroNode)
+      ? []
+      : [
+          `Konec ${story.outroNode} je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: ${stuck.map(({ team }) => team.name).join(', ')})`,
+        ];
   const problems = [
     ...problemIf(
       starts.length > 1,
       `Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`,
     ),
+    ...stateProblem(`Start ${start}`, story.nodes[start]!.initialState!),
     ...introProblems(story),
     ...outroProblems(story),
     ...teamProblems(story),
     ...locationProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
+    ...endProblems,
     ...played.flatMap((id) =>
       reached.has(id)
         ? unusedProblems(story.nodes[id]!, id, used)

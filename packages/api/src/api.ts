@@ -51,10 +51,18 @@ export class InvalidMove extends Schema.TaggedError<InvalidMove>()(
       'unknown-node',
       'missing-target',
       'not-started',
+      'broken-state',
     ]),
     message: Schema.String,
   },
   { httpApiStatus: 422 },
+) {}
+
+/** A state the game cannot hold: a value that is not a string, a boolean or a finite number. */
+export class InvalidState extends Schema.TaggedError<InvalidState>()(
+  'InvalidState',
+  { message: Schema.String },
+  { httpApiStatus: 400 },
 ) {}
 
 export class NotFound extends Schema.TaggedError<NotFound>()(
@@ -108,6 +116,9 @@ export const PlayerView = Schema.Struct({
 });
 export type PlayerView = typeof PlayerView.Type;
 
+/** More than a device can have waiting: it reports after every text, or when the signal is back. */
+export const MAX_READING_INTERVALS = 200;
+
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
 export class CurrentTeam extends Context.Service<
@@ -153,10 +164,17 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       success: PlayerView,
       error: [InvalidCode, StepConflict, InvalidMove, NotFound],
     }).middleware(PlayerAuth),
-    /** How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. */
+    /**
+     * How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. The
+     * device names the team it read for; times of another team (the device switched meanwhile)
+     * are dropped.
+     */
     HttpApiEndpoint.post('reading', '/reading', {
       payload: Schema.Struct({
-        intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })),
+        teamId: Schema.optionalKey(Schema.Number),
+        intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })).check(
+          Schema.isMaxLength(MAX_READING_INTERVALS),
+        ),
       }),
     }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
@@ -217,7 +235,8 @@ export const TeamStatus = Schema.Struct({
   state: GameState,
   step: Schema.Number,
   finished: Schema.Boolean,
-  updatedAt: Schema.String,
+  /** The team's last move; missing for a team that never logged in. */
+  updatedAt: Schema.optionalKey(Schema.String),
   /** Devices seen in the last two minutes. */
   devices: Schema.Number,
   /** From the team's first scan until its end, or until now; missing before the first scan. */
@@ -316,7 +335,7 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     HttpApiEndpoint.post('playtest', '/playtest', {
       payload: PlaytestInput,
       success: PlaytestView,
-      error: [InvalidCode, InvalidMove, NotFound],
+      error: [InvalidCode, InvalidMove, InvalidState, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
     HttpApiEndpoint.post('resetAll', '/teams/reset', {
@@ -329,9 +348,10 @@ export class AdminGroup extends HttpApiGroup.make('admin')
     }).middleware(AdminAuth),
     HttpApiEndpoint.post('moveTeam', '/teams/:id/move', {
       params: teamParams,
+      /** Keys the state leaves out keep the start's values, so no counter is missing later. */
       payload: Schema.Struct({ node: Schema.String, state: GameState }),
       success: TeamStatus,
-      error: NotFound,
+      error: [InvalidState, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('codes', '/codes', { success: Schema.Array(PrintableCode) }).middleware(
       AdminAuth,

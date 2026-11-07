@@ -30,7 +30,7 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
       ) : (
         <ProgressQr value={entry.code} locationName={entry.label} />
       )}
-      <div className='absolute top-3 right-3 flex gap-1'>
+      <div className='absolute top-3 right-3 flex gap-1 print:hidden'>
         <Button
           variant='outline'
           size='icon'
@@ -55,7 +55,10 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
   );
 };
 
-/** Every QR code of the game; each card's download button opens all export options. */
+/**
+ * Every QR code of the game; each card's download button opens all export options. Printed from
+ * the browser, the page shows the cards alone, as many pages as they take.
+ */
 export const PrintPage = () => {
   const codes = useQuery({
     queryKey: adminKeys.codes,
@@ -67,7 +70,7 @@ export const PrintPage = () => {
 
   return (
     <div className='flex flex-col gap-4 p-6'>
-      <div className='flex items-center gap-4'>
+      <div className='flex items-center gap-4 print:hidden'>
         <p className='text-sm text-muted-foreground'>
           {codes.data.length} kódů. Přihlašovací kód týmu patří jen jemu, kód místa platí pro
           všechny týmy. Týmy i místa jsou součástí příběhu.

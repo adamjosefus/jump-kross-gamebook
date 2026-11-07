@@ -1,5 +1,12 @@
 import { IconArrowRight, IconChevronRight } from '@tabler/icons-react';
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 
 import { PLAYER_BUTTON_HEIGHT } from '@/components/action-button';
 import { hapticLight, hapticStrong } from '@/lib/haptics';
@@ -10,8 +17,9 @@ const THRESHOLD = 0.9;
 
 type Stage = 'idle' | 'confirmed' | 'pending';
 
-const Label = ({ children }: { readonly children: ReactNode }) => (
+const Label = ({ id, children }: { readonly id?: string; readonly children: ReactNode }) => (
   <span
+    id={id}
     data-slot='slide-button-label'
     className='flex-1 px-16 py-2 text-center text-xl leading-tight font-medium text-pretty'
   >
@@ -90,6 +98,9 @@ export const SlideButton = ({
     }
   };
 
+  // Screen readers read the choice's text as the button's name; the slide is only described.
+  const labelId = useId();
+  const hintId = useId();
   const active = drag !== undefined || stage !== 'idle';
   // Where the thumb ends, from the left edge of the track; a sliding thumb covers its border too.
   // At rest the thumb is 0.25rem from the edge and fills the track's height but 0.25rem on each side.
@@ -105,10 +116,11 @@ export const SlideButton = ({
         className,
       )}
     >
-      <Label>{children}</Label>
+      <Label id={labelId}>{children}</Label>
       <button
         type='button'
-        aria-label='Posuňte doprava pro potvrzení'
+        aria-labelledby={labelId}
+        aria-describedby={hintId}
         disabled={disabled && stage === 'idle'}
         className={cn(
           'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-4.75 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
@@ -148,6 +160,9 @@ export const SlideButton = ({
           <IconArrowRight className='size-5' />
         </span>
       </div>
+      <span id={hintId} className='sr-only'>
+        Potvrdíte posunutím doprava nebo šipkou doprava.
+      </span>
     </div>
   );
 };

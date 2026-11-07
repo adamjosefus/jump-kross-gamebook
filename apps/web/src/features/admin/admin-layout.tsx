@@ -25,6 +25,11 @@ const THEME_NEXT: Readonly<Record<ThemePreference, ThemePreference>> = {
   dark: 'system',
 } as const;
 const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon } as const;
+const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
+  system: 'podle systému',
+  light: 'světlý',
+  dark: 'tmavý',
+} as const;
 
 /** Creator area: everything below it requires the admin cookie. */
 export const AdminLayout = () => {
@@ -58,8 +63,9 @@ export const AdminLayout = () => {
   if (me.data !== true) return <AdminLogin />;
 
   return (
-    <div className='flex h-dvh flex-col'>
-      <header className='flex items-center gap-1 border-b px-4 py-2'>
+    // When printed (the QR codes), the page grows with its content and the bar is left out.
+    <div className='flex h-dvh flex-col print:h-auto'>
+      <header className='flex items-center gap-1 border-b px-4 py-2 print:hidden'>
         <span className='mr-4 font-semibold'>Gamebook</span>
         <nav className='flex gap-1'>
           {NAV.map((item) => (
@@ -76,14 +82,21 @@ export const AdminLayout = () => {
           size='icon'
           onClick={() => setPreference(THEME_NEXT[preference])}
           title='Vzhled'
+          aria-label={`Vzhled: ${THEME_LABEL[preference]}, přepnout`}
         >
           <ThemeIcon />
         </Button>
-        <Button variant='ghost' size='icon' onClick={() => logout.mutate()} title='Odhlásit'>
+        <Button
+          variant='ghost'
+          size='icon'
+          onClick={() => logout.mutate()}
+          title='Odhlásit'
+          aria-label='Odhlásit'
+        >
           <IconLogout />
         </Button>
       </header>
-      <div className='min-h-0 flex-1 overflow-auto'>
+      <div className='min-h-0 flex-1 overflow-auto print:overflow-visible'>
         <Outlet />
       </div>
     </div>

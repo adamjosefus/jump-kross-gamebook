@@ -6,3 +6,7 @@ storybook-static
 .env.local
 *.tsbuildinfo
 .DS_Store
+.env.*.local
+coverage
+*.log
+.pnpm-store

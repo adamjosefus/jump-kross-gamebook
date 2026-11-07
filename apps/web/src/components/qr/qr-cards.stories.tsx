@@ -11,12 +11,12 @@ export default meta;
 
 export const TeamLogin: StoryObj<typeof TeamLoginQr> = {
   render: (args) => <TeamLoginQr {...args} />,
-  args: { value: 'T-12-K7QM', teamName: 'Vlci' },
+  args: { value: 'T-12-K7QM3F', teamName: 'Vlci' },
 };
 
 export const Progress: StoryObj<typeof ProgressQr> = {
   render: (args) => <ProgressQr {...args} />,
-  args: { value: 'L-32-9FZM', locationName: 'Studna na nádvoří' },
+  args: { value: 'L-32-9FZM7K', locationName: 'Studna na nádvoří' },
 };
 
 export const CodeOnly: StoryObj<typeof QrCode> = {
@@ -25,5 +25,5 @@ export const CodeOnly: StoryObj<typeof QrCode> = {
       <QrCode {...args} />
     </div>
   ),
-  args: { value: 'L-32-9FZM' },
+  args: { value: 'L-32-9FZM7K' },
 };

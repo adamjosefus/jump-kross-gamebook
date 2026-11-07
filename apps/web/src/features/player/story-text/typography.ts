@@ -8,6 +8,12 @@ const SERIF = '"Noto Serif Variable", serif';
 const CONDENSED_SERIF = '"Noto Serif Condensed", serif';
 const MONO = 'Menlo, Consolas, "Liberation Mono", monospace';
 
+/**
+ * Whether the font is one of the system's, with nothing to download: `document.fonts.load` finds
+ * no face for it and the text would wait the whole retry time for nothing.
+ */
+export const isSystemFont = (font: string) => font.endsWith(MONO);
+
 type Align = 'left' | 'center' | 'justify';
 /** `balance` evens out the lines, `pretty` only avoids a short last line. */
 type Wrap = 'normal' | 'pretty' | 'balance';

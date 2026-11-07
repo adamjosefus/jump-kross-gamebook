@@ -17,14 +17,15 @@ jobs:
       fail-fast: false
       matrix:
         # Each script is its own check, so a PR shows exactly what failed.
-        task: [format:check, lint, typecheck, test, build:vercel]
+        task: [format:check, lint, typecheck, test, build:vercel, build-storybook]
     steps:
       - uses: actions/checkout@v5
       # Version comes from `packageManager` in package.json.
       - uses: pnpm/action-setup@v4
+      # The same major as the Vercel function (`runtime` in scripts/build-vercel.ts).
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm ${{ matrix.task }}

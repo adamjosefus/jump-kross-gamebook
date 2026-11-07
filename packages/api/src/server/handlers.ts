@@ -1,4 +1,5 @@
 import { Effect, Layer, Redacted } from 'effect';
+import { HttpServerRequest } from 'effect/http';
 import { HttpApiBuilder } from 'effect/http-api';
 
 import {
@@ -13,7 +14,7 @@ import {
 import { ServerConfig } from './config.ts';
 import { Game } from './game.ts';
 import { Store } from './store.ts';
-import { ADMIN_MAX_AGE, createAdminToken, verifyAdminToken } from './tokens.ts';
+import { ADMIN_MAX_AGE, createAdminToken, secretsEqual, verifyAdminToken } from './tokens.ts';
 
 /**
  * A team plays within a day or two; after that the phone has to scan the team code again. The
@@ -30,6 +31,26 @@ const orDie = <A, E extends { readonly _tag: string }, R>(effect: Effect.Effect<
       (error) => Effect.die(error),
     ),
   );
+
+/**
+ * After this many wrong passwords from one address, each further try waits twice as long as the
+ * one before (4 s, 8 s, 16 s, …, at most five minutes). On serverless, a pause inside the request
+ * alone would not slow down parallel guesses, so the count lives in the store.
+ */
+const FREE_FAILURES = 3;
+const LOCK_BASE_MS = 2000;
+const LOCK_MAX_MS = 5 * 60 * 1000;
+
+const lockMs = (failures: number) =>
+  failures < FREE_FAILURES
+    ? 0
+    : Math.min(LOCK_BASE_MS * 2 ** (failures - FREE_FAILURES + 1), LOCK_MAX_MS);
+
+/** The client's address, as the proxy in front of the function reports it. */
+const clientKey = (request: HttpServerRequest.HttpServerRequest) =>
+  request.headers['x-forwarded-for']?.split(',')[0]?.trim() ??
+  request.headers['x-real-ip'] ??
+  'unknown';
 
 const cookieOptions = (config: ServerConfig['Service']) => ({
   path: '/',
@@ -63,7 +84,7 @@ const AdminAuthLive = Layer.effect(
     return AdminAuth.of({
       cookie: Effect.fn(function* (httpEffect, { credential }) {
         const valid = yield* Effect.promise(() =>
-          verifyAdminToken(config.sessionSecret, Redacted.value(credential)),
+          verifyAdminToken(config, Redacted.value(credential)),
         );
         if (!valid) return yield* new Unauthorized({ message: 'Přihlaste se heslem tvůrce.' });
         return yield* httpEffect;
@@ -103,7 +124,7 @@ const PlayerHandlers = HttpApiBuilder.group(
       }),
       reading: Effect.fn(function* ({ payload }) {
         const { teamId } = yield* CurrentTeam;
-        yield* orDie(game.reading(teamId, payload.intervals));
+        yield* orDie(game.reading(teamId, payload.teamId, payload.intervals));
       }),
       logout: Effect.fn(function* () {
         const { sessionId } = yield* CurrentTeam;
@@ -119,16 +140,30 @@ const AdminHandlers = HttpApiBuilder.group(
   'admin',
   Effect.fn(function* (handlers) {
     const game = yield* Game;
+    const store = yield* Store;
     const config = yield* ServerConfig;
     const cookie = cookieOptions(config);
 
     return handlers.handleAll({
       login: Effect.fn(function* ({ payload }) {
-        if (payload.password !== config.adminPassword) {
+        const key = clientKey(yield* HttpServerRequest.HttpServerRequest);
+        const previous = yield* orDie(store.adminFailures(key));
+        const lockedFor =
+          previous === undefined
+            ? 0
+            : previous.lastAt.getTime() + lockMs(previous.failures) - Date.now();
+        if (lockedFor > 0) {
+          yield* new Unauthorized({
+            message: `Příliš mnoho pokusů. Zkuste to za ${Math.ceil(lockedFor / 1000)} s.`,
+          });
+        }
+        if (!secretsEqual(config.adminPassword, payload.password)) {
+          yield* orDie(store.recordAdminFailure(key));
           yield* Effect.sleep('600 millis');
           yield* new Unauthorized({ message: 'Špatné heslo.' });
         }
-        const token = yield* Effect.promise(() => createAdminToken(config.sessionSecret));
+        if (previous !== undefined) yield* orDie(store.clearAdminFailures(key));
+        const token = yield* Effect.promise(() => createAdminToken(config));
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, token, {
           ...cookie,
           maxAge: ADMIN_MAX_AGE,

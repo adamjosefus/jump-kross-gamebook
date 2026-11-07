@@ -224,6 +224,12 @@ describe('dedent', () => {
     expect(dedent('\n    a\n      b\n\n    c\n  ')).toBe('a\n  b\n\nc');
     expect(dedent('jeden řádek')).toBe('jeden řádek');
   });
+
+  it('does not count a first line written right after the backtick', () => {
+    // Otherwise the other lines kept their indentation, and four spaces are a code block.
+    expect(dedent('Nadpis\n\n    Odstavec\n      odsazený')).toBe('Nadpis\n\nOdstavec\n  odsazený');
+    expect(dedent('  a\n  b')).toBe('a\nb');
+  });
 });
 
 describe('`when` with a team', () => {
@@ -356,6 +362,37 @@ describe('`choices` as a function', () => {
 });
 
 describe('graph', () => {
+  it('survives a `when` that throws: the choice is offered to nobody', () => {
+    const graph = toGraph(
+      defineStory<{ n: number }>()({
+        teams: { 1: 'Tým' },
+        locations: {},
+        introNode: 'INTRO',
+        outroNode: 'OUTRO',
+        nodes: {
+          INTRO: { blocks: ['Úvod'] },
+          START: {
+            initialState: { n: 0 },
+            blocks: ['Start'],
+            choices: [
+              {
+                label: 'Dál',
+                goto: 'OUTRO',
+                when: () => {
+                  throw new Error('boom');
+                },
+              },
+            ],
+          },
+          OUTRO: { blocks: ['Konec'] },
+        },
+      }),
+    );
+    expect(graph.nodes['START']!.choices).toEqual([
+      { label: 'Dál', target: 'OUTRO', conditional: true, available: false },
+    ]);
+  });
+
   it('describes nodes, edges and previews from the first start', () => {
     const graph = toGraph(story);
     expect(graph.order).toEqual(['INTRO', 'A1', 'A2', 'B1', 'OUTRO']);

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { defineStory, validateStory, type Story } from '../src/index.ts';
+import { defineStory, validateStory, type Story, type Value } from '../src/index.ts';
 import { SAMPLE } from './fixtures.ts';
 
-const define = defineStory<{ n: number }>();
+const define = defineStory<{ n: number; bag?: Value }>();
 
 describe('validateStory', () => {
   it('accepts a sound story', () => {
@@ -40,7 +40,7 @@ describe('validateStory', () => {
     expect(validateStory(story)).toEqual([
       'Příběh má víc startů (A, B), smí mít jen jeden.',
       'Úvod má prázdnou obrazovku č. 2.',
-      'Tým „ “ má neplatné číslo 0.',
+      'Tým „ “ má neplatné číslo 0: musí být celé, od 1 do 999999.',
       'Tým 0 nemá název.',
       'Uzel B je nedosažitelný ze startu.',
     ]);
@@ -265,6 +265,7 @@ describe('validateStory', () => {
     });
     expect(validateStory(story)).toEqual([
       'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
+      'Konec B je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: Lišky)',
     ]);
   });
 
@@ -293,6 +294,7 @@ describe('validateStory', () => {
     expect(validateStory(story)).toEqual([
       'Uzel A má dvě volby „Dál“. (týká se: Vlci)',
       'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
+      'Konec B je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: Lišky)',
     ]);
   });
 
@@ -390,7 +392,7 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Místo „Místo 0“ má neplatné číslo 0.',
+      'Místo „Místo 0“ má neplatné číslo 0: musí být celé, od 1 do 999999.',
       'Uzel A má ve stavu {"n":0} dvě QR volby pro místo 3.',
       'Obsah uzlu B ve stavu {"n":0} spadl: chyba',
     ]);
@@ -419,6 +421,178 @@ describe('validateStory', () => {
     );
   });
 
+  it('reports ids that do not fit a QR code and ids used twice', () => {
+    const story = define({
+      teams: { 1: 'Tým', 1000000: 'Daleký' },
+      locations: { 1: 'Místo', 1000000: 'Daleké' },
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          initialState: { n: 0 },
+          blocks: ['A'],
+          scans: [
+            { location: 1, goto: 'C' },
+            { location: 1000000, goto: 'C' },
+          ],
+        },
+        C: { blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Tým „Daleký“ má neplatné číslo 1000000: musí být celé, od 1 do 999999.',
+      'Místo „Daleké“ má neplatné číslo 1000000: musí být celé, od 1 do 999999.',
+    ]);
+    const twice: Story = {
+      ...story,
+      teams: [
+        { id: 1, name: 'Tým' },
+        { id: 1, name: 'Zase tým' },
+      ],
+      locations: [
+        { id: 1, name: 'Místo' },
+        { id: 1, name: 'Zase místo' },
+      ],
+    };
+    expect(validateStory(twice)).toEqual(
+      expect.arrayContaining([
+        'Číslo týmu 1 je použito dvakrát.',
+        'Číslo místa 1 je použito dvakrát.',
+      ]),
+    );
+  });
+
+  it('reports order and nodes that disagree before anything else', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { blocks: ['C'] },
+      },
+    });
+    expect(validateStory({ ...story, order: ['INTRO', 'A', 'A', 'X'] })).toEqual([
+      'Uzel A je v order dvakrát.',
+      'Uzel X z order není v nodes.',
+    ]);
+  });
+
+  it('reports state values that are not a string, a number or a boolean', () => {
+    // The type forbids it; a value parsed from JSON gets through the type checker.
+    const parsed = (json: string): Value => JSON.parse(json);
+    const story = define({
+      teams: { 1: 'Tým' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          initialState: { n: Number.NaN },
+          blocks: ['A'],
+          choices: [
+            { label: 'Dál', goto: 'B', nextState: () => ({ n: 1, bag: parsed('{"gold":1}') }) },
+          ],
+        },
+        B: { blocks: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Start A má ve stavu hodnoty, které nejsou text, číslo ani ano/ne: n.',
+      'nextState volby „Dál“ v uzlu A má ve stavu hodnoty, které nejsou text, číslo ani ano/ne: bag.',
+      'Uzel B je nedosažitelný ze startu.',
+      'Uzel C je nedosažitelný ze startu.',
+    ]);
+  });
+
+  it('reports a team that can never reach the end', () => {
+    const story = define({
+      teams: { 1: 'Vlci', 2: 'Lišky' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        START: {
+          initialState: { n: 0 },
+          blocks: ['Start'],
+          choices: [
+            { label: 'Konec', goto: 'OUTRO', when: (_state, team) => team.id === 1 },
+            { label: 'Dokola', goto: 'B', when: (_state, team) => team.id === 2 },
+          ],
+        },
+        B: { blocks: ['B'], choices: [{ label: 'Zpět', goto: 'START' }] },
+        OUTRO: { blocks: ['Konec'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Konec OUTRO je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: Lišky)',
+    ]);
+  });
+
+  it('names a problem of many states once, with their count', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        START: {
+          initialState: { n: 0 },
+          blocks: ['Start'],
+          choices: [
+            {
+              label: 'Dál',
+              goto: 'START',
+              nextState: (state) => ({ n: state.n + 1 }),
+              when: (state) => state.n < 5,
+            },
+            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n >= 5 },
+            { label: 'Nikam', goto: 'C', when: (state) => state.n >= 2 },
+          ],
+        },
+        C: { blocks: ['C'], choices: [{ label: 'Nic', goto: 'OUTRO', when: () => false }] },
+        OUTRO: { blocks: ['Konec'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel C je ve stavu {"n":2} slepá ulička: žádná volba není dostupná. (a v dalších 3 stavech)',
+      'Volba „Nic“ v uzlu C není dostupná v žádném dosažitelném stavu.',
+    ]);
+  });
+
+  it('accepts a self-closing svg and refuses a numeric node name', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      locations: {},
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      nodes: {
+        INTRO: { blocks: [{ svg: '<svg viewBox="0 0 1 1"/>', content: 'Úvod' }] },
+        START: {
+          initialState: { n: 0 },
+          blocks: ['Start'],
+          choices: [{ label: 'Dál', goto: 'OUTRO' }],
+        },
+        OUTRO: { blocks: [{ svg: '<svg/>', content: 'Konec' }] },
+      },
+    });
+    expect(validateStory(story)).toEqual([]);
+    expect(
+      validateStory({
+        ...story,
+        order: ['INTRO', 'START', 'OUTRO', '10'],
+        nodes: { ...story.nodes, 10: { blocks: ['x'] } },
+      }),
+    ).toEqual(['Uzel 10 má číselný název; pojmenujte ho slovem.']);
+  });
+
   it('stops exploring endless state spaces', () => {
     const story = define({
       teams: { 1: 'Tým' },
@@ -439,7 +613,7 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story, { maxStates: 50 })).toEqual([
-      'Příběh má víc než 50 kombinací uzlu a stavu, kontrola prošla jen část.',
+      'Příběh má pro jeden tým víc než 50 kombinací uzlu a stavu, kontrola prošla jen část.',
     ]);
   });
 });

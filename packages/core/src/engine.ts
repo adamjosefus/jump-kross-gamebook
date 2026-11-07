@@ -88,6 +88,16 @@ export const choicesOf = (node: AnyNode, state: State, team: Team): readonly Any
     (choice): choice is AnyChoice => choice !== false && choice !== null && choice !== undefined,
   );
 
+/**
+ * Keys of the state whose values are not a string, a boolean or a finite number. The type allows
+ * nothing else, but a story written around a JSON value, or an arithmetic on a missing key, can
+ * produce an object or `NaN`, which the API cannot send and a database turns into `null`.
+ */
+export const unsoundStateKeys = (state: State): readonly string[] =>
+  Object.entries(state).flatMap(([key, value]) =>
+    typeof value === 'string' || typeof value === 'boolean' || Number.isFinite(value) ? [] : [key],
+  );
+
 /** Merges `changes` into `state`; undefined values leave the state as it is. */
 export const mergeState = (state: State, changes: Partial<State> | undefined): State => ({
   ...state,

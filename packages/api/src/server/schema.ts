@@ -1,5 +1,10 @@
-/** Idempotent schema, applied on the first request of every server instance. */
+/**
+ * Idempotent schema, applied on the first request of every server instance. The lock first: two
+ * instances starting at once would otherwise race on `create table if not exists`.
+ */
 export const SCHEMA = `
+select pg_advisory_xact_lock(727364001);
+
 create table if not exists team (
   id int primary key,
   node text,
@@ -41,4 +46,10 @@ create table if not exists reading (
   ended_at timestamptz not null
 );
 create index if not exists reading_team on reading (team_id);
+
+create table if not exists admin_login (
+  key text primary key,
+  failures int not null default 0,
+  last_at timestamptz not null default now()
+);
 `;

@@ -53,7 +53,10 @@ const flush = (teamId: number) => {
     credentials: 'same-origin',
     headers: { 'content-type': 'application/json' },
     // The device's clock may be off, so the server gets how long ago, not when.
+    // The team is named too: the device may have switched teams since, and the times of the old
+    // one must not be credited to the new one (the server drops them).
     body: JSON.stringify({
+      teamId,
       intervals: queue.map(({ ms, endedAt }) => ({ ms, agoMs: Math.max(now - endedAt, 0) })),
     }),
   })

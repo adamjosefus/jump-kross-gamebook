@@ -83,7 +83,11 @@ const QrScannerView = ({
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
-  const last = useRef<{ readonly code: string; readonly at: number }>(undefined);
+  // A refused code is also held until it leaves the view: one held on a wrong place would
+  // otherwise be sent, and refused with a toast, every few seconds.
+  const last = useRef<{ readonly code: string; readonly at: number; readonly untilLost: boolean }>(
+    undefined,
+  );
   // The code waiting to be sent, where the last read code is and when it was read.
   const [arming, setArming] = useState<string>();
   const [corners, setCorners] = useState<readonly ScanPoint[]>();
@@ -95,7 +99,11 @@ const QrScannerView = ({
     seenAt.current = now;
     setCorners(found);
     if (disabled || answer !== undefined) return;
-    if (last.current?.code === code && now - last.current.at < REPEAT_MS) return;
+    if (
+      last.current?.code === code &&
+      (last.current.untilLost || now - last.current.at < REPEAT_MS)
+    )
+      return;
     setArming(code);
   });
   const send = useEffectEvent(async (code: string) => {
@@ -103,7 +111,7 @@ const QrScannerView = ({
     setAnswer('busy');
     const outcome = await Promise.resolve(onCode(code)).catch(() => 'rejected' as const);
     // Counted from the answer, so a code left in view is not sent again right away.
-    last.current = { code, at: Date.now() };
+    last.current = { code, at: Date.now(), untilLost: outcome === 'rejected' };
     setAnswer(outcome);
   });
 
@@ -121,6 +129,7 @@ const QrScannerView = ({
       if (Date.now() - seenAt.current <= LOST_MS) return;
       setArming(undefined);
       setCorners(undefined);
+      if (last.current?.untilLost === true) last.current = { ...last.current, untilLost: false };
     }, 100);
     return () => clearInterval(timer);
   }, []);

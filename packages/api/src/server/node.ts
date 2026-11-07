@@ -12,14 +12,20 @@ const headerPairs = (req: IncomingMessage): [string, string][] =>
         : [],
   );
 
+/** The scheme the proxy reports, only ever `http` or `https`; the header is the client's otherwise. */
+const protocolOf = (req: IncomingMessage) => {
+  const forwarded = req.headers['x-forwarded-proto'];
+  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+  return first === 'https' ? 'https' : 'http';
+};
+
 const toRequest = async (req: IncomingMessage): Promise<Request> => {
   // The body arrives as an async stream, so its chunks are collected in a loop.
   const chunks: Buffer[] = [];
   for await (const chunk of req)
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
   const body = chunks.length === 0 ? undefined : Buffer.concat(chunks);
-  const protocol = req.headers['x-forwarded-proto'] ?? 'http';
-  return new Request(`${String(protocol)}://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`, {
+  return new Request(`${protocolOf(req)}://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`, {
     method: req.method ?? 'GET',
     headers: new Headers(headerPairs(req)),
     ...(body === undefined ? {} : { body }),
@@ -41,5 +47,11 @@ const send = async (response: Response, res: ServerResponse) => {
 export const toNodeHandler =
   (handler: WebHandler) =>
   async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    await send(await handler(await toRequest(req)), res);
+    // A request that cannot be built (a host header that is no host) is the client's mistake.
+    const request = await toRequest(req).catch(() => undefined);
+    if (request === undefined) {
+      await send(new Response('Bad Request', { status: 400 }), res);
+      return;
+    }
+    await send(await handler(request), res);
   };

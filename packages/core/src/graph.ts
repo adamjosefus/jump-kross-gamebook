@@ -193,7 +193,7 @@ export const toGraph = (story: Story): GameGraph => {
               conditional: choice.when !== undefined,
               ...(state === undefined || choice.when === undefined
                 ? {}
-                : { available: teams.some((team) => choice.when?.(state, team)) }),
+                : { available: isAvailable(choice.when, state, teams) }),
             })),
             ...[...(explored.choices.get(id)?.values() ?? [])].map((choice) => ({
               label: choice.label,
@@ -207,6 +207,20 @@ export const toGraph = (story: Story): GameGraph => {
     ),
   };
 };
+
+/** Whether some team is offered the choice; a `when` that throws offers it to nobody, the validation reports it. */
+const isAvailable = (
+  when: (state: State, team: Team) => boolean,
+  state: State,
+  teams: readonly Team[],
+) =>
+  teams.some((team) => {
+    try {
+      return when(state, team);
+    } catch {
+      return false;
+    }
+  });
 
 /** Structural mistakes the type checker cannot see. */
 export const graphProblems = (graph: GameGraph): readonly string[] => {

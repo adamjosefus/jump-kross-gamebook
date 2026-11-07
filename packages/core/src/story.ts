@@ -301,15 +301,23 @@ const byId = (names: Readonly<Record<number, string>>) =>
     .map(([id, name]) => ({ id: Number(id), name }))
     .toSorted((first, second) => first.id - second.id);
 
-/** Strips the indentation common to all lines, so content can be indented with the code. */
+/**
+ * Strips the indentation common to all lines, so content can be indented with the code. A first
+ * line written right after the backtick has no indentation of its own and does not count; the
+ * other lines would otherwise keep theirs, and four spaces are a code block in Markdown.
+ */
 export const dedent = (text: string): string => {
   const lines = text
     .replace(/^[ \t]*\n/, '')
     .trimEnd()
     .split('\n');
-  const indents = lines
+  const firstUnindented = !/^[ \t]*\n/.test(text) && !/^[ \t]/.test(lines[0] ?? '');
+  const measured = firstUnindented ? lines.slice(1) : lines;
+  const indents = measured
     .filter((line) => line.trim() !== '')
     .map((line) => /^[ \t]*/.exec(line)![0].length);
   const indent = indents.length === 0 ? 0 : Math.min(...indents);
-  return lines.map((line) => line.slice(indent)).join('\n');
+  return lines
+    .map((line, index) => (firstUnindented && index === 0 ? line : line.slice(indent)))
+    .join('\n');
 };

@@ -1,5 +1,5 @@
 import { Api } from '@gamebook/api';
-import { Context, Effect, Layer, ManagedRuntime } from 'effect';
+import { Cause, Context, Effect, Layer, ManagedRuntime } from 'effect';
 import { FetchHttpClient, HttpClientError } from 'effect/http';
 import { HttpApiClient } from 'effect/http-api';
 
@@ -33,6 +33,14 @@ const DECLARED: ReadonlySet<string> = new Set([
 
 const OFFLINE =
   'Nepodařilo se spojit se serverem. Zkontrolujte připojení k internetu a zkuste to znovu.';
+const TIMED_OUT = 'Server dlouho neodpovídá. Zkontrolujte připojení k internetu a zkuste to znovu.';
+
+/**
+ * How long a request may take. In the field a connection often hangs rather than fails: the
+ * packets go nowhere and the socket stays open, so without a limit a button would spin for
+ * minutes and the game would look frozen.
+ */
+const TIMEOUT = '15 seconds';
 const MISCONFIGURED =
   'Server není nastavený, takže hra teď nejde spustit. Dejte vědět organizátorům.';
 const SERVER_DOWN =
@@ -54,6 +62,8 @@ const isMisconfigured = (body: unknown) =>
 const understandable = async (error: unknown): Promise<unknown> => {
   if (isApiError(error) && DECLARED.has(error._tag)) return error;
   console.error(error);
+  if (Cause.isTimeoutError(error))
+    return { _tag: 'Offline', message: TIMED_OUT } satisfies ApiError;
   if (!HttpClientError.isHttpClientError(error))
     return { _tag: 'UnexpectedResponse', message: UNEXPECTED } satisfies ApiError;
   // The request never got an answer: no network, or the server did not respond at all.
@@ -83,7 +93,7 @@ export const api = <A, E>(
     .runPromise(
       Effect.gen(function* () {
         return yield* call(yield* ApiClient);
-      }),
+      }).pipe(Effect.timeout(TIMEOUT)),
       options?.signal === undefined ? undefined : { signal: options.signal },
     )
     .catch(async (error: unknown) => {

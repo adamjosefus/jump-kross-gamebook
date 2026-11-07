@@ -51,21 +51,21 @@ export const ResetDialog = ({
       toast.success(
         team === undefined ? 'Všechny týmy jsou na startu.' : `Tým ${team.name} je na startu.`,
       );
-      setTyped('');
-      onOpenChange(false);
+      close(false);
       onDone?.();
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
 
+  // Every way of closing forgets what was typed, so the destructive button is never armed on the
+  // next opening.
+  const close = (next: boolean) => {
+    if (!next) setTyped('');
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setTyped('');
-        onOpenChange(next);
-      }}
-    >
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2 text-destructive'>
@@ -96,7 +96,7 @@ export const ResetDialog = ({
             onChange={(event) => setTyped(event.target.value)}
           />
           <DialogFooter className='mt-2'>
-            <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+            <Button type='button' variant='outline' onClick={() => close(false)}>
               Zrušit
             </Button>
             <Button
