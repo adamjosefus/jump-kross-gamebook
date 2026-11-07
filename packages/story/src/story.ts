@@ -1,21 +1,26 @@
 import { defineStory } from '@gamebook/core';
 
-/** What a clan carries through the story; the start sets it, choices change it. */
+/** What a team carries through the story: the start sets it, choices and scans change it. */
 type State = {
   readonly coins: number;
-  readonly hasMap: boolean;
-  readonly courage: number;
 };
 
-/** The prologues of the three waves, in the order of the waves. */
-const PROLOGS = ['PROLOG_1', 'PROLOG_2', 'PROLOG_3'] as const;
+/** The number of coins with the Czech word for "coins" in the right form, e.g. „5 mincí“. */
+const coinsText = (count: number): string => {
+  const word = count === 1 ? 'mince' : count >= 2 && count <= 4 ? 'mince' : 'mincí';
+  return `${count} ${word}`;
+};
 
 /**
- * The gamebook. Every node is one step of the story: `blocks` are its screens (markdown, one
- * screen each, optionally with a `theme`). A node leads on either by `choices` (buttons) or by
- * `scans`: the team scans one of the QR codes and goes where that code leads. Several codes can hang
- * side by side, so the team decides by which one it scans. The team does not see which codes a node
- * accepts, so the screens have to say where to go and which code to scan.
+ * A short demo of what the gamebook can do: three parallel lines (the shop a team picks), choices
+ * on the screen, QR scans that are choices too, and one number in the state, `coins`, which both
+ * choices and scans change.
+ *
+ * Every node is one step of the story: `blocks` are its screens (markdown, one screen each,
+ * optionally with a `theme`). A node leads on either by `choices` (buttons) or by `scans`: the team
+ * scans one of the QR codes and goes where that code leads. Several codes can hang side by side, so
+ * the team decides by which one it scans. The team does not see which codes a node accepts, so the
+ * screens have to say where to go and which code to scan.
  *
  * `teams` are the teams of the game and `codes` the QR codes that move teams on; the admin prints
  * their codes from here. `introNode` is what anyone sees before scanning a team's code; then the
@@ -42,11 +47,13 @@ export const story = defineStory<State>()({
   },
   introNode: 'INTRO',
   outroNode: 'OUTRO',
+  // The names are printed on the cards, so they say where a code hangs, not where it leads.
   codes: {
-    1: 'Místo 1',
-    2: 'Místo 2',
-    3: 'Místo 3',
-    4: 'Místo 4',
+    1: 'Pekárna',
+    2: 'Zelinář',
+    3: 'Řeznictví',
+    4: 'Autobusová zastávka',
+    5: 'Park',
   },
   nodes: {
     INTRO: {
@@ -76,118 +83,262 @@ export const story = defineStory<State>()({
       ],
     },
     START: {
-      initialState: { coins: 30, hasMap: false, courage: 0 },
-      blocks: (_state, team) => [
+      initialState: { coins: 0 },
+      blocks: (state, team) => [
         {
           theme: 'description',
           content: `
-## ${team.name}?
-Potěšení je na mé straně.
+## ${team.name}
+Vítejte v ukázce.
         `,
         },
         {
           theme: 'intro',
-          content: `Držíte v ruce zařízení, které se stane nástrojem pro hraní Hry.`,
-        },
-        {
-          theme: 'intro',
           content: `
-Pravděpodobně ho drží jeden z vás.
+Tohle je krátké demo toho, co hra umí: rozhodnutí na displeji, skenování QR kódů a stav, který se podle toho mění.
 
-A ostatní se na něj dívají. A možná i poslouchají.`,
-        },
-        {
-          theme: 'intro',
-          content: `
-Raději si najděte klidné a tiché místo.
-
-Není třeba spěchat. Vaše hra ještě nezačala.
-      `,
-          next: 'Už jsme na klidném místě',
-        },
-        {
-          theme: 'intro',
-          content: `
-V následující hře budete rozhodovat o svém příběhu.
-
-Výběr možnosti na displeji je jen poslední krok.
-
-Skutečné rozhodnutí vznikne mezi vámi. Musíte se **shodnout mezi sebou**.
-      `,
-        },
-        {
-          theme: 'intro',
-          content: `Zkusme si to…`,
-          next: 'O čem máme rozhodnout?',
-        },
-        {
-          theme: 'intro',
-          content: `
-Určete ve vašem klanu roli čtenáře či čtenářky.
-
-Popřípadě pravidlo, jak se bude tato role mezi vámi střídat.
-      `,
-          next: 'Dohodli jsme se',
-        },
-        {
-          theme: 'intro',
-          content: `
-*To rád slyším.*
-
-Ne všechna rozhodnutí budou takto snadná.
-
-Čekají na vás volby nepříjemné, plné dilemat.
+Váš stav je jediné číslo: **mince**. Teď máte ${coinsText(state.coins)}.
       `,
         },
         {
           theme: 'intro',
           content: `
-Pro případ, že byste se snad s rozhodováním zasekli, mlčky zvedněte ruku.
+Je pátek odpoledne. Lednice je prázdná a peněženka taky.
 
-V případě, že většina bude držet paži vzhůru, postupně hlasujte.
-      `,
-        },
-        {
-          theme: 'intro',
-          content: `
-Výsledek hlasování přijměte za svůj.
-Rozhoduje totiž celý klan.
+Na stole leží obálka s výplatou. Kolik si vezmete s sebou na nákup?
       `,
         },
       ],
-      // The clans set out in three waves, by their number: I, IV, VII, … first; II, V, VIII, …
-      // second; III, VI, IX, … third. The clan sees one button and nothing of the sorting.
-      choices: (_state, team) => [
-        { goto: PROLOGS[(team.id - 1) % PROLOGS.length]!, label: 'Vyrazit' },
+      // Both buttons lead to the same node; they differ only in what they do to the state.
+      choices: [
+        { goto: 'NAKUP', label: 'Vzít si 20 mincí', nextState: () => ({ coins: 20 }) },
+        {
+          goto: 'NAKUP',
+          label: 'Vzít si 30 mincí, dnes se to hodí',
+          nextState: () => ({ coins: 30 }),
+        },
       ],
     },
-    PROLOG_1: {
-      scans: [{ code: 1, goto: 'MISTO_1' }],
-      blocks: ['ABC 1'],
+    // The team picks one of three shops by scanning its code: the three parallel lines of the story.
+    NAKUP: {
+      scanTitle: 'Kam na nákup?',
+      scanText: 'Naskenujte kód obchodu, do kterého jdete.',
+      blocks: (state) => [
+        `
+V peněžence máte ${coinsText(state.coins)}.
+
+Cestou míjíte tři obchody: pekárnu, zelináře a řeznictví. Do každého stihnete zajít jen jednou.
+
+Dohodněte se, kam půjdete, a naskenujte kód toho obchodu.
+      `,
+      ],
+      scans: [
+        { code: 1, goto: 'PEKARNA' },
+        { code: 2, goto: 'ZELINAR' },
+        { code: 3, goto: 'REZNICTVI' },
+      ],
     },
-    PROLOG_2: {
-      scans: [{ code: 1, goto: 'MISTO_1' }],
-      blocks: ['ABC 2'],
+
+    // Line 1: the bakery.
+    PEKARNA: {
+      blocks: (state) => [
+        `
+Voní to tu čerstvým chlebem. Za pultem čeká pekařka a vy máte ${coinsText(state.coins)}.
+
+Co si koupíte?
+      `,
+      ],
+      choices: [
+        {
+          goto: 'PEKARNA_CESTA',
+          label: 'Chleba za 3 mince',
+          nextState: (state) => ({ coins: state.coins - 3 }),
+        },
+        {
+          goto: 'PEKARNA_CESTA',
+          label: 'Chleba a koláče za 8 mincí',
+          nextState: (state) => ({ coins: state.coins - 8 }),
+        },
+      ],
     },
-    PROLOG_3: {
-      scans: [{ code: 1, goto: 'MISTO_1' }],
-      blocks: ['ABC 3'],
+    PEKARNA_CESTA: {
+      scanTitle: 'Jak domů?',
+      scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
+      blocks: (state) => [
+        `
+S chlebem v tašce stojíte před pekárnou. Zbývá vám ${coinsText(state.coins)}.
+
+Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale prý se tam občas najde i mince.
+      `,
+      ],
+      // The bus is a scan only a team with the fare can take; the park pays the finder a coin.
+      scans: [
+        {
+          code: 4,
+          goto: 'PEKARNA_VARENI',
+          when: (state) => state.coins >= 2,
+          nextState: (state) => ({ coins: state.coins - 2 }),
+        },
+        { code: 5, goto: 'PEKARNA_VARENI', nextState: (state) => ({ coins: state.coins + 1 }) },
+      ],
     },
-    // Placeholder trail through the QR codes, one after another.
-    MISTO_1: {
-      scans: [{ code: 2, goto: 'MISTO_2' }],
-      blocks: [`Jste na místě 1. Pokračujte na místo 2.`],
+    PEKARNA_VARENI: {
+      blocks: (state) => [
+        `
+Jste doma s nákupem z pekárny a ${coinsText(state.coins)} v peněžence.
+
+Co bude k večeři?
+      `,
+      ],
+      choices: [
+        { goto: 'OUTRO', label: 'Topinky s česnekem' },
+        {
+          goto: 'OUTRO',
+          label: 'Doběhnout do večerky pro sýr za 5 mincí',
+          when: (state) => state.coins >= 5,
+          nextState: (state) => ({ coins: state.coins - 5 }),
+        },
+      ],
     },
-    MISTO_2: {
-      scans: [{ code: 3, goto: 'MISTO_3' }],
-      blocks: [`Jste na místě 2. Pokračujte na místo 3.`],
+
+    // Line 2: the greengrocer.
+    ZELINAR: {
+      blocks: (state) => [
+        `
+Bedýnky s bramborami, cibulí a mrkví. Zelinář vás vítá a vy máte ${coinsText(state.coins)}.
+
+Co si koupíte?
+      `,
+      ],
+      choices: [
+        {
+          goto: 'ZELINAR_CESTA',
+          label: 'Brambory a cibuli za 5 mincí',
+          nextState: (state) => ({ coins: state.coins - 5 }),
+        },
+        {
+          goto: 'ZELINAR_CESTA',
+          label: 'Plný košík zeleniny za 12 mincí',
+          nextState: (state) => ({ coins: state.coins - 12 }),
+        },
+      ],
     },
-    MISTO_3: {
-      scans: [{ code: 4, goto: 'OUTRO' }],
-      blocks: [`Jste na místě 3. Pokračujte na místo 4.`],
+    ZELINAR_CESTA: {
+      scanTitle: 'Jak domů?',
+      scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
+      blocks: (state) => [
+        `
+Taška je těžká a v peněžence zbývá ${coinsText(state.coins)}.
+
+Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale prý se tam občas najde i mince.
+      `,
+      ],
+      scans: [
+        {
+          code: 4,
+          goto: 'ZELINAR_VARENI',
+          when: (state) => state.coins >= 2,
+          nextState: (state) => ({ coins: state.coins - 2 }),
+        },
+        { code: 5, goto: 'ZELINAR_VARENI', nextState: (state) => ({ coins: state.coins + 1 }) },
+      ],
     },
+    ZELINAR_VARENI: {
+      blocks: (state) => [
+        `
+Jste doma, zelenina leží na lince a v peněžence máte ${coinsText(state.coins)}.
+
+Co bude k večeři?
+      `,
+      ],
+      // The soup for the whole floor earns coins: a choice can add to the state, not only take.
+      choices: [
+        { goto: 'OUTRO', label: 'Bramboračka' },
+        {
+          goto: 'OUTRO',
+          label: 'Zeleninové kari, koření ještě za 4 mince',
+          when: (state) => state.coins >= 4,
+          nextState: (state) => ({ coins: state.coins - 4 }),
+        },
+        {
+          goto: 'OUTRO',
+          label: 'Polévka pro celou chodbu, sousedé se složí',
+          nextState: (state) => ({ coins: state.coins + 3 }),
+        },
+      ],
+    },
+
+    // Line 3: the butcher.
+    REZNICTVI: {
+      blocks: (state) => [
+        `
+Za sklem leží maso a řezník si brousí nůž. V peněžence máte ${coinsText(state.coins)}.
+
+Co si koupíte?
+      `,
+      ],
+      choices: [
+        {
+          goto: 'REZNICTVI_CESTA',
+          label: 'Kuřecí za 10 mincí',
+          nextState: (state) => ({ coins: state.coins - 10 }),
+        },
+        {
+          goto: 'REZNICTVI_CESTA',
+          label: 'Hovězí na guláš za 15 mincí',
+          nextState: (state) => ({ coins: state.coins - 15 }),
+        },
+      ],
+    },
+    REZNICTVI_CESTA: {
+      scanTitle: 'Jak domů?',
+      scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
+      blocks: (state) => [
+        `
+Maso je zabalené a v peněžence zbývá ${coinsText(state.coins)}.
+
+Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale prý se tam občas najde i mince.
+      `,
+      ],
+      scans: [
+        {
+          code: 4,
+          goto: 'REZNICTVI_VARENI',
+          when: (state) => state.coins >= 2,
+          nextState: (state) => ({ coins: state.coins - 2 }),
+        },
+        { code: 5, goto: 'REZNICTVI_VARENI', nextState: (state) => ({ coins: state.coins + 1 }) },
+      ],
+    },
+    REZNICTVI_VARENI: {
+      blocks: (state) => [
+        `
+Jste doma, maso je v lednici a v peněžence máte ${coinsText(state.coins)}.
+
+Co bude k večeři?
+      `,
+      ],
+      choices: [
+        { goto: 'OUTRO', label: 'Kuře na paprice' },
+        {
+          goto: 'OUTRO',
+          label: 'Guláš a k němu pivo za 6 mincí',
+          when: (state) => state.coins >= 6,
+          nextState: (state) => ({ coins: state.coins - 6 }),
+        },
+      ],
+    },
+
     OUTRO: {
-      blocks: (_state, team) => [`Konec hry, ${team.name}.`],
+      blocks: (state, team) => [
+        `
+## Dobrou chuť, ${team.name}!
+
+Konec ukázky. V peněžence vám zbylo ${coinsText(state.coins)}.
+
+Tři cesty, pár rozhodnutí, pár skenů a jeden stav, který se s nimi měnil.
+      `,
+      ],
     },
   },
 });
