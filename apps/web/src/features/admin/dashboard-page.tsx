@@ -3,7 +3,9 @@ import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
   IconArrowNarrowRight,
+  IconCheck,
   IconChevronsRight,
+  IconCopy,
   IconHistory,
   IconLoader2,
   IconPin,
@@ -40,6 +42,7 @@ import { api, errorMessage } from '@/lib/api';
 
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
+import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
 
 const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   typeof value === 'object' &&
@@ -54,17 +57,6 @@ const timeAgo = (iso: string) => {
   if (seconds < 60) return `před ${seconds} s`;
   if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
   return new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
-};
-
-/** `m:ss`, and `h:mm:ss` from an hour on: the organisers compare teams to the second. */
-const formatDuration = (ms: number) => {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const seconds = String(total % 60).padStart(2, '0');
-  const minutes = Math.floor(total / 60) % 60;
-  const hours = Math.floor(total / 3600);
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
-    : `${minutes}:${seconds}`;
 };
 
 const formatTime = (iso: string) =>
@@ -82,17 +74,52 @@ const useNow = () => {
 
 /** The team's play time, reading time and the rest (walking, puzzles), all to the second. */
 const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: number }) => {
-  if (team.startedAt === undefined) return null;
-  // The server's `playMs` is exact for a finished team; a running one is counted here, so it
-  // ticks every second rather than every poll.
-  const playMs =
-    team.finishedAt === undefined
-      ? Math.max(team.playMs ?? 0, now - Date.parse(team.startedAt))
-      : (team.playMs ?? 0);
+  const playMs = playTime(team, now);
+  if (playMs === undefined) return null;
   return (
     <div className='font-mono text-xs text-muted-foreground tabular-nums'>
       Hra {formatDuration(playMs)} · čtení {formatDuration(team.readingMs)} · mimo čtení{' '}
       {formatDuration(playMs - team.readingMs)}
+    </div>
+  );
+};
+
+/** Copies the teams' results to the clipboard as a CSV table or as JSON, with the state. */
+const CopyResults = ({
+  teams,
+  now,
+}: {
+  readonly teams: readonly TeamStatus[];
+  readonly now: number;
+}) => {
+  const [copied, setCopied] = useState<'csv' | 'json'>();
+  const copy = async (format: 'csv' | 'json') => {
+    const results = teamResults(teams, now);
+    try {
+      await navigator.clipboard.writeText(
+        format === 'csv' ? resultsCsv(results) : resultsJson(results),
+      );
+      setCopied(format);
+      setTimeout(() => setCopied(undefined), 1500);
+    } catch {
+      toast.error('Schránka není dostupná.');
+    }
+  };
+  return (
+    <div className='flex items-center gap-1'>
+      <span className='text-xs text-muted-foreground'>Kopírovat výsledky:</span>
+      {(['csv', 'json'] as const).map((format) => (
+        <Button
+          key={format}
+          variant='ghost'
+          size='sm'
+          className='h-6 px-1.5 font-mono text-xs uppercase'
+          title={`Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`}
+          onClick={() => void copy(format)}
+        >
+          {copied === format ? <IconCheck /> : <IconCopy />} {format}
+        </Button>
+      ))}
     </div>
   );
 };
@@ -254,11 +281,14 @@ export const DashboardPage = () => {
           state={panels.teams}
           onChange={(teamsPanel) => setPanels({ ...panels, teams: teamsPanel })}
         >
-          <p className='px-2 pb-2 text-xs text-muted-foreground'>
-            {game.startedAt === undefined
-              ? 'Hra neběží, týmy se nemohou přihlásit.'
-              : `Hra běží od ${formatTime(game.startedAt)}.`}
-          </p>
+          <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2'>
+            <p className='text-xs text-muted-foreground'>
+              {game.startedAt === undefined
+                ? 'Hra neběží, týmy se nemohou přihlásit.'
+                : `Hra běží od ${formatTime(game.startedAt)}.`}
+            </p>
+            <CopyResults teams={teams} now={now} />
+          </div>
           <ul className='flex flex-col'>
             {teams.map((team) => (
               <li

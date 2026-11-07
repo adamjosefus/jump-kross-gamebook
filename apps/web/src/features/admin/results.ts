@@ -1,0 +1,111 @@
+import type { TeamStatus } from '@gamebook/api';
+import type { Value } from '@gamebook/core';
+
+/** `m:ss`, and `h:mm:ss` from an hour on: the organisers compare teams to the second. */
+export const formatDuration = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
+    : `${minutes}:${seconds}`;
+};
+
+/**
+ * The team's play time as of `now`: the server's for a finished team (exact), counted here for a
+ * running one, so it ticks every second rather than every poll. Undefined before the first login.
+ */
+export const playTime = (team: TeamStatus, now: number) => {
+  if (team.startedAt === undefined) return undefined;
+  if (team.finishedAt !== undefined) return team.playMs ?? 0;
+  return Math.max(team.playMs ?? 0, now - Date.parse(team.startedAt));
+};
+
+/** One team's result, as the organisers take it away: times to the second and the state. */
+export interface TeamResult {
+  readonly id: number;
+  readonly name: string;
+  /** Where the team is; undefined for one that never logged in. */
+  readonly node: string | undefined;
+  readonly finished: boolean;
+  readonly startedAt: string | undefined;
+  readonly finishedAt: string | undefined;
+  /** Whole seconds; undefined before the first login. */
+  readonly playSeconds: number | undefined;
+  readonly readingSeconds: number;
+  /** Play time outside reading: walking and puzzles. */
+  readonly otherSeconds: number | undefined;
+  readonly state: Readonly<Record<string, Value>>;
+}
+
+const seconds = (ms: number) => Math.max(0, Math.floor(ms / 1000));
+
+export const teamResults = (teams: readonly TeamStatus[], now: number): readonly TeamResult[] =>
+  teams.map((team) => {
+    const playMs = playTime(team, now);
+    return {
+      id: team.id,
+      name: team.name,
+      node: team.node,
+      finished: team.finished,
+      startedAt: team.startedAt,
+      finishedAt: team.finishedAt,
+      playSeconds: playMs === undefined ? undefined : seconds(playMs),
+      readingSeconds: seconds(team.readingMs),
+      otherSeconds: playMs === undefined ? undefined : seconds(playMs - team.readingMs),
+      state: team.state,
+    };
+  });
+
+/** Pretty JSON of the results, one object per team. */
+export const resultsJson = (results: readonly TeamResult[]) => JSON.stringify(results, null, 2);
+
+/** A CSV cell: quoted when it holds the separator, a quote or a line break. */
+const cell = (value: Value | undefined) => {
+  if (value === undefined) return '';
+  const text = String(value);
+  return /[;"\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
+/**
+ * The results as a table, one row per team: the times both as `h:mm:ss` and as whole seconds,
+ * then one column per key of the state. Separated by semicolons, which is what a Czech Excel
+ * expects, and ended with CRLF.
+ */
+export const resultsCsv = (results: readonly TeamResult[]) => {
+  const stateKeys = [...new Set(results.flatMap((result) => Object.keys(result.state)))];
+  const header = [
+    'id',
+    'tym',
+    'uzel',
+    'v_cili',
+    'zacatek',
+    'konec',
+    'hra',
+    'cteni',
+    'mimo_cteni',
+    'hra_s',
+    'cteni_s',
+    'mimo_cteni_s',
+    ...stateKeys.map((key) => `stav_${key}`),
+  ];
+  const formatted = (value: number | undefined) =>
+    value === undefined ? undefined : formatDuration(value * 1000);
+  const rows = results.map((result) => [
+    result.id,
+    result.name,
+    result.node,
+    result.finished ? 'ano' : 'ne',
+    result.startedAt,
+    result.finishedAt,
+    formatted(result.playSeconds),
+    formatted(result.readingSeconds),
+    formatted(result.otherSeconds),
+    result.playSeconds,
+    result.readingSeconds,
+    result.otherSeconds,
+    ...stateKeys.map((key) => result.state[key]),
+  ]);
+  return [header, ...rows].map((row) => row.map(cell).join(';')).join('\r\n') + '\r\n';
+};
