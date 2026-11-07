@@ -12,7 +12,7 @@ export interface TeamRow {
   readonly node: string | undefined;
   readonly state: State;
   readonly step: number;
-  /** The team's first scan; undefined before it and after a reset. */
+  /** The team's first login after the game started; undefined before it and after a reset. */
   readonly startedAt: Date | undefined;
   readonly finishedAt: Date | undefined;
   readonly updatedAt: Date;
@@ -69,16 +69,25 @@ export interface StoreShape {
 
   /**
    * A new game for these teams in one go: rows created where missing, every team moved to `start`
-   * whatever its step, the first scan and the reading forgotten. Returns the rows as they are then.
+   * whatever its step, the first login, the reading and the devices' sessions forgotten, and the
+   * game itself no longer started. Returns the rows as they are then.
    */
   readonly resetTeams: (
     ids: readonly number[],
     start: TeamMove,
   ) => Effect.Effect<readonly TeamRow[], StoreError>;
 
-  /** Records the team's first scan; later calls change nothing. */
+  /** When the organisers started the game; undefined until they do and after a new game. */
+  readonly gameStartedAt: () => Effect.Effect<Date | undefined, StoreError>;
+  /** Starts the game and returns when it started; a game already started keeps its start. */
+  readonly startGame: () => Effect.Effect<Date, StoreError>;
+
+  /** Records the team's first login; later calls change nothing. */
   readonly markStarted: (id: number) => Effect.Effect<void, StoreError>;
-  /** Forgets the first scan and the reading, for a new game of the team. */
+  /**
+   * Forgets the first login and the reading and logs the team's devices out, for a new game of the
+   * team: its next login starts its clock.
+   */
   readonly clearTiming: (id: number) => Effect.Effect<void, StoreError>;
   readonly addReading: (rows: readonly ReadingRow[]) => Effect.Effect<void, StoreError>;
   readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;

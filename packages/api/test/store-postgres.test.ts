@@ -121,7 +121,16 @@ describe('postgres store', () => {
     expect(back?.finishedAt).toBeUndefined();
   });
 
-  it('records the first scan once and clears it with the reading', async () => {
+  it('starts the game once', async () => {
+    expect(await run(store.gameStartedAt())).toBeUndefined();
+    const started = await run(store.startGame());
+    expect(started).toBeInstanceOf(Date);
+    expect(await run(store.startGame())).toEqual(started);
+    expect(await run(store.gameStartedAt())).toEqual(started);
+  });
+
+  it('records the first login once and clears it with the reading and the sessions', async () => {
+    await run(store.createSession('forgotten', 1));
     await run(store.markStarted(1));
     const started = (await run(store.getTeam(1)))!.startedAt;
     expect(started).toBeInstanceOf(Date);
@@ -147,6 +156,8 @@ describe('postgres store', () => {
     await run(store.clearTiming(1));
     expect((await run(store.getTeam(1)))!.startedAt).toBeUndefined();
     expect((await run(store.listReading())).map(({ teamId }) => teamId)).toEqual([2]);
+    const old = new Date(Date.now() - 60_000);
+    expect(await run(store.touchSession('forgotten', old))).toBeUndefined();
   });
 
   it('resolves sessions created after the limit and counts the devices', async () => {
@@ -256,6 +267,9 @@ describe('postgres store', () => {
     ]);
     expect(rows.map(({ step }) => step)).toEqual([rows[0]!.step, 1, 1]);
     expect(await run(store.listReading())).toEqual([]);
+    // The devices are logged out and the game waits for the organisers to start it again.
+    expect(await run(store.touchSession('again', new Date(Date.now() - 60_000)))).toBeUndefined();
+    expect(await run(store.gameStartedAt())).toBeUndefined();
     const log = await run(store.recentLog(3));
     expect(log.map(({ teamId, action, toNode }) => [teamId, action, toNode])).toEqual([
       [3, 'reset', 'A1'],
@@ -312,6 +326,10 @@ describe('the api on postgres', () => {
       return { status: response.status, body: text === '' ? undefined : JSON.parse(text) };
     };
 
+    // The organisers start the game first; the admin logs out again so the player's cookie jar
+    // stays a player's.
+    expect((await call('POST', '/api/admin/login', { password: 'heslo' })).status).toBe(204);
+    expect((await call('POST', '/api/admin/game/start')).status).toBe(200);
     const login = await call('POST', '/api/player/login', {
       code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
     });
@@ -345,10 +363,12 @@ describe('the api on postgres', () => {
       step: 3,
       state: { gold: 100, hatColor: 'red' },
     });
-    expect((await call('GET', '/api/player/state')).body).toMatchObject({
-      step: 3,
-      node: { id: 'A1' },
+    // The reset logged the device out; it logs in again and finds the team on the start.
+    expect((await call('GET', '/api/player/state')).status).toBe(401);
+    const again = await call('POST', '/api/player/login', {
+      code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
     });
+    expect(again.body).toMatchObject({ step: 3, node: { id: 'A1' } });
 
     await api.dispose();
     await db.close();

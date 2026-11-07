@@ -47,6 +47,12 @@ create table if not exists reading (
 );
 create index if not exists reading_team on reading (team_id);
 
+-- One row: when the organisers started the game; null until then and after a new game.
+create table if not exists game (
+  id int primary key check (id = 1),
+  started_at timestamptz
+);
+
 create table if not exists admin_login (
   key text primary key,
   failures int not null default 0,

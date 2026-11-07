@@ -12,7 +12,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -56,11 +56,45 @@ const timeAgo = (iso: string) => {
   return new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
 };
 
+/** `m:ss`, and `h:mm:ss` from an hour on: the organisers compare teams to the second. */
 const formatDuration = (ms: number) => {
-  const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return `${Math.floor(ms / 1000)} s`;
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const seconds = String(total % 60).padStart(2, '0');
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
+    : `${minutes}:${seconds}`;
+};
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+
+/** The current time, refreshed every second, so a running clock ticks between two polls. */
+const useNow = () => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+};
+
+/** The team's play time, reading time and the rest (walking, puzzles), all to the second. */
+const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: number }) => {
+  if (team.startedAt === undefined) return null;
+  // The server's `playMs` is exact for a finished team; a running one is counted here, so it
+  // ticks every second rather than every poll.
+  const playMs =
+    team.finishedAt === undefined
+      ? Math.max(team.playMs ?? 0, now - Date.parse(team.startedAt))
+      : (team.playMs ?? 0);
+  return (
+    <div className='font-mono text-xs text-muted-foreground tabular-nums'>
+      Hra {formatDuration(playMs)} · čtení {formatDuration(team.readingMs)} · mimo čtení{' '}
+      {formatDuration(playMs - team.readingMs)}
+    </div>
+  );
 };
 
 const formatState = (state: Readonly<Record<string, Value>>) =>
@@ -179,12 +213,13 @@ export const DashboardPage = () => {
   const graph = useStoryGraph().data;
   const [moving, setMoving] = useState<TeamStatus>();
   const [panels, setPanels] = usePanels();
+  const now = useNow();
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   // Without anything to show the error is the page; with the last data it is a bar above them.
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { teams, log } = overview.data;
+  const { game, teams, log } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
 
   return (
@@ -219,6 +254,11 @@ export const DashboardPage = () => {
           state={panels.teams}
           onChange={(teamsPanel) => setPanels({ ...panels, teams: teamsPanel })}
         >
+          <p className='px-2 pb-2 text-xs text-muted-foreground'>
+            {game.startedAt === undefined
+              ? 'Hra neběží, týmy se nemohou přihlásit.'
+              : `Hra běží od ${formatTime(game.startedAt)}.`}
+          </p>
           <ul className='flex flex-col'>
             {teams.map((team) => (
               <li
@@ -250,11 +290,7 @@ export const DashboardPage = () => {
                     {team.devices} zař. ·{' '}
                     {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
                   </div>
-                  {team.playMs !== undefined && (
-                    <div className='text-xs text-muted-foreground'>
-                      Hra {formatDuration(team.playMs)} · čtení {formatDuration(team.readingMs)}
-                    </div>
-                  )}
+                  <TeamTimes team={team} now={now} />
                 </div>
                 <Button
                   variant='ghost'

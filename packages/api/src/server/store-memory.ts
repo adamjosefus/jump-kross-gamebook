@@ -32,6 +32,7 @@ export interface MemoryData {
   readonly adminFailures: Map<string, AdminFailures>;
   log: readonly LogRow[];
   reading: readonly ReadingRow[];
+  gameStartedAt: Date | undefined;
 }
 
 export const emptyMemoryData = (): MemoryData => ({
@@ -40,6 +41,7 @@ export const emptyMemoryData = (): MemoryData => ({
   adminFailures: new Map(),
   log: [],
   reading: [],
+  gameStartedAt: undefined,
 });
 
 /** In-process store for local development without a database and for tests. */
@@ -108,8 +110,14 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
           return cleared;
         });
         data.reading = data.reading.filter((row) => !ids.includes(row.teamId));
+        for (const [sessionId, session] of sessions)
+          if (ids.includes(session.teamId)) sessions.delete(sessionId);
+        data.gameStartedAt = undefined;
         return reset;
       }),
+
+    gameStartedAt: () => Effect.sync(() => data.gameStartedAt),
+    startGame: () => Effect.sync(() => (data.gameStartedAt ??= new Date())),
 
     markStarted: (id) =>
       Effect.sync(() => {
@@ -121,6 +129,8 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         const team = teams.get(id);
         if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
         data.reading = data.reading.filter((row) => row.teamId !== id);
+        for (const [sessionId, session] of sessions)
+          if (session.teamId === id) sessions.delete(sessionId);
       }),
     addReading: (rows) =>
       Effect.sync(() => {
