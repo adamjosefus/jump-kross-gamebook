@@ -1,6 +1,6 @@
 import type { PlayerScreen, PlayerView } from '@gamebook/api';
 import { IconArrowRight, IconFlag } from '@tabler/icons-react';
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 
 import { ActionButton, PLAYER_ICON_BUTTON_SIZE } from '@/components/action-button';
 import { SlideButton } from '@/components/slide-button';
@@ -28,6 +28,41 @@ const VisitedStoryText = ({
 }) => {
   useReadingTime(onRead);
   return <StoryText {...props} fast={useRecentVisit(block)} />;
+};
+
+/** How long the buttons stay disabled after they appear, so a tap meant for the text or the
+ * previous screen's button does not land on them. */
+const BUTTONS_ENABLE_MS = 500;
+
+/**
+ * The screen's buttons: hidden until the whole text is shown, then they fade in and are disabled
+ * for a moment. Hidden, they keep their space, so the text does not move when they appear. Lives
+ * inside the screen's keyed element, so every screen starts hidden again.
+ */
+const ScreenButtons = ({
+  shown,
+  children,
+}: {
+  readonly shown: boolean;
+  readonly children: (enabled: boolean) => ReactNode;
+}) => {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    if (!shown) return undefined;
+    const timer = setTimeout(() => setEnabled(true), BUTTONS_ENABLE_MS);
+    return () => clearTimeout(timer);
+  }, [shown]);
+  return (
+    <div
+      className={cn(
+        'mt-auto flex flex-col gap-3',
+        shown ? 'animate-in duration-300 fade-in' : 'invisible',
+      )}
+      aria-hidden={!shown}
+    >
+      {children(shown && enabled)}
+    </div>
+  );
 };
 
 interface Paging {
@@ -179,52 +214,48 @@ export const NodeScreens = ({
           </div>
         )}
 
-        {/* Buttons are there from the start but stay disabled until the whole text is shown, so
-          nobody goes on before reading it. */}
+        {/* Buttons appear only once the whole text is shown, so nobody goes on before reading it. */}
         {!scanning && (
-          <div className='mt-auto flex flex-col gap-3'>
-            {!last ? (
-              nextText === '' ? (
-                // No text in the story: only the arrow, in a circle as tall as the wide button.
-                <Button
-                  size='icon'
-                  aria-label='Další'
-                  className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
-                  disabled={!shown}
-                  onClick={() => go(index + 1)}
-                >
-                  <IconArrowRight className='size-5' />
-                </Button>
+          <ScreenButtons shown={shown}>
+            {(enabled) =>
+              !last ? (
+                nextText === '' ? (
+                  // No text in the story: only the arrow, in a circle as tall as the wide button.
+                  <Button
+                    size='icon'
+                    aria-label='Další'
+                    className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
+                    disabled={!enabled}
+                    onClick={() => go(index + 1)}
+                  >
+                    <IconArrowRight className='size-5' />
+                  </Button>
+                ) : (
+                  <ActionButton
+                    icon={<IconArrowRight className='size-5' />}
+                    disabled={!enabled}
+                    onClick={() => go(index + 1)}
+                  >
+                    {nextText}
+                  </ActionButton>
+                )
+              ) : node.type === 'end' ? (
+                <p className='flex items-center justify-center gap-2'>
+                  <IconFlag className='size-4' /> Konec hry
+                </p>
               ) : (
-                <ActionButton
-                  icon={<IconArrowRight className='size-5' />}
-                  disabled={!shown}
-                  onClick={() => go(index + 1)}
-                >
-                  {nextText}
-                </ActionButton>
+                choices.map((choice) => (
+                  <SlideButton
+                    key={choice.index}
+                    onConfirm={() => onPick(choice)}
+                    disabled={busy || !enabled}
+                  >
+                    {choice.label}
+                  </SlideButton>
+                ))
               )
-            ) : node.type === 'end' ? (
-              <p
-                className={cn(
-                  'flex items-center justify-center gap-2',
-                  shown ? 'animate-in duration-500 fade-in' : 'invisible',
-                )}
-              >
-                <IconFlag className='size-4' /> Konec hry
-              </p>
-            ) : (
-              choices.map((choice) => (
-                <SlideButton
-                  key={choice.index}
-                  onConfirm={() => onPick(choice)}
-                  disabled={busy || !shown}
-                >
-                  {choice.label}
-                </SlideButton>
-              ))
-            )}
-          </div>
+            }
+          </ScreenButtons>
         )}
       </article>
     </PlayerFrame>

@@ -17,7 +17,11 @@ Dlouhý text se zrychlí tak, aby se celý objevil do 6,5 sekundy.
 
 ## Tlačítka
 
-Tlačítka pod textem (šipka dál, volby) jsou na obrazovce od začátku, ale dokud se neobjeví poslední slovo, jsou neaktivní a šedá. Hráč tak nepokračuje, dřív než text dočte.
+Tlačítka pod textem (šipka dál, volby, „Konec hry“) jsou skrytá, dokud se neobjeví poslední slovo textu. Hráč tak nepokračuje, dřív než text dočte. Místo pro ně je vyhrazené od začátku, takže se text při jejich zobrazení neposune.
+
+Jakmile je text celý, tlačítka se plynule objeví (0,3 s) a ještě 0,5 s zůstanou neaktivní a poloprůhledná. Teprve potom se dají stisknout. Klepnutí určené textu nebo tlačítku předchozí obrazovky tak nepadne omylem na nové tlačítko.
+
+Platí to na každé obrazovce, i na té, kterou už tým viděl a jejíž text se ukáže hned.
 
 ## Žádné přeskakování a žádné nápovědy
 
