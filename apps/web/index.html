@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Spuštěná z plochy se hra otevře bez lišt prohlížeče (Safari je na iPhonu jinak skrýt nedovolí). -->
-    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32" />
-    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <!-- The favicon recolors itself in a dark browser, see favicon.svg. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -21,6 +21,16 @@
       content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
     />
     <title>Gamebook</title>
+    <!-- Link preview in messaging apps; the image needs an absolute URL. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="JUMP Kross 2027" />
+    <meta property="og:title" content="JUMP Kross 2027" />
+    <meta property="og:image" content="https://jump-kross-gamebook.vercel.app/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="JUMP Gamebook" />
+    <meta name="twitter:card" content="summary_large_image" />
     <!-- Tmavý režim ještě před prvním vykreslením, aby stránka v noci neblikla bíle. -->
     <script>
       try {
