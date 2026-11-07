@@ -73,9 +73,6 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
   return Math.round(pace.firstWordDelayMs + (index * pace.minWordGapMs + curve * time) * scale);
 };
 
-/** After this long of words still appearing, the text says that a tap shows them all. */
-const HINT_AFTER_MS = 3000;
-
 // -----------------------------------------------------------------------------------------------
 // Fonts
 
@@ -407,8 +404,9 @@ const fontStyle = (run: RunType): CSSProperties => ({
 
 /**
  * One screen of the story: Markdown laid out into lines by Pretext and painted line by line, with
- * the words fading in one after another. A tap shows the rest at once. Lines are known before
- * anything is painted, so nothing reflows while the words appear.
+ * the words fading in one after another. Lines are known before anything is painted, so nothing
+ * reflows while the words appear. Tapping the text does nothing: the player waits for the reveal
+ * (see docs/story-text.md).
  */
 export const StoryText = ({
   content,
@@ -448,7 +446,6 @@ export const StoryText = ({
   );
   const { ready: loaded, arrived } = useFontsLoaded(fonts, content);
   const [ref, width] = useWidth();
-  const [revealed, setRevealed] = useState(false);
 
   const prepared = useMemo(
     () => (loaded ? prepare(paragraphs, theme, lightOnDark) : undefined),
@@ -461,8 +458,7 @@ export const StoryText = ({
     [prepared, width],
   );
 
-  // When the last word has faded in: at once when shown instantly, tapped, or without motion.
-  const shownAll = revealed || instant;
+  // When the last word has faded in: at once when shown instantly or without motion.
   const pace = fast ? FAST_PACE : NORMAL_PACE;
   const revealMs =
     layout === undefined || layout.words === 0
@@ -470,41 +466,26 @@ export const StoryText = ({
       : revealDelay(layout.words - 1, layout.words, pace) + pace.wordFadeMs;
   const reportRevealed = useEffectEvent(() => onRevealed?.());
   const laidOut = layout !== undefined;
-  // Whether the words are still appearing after a while: then a hint says a tap shows them all.
-  const [hinting, setHinting] = useState(false);
   useEffect(() => {
     if (!laidOut) return undefined;
-    if (shownAll || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       reportRevealed();
       return undefined;
     }
     const timer = setTimeout(reportRevealed, revealMs);
-    const hint = setTimeout(() => setHinting(true), HINT_AFTER_MS);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(hint);
-    };
-  }, [laidOut, shownAll, revealMs]);
+    return () => clearTimeout(timer);
+  }, [laidOut, instant, revealMs]);
 
   return (
     <div
       ref={ref}
       className={cn(
-        'story-text relative',
-        shownAll && 'story-text-revealed',
+        'story-text',
+        instant && 'story-text-revealed',
         lightOnDark && 'story-text-on-dark',
         className,
       )}
-      onClick={() => setRevealed(true)}
     >
-      {hinting && !shownAll && revealMs > HINT_AFTER_MS && (
-        <p
-          className='story-text-hint absolute right-0 -bottom-6 left-0 text-center text-xs text-muted-foreground'
-          aria-hidden
-        >
-          Klepnutím zobrazíte celý text
-        </p>
-      )}
       {layout?.paragraphs.map(({ prepared: { paragraph, type }, lines }, index) => (
         <div
           key={index}
