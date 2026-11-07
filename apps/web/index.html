@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <!-- Spuštěná z plochy se hra otevře bez lišt prohlížeče (Safari je na iPhonu jinak skrýt nedovolí). -->
+    <!-- Launched from the home screen, the game opens without browser bars (Safari on iPhone won't hide them otherwise). -->
     <!-- The favicon recolors itself in a dark browser, see favicon.svg. -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -11,11 +11,11 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="JUMP Kross" />
-    <!-- Obsah sahá i pod stavový řádek; odsazení drží .safe-area-padding. -->
+    <!-- Content reaches under the status bar; .safe-area-padding keeps the inset. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#121212" />
-    <!-- Hra je jen pro přihlášené týmy: vyhledávače ani AI agenti ji nemají indexovat ani číst. -->
+    <!-- The game is only for logged-in teams: search engines and AI agents must not index or read it. -->
     <meta
       name="robots"
       content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai"
@@ -31,7 +31,7 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="JUMP Gamebook" />
     <meta name="twitter:card" content="summary_large_image" />
-    <!-- Tmavý režim ještě před prvním vykreslením, aby stránka v noci neblikla bíle. -->
+    <!-- Dark mode before the first paint, so the page doesn't flash white at night. -->
     <script>
       try {
         var theme = localStorage.getItem('theme');
