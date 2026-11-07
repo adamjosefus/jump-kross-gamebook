@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { ProgressQr, TeamLoginQr } from '@/components/qr/qr-cards';
+import { ProgressQr, QR_CARD_ACTION, TeamLoginQr } from '@/components/qr/qr-cards';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api, errorMessage } from '@/lib/api';
@@ -29,6 +29,7 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
       <Button
         variant='outline'
         size='icon'
+        className={QR_CARD_ACTION}
         title='Zkopírovat text kódu'
         aria-label={`Zkopírovat text kódu ${entry.label}`}
         onClick={copy}
@@ -38,6 +39,7 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
       <Button
         variant='outline'
         size='icon'
+        className={QR_CARD_ACTION}
         title='Stáhnout'
         aria-label={`Stáhnout ${entry.label}`}
         onClick={() => setOpen(true)}
@@ -122,7 +124,9 @@ export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }
       </div>
       {matching.length === 0 && (
         <p className='text-sm text-muted-foreground print:hidden'>
-          Žádný kód neodpovídá hledání „{filter.trim()}“.
+          {words.length === 0
+            ? 'Příběh nemá žádné kódy.'
+            : `Žádný kód neodpovídá hledání „${filter.trim()}“.`}
         </p>
       )}
       {SECTIONS.map((section) => {
@@ -139,7 +143,7 @@ export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }
               </h2>
               <p className='text-sm text-muted-foreground'>{section.description}</p>
             </header>
-            <div className='grid grid-cols-[repeat(auto-fill,13rem)] gap-4'>
+            <div className='grid grid-cols-[repeat(auto-fill,13rem)] gap-4 print:grid-cols-[repeat(auto-fill,8cm)]'>
               {entries.map((entry) => (
                 <CodeCard key={entry.code} entry={entry} />
               ))}

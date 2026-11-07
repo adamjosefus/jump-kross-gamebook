@@ -2,7 +2,6 @@ import { IconRotateClockwise } from '@tabler/icons-react';
 import QrScanner from 'qr-scanner';
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 
-import { DEFAULT_SCAN_TEXT, DEFAULT_SCAN_TITLE } from '@/components/qr/qr-card-text';
 import { Button } from '@/components/ui/button';
 
 import { ScanFrame, type ScanPoint } from './scan-frame';
@@ -227,8 +226,8 @@ const QrScannerView = ({
  * never tells how many codes would work or where they lead.
  */
 export const ScanScreen = ({
-  title = DEFAULT_SCAN_TITLE,
-  text = DEFAULT_SCAN_TEXT,
+  title = 'Naskenujte QR kód',
+  text = 'Namiřte fotoaparát na QR kód.',
   onCode,
   busy,
 }: {

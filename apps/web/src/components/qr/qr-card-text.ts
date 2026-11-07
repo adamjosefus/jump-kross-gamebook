@@ -1,12 +1,6 @@
 /** Kind of printed code: team login or one of the story's codes. */
 export type QrCardKind = 'T' | 'L';
 
-/** The heading of the scan screen where the story sets none. */
-export const DEFAULT_SCAN_TITLE = 'Naskenujte QR kód';
-
-/** The text of the scan screen where the story sets none. */
-export const DEFAULT_SCAN_TEXT = 'Namiřte fotoaparát na QR kód.';
-
 export interface QrCardText {
   readonly eyebrow: string;
   readonly title: string | undefined;

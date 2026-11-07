@@ -41,7 +41,7 @@ const meta = {
         id: 33,
         label: 'Kaple u lesa',
         code: 'L-33-Q6JD4S',
-        scanTexts: ['Hledejte u dveří kaple.', 'Kód je na zadní straně kaple.'],
+        scanTexts: ['Hledejte u dveří kaple.', null],
       },
     ],
   },
