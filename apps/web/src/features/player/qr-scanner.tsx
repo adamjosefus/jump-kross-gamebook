@@ -272,11 +272,12 @@ const QrScannerView = ({
   return (
     <div className='flex flex-1 flex-col'>
       <div className='flex flex-col gap-2'>{header}</div>
-      {/* On a phone held upright the camera reaches past the column's padding to the screen's
-          edges, square-cornered. */}
-      <div className='flex flex-1 items-center justify-center py-6 max-sm:portrait:-mr-[calc(var(--safe-area-inset-right)+1.25rem)] max-sm:portrait:-ml-[calc(var(--safe-area-inset-left)+1.25rem)]'>
+      {/* Where the column fills the player's screen (a phone held upright, also in the admin's
+          phone preview) the camera reaches past its padding to the screen's edges, square-cornered.
+          The screen's own width decides, not the browser window's. */}
+      <div className='flex flex-1 items-center justify-center py-6 @max-xl/player:-mr-[calc(var(--safe-area-inset-right)+1.25rem)] @max-xl/player:-ml-[calc(var(--safe-area-inset-left)+1.25rem)]'>
         {/* Square across the column; capped by the height when the screen lies. */}
-        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-muted max-sm:portrait:max-w-none max-sm:portrait:rounded-none'>
+        <div className='relative flex aspect-square w-full max-w-[65dvh] items-center justify-center overflow-hidden rounded-xl bg-muted @max-xl/player:rounded-none'>
           <div ref={stage} className='absolute inset-0' />
           {cameraError === undefined ? (
             <ScanFrame

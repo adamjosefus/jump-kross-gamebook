@@ -29,7 +29,7 @@ export const PlayerFrame = ({
 }) => (
   <div
     className={cn(
-      'flex flex-1 flex-col transition-colors duration-700 ease-in-out select-none [-webkit-touch-callout:none] motion-reduce:transition-none',
+      '@container/player flex flex-1 flex-col transition-colors duration-700 ease-in-out select-none [-webkit-touch-callout:none] motion-reduce:transition-none',
       className,
     )}
   >
