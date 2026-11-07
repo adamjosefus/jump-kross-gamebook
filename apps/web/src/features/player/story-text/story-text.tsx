@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { paragraphsOf, type Paragraph } from './markdown';
 import {
   isAlwaysDark,
+  isSystemFont,
   paragraphType,
   QUOTE_LINE,
   runType,
@@ -66,8 +67,14 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
     progress < 0.5
       ? 0.5 * (2 * progress) ** (1 / REVEAL_EASING)
       : 1 - 0.5 * (2 * (1 - progress)) ** (1 / REVEAL_EASING);
-  return Math.round(pace.firstWordDelayMs + index * pace.minWordGapMs + curve * time);
+  // The gaps count towards the limit too: a long letter must not take half a minute.
+  const whole = (words - 1) * pace.minWordGapMs + curve;
+  const scale = Math.min(1, pace.maxRevealMs / whole);
+  return Math.round(pace.firstWordDelayMs + (index * pace.minWordGapMs + curve * time) * scale);
 };
+
+/** After this long of words still appearing, the text says that a tap shows them all. */
+const HINT_AFTER_MS = 3000;
 
 // -----------------------------------------------------------------------------------------------
 // Fonts
@@ -125,7 +132,10 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
   // One string for the list and the text, so the effect reruns only when they change.
   const key = `${fonts.join('\n')}\n\n${sample}`;
   const [loaded, setLoaded] = useState<string>();
-  const ready = loaded === key || fonts.every((font) => isMeasurable(font, sample));
+  // Bumped when the fonts arrive after the text was laid out in the fallback font.
+  const [arrived, setArrived] = useState(0);
+  const measurable = fonts.every((font) => isMeasurable(font, sample));
+  const ready = loaded === key || measurable;
   useEffect(() => {
     if (ready) return undefined;
     // Loading cannot be aborted, so the cleanup flags the effect as over instead.
@@ -142,7 +152,19 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
       cancelled = true;
     };
   }, [ready, key, fonts, sample]);
-  return ready;
+  // Laid out in the fallback font after the timeout: when the fonts do arrive, the browser swaps
+  // them into the old line breaks, so the text has to be laid out again.
+  useEffect(() => {
+    if (!ready || measurable) return undefined;
+    const check = () => {
+      if (!fonts.every((font) => document.fonts.check(font, sample))) return;
+      for (const font of fonts) loadedFonts.add(font);
+      setArrived((count) => count + 1);
+    };
+    document.fonts.addEventListener('loadingdone', check);
+    return () => document.fonts.removeEventListener('loadingdone', check);
+  }, [ready, measurable, fonts, sample]);
+  return { ready, arrived };
 };
 
 // -----------------------------------------------------------------------------------------------
@@ -409,25 +431,30 @@ export const StoryText = ({
   const { resolved } = useTheme();
   const lightOnDark = isAlwaysDark(theme) || resolved === 'dark';
   const paragraphs = useMemo(() => paragraphsOf(content), [content]);
+  // The system's fonts (inline code) need no loading and would only wait for nothing.
   const fonts = useMemo(
     () => [
       ...new Set(
-        paragraphs.flatMap((paragraph) =>
-          paragraph.runs.map(
-            (run) => runType(paragraphType(theme, paragraph.kind, lightOnDark), run.marks).font,
-          ),
-        ),
+        paragraphs
+          .flatMap((paragraph) =>
+            paragraph.runs.map(
+              (run) => runType(paragraphType(theme, paragraph.kind, lightOnDark), run.marks).font,
+            ),
+          )
+          .filter((font) => !isSystemFont(font)),
       ),
     ],
     [paragraphs, theme, lightOnDark],
   );
-  const loaded = useFontsLoaded(fonts, content);
+  const { ready: loaded, arrived } = useFontsLoaded(fonts, content);
   const [ref, width] = useWidth();
   const [revealed, setRevealed] = useState(false);
 
   const prepared = useMemo(
     () => (loaded ? prepare(paragraphs, theme, lightOnDark) : undefined),
-    [loaded, paragraphs, theme, lightOnDark],
+    // Measured again when the fonts arrive late (`arrived`).
+    // eslint-disable-next-line react/exhaustive-deps
+    [loaded, arrived, paragraphs, theme, lightOnDark],
   );
   const layout = useMemo(
     () => (prepared === undefined || width === undefined ? undefined : layOut(prepared, width)),
@@ -443,6 +470,8 @@ export const StoryText = ({
       : revealDelay(layout.words - 1, layout.words, pace) + pace.wordFadeMs;
   const reportRevealed = useEffectEvent(() => onRevealed?.());
   const laidOut = layout !== undefined;
+  // Whether the words are still appearing after a while: then a hint says a tap shows them all.
+  const [hinting, setHinting] = useState(false);
   useEffect(() => {
     if (!laidOut) return undefined;
     if (shownAll || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -450,20 +479,32 @@ export const StoryText = ({
       return undefined;
     }
     const timer = setTimeout(reportRevealed, revealMs);
-    return () => clearTimeout(timer);
+    const hint = setTimeout(() => setHinting(true), HINT_AFTER_MS);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(hint);
+    };
   }, [laidOut, shownAll, revealMs]);
 
   return (
     <div
       ref={ref}
       className={cn(
-        'story-text',
+        'story-text relative',
         shownAll && 'story-text-revealed',
         lightOnDark && 'story-text-on-dark',
         className,
       )}
       onClick={() => setRevealed(true)}
     >
+      {hinting && !shownAll && revealMs > HINT_AFTER_MS && (
+        <p
+          className='story-text-hint absolute right-0 -bottom-6 left-0 text-center text-xs text-muted-foreground'
+          aria-hidden
+        >
+          Klepnutím zobrazíte celý text
+        </p>
+      )}
       {layout?.paragraphs.map(({ prepared: { paragraph, type }, lines }, index) => (
         <div
           key={index}

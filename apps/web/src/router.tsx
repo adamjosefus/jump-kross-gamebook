@@ -7,6 +7,7 @@ import {
   Outlet,
 } from '@tanstack/react-router';
 
+import { Button } from '@/components/ui/button';
 import { PlayerPage } from '@/features/player/player-page';
 
 const root = createRootRoute({ component: Outlet });
@@ -88,11 +89,26 @@ const print = createRoute({
   component: lazyRouteComponent(() => import('@/features/admin/print-page'), 'PrintPage'),
 });
 
+/** A crash of the page, in the player's language, with the one way out that always works. */
+const Crashed = ({ error }: { readonly error: unknown }) => {
+  console.error(error);
+  return (
+    <main className='flex min-h-dvh flex-col items-center justify-center gap-6 p-6 text-center'>
+      <p className='text-balance'>
+        Něco se pokazilo a stránka se nemůže zobrazit. Načtěte ji znovu; když to nepomůže, dejte
+        vědět organizátorům.
+      </p>
+      <Button onClick={() => window.location.reload()}>Načíst znovu</Button>
+    </main>
+  );
+};
+
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
     admin.addChildren([adminIndex, story, playtest, game, dashboard, print]),
   ]),
+  defaultErrorComponent: Crashed,
 });
 
 declare module '@tanstack/react-router' {

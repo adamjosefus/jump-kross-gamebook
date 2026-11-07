@@ -25,6 +25,9 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
 
+const isView = (value: unknown): value is PlayerView =>
+  typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
+
 export const PlayerPage = () => {
   const queryClient = useQueryClient();
   const search = useSearch({ from: '/' });
@@ -42,10 +45,20 @@ export const PlayerPage = () => {
       }),
     refetchInterval: (query) =>
       query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data),
+    // A poll that left before a move and arrives after it carries the team's old step; it must
+    // not take the screen back. Being logged out (null) or in is not a step and always applies.
+    structuralSharing: (old: unknown, next: unknown) =>
+      isView(old) && isView(next) && next.team.id === old.team.id && next.step < old.step
+        ? old
+        : next,
   });
   const view = state.data;
 
-  const onResult = (next: PlayerView) => queryClient.setQueryData(STATE_KEY, next);
+  // A poll still in flight would overwrite the move's result when it lands; it is dropped first.
+  const onResult = async (next: PlayerView) => {
+    await queryClient.cancelQueries({ queryKey: STATE_KEY });
+    queryClient.setQueryData(STATE_KEY, next);
+  };
   const onError = (error: unknown) => {
     playerToast.error(errorMessage(error));
     if (isApiError(error, 'StepConflict') || isApiError(error, 'InvalidMove')) {
@@ -54,7 +67,7 @@ export const PlayerPage = () => {
   };
 
   const onLogin = (next: PlayerView) => {
-    onResult(next);
+    void onResult(next);
     playerToast.success(next.loginMessages.loggedIn);
   };
   const login = useMutation({
@@ -64,7 +77,7 @@ export const PlayerPage = () => {
   const choose = useMutation({
     mutationFn: ({ index, step }: { readonly index: number; readonly step: number }) =>
       api((client) => client.player.choose({ payload: { index, expectedStep: step } })),
-    onSuccess: onResult,
+    onSuccess: (next) => void onResult(next),
     onError,
   });
   const scan = useMutation({
@@ -93,7 +106,8 @@ export const PlayerPage = () => {
   const onCode = (code: string): ScanOutcome | Promise<ScanOutcome> => {
     if (view == null) return answer(login.mutateAsync(code), onLogin);
     const parsed = parseQr(code);
-    if (parsed?.kind !== 'T') return answer(scan.mutateAsync({ code, step: view.step }), onResult);
+    if (parsed?.kind !== 'T')
+      return answer(scan.mutateAsync({ code, step: view.step }), (next) => void onResult(next));
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {

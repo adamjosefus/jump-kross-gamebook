@@ -9,6 +9,8 @@ interface ThemeContextValue {
 }
 
 const STORAGE_KEY = 'theme';
+/** `--background` of each mode, as the browser's bar wants it (see index.css). */
+const THEME_COLOR = { light: '#ffffff', dark: '#121212' } as const;
 const query = () => window.matchMedia('(prefers-color-scheme: dark)');
 
 const readPreference = (): ThemePreference => {
@@ -42,6 +44,9 @@ export const ThemeProvider = ({ children }: { readonly children: ReactNode }) =>
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', resolved === 'dark');
+    // The browser's bar follows the app's mode, which may differ from the system's.
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'))
+      meta.content = THEME_COLOR[resolved];
   }, [resolved]);
 
   const setPreference = (next: ThemePreference) => {
