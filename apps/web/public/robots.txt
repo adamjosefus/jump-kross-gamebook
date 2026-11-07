@@ -38,6 +38,17 @@ User-agent: ImagesiftBot
 User-agent: img2dataset
 Disallow: /
 
+# Link previews in messaging apps (og:image). They index nothing, they only fetch the shared URL.
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: WhatsApp
+User-agent: Slackbot-LinkExpanding
+User-agent: Discordbot
+User-agent: TelegramBot
+User-agent: LinkedInBot
+User-agent: SkypeUriPreview
+Allow: /
+
 # Všichni ostatní, včetně Googlu, Bingu a Seznamu.
 User-agent: *
 Disallow: /
