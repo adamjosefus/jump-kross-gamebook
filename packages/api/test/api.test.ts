@@ -118,6 +118,11 @@ describe('api', () => {
     ]);
 
     expect((await play({ position: at(b1), move: { scan: 32 } })).body.reason).toBe('no-scan');
+    // Sent under its former name, so phones on the previous build still decode it.
+    expect((await play({ position: at(a2), move: { scan: 34 } })).body).toMatchObject({
+      reason: 'wrong-location',
+      message: 'Tento kód vás teď nikam nevede.',
+    });
     expect((await admin('GET', '/api/admin/overview')).body.log).toEqual([]);
   });
 

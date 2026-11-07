@@ -83,7 +83,7 @@ const QrScannerView = ({
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
-  // A refused code is also held until it leaves the view: one held on a wrong place would
+  // A refused code is also held until it leaves the view: one the node does not accept would
   // otherwise be sent, and refused with a toast, every few seconds.
   const last = useRef<{ readonly code: string; readonly at: number; readonly untilLost: boolean }>(
     undefined,

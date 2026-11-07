@@ -63,7 +63,7 @@ const transitionsOf = (story: Story, node: AnyNode) => [
   ...(node.scans ?? []).map((scan) => ({
     ...scan,
     // QR edges are labelled with the code's name, the team never sees a label for them.
-    label: story.codes.find((code) => code.id === scan.code)?.name ?? `Kód ${scan.code}`,
+    label: story.codes.find((qrCode) => qrCode.id === scan.code)?.name ?? `Kód ${scan.code}`,
     code: scan.code,
   })),
 ];

@@ -261,7 +261,7 @@ const CodeEntry = ({
         <PopoverArrow />
         <section className='flex flex-col'>
           <h3 className='-mx-3 border-b px-3 pb-2 text-sm font-medium'>
-            {kind === 'T' ? 'Kódy týmů' : 'Kódy míst'}
+            {kind === 'T' ? 'Kódy týmů' : 'Ostatní kódy'}
           </h3>
           {codes.isError ? (
             <p className='my-3 text-xs text-destructive'>{errorMessage(codes.error)}</p>

@@ -47,6 +47,9 @@ const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state',
   'broken-state': 'Příběh je teď nedostupný. Kontaktujte organizátory.',
 };
 
+/** The reason a refused move is sent with; see `InvalidMove`. */
+const reasonOf = (error: MoveError) => (error === 'wrong-code' ? 'wrong-location' : error);
+
 const DEVICE_WINDOW_MS = 2 * 60 * 1000;
 
 /**
@@ -161,7 +164,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     ) {
       if (!result.ok)
         return yield* new InvalidMove({
-          reason: result.error,
+          reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
       // A `NaN` or an object in the state is a mistake in the story (or an admin's state without a
@@ -255,7 +258,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         `scan:${qrCode.id}`,
       );
       // After a reset the phones stay logged in, so the game starts with the first scan that
-      // moves the team; one at a wrong place does not start the clock.
+      // moves the team; a code the node does not accept does not start the clock.
       if (team.startedAt === undefined) yield* store.markStarted(team.id);
       return moved;
     });
@@ -472,7 +475,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
               );
       if (!result.ok)
         return yield* new InvalidMove({
-          reason: result.error,
+          reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
       const { position } = result;

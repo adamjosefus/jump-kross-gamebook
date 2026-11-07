@@ -438,7 +438,7 @@ export const validateStory = (
   const start = starts[0];
   if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
 
-  const known = new Set(story.codes.map((code) => code.id));
+  const known = new Set(story.codes.map((qrCode) => qrCode.id));
   // The intro is played by nobody: the login leads from it to the start.
   const played = story.order.filter((id) => id !== story.introNode);
   // Content and conditions may depend on the team, so every team plays the story on its own.
