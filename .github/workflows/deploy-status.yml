@@ -1,9 +1,13 @@
 name: Vercel deploy
 
 # Vercel reports its deployments to GitHub only as the commit status "Vercel", for which there is
-# no badge. This workflow turns the result of the last finished production deployment (the newest
-# commit on main whose Vercel status is no longer pending) into its own run, so the README can show
-# the workflow's badge: passing when that deployment succeeded, failing when it did not.
+# no badge. This workflow turns the result of the last finished production deployment into its own
+# run, so the README can show the workflow's badge: passing when that deployment succeeded, failing
+# when it did not.
+#
+# Production deploys the commits that were the tip of main, so the lookup follows main's first
+# parents. The commits a pull request brings in are on main too, but their Vercel status is the
+# preview deployment of the pull request's branch.
 #
 # Every status event runs it (GitHub cannot filter them), including preview deployments and
 # pending states; each run looks the result up anew, so none of them can hide a failure.
@@ -25,7 +29,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for sha in $(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&per_page=30" -q '.[].sha'); do
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" -q .sha)
+          for _ in $(seq 30); do
             status=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha/status" \
               -q '[.statuses[] | select(.context == "Vercel")][0] | select(.state != "pending") | "\(.state) \(.target_url)"')
             if [ -n "$status" ]; then
@@ -34,6 +39,8 @@ jobs:
               [ "$state" = success ]
               exit
             fi
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" -q '.parents[0].sha // empty')
+            [ -n "$sha" ] || break
           done
-          echo "No finished Vercel deployment among the last 30 commits on main."
+          echo "No finished Vercel deployment among the last 30 commits of main."
           exit 1
