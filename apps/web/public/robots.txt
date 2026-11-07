@@ -1,7 +1,7 @@
-# JUMP Kross je hra jen pro přihlášené týmy.
-# Vyhledávače ani AI agenti sem nemají chodit, nic tu neindexujte ani nesbírejte.
+# JUMP Kross is a game only for logged-in teams.
+# Search engines and AI agents have no business here: index and collect nothing.
 
-# AI crawlery a agenti jmenovitě, pro ty, kteří čtou jen svou vlastní sekci.
+# AI crawlers and agents by name, for those that read only their own section.
 User-agent: GPTBot
 User-agent: ChatGPT-User
 User-agent: OAI-SearchBot
@@ -49,6 +49,6 @@ User-agent: LinkedInBot
 User-agent: SkypeUriPreview
 Allow: /
 
-# Všichni ostatní, včetně Googlu, Bingu a Seznamu.
+# Everyone else, including Google, Bing and Seznam.
 User-agent: *
 Disallow: /
