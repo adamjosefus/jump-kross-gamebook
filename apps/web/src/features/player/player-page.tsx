@@ -21,9 +21,15 @@ import { CLOSED_TEXT, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
 
-/** Polling keeps every device of a team on the same node; slower while the team walks to a code. */
+/**
+ * Polling keeps every device of a team on the same node and stops it soon after the organizers
+ * pause the game. The same pace on a scan screen: a team walking to a code with the scanner open
+ * turns no page, so the poll is the only thing that tells it about a pause.
+ */
+const POLL_MS = 10_000;
+
 const refetchInterval = (view: PlayerView | null | undefined) =>
-  view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
+  view == null || view.status === 'finished' ? false : POLL_MS;
 
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
