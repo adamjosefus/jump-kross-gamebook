@@ -66,12 +66,12 @@ const QrCard = ({
       {title !== undefined && <span className='text-lg leading-tight font-semibold'>{title}</span>}
     </figcaption>
     {/* The code in the middle; its text runs up on the left, centered between the edge and the
-      code, and disappears on hover to leave the quiet zone clear for scanning. An empty column of
-      the same width on the right keeps the code in the middle. */}
+      code, and stays gray on hover too. An empty column of the same width on the right keeps the
+      code in the middle. */}
     <div className='-mx-4 grid grid-cols-[minmax(1.75rem,1fr)_auto_minmax(1.75rem,1fr)] items-center'>
       <span
         aria-hidden
-        className='rotate-180 justify-self-center font-mono text-[10px] whitespace-nowrap opacity-60 [writing-mode:vertical-rl] group-focus-within:opacity-0 group-hover:opacity-0'
+        className='rotate-180 justify-self-center font-mono text-[10px] tracking-widest whitespace-nowrap opacity-60 [writing-mode:vertical-rl]'
       >
         {value}
       </span>
