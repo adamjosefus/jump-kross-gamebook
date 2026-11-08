@@ -1,4 +1,4 @@
-import { GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
+import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -10,12 +10,18 @@ import { StoryText } from './story-text/story-text';
 /** The waiting screen before the start; it also says the phone needs nothing more from the team. */
 export const NOT_STARTED_TEXT = `${GAME_NOT_STARTED_MESSAGE}\n\nAž hra začne, sama se načte.`;
 
+/**
+ * The waiting screen while the organizers keep the game paused, before the login and in the middle
+ * of the game alike; the team goes on where it stopped once the game runs again.
+ */
+export const CLOSED_TEXT = `${GAME_CLOSED_MESSAGE}\n\nAž bude hra pokračovat, sama se načte.`;
+
 /** Delays of the three dots, so they light up one after another. */
 const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
 
 /**
- * What a phone shows while the teams cannot log in yet: before the organizers start the game, or
- * while they keep it closed. The message is set like the story's text, at the same place as a
+ * What a phone shows while the teams cannot play: before the organizers start the game, or while
+ * they keep it paused, whether the phone is logged in to a team or not yet. The message is set like the story's text, at the same place as a
  * block, with three breathing dots above it, so the screen does not look frozen; the page asks the
  * server on its own and moves on once the game opens.
  */

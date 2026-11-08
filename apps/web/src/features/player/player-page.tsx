@@ -1,5 +1,5 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
+import { GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,7 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
-import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
+import { CLOSED_TEXT, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
@@ -33,6 +33,13 @@ const RETRY_MS = 10_000;
  * whether the teams can log in.
  */
 const WAITING_POLL_MS = 15_000;
+
+/**
+ * Turning a page asks the server again when its last answer is older than this, so a paused game
+ * stops a team in the middle of a text, not only at the next poll. Paging quickly through a text
+ * does not send a request per page.
+ */
+const PAGE_CHECK_MS = 3_000;
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -62,6 +69,12 @@ export const PlayerPage = () => {
         : next,
   });
   const view = state.data;
+
+  // A request already in flight is enough; it is not cancelled for a new one.
+  const checkOnPage = () => {
+    if (!state.isFetching && Date.now() - state.dataUpdatedAt > PAGE_CHECK_MS)
+      void state.refetch({ cancelRefetch: false });
+  };
 
   // A poll still in flight would overwrite the move's result when it lands; it is dropped first.
   const onResult = async (next: PlayerView) => {
@@ -189,11 +202,9 @@ export const PlayerPage = () => {
           onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
         />
       ) : view.status === 'closed' ? (
-        <PlayerFrame aside={aside}>
-          <Centered>
-            <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
-          </Centered>
-        </PlayerFrame>
+        // The node is gone from the screen: a paused game is not read on. The page polls and
+        // opens the team's screen again once the game runs.
+        <WaitingScreen message={CLOSED_TEXT} aside={aside} />
       ) : view.status === 'not-ready' || view.node === undefined ? (
         <WaitingScreen message={GAME_NOT_STARTED_MESSAGE} aside={aside} />
       ) : (
@@ -208,9 +219,10 @@ export const PlayerPage = () => {
           onPick={pick}
           // The screen in the URL belongs to one step; after a move the node opens at its start.
           initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
-          onIndexChange={(screen) =>
-            void navigate({ to: '/', search: { step: view.step, screen }, replace: true })
-          }
+          onIndexChange={(screen) => {
+            checkOnPage();
+            void navigate({ to: '/', search: { step: view.step, screen }, replace: true });
+          }}
         />
       )}
 
@@ -306,10 +318,7 @@ const Intro = ({
   // Until the teams can log in, the waiting screen comes first, before the intro.
   if (!started || closed)
     return (
-      <WaitingScreen
-        message={started ? GAME_CLOSED_MESSAGE : NOT_STARTED_TEXT}
-        corner={APP_VERSION}
-      />
+      <WaitingScreen message={started ? CLOSED_TEXT : NOT_STARTED_TEXT} corner={APP_VERSION} />
     );
   return (
     <NodeScreens

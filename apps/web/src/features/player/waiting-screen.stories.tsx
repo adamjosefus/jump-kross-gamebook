@@ -1,7 +1,6 @@
-import { GAME_CLOSED_MESSAGE } from '@gamebook/api';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
+import { CLOSED_TEXT, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 /** The screen of a phone that cannot log in yet; it moves on by itself once the game opens. */
 const meta = {
@@ -17,4 +16,4 @@ export default meta;
 export const NotStarted: StoryObj<typeof meta> = {};
 
 /** The organizers closed the game for a while. */
-export const Closed: StoryObj<typeof meta> = { args: { message: GAME_CLOSED_MESSAGE } };
+export const Closed: StoryObj<typeof meta> = { args: { message: CLOSED_TEXT } };
