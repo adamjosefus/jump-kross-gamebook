@@ -208,7 +208,7 @@ type RouteEdge = Edge<
     /** The edge is a QR choice. */
     readonly qr?: boolean;
     readonly label?: Box;
-    /** Of the line, its arrowhead and its label. */
+    /** Of the label; the theme's text color when missing. */
     readonly color?: string;
     readonly dimmed: boolean;
   },
@@ -260,12 +260,12 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'pointer-events-none absolute overflow-hidden rounded bg-background px-1 text-center text-[11px] whitespace-pre',
+              'pointer-events-none absolute overflow-hidden rounded bg-background px-1 text-center text-[11px] whitespace-pre text-foreground',
               data.dimmed && 'opacity-30',
             )}
             style={{
-              color: data.color,
               lineHeight: `${LABEL_LINE_HEIGHT}px`,
+              color: data.color,
               transform: `translate(${label.x}px, ${label.y}px)`,
               width: label.width,
               height: label.height,
@@ -335,12 +335,11 @@ const FinalDot = () => (
 
 const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
-/** Keeps the hues of consecutive edges far apart, however many edges there are. */
-const GOLDEN_ANGLE = 137.508;
-
-/** Moderately saturated color of the edge at `index`, readable on the theme. */
-const edgeColor = (index: number, theme: 'light' | 'dark') =>
-  `oklch(${theme === 'dark' ? 0.78 : 0.55} 0.16 ${Math.round((index * GOLDEN_ANGLE) % 360)})`;
+/** Tells the edges taken by scanning a QR code from the ones taken by a button. */
+const SCAN_EDGE_COLOR = {
+  light: 'oklch(0.55 0.17 255)',
+  dark: 'oklch(0.75 0.14 250)',
+} as const;
 
 /** The node a test run stands on. */
 const FOCUSED_CARD =
@@ -666,15 +665,16 @@ export const StoryGraph = ({
             dimmed: !graph.nodes[id]!.reached,
           },
         })),
-      ].map((edge: RouteEdge, index) => {
-        const color = edgeColor(index, resolved);
-        return {
-          ...edge,
-          markerEnd: { ...ARROW_HEAD, color },
-          style: { ...edge.style, stroke: color },
-          data: { ...edge.data!, color },
-        };
-      }),
+      ].map((edge: RouteEdge) =>
+        edge.data?.qr === true
+          ? {
+              ...edge,
+              markerEnd: { ...ARROW_HEAD, color: SCAN_EDGE_COLOR[resolved] },
+              style: { ...edge.style, stroke: SCAN_EDGE_COLOR[resolved] },
+              data: { ...edge.data, color: SCAN_EDGE_COLOR[resolved] },
+            }
+          : edge,
+      ),
     [graph, laidOut, resolved],
   );
 
