@@ -2,12 +2,12 @@ import type { TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
-  IconArrowNarrowRight,
   IconCheck,
   IconChevronsRight,
   IconCopy,
   IconHistory,
   IconLoader2,
+  IconPencil,
   IconPin,
   IconPinnedOff,
   IconRotate,
@@ -320,7 +320,7 @@ export const DashboardPage = () => {
                   aria-label={`Přesunout tým ${team.name}`}
                   onClick={() => setMoving(team)}
                 >
-                  <IconArrowNarrowRight />
+                  <IconPencil />
                 </Button>
               </li>
             ))}
@@ -512,8 +512,12 @@ const MoveDialog = ({
             </div>
           </div>
           <DialogFooter className='sm:justify-between'>
-            <Button type='button' variant='outline' onClick={() => setResetting(true)}>
-              <IconRotate /> Na start
+            <Button
+              type='button'
+              className='bg-red-700 text-white hover:bg-red-800'
+              onClick={() => setResetting(true)}
+            >
+              <IconRotate /> Restartovat hru
             </Button>
             <div className='flex flex-col-reverse gap-2 sm:flex-row'>
               <Button type='button' variant='outline' onClick={onClose}>
