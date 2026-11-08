@@ -59,7 +59,7 @@ const QrCard = ({
     )}
   >
     <figcaption className='flex flex-col gap-1'>
-      <span className='flex items-center gap-1.5 text-xs font-medium tracking-widest uppercase'>
+      <span className='flex items-center gap-1.5 text-xs font-medium'>
         {icon}
         {eyebrow}
       </span>
