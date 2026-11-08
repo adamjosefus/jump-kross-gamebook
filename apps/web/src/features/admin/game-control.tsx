@@ -186,7 +186,7 @@ export const GameControl = ({
             <AlertDialogTitle>{pause ? 'Pozastavit hru?' : 'Pokračovat ve hře?'}</AlertDialogTitle>
             <AlertDialogDescription>
               {pause
-                ? 'Všechny týmy na cestě hned přestanou hrát: telefony ukážou, že je hra zavřená, a nové se nepřihlásí. Týmy, které už došly do cíle, zůstanou u svého konce. Postup týmů zůstane a po pokračování navážou, kde skončily.'
+                ? 'Všechny týmy na cestě hned přestanou hrát: telefony ukážou, že je hra pozastavená, a nové se nepřihlásí. Týmy, které už došly do cíle, zůstanou u svého konce. Postup týmů zůstane a po pokračování navážou, kde skončily.'
                 : 'Týmy mohou hned pokračovat a nové telefony se mohou přihlásit.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

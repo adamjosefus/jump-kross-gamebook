@@ -1,5 +1,4 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -212,7 +211,7 @@ export const PlayerPage = () => {
         // opens the team's screen again once the game runs.
         <WaitingScreen message={CLOSED_TEXT} aside={aside} />
       ) : view.status === 'not-ready' || view.node === undefined ? (
-        <WaitingScreen message={GAME_NOT_STARTED_MESSAGE} aside={aside} />
+        <WaitingScreen message={NOT_STARTED_TEXT} aside={aside} />
       ) : (
         <TeamNodeScreens
           teamId={view.team.id}

@@ -21,9 +21,10 @@ const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
 
 /**
  * What a phone shows while the teams cannot play: before the organizers start the game, or while
- * they keep it paused, whether the phone is logged in to a team or not yet. The message is set like the story's text, at the same place as a
- * block, with three breathing dots above it, so the screen does not look frozen; the page asks the
- * server on its own and moves on once the game opens.
+ * they keep it paused, whether the phone is logged in to a team or not yet. The message is set
+ * like the story's text, at the same place as a block, with three breathing dots above it, so the
+ * screen does not look frozen; the page asks the server on its own and moves on once the game
+ * opens.
  */
 export const WaitingScreen = ({
   message,
