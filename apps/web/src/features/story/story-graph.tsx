@@ -31,6 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -41,6 +42,8 @@ const NODE_HEIGHT = 136;
 const INITIAL_SIZE = 14;
 /** Ringed dot the end nodes lead into, like the final state of a state machine. */
 const FINAL_SIZE = 20;
+/** Delay in ms, so moving the pointer across the graph does not flash a tooltip on every node. */
+const STATE_TOOLTIP_DELAY = 300;
 /** Radius of the rounded corners where an edge turns. */
 const CORNER_RADIUS = 8;
 
@@ -90,11 +93,28 @@ const startsOf = (graph: GameGraph) =>
   graph.order.filter((id) => graph.nodes[id]!.type === 'start');
 const endsOf = (graph: GameGraph) => graph.order.filter((id) => graph.nodes[id]!.type === 'end');
 
+/** Longest line of a label, in characters; a longer word keeps its own line. */
+const LABEL_LINE_LENGTH = 14;
+const LABEL_LINE_HEIGHT = 14;
+
+/** Words of a label broken into lines, so a long choice stays compact. */
+const labelLines = (text: string): readonly string[] =>
+  text.split(' ').reduce<readonly string[]>((lines, word) => {
+    const last = lines.at(-1);
+    if (last === undefined) return [word];
+    return `${last} ${word}`.length <= LABEL_LINE_LENGTH
+      ? [...lines.slice(0, -1), `${last} ${word}`]
+      : [...lines, word];
+  }, []);
+
 /** Rough size of a label with its icon; ELK only needs it to reserve space. */
-const labelSize = (text: string) => ({
-  width: Math.ceil(text.length * 6.5) + 28,
-  height: 18,
-});
+const labelSize = (text: string) => {
+  const lines = labelLines(text);
+  return {
+    width: Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) + 24,
+    height: LABEL_LINE_HEIGHT * lines.length,
+  };
+};
 
 /** Layered top-down layout; depends only on the nodes and edges, not on the previews. */
 const layout = async (graph: GameGraph): Promise<Layout> => {
@@ -188,6 +208,8 @@ type RouteEdge = Edge<
     /** The edge is a QR choice. */
     readonly qr?: boolean;
     readonly label?: Box;
+    /** Of the line, its arrowhead and its label. */
+    readonly color?: string;
     readonly dimmed: boolean;
   },
   'route'
@@ -238,10 +260,12 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'pointer-events-none absolute truncate rounded bg-background px-1 text-center text-[11px] leading-[18px] text-foreground',
+              'pointer-events-none absolute overflow-hidden rounded bg-background px-1 text-center text-[11px] whitespace-pre',
               data.dimmed && 'opacity-30',
             )}
             style={{
+              color: data.color,
+              lineHeight: `${LABEL_LINE_HEIGHT}px`,
               transform: `translate(${label.x}px, ${label.y}px)`,
               width: label.width,
               height: label.height,
@@ -252,7 +276,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
             ) : (
               <IconDirectionSign className='mr-0.5 inline size-3 align-[-2px]' />
             )}
-            {data.text}
+            {labelLines(data.text ?? '').join('\n')}
           </div>
         </EdgeLabelRenderer>
       )}
@@ -311,6 +335,13 @@ const FinalDot = () => (
 
 const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
+/** Keeps the hues of consecutive edges far apart, however many edges there are. */
+const GOLDEN_ANGLE = 137.508;
+
+/** Moderately saturated color of the edge at `index`, readable on the theme. */
+const edgeColor = (index: number, theme: 'light' | 'dark') =>
+  `oklch(${theme === 'dark' ? 0.78 : 0.55} 0.16 ${Math.round((index * GOLDEN_ANGLE) % 360)})`;
+
 /** The node a test run stands on. */
 const FOCUSED_CARD =
   'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
@@ -322,48 +353,64 @@ const FOCUSED_CARD =
  */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
+  const stateEntries = Object.entries(preview?.state ?? {});
   return (
     <div className='relative' style={{ width: NODE_WIDTH, height: NODE_HEIGHT }}>
       <Handle type='target' position={Position.Top} className='opacity-0' />
-      <div
-        title={preview?.state === undefined ? undefined : JSON.stringify(preview.state, null, 1)}
-        className={cn(
-          'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[1.25rem] border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
-          node.type !== 'passage' && 'border-foreground/60',
-          !node.reached && teams.length === 0 && 'opacity-40',
-          teams.length > 0 && 'ring-2 ring-foreground',
-          focused && `opacity-100 ${FOCUSED_CARD}`,
+      <Tooltip delayDuration={STATE_TOOLTIP_DELAY}>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[1.25rem] border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
+              node.type !== 'passage' && 'border-foreground/60',
+              !node.reached && teams.length === 0 && 'opacity-40',
+              teams.length > 0 && 'ring-2 ring-foreground',
+              focused && `opacity-100 ${FOCUSED_CARD}`,
+            )}
+          >
+            <div className='flex items-center gap-1'>
+              <Badge variant='secondary' className='font-mono'>
+                {node.id}
+              </Badge>
+              {node.type === 'intro' && <Badge variant='outline'>Úvod</Badge>}
+              {node.type === 'end' && (
+                <Badge variant='outline' title='Konec'>
+                  <IconFlag />
+                </Badge>
+              )}
+              <span className='flex-1' />
+              {visits !== undefined && (
+                <Badge
+                  variant='outline'
+                  className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
+                  title={`Klany sem dorazily ${visits}×`}
+                >
+                  <IconWalk /> {visits}
+                </Badge>
+              )}
+            </div>
+            <div className='graph-preview line-clamp-4 px-2 text-xs leading-snug text-muted-foreground'>
+              {preview === undefined ? (
+                <em>{NO_PREVIEW}</em>
+              ) : (
+                <Markdown>{textOf(preview.blocks)}</Markdown>
+              )}
+            </div>
+          </div>
+        </TooltipTrigger>
+        {stateEntries.length > 0 && (
+          <TooltipContent side='right' sideOffset={6}>
+            <dl className='grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 font-mono'>
+              {stateEntries.map(([key, value]) => (
+                <div key={key} className='contents'>
+                  <dt className='opacity-60'>{key}</dt>
+                  <dd className='tabular-nums'>{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          </TooltipContent>
         )}
-      >
-        <div className='flex items-center gap-1'>
-          <Badge variant='secondary' className='font-mono'>
-            {node.id}
-          </Badge>
-          {node.type === 'intro' && <Badge variant='outline'>Úvod</Badge>}
-          {node.type === 'end' && (
-            <Badge variant='outline' title='Konec'>
-              <IconFlag />
-            </Badge>
-          )}
-          <span className='flex-1' />
-          {visits !== undefined && (
-            <Badge
-              variant='outline'
-              className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
-              title={`Klany sem dorazily ${visits}×`}
-            >
-              <IconWalk /> {visits}
-            </Badge>
-          )}
-        </div>
-        <div className='graph-preview line-clamp-4 px-2 text-xs leading-snug text-muted-foreground'>
-          {preview === undefined ? (
-            <em>{NO_PREVIEW}</em>
-          ) : (
-            <Markdown>{textOf(preview.blocks)}</Markdown>
-          )}
-        </div>
-      </div>
+      </Tooltip>
       {teams.length > 0 && (
         <div className='absolute right-2 bottom-full mb-1.5 flex -space-x-2'>
           {teams.map((team) => (
@@ -550,76 +597,85 @@ export const StoryGraph = ({
   // An edge to a node that does not exist (reported by `graphProblems`) is left out, like in
   // `layout`; React Flow would log an error on every render otherwise.
   const edges = useMemo<RouteEdge[]>(
-    () => [
-      ...graph.order.flatMap((id) =>
-        graph.nodes[id]!.choices.flatMap((choice, index): readonly RouteEdge[] => {
-          if (!Object.hasOwn(graph.nodes, choice.target)) return [];
-          const route = laidOut?.layout.edges.get(edgeId(id, index));
-          return [
-            {
-              id: edgeId(id, index),
-              type: 'route',
-              source: id,
-              target: choice.target,
-              markerEnd: ARROW_HEAD,
-              data: {
-                points: route?.points ?? [],
-                text: choice.label,
-                qr: choice.code !== undefined,
-                ...(route?.label === undefined ? {} : { label: route.label }),
-                // Paths the start never takes are dimmed.
-                dimmed: choice.available === false || !graph.nodes[id]!.reached,
+    () =>
+      [
+        ...graph.order.flatMap((id) =>
+          graph.nodes[id]!.choices.flatMap((choice, index): readonly RouteEdge[] => {
+            if (!Object.hasOwn(graph.nodes, choice.target)) return [];
+            const route = laidOut?.layout.edges.get(edgeId(id, index));
+            return [
+              {
+                id: edgeId(id, index),
+                type: 'route',
+                source: id,
+                target: choice.target,
+                markerEnd: ARROW_HEAD,
+                data: {
+                  points: route?.points ?? [],
+                  text: choice.label,
+                  qr: choice.code !== undefined,
+                  ...(route?.label === undefined ? {} : { label: route.label }),
+                  // Paths the start never takes are dimmed.
+                  dimmed: choice.available === false || !graph.nodes[id]!.reached,
+                },
+                ...(choice.conditional ? { style: { strokeDasharray: '6 4' } } : {}),
               },
-              ...(choice.conditional ? { style: { strokeDasharray: '6 4' } } : {}),
+            ];
+          }),
+        ),
+        ...(Object.hasOwn(graph.nodes, graph.introNode)
+          ? [
+              {
+                id: INITIAL_EDGE_ID,
+                type: 'route',
+                source: INITIAL_ID,
+                target: graph.introNode,
+                markerEnd: ARROW_HEAD,
+                data: {
+                  points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
+                  dimmed: false,
+                },
+              } satisfies RouteEdge,
+            ]
+          : []),
+        ...startsOf(graph).map((id): RouteEdge => {
+          const route = laidOut?.layout.edges.get(loginEdgeId(id));
+          return {
+            id: loginEdgeId(id),
+            type: 'route',
+            source: graph.introNode,
+            target: id,
+            markerEnd: ARROW_HEAD,
+            data: {
+              points: route?.points ?? [],
+              text: LOGIN_LABEL,
+              qr: true,
+              ...(route?.label === undefined ? {} : { label: route.label }),
+              dimmed: !graph.nodes[id]!.reached,
             },
-          ];
+          };
         }),
-      ),
-      ...(Object.hasOwn(graph.nodes, graph.introNode)
-        ? [
-            {
-              id: INITIAL_EDGE_ID,
-              type: 'route',
-              source: INITIAL_ID,
-              target: graph.introNode,
-              markerEnd: ARROW_HEAD,
-              data: {
-                points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
-                dimmed: false,
-              },
-            } satisfies RouteEdge,
-          ]
-        : []),
-      ...startsOf(graph).map((id): RouteEdge => {
-        const route = laidOut?.layout.edges.get(loginEdgeId(id));
-        return {
-          id: loginEdgeId(id),
+        ...endsOf(graph).map((id): RouteEdge => ({
+          id: finalEdgeId(id),
           type: 'route',
-          source: graph.introNode,
-          target: id,
+          source: id,
+          target: FINAL_ID,
           markerEnd: ARROW_HEAD,
           data: {
-            points: route?.points ?? [],
-            text: LOGIN_LABEL,
-            qr: true,
-            ...(route?.label === undefined ? {} : { label: route.label }),
+            points: laidOut?.layout.edges.get(finalEdgeId(id))?.points ?? [],
             dimmed: !graph.nodes[id]!.reached,
           },
+        })),
+      ].map((edge: RouteEdge, index) => {
+        const color = edgeColor(index, resolved);
+        return {
+          ...edge,
+          markerEnd: { ...ARROW_HEAD, color },
+          style: { ...edge.style, stroke: color },
+          data: { ...edge.data!, color },
         };
       }),
-      ...endsOf(graph).map((id): RouteEdge => ({
-        id: finalEdgeId(id),
-        type: 'route',
-        source: id,
-        target: FINAL_ID,
-        markerEnd: ARROW_HEAD,
-        data: {
-          points: laidOut?.layout.edges.get(finalEdgeId(id))?.points ?? [],
-          dimmed: !graph.nodes[id]!.reached,
-        },
-      })),
-    ],
-    [graph, laidOut],
+    [graph, laidOut, resolved],
   );
 
   return (
