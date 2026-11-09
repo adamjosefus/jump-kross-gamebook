@@ -15,5 +15,5 @@
     "functions": ["cn", "cva"]
   },
   "sortPackageJson": true,
-  "ignorePatterns": [".claude/skills/**"]
+  "ignorePatterns": [".agents/skills/**", ".claude/skills/**"]
 }
