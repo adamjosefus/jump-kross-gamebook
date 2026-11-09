@@ -21,7 +21,7 @@ const Label = ({ id, children }: { readonly id?: string; readonly children: Reac
   <span
     id={id}
     data-slot='slide-button-label'
-    className='flex-1 py-2 pr-4 pl-[4.875rem] text-center text-xl leading-tight font-medium text-pretty'
+    className='flex-1 px-16 py-2 text-center text-xl leading-tight font-medium text-pretty'
   >
     {children}
   </span>
@@ -157,8 +157,7 @@ export const SlideButton = ({
       >
         <Label>{children}</Label>
         <span className='absolute inset-y-0 right-0 flex aspect-square items-center justify-center'>
-          {/* Its own background, so a long label does not run through the arrow. */}
-          <IconArrowRight className='box-content size-5 rounded-full bg-primary p-1' />
+          <IconArrowRight className='size-5' />
         </span>
       </div>
       <span id={hintId} className='sr-only'>
