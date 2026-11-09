@@ -29,8 +29,8 @@ const Label = ({ id, children }: { readonly id?: string; readonly children: Reac
 
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
- * never made by a stray tap. While sliding, the thumb is as high as the track and grows until it
- * fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
+ * never made by a stray tap. At rest only the chevron shows, in the text's color. While sliding,
+ * the thumb appears, is as high as the track and grows until it fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
  * when it is enabled again. A long label wraps and the track grows with it; at rest the thumb stays
  * a circle in the middle of its height. The label stays readable over the thumb: a second copy in
  * the thumb's text color is clipped to the thumb. A touch hides the thumb's chevron; the arrow at
@@ -123,17 +123,17 @@ export const SlideButton = ({
         aria-describedby={hintId}
         disabled={disabled && stage === 'idle'}
         className={cn(
-          'absolute flex cursor-grab touch-none items-center justify-end rounded-full bg-primary pr-4.75 text-primary-foreground shadow-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
+          'absolute flex cursor-grab touch-none items-center justify-end rounded-full pr-4.75 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing disabled:cursor-not-allowed',
           // An invisible margin around the thumb, so a finger catches it even slightly off. Up and
           // down only half of the least gap between two thumbs of stacked choices, so a touch
           // between them catches the nearer one.
           "before:absolute before:-inset-x-6 before:-inset-y-2.25 before:rounded-full before:content-['']",
           active
-            ? '-top-px -bottom-px -left-px'
-            : 'top-[calc(50%-1.8125rem)] bottom-[calc(50%-1.8125rem)] left-1',
+            ? '-top-px -bottom-px -left-px bg-primary text-primary-foreground shadow-sm'
+            : 'top-[calc(50%-1.8125rem)] bottom-[calc(50%-1.8125rem)] left-1 bg-transparent text-foreground',
           drag === undefined
-            ? 'transition-[top,bottom,left,right] duration-300 ease-out'
-            : 'transition-[top,bottom,left] duration-150 ease-out',
+            ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-300 ease-out'
+            : 'transition-[top,bottom,left,background-color,box-shadow] duration-150 ease-out',
         )}
         // The end is set directly, so a touch moves only the other three sides, not this one.
         style={{ right: `calc(100% - ${thumbEnd})` }}
