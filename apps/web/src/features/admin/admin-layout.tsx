@@ -136,21 +136,14 @@ export const AdminLayout = () => {
         <span className='flex-1' />
         <Button
           variant='ghost'
-          size='icon'
+          size='sm'
           onClick={() => setPreference(THEME_NEXT[preference])}
-          title='Vzhled'
           aria-label={`Vzhled: ${THEME_LABEL[preference]}, přepnout`}
         >
-          <ThemeIcon />
+          <ThemeIcon /> Vzhled: {THEME_LABEL[preference]}
         </Button>
-        <Button
-          variant='ghost'
-          size='icon'
-          onClick={() => logout.mutate()}
-          title='Odhlásit'
-          aria-label='Odhlásit'
-        >
-          <IconLogout />
+        <Button variant='ghost' size='sm' onClick={() => logout.mutate()}>
+          <IconLogout /> Odhlásit
         </Button>
       </header>
       <div className='min-h-0 flex-1 overflow-auto print:overflow-visible'>
