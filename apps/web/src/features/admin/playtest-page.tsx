@@ -539,7 +539,7 @@ export const PlaytestPage = () => {
             </DropdownMenu>
           )}
           <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
-          <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
+          <Hint text={animated ? 'Animace je zapnutá' : 'Animace je vypnutá'}>
             <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
               <IconRun className={cn('size-4', animated && 'text-muted-foreground/50')} />
               <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
