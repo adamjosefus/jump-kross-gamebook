@@ -1,5 +1,4 @@
 import {
-  IconDeviceDesktop,
   IconLoader2,
   IconLogout,
   IconMoon,
@@ -14,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api, errorMessage, isApiError } from '@/lib/api';
-import { useTheme, type ThemePreference } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
 import { adminKeys, useOverview } from './queries';
 
@@ -27,17 +26,10 @@ const NAV = [
   { to: '/admin/qr-codes', label: 'QR kódy' },
 ] as const;
 
-const THEME_NEXT: Readonly<Record<ThemePreference, ThemePreference>> = {
-  system: 'light',
-  light: 'dark',
-  dark: 'system',
-} as const;
-const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon } as const;
-const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
-  system: 'Podle systému',
-  light: 'Světlý režim',
-  dark: 'Tmavý režim',
-} as const;
+/** The button has two states: without a choice it shows the system's mode, a click settles it. */
+const THEME_NEXT = { light: 'dark', dark: 'light' } as const;
+const THEME_ICON = { light: IconSun, dark: IconMoon } as const;
+const THEME_LABEL = { light: 'Světlý režim', dark: 'Tmavý režim' } as const;
 
 /** The app's name, last in every page title. */
 const APP_NAME = 'Gamebook';
@@ -86,8 +78,8 @@ const PausedBar = ({ pathname }: { readonly pathname: string }) => {
 export const AdminLayout = () => {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const { preference, setPreference } = useTheme();
-  const ThemeIcon = THEME_ICON[preference];
+  const { resolved, setPreference } = useTheme();
+  const ThemeIcon = THEME_ICON[resolved];
 
   const me = useQuery({
     queryKey: adminKeys.me,
@@ -137,10 +129,10 @@ export const AdminLayout = () => {
         <Button
           variant='ghost'
           size='sm'
-          onClick={() => setPreference(THEME_NEXT[preference])}
-          aria-label={`Vzhled: ${THEME_LABEL[preference]}, přepnout`}
+          onClick={() => setPreference(THEME_NEXT[resolved])}
+          aria-label={`Vzhled: ${THEME_LABEL[resolved]}, přepnout`}
         >
-          <ThemeIcon /> {THEME_LABEL[preference]}
+          <ThemeIcon /> {THEME_LABEL[resolved]}
         </Button>
         <Button variant='ghost' size='sm' onClick={() => logout.mutate()}>
           <IconLogout /> Odhlásit se
