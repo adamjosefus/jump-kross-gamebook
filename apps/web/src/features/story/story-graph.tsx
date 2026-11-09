@@ -360,7 +360,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[1.25rem] border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
+              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
               node.type !== 'passage' && 'border-foreground/60',
               !node.reached && teams.length === 0 && 'opacity-40',
               teams.length > 0 && 'ring-2 ring-foreground',
