@@ -260,7 +260,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'pointer-events-none absolute overflow-hidden rounded bg-background px-1 text-center text-[11px] whitespace-pre text-foreground',
+              'pointer-events-none absolute overflow-hidden rounded bg-(--graph-canvas) px-1 text-center text-[11px] whitespace-pre text-foreground',
               data.dimmed && 'opacity-30',
             )}
             style={{
