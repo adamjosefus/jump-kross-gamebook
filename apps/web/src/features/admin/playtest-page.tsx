@@ -3,13 +3,13 @@ import { graphProblems, parseQr } from '@gamebook/core';
 import {
   IconAlertTriangle,
   IconArrowBackUp,
-  IconBolt,
   IconChevronsRight,
   IconHistory,
   IconLoader2,
   IconPlayerSkipForward,
   IconQrcode,
   IconRotate,
+  IconRun,
   IconSnail,
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -541,7 +541,7 @@ export const PlaytestPage = () => {
           <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
           <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
             <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
-              <IconBolt className={cn('size-4', animated && 'text-muted-foreground/50')} />
+              <IconRun className={cn('size-4', animated && 'text-muted-foreground/50')} />
               <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
               <IconSnail className={cn('size-4', !animated && 'text-muted-foreground/50')} />
             </label>
