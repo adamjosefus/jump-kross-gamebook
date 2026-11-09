@@ -341,9 +341,8 @@ const SCAN_EDGE_COLOR = {
   dark: 'oklch(0.75 0.14 250)',
 } as const;
 
-/** The node a test run stands on. */
-const FOCUSED_CARD =
-  'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
+/** The node a test run stands on: its own border stays, a yellow line goes around it. */
+const FOCUSED_CARD = 'outline-2 outline-offset-4 outline-yellow-500 hover:outline-yellow-300';
 
 /**
  * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The corners are
