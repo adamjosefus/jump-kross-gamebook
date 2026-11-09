@@ -337,7 +337,7 @@ const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
 /** Tells the edges taken by scanning a QR code from the ones taken by a button. */
 const SCAN_EDGE_COLOR = {
-  light: 'oklch(0.55 0.17 255)',
+  light: 'oklch(0.42 0.18 258)',
   dark: 'oklch(0.75 0.14 250)',
 } as const;
 

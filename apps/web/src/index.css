@@ -439,10 +439,18 @@ html:has(.player-page) {
   font-family: var(--font-sans);
 }
 
-/* In the light mode a grey canvas, so the white nodes stand out. */
+/* In the light mode a grey canvas with dark lines, so the white nodes stand out. */
 .story-graph .react-flow.light {
-  --graph-canvas: oklch(0.78 0 0);
+  --graph-canvas: oklch(0.9 0 0);
   --xy-background-color: var(--graph-canvas);
+  --xy-background-pattern-color: oklch(0.78 0 0);
+  --xy-edge-stroke: oklch(0.32 0 0);
+}
+
+.story-graph .react-flow.light .react-flow__node {
+  --muted-foreground: oklch(0.45 0 0);
+  --secondary: oklch(0.93 0 0);
+  --border: oklch(0.72 0 0);
 }
 
 /* Markdown preview inside a graph node: headings at text size. */
