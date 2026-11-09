@@ -111,7 +111,7 @@ export const AdminLayout = () => {
 
   if (me.isPending) {
     return (
-      <div className='flex min-h-dvh items-center justify-center'>
+      <div className='admin-surface flex min-h-dvh items-center justify-center bg-background'>
         <IconLoader2 className='size-6 animate-spin' />
       </div>
     );
@@ -120,7 +120,7 @@ export const AdminLayout = () => {
 
   return (
     // When printed (the QR codes), the page grows with its content and the bar is left out.
-    <div className='flex h-dvh flex-col print:h-auto'>
+    <div className='admin-surface flex h-dvh flex-col bg-background print:h-auto'>
       <PausedBar pathname={pathname} />
       <header className='flex items-center gap-1 border-b px-4 py-2 print:hidden'>
         <span className='mr-4 font-semibold'>Gamebook</span>
@@ -173,7 +173,7 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className='flex min-h-dvh items-center justify-center p-4'>
+    <div className='admin-surface flex min-h-dvh items-center justify-center bg-background p-4'>
       <Card className='w-full max-w-sm'>
         <CardHeader>
           <CardTitle>Část pro tvůrce</CardTitle>
