@@ -34,9 +34,9 @@ const THEME_NEXT: Readonly<Record<ThemePreference, ThemePreference>> = {
 } as const;
 const THEME_ICON = { system: IconDeviceDesktop, light: IconSun, dark: IconMoon } as const;
 const THEME_LABEL: Readonly<Record<ThemePreference, string>> = {
-  system: 'podle systému',
-  light: 'světlý',
-  dark: 'tmavý',
+  system: 'Podle systému',
+  light: 'Světlý režim',
+  dark: 'Tmavý režim',
 } as const;
 
 /** The app's name, last in every page title. */
@@ -140,10 +140,10 @@ export const AdminLayout = () => {
           onClick={() => setPreference(THEME_NEXT[preference])}
           aria-label={`Vzhled: ${THEME_LABEL[preference]}, přepnout`}
         >
-          <ThemeIcon /> Vzhled: {THEME_LABEL[preference]}
+          <ThemeIcon /> {THEME_LABEL[preference]}
         </Button>
         <Button variant='ghost' size='sm' onClick={() => logout.mutate()}>
-          <IconLogout /> Odhlásit
+          <IconLogout /> Odhlásit se
         </Button>
       </header>
       <div className='min-h-0 flex-1 overflow-auto print:overflow-visible'>
