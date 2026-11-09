@@ -6,10 +6,11 @@ import {
   IconChevronsRight,
   IconHistory,
   IconLoader2,
+  IconMovie,
+  IconMovieOff,
   IconPlayerSkipForward,
   IconQrcode,
   IconRotate,
-  IconRun,
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -540,8 +541,9 @@ export const PlaytestPage = () => {
           <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
           <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
             <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
-              <IconRun className='size-4 text-muted-foreground' />
+              <IconMovieOff className={cn('size-4', animated && 'text-muted-foreground/50')} />
               <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
+              <IconMovie className={cn('size-4', !animated && 'text-muted-foreground/50')} />
             </label>
           </Hint>
         </div>
