@@ -129,7 +129,7 @@ export const AdminLayout = () => {
           <ThemeIcon /> {THEME_LABEL[resolved]}
         </Button>
         <Button variant='ghost' size='sm' onClick={() => logout.mutate()}>
-          <IconLogout /> Odhlásit se
+          Odhlásit se <IconLogout />
         </Button>
       </header>
       <div className='min-h-0 flex-1 overflow-auto print:overflow-visible'>
