@@ -210,6 +210,8 @@ type RouteEdge = Edge<
     readonly label?: Box;
     /** Of the label; the theme's text color when missing. */
     readonly color?: string;
+    /** The edge leads to the focused node, so its arrow clears a gap in the yellow line. */
+    readonly focusTarget?: boolean;
     readonly dimmed: boolean;
   },
   'route'
@@ -244,13 +246,32 @@ const roundedPath = (points: readonly XYPosition[]) =>
     })
     .join(' ');
 
+/** The short piece across the yellow line of the focused node, where the route's arrow ends. */
+const focusLineGap = (points: readonly XYPosition[]) => {
+  const end = points.at(-1);
+  const previous = points.at(-2);
+  if (end === undefined || previous === undefined) return undefined;
+  const length = Math.hypot(end.x - previous.x, end.y - previous.y) || 1;
+  const along = { x: (end.x - previous.x) / length, y: (end.y - previous.y) / length };
+  const middle = {
+    x: end.x - along.x * FOCUS_LINE_DISTANCE,
+    y: end.y - along.y * FOCUS_LINE_DISTANCE,
+  };
+  const across = { x: -along.y * FOCUS_LINE_GAP, y: along.x * FOCUS_LINE_GAP };
+  return `M ${middle.x - across.x} ${middle.y - across.y} L ${middle.x + across.x} ${middle.y + across.y}`;
+};
+
 /** Edge drawn along the route ELK computed, with its label where ELK placed it. */
 const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   if (data === undefined || data.points.length === 0) return null;
   const path = roundedPath(data.points);
   const { label } = data;
+  const gap = data.focusTarget === true ? focusLineGap(data.points) : undefined;
   return (
     <>
+      {gap !== undefined && (
+        <path d={gap} fill='none' stroke='var(--graph-canvas)' strokeWidth={3} />
+      )}
       <BaseEdge
         path={path}
         {...(markerEnd === undefined ? {} : { markerEnd })}
@@ -342,7 +363,14 @@ const SCAN_EDGE_COLOR = {
 } as const;
 
 /** The node a test run stands on: its own border stays, a yellow line goes around it. */
-const FOCUSED_CARD = 'outline-2 outline-offset-4 outline-yellow-500';
+const FOCUSED_CARD = 'outline-1 outline-offset-4 outline-yellow-500';
+
+/** Distance of that yellow line's middle from the card, and half of the gap an arrow makes in it. */
+const FOCUS_LINE_DISTANCE = 4.5;
+const FOCUS_LINE_GAP = 9;
+
+/** Above the nodes, so an arrow is drawn over the yellow line of its target. */
+const FOCUSED_EDGE_Z_INDEX = 1001;
 
 /**
  * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The corners are
@@ -664,17 +692,27 @@ export const StoryGraph = ({
             dimmed: !graph.nodes[id]!.reached,
           },
         })),
-      ].map((edge: RouteEdge) =>
-        edge.data?.qr === true
-          ? {
-              ...edge,
-              markerEnd: { ...ARROW_HEAD, color: SCAN_EDGE_COLOR[resolved] },
-              style: { ...edge.style, stroke: SCAN_EDGE_COLOR[resolved] },
-              data: { ...edge.data, color: SCAN_EDGE_COLOR[resolved] },
-            }
-          : edge,
-      ),
-    [graph, laidOut, resolved],
+      ]
+        .map((edge: RouteEdge) =>
+          edge.data?.qr === true
+            ? {
+                ...edge,
+                markerEnd: { ...ARROW_HEAD, color: SCAN_EDGE_COLOR[resolved] },
+                style: { ...edge.style, stroke: SCAN_EDGE_COLOR[resolved] },
+                data: { ...edge.data, color: SCAN_EDGE_COLOR[resolved] },
+              }
+            : edge,
+        )
+        .map((edge: RouteEdge) =>
+          edge.target === focus && edge.data !== undefined
+            ? {
+                ...edge,
+                zIndex: FOCUSED_EDGE_Z_INDEX,
+                data: { ...edge.data, focusTarget: true },
+              }
+            : edge,
+        ),
+    [graph, laidOut, resolved, focus],
   );
 
   return (
