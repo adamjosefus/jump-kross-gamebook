@@ -439,10 +439,8 @@ html:has(.player-page) {
   font-family: var(--font-sans);
 }
 
-/* In the light mode a grey canvas with dark lines, so the white nodes stand out. */
+/* In the light mode dark lines and dots, and nodes with a clear outline on the white canvas. */
 .story-graph .react-flow.light {
-  --graph-canvas: oklch(0.87 0 0);
-  --xy-background-color: var(--graph-canvas);
   --xy-background-pattern-color: oklch(0.42 0 0);
   --xy-edge-stroke: oklch(0.32 0 0);
 }
