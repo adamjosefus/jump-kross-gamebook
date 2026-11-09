@@ -264,25 +264,6 @@ html:has(.player-page) {
     calc(var(--safe-area-inset-bottom) + 1rem) var(--safe-area-padding-left);
 }
 
-/* The creator area is light grey in the light mode, on the screen only: printed QR codes stay on
-   white. The hover and active surfaces have to be darker than the page to show on it. */
-@media screen {
-  html:not(.dark) .admin-surface {
-    --background: oklch(0.96 0 0);
-    --accent: oklch(0.91 0 0);
-    --muted: oklch(0.93 0 0);
-    --secondary: oklch(0.93 0 0);
-  }
-
-  /* What the players see stays as they see it. */
-  html:not(.dark) .admin-surface .phone-preview {
-    --background: oklch(1 0 0);
-    --accent: oklch(0.97 0 0);
-    --muted: oklch(0.97 0 0);
-    --secondary: oklch(0.97 0 0);
-  }
-}
-
 /* The admin's phone preview: insets of a phone with a Dynamic Island and a home indicator, as the
    player gets them from env() on a real device. */
 .phone-preview {
