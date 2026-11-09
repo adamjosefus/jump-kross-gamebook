@@ -425,10 +425,11 @@ html:has(.player-page) {
 
 /* React Flow in the app's black and white palette. */
 .story-graph .react-flow {
+  --graph-canvas: var(--background);
   --xy-background-color: transparent;
   --xy-edge-stroke: var(--muted-foreground);
   --xy-edge-label-color: var(--foreground);
-  --xy-edge-label-background-color: var(--background);
+  --xy-edge-label-background-color: var(--graph-canvas);
   --xy-controls-button-background-color: var(--background);
   --xy-controls-button-color: var(--foreground);
   --xy-controls-button-border-color: var(--border);
@@ -436,6 +437,18 @@ html:has(.player-page) {
   --xy-node-border: none;
   --xy-node-boxshadow-selected: none;
   font-family: var(--font-sans);
+}
+
+/* In the light mode dark lines and dots, and nodes with a clear outline on the white canvas. */
+.story-graph .react-flow.light {
+  --xy-background-pattern-color: oklch(0.42 0 0);
+  --xy-edge-stroke: oklch(0.32 0 0);
+}
+
+.story-graph .react-flow.light .react-flow__node {
+  --muted-foreground: oklch(0.45 0 0);
+  --secondary: oklch(0.93 0 0);
+  --border: oklch(0.72 0 0);
 }
 
 /* Markdown preview inside a graph node: headings at text size. */

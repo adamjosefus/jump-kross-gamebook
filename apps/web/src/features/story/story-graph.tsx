@@ -210,6 +210,8 @@ type RouteEdge = Edge<
     readonly label?: Box;
     /** Of the label; the theme's text color when missing. */
     readonly color?: string;
+    /** The edge leads to the focused node, so its arrow clears a gap in the yellow line. */
+    readonly focusTarget?: boolean;
     readonly dimmed: boolean;
   },
   'route'
@@ -244,13 +246,32 @@ const roundedPath = (points: readonly XYPosition[]) =>
     })
     .join(' ');
 
+/** The short piece across the yellow line of the focused node, where the route's arrow ends. */
+const focusLineGap = (points: readonly XYPosition[]) => {
+  const end = points.at(-1);
+  const previous = points.at(-2);
+  if (end === undefined || previous === undefined) return undefined;
+  const length = Math.hypot(end.x - previous.x, end.y - previous.y) || 1;
+  const along = { x: (end.x - previous.x) / length, y: (end.y - previous.y) / length };
+  const middle = {
+    x: end.x - along.x * FOCUS_LINE_DISTANCE,
+    y: end.y - along.y * FOCUS_LINE_DISTANCE,
+  };
+  const across = { x: -along.y * FOCUS_LINE_GAP, y: along.x * FOCUS_LINE_GAP };
+  return `M ${middle.x - across.x} ${middle.y - across.y} L ${middle.x + across.x} ${middle.y + across.y}`;
+};
+
 /** Edge drawn along the route ELK computed, with its label where ELK placed it. */
 const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   if (data === undefined || data.points.length === 0) return null;
   const path = roundedPath(data.points);
   const { label } = data;
+  const gap = data.focusTarget === true ? focusLineGap(data.points) : undefined;
   return (
     <>
+      {gap !== undefined && (
+        <path d={gap} fill='none' stroke='var(--graph-canvas)' strokeWidth={3} />
+      )}
       <BaseEdge
         path={path}
         {...(markerEnd === undefined ? {} : { markerEnd })}
@@ -260,7 +281,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'pointer-events-none absolute overflow-hidden rounded bg-background px-1 text-center text-[11px] whitespace-pre text-foreground',
+              'pointer-events-none absolute overflow-hidden rounded bg-(--graph-canvas) px-1 text-center text-[11px] whitespace-pre text-foreground',
               data.dimmed && 'opacity-30',
             )}
             style={{
@@ -337,18 +358,23 @@ const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
 /** Tells the edges taken by scanning a QR code from the ones taken by a button. */
 const SCAN_EDGE_COLOR = {
-  light: 'oklch(0.55 0.17 255)',
+  light: 'oklch(0.42 0.18 258)',
   dark: 'oklch(0.75 0.14 250)',
 } as const;
 
-/** The node a test run stands on. */
-const FOCUSED_CARD =
-  'border-yellow-500 ring-1 ring-yellow-500 hover:border-yellow-300 hover:ring-yellow-300';
+/** The node a test run stands on: its own border stays, a yellow line goes around it. */
+const FOCUSED_CARD = 'outline-1 outline-offset-4 outline-yellow-500';
+
+/** Distance of that yellow line's middle from the card, and half of the gap an arrow makes in it. */
+const FOCUS_LINE_DISTANCE = 4.5;
+const FOCUS_LINE_GAP = 9;
+
+/** Above the nodes, so an arrow is drawn over the yellow line of its target. */
+const FOCUSED_EDGE_Z_INDEX = 1001;
 
 /**
- * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The corners are
- * concentric with the round tags (their radius plus the padding), and the text lines up with the
- * tags' labels rather than their outlines.
+ * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The text lines up
+ * with the tags' labels rather than their outlines.
  */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
@@ -360,7 +386,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[1.25rem] border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
+              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
               node.type !== 'passage' && 'border-foreground/60',
               !node.reached && teams.length === 0 && 'opacity-40',
               teams.length > 0 && 'ring-2 ring-foreground',
@@ -665,17 +691,27 @@ export const StoryGraph = ({
             dimmed: !graph.nodes[id]!.reached,
           },
         })),
-      ].map((edge: RouteEdge) =>
-        edge.data?.qr === true
-          ? {
-              ...edge,
-              markerEnd: { ...ARROW_HEAD, color: SCAN_EDGE_COLOR[resolved] },
-              style: { ...edge.style, stroke: SCAN_EDGE_COLOR[resolved] },
-              data: { ...edge.data, color: SCAN_EDGE_COLOR[resolved] },
-            }
-          : edge,
-      ),
-    [graph, laidOut, resolved],
+      ]
+        .map((edge: RouteEdge) =>
+          edge.data?.qr === true
+            ? {
+                ...edge,
+                markerEnd: { ...ARROW_HEAD, color: SCAN_EDGE_COLOR[resolved] },
+                style: { ...edge.style, stroke: SCAN_EDGE_COLOR[resolved] },
+                data: { ...edge.data, color: SCAN_EDGE_COLOR[resolved] },
+              }
+            : edge,
+        )
+        .map((edge: RouteEdge) =>
+          edge.target === focus && edge.data !== undefined
+            ? {
+                ...edge,
+                zIndex: FOCUSED_EDGE_Z_INDEX,
+                data: { ...edge.data, focusTarget: true },
+              }
+            : edge,
+        ),
+    [graph, laidOut, resolved, focus],
   );
 
   return (

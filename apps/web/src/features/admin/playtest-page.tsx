@@ -10,6 +10,7 @@ import {
   IconQrcode,
   IconRotate,
   IconRun,
+  IconSnail,
 } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -538,10 +539,11 @@ export const PlaytestPage = () => {
             </DropdownMenu>
           )}
           <Separator orientation='vertical' className='mx-1 h-5 self-center!' />
-          <Hint text={animated ? 'Vypnout animace' : 'Zapnout animace'}>
+          <Hint text={animated ? 'Animace je zapnutá' : 'Animace je vypnutá'}>
             <label className='flex h-7 cursor-pointer items-center gap-1.5 px-1.5'>
-              <IconRun className='size-4 text-muted-foreground' />
+              <IconRun className={cn('size-4', animated && 'text-muted-foreground/50')} />
               <Switch aria-label='Animace' checked={animated} onCheckedChange={setAnimated} />
+              <IconSnail className={cn('size-4', !animated && 'text-muted-foreground/50')} />
             </label>
           </Hint>
         </div>
@@ -569,7 +571,7 @@ export const PlaytestPage = () => {
             {problems.length > 0 && (
               <section className='flex flex-col gap-2 text-destructive'>
                 <h2 className='flex items-center gap-1.5 font-medium'>
-                  <IconAlertTriangle className='size-4' /> Chyby v příběhu
+                  <IconAlertTriangle className='size-4' /> Chyby v příběhu:
                 </h2>
                 <ul className='flex flex-col gap-1'>
                   {problems.map((problem) => (
@@ -580,9 +582,11 @@ export const PlaytestPage = () => {
             )}
             {current !== undefined && current.intro !== true && (
               <section className='flex flex-col gap-2'>
-                <h2 className='font-medium'>Tým</h2>
-                <p>{current.team.name}</p>
-                <h2 className='mt-4 font-medium'>Stav</h2>
+                <div className='flex items-baseline gap-1.5'>
+                  <h2 className='font-medium'>Tým:</h2>
+                  <p>{current.team.name}</p>
+                </div>
+                <h2 className='mt-4 font-medium'>Stav:</h2>
                 <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
                   {Object.entries(current.state).map(([key, value]) => (
                     <div key={key} className='contents'>
@@ -594,7 +598,7 @@ export const PlaytestPage = () => {
               </section>
             )}
             <section className='flex flex-col gap-2'>
-              <h2 className='font-medium'>Cesta</h2>
+              <h2 className='font-medium'>Cesta:</h2>
               <ol className='flex flex-col gap-1'>
                 {path.map((step, index) => (
                   <li key={index}>
