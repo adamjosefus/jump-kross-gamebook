@@ -438,6 +438,11 @@ html:has(.player-page) {
   font-family: var(--font-sans);
 }
 
+/* In the light mode a grey canvas, so the white nodes stand out. */
+.story-graph .react-flow.light {
+  --xy-background-color: oklch(0.85 0 0);
+}
+
 /* Markdown preview inside a graph node: headings at text size. */
 .graph-preview {
   & > * + * {
