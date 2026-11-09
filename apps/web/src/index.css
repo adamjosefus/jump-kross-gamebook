@@ -443,7 +443,7 @@ html:has(.player-page) {
 .story-graph .react-flow.light {
   --graph-canvas: oklch(0.9 0 0);
   --xy-background-color: var(--graph-canvas);
-  --xy-background-pattern-color: oklch(0.78 0 0);
+  --xy-background-pattern-color: oklch(0.42 0 0);
   --xy-edge-stroke: oklch(0.32 0 0);
 }
 
