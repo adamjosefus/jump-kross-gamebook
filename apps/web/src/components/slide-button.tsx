@@ -30,7 +30,8 @@ const Label = ({ id, children }: { readonly id?: string; readonly children: Reac
 /**
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
  * never made by a stray tap. At rest only the chevron shows, in the text's color. While sliding,
- * the thumb appears, is as high as the track and grows until it fills it. After confirming, it stays full while `disabled` (the move is being sent) and returns
+ * the thumb appears, is as high as the track and grows until it fills it. After confirming, it
+ * stays full while `disabled` (the move is being sent) and returns
  * when it is enabled again. A long label wraps and the track grows with it; at rest the thumb stays
  * a circle in the middle of its height. The label stays readable over the thumb: a second copy in
  * the thumb's text color is clipped to the thumb. A touch hides the thumb's chevron; the arrow at
@@ -53,6 +54,8 @@ export const SlideButton = ({
     readonly from: number;
     readonly max: number;
     readonly offset: number;
+    /** Where a pressed thumb that has not moved ends, in px, so that it is a circle. */
+    readonly start: number;
   }>();
   const [stage, setStage] = useState<Stage>('idle');
   // So the click at the end comes once per arrival, not on every move past the threshold.
@@ -73,7 +76,8 @@ export const SlideButton = ({
     if (disabled || stage !== 'idle' || track.current === null) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
-    setDrag({ from: event.clientX, max, offset: 0 });
+    // The pressed thumb overlaps the border, so it is as high as the track with it.
+    setDrag({ from: event.clientX, max, offset: 0, start: track.current.clientHeight + 1 });
     atEnd.current = false;
     hapticLight();
   };
@@ -104,7 +108,10 @@ export const SlideButton = ({
   const active = drag !== undefined || stage !== 'idle';
   // Where the thumb ends, from the left edge of the track; a sliding thumb covers its border too.
   // At rest the thumb is 0.25rem from the edge and fills the track's height but 0.25rem on each side.
-  const thumbEnd = `(3.875rem + ${progress} * (100% + 1px - 3.875rem))`;
+  const thumbStart = drag === undefined ? '3.875rem' : `${drag.start}px`;
+  const thumbEnd = `(${thumbStart} + ${progress} * (100% + 1px - ${thumbStart}))`;
+  // A press grows the thumb smoothly; once it moves, its end follows the finger at once.
+  const pressed = drag?.offset === 0;
 
   return (
     <div
@@ -117,6 +124,16 @@ export const SlideButton = ({
       )}
     >
       <Label id={labelId}>{children}</Label>
+      {/* Where the thumb has to go; it lights up as the chevron fades and the thumb covers it. */}
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-y-0 right-0 flex aspect-square items-center justify-center text-foreground transition-opacity duration-150',
+          !active && 'opacity-0',
+        )}
+      >
+        <IconArrowRight className='size-5' />
+      </span>
       <button
         type='button'
         aria-labelledby={labelId}
@@ -133,7 +150,9 @@ export const SlideButton = ({
             : 'top-[calc(50%-1.8125rem)] bottom-[calc(50%-1.8125rem)] left-1 bg-transparent text-foreground',
           drag === undefined
             ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-300 ease-out'
-            : 'transition-[top,bottom,left,background-color,box-shadow] duration-150 ease-out',
+            : pressed
+              ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-150 ease-out'
+              : 'transition-[top,bottom,left,background-color,box-shadow] duration-150 ease-out',
         )}
         // The end is set directly, so a touch moves only the other three sides, not this one.
         style={{ right: `calc(100% - ${thumbEnd})` }}
@@ -152,6 +171,7 @@ export const SlideButton = ({
         className={cn(
           'pointer-events-none absolute inset-0 flex items-center text-primary-foreground',
           drag === undefined && 'transition-[clip-path] duration-300 ease-out',
+          pressed && 'transition-[clip-path] duration-150 ease-out',
         )}
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
       >
