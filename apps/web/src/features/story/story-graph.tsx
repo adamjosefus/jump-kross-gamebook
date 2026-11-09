@@ -373,9 +373,8 @@ const FOCUS_LINE_GAP = 9;
 const FOCUSED_EDGE_Z_INDEX = 1001;
 
 /**
- * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The corners are
- * concentric with the round tags (their radius plus the padding), and the text lines up with the
- * tags' labels rather than their outlines.
+ * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The text lines up
+ * with the tags' labels rather than their outlines.
  */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;

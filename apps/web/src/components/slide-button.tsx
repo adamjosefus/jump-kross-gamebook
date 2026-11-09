@@ -31,11 +31,11 @@ const Label = ({ id, children }: { readonly id?: string; readonly children: Reac
  * A button that has to be slid to the end, like dismissing an alarm on a phone, so a choice is
  * never made by a stray tap. At rest only the chevron shows, in the text's color. While sliding,
  * the thumb appears, is as high as the track and grows until it fills it. After confirming, it
- * stays full while `disabled` (the move is being sent) and returns
- * when it is enabled again. A long label wraps and the track grows with it; at rest the thumb stays
- * a circle in the middle of its height. The label stays readable over the thumb: a second copy in
- * the thumb's text color is clipped to the thumb. A touch hides the thumb's chevron; the arrow at
- * the end of the track is clipped the same way, so the thumb uncovers it only when it gets there.
+ * stays full while `disabled` (the move is being sent) and returns when it is enabled again. A long
+ * label wraps and the track grows with it; at rest the invisible thumb stays a circle in the middle
+ * of its height. The label stays readable over the thumb: a second copy in the thumb's text color
+ * is clipped to the thumb. A touch swaps the thumb's chevron for an arrow at the end of the track,
+ * showing where to slide; the thumb covers that arrow and a copy clipped to it takes over.
  * The thumb can be grabbed beyond its visible edge, most of all to the sides.
  */
 export const SlideButton = ({
@@ -55,7 +55,7 @@ export const SlideButton = ({
     readonly max: number;
     readonly offset: number;
     /** Where a pressed thumb that has not moved ends, in px, so that it is a circle. */
-    readonly start: number;
+    readonly pressedEnd: number;
   }>();
   const [stage, setStage] = useState<Stage>('idle');
   // So the click at the end comes once per arrival, not on every move past the threshold.
@@ -77,7 +77,7 @@ export const SlideButton = ({
     event.currentTarget.setPointerCapture(event.pointerId);
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
     // The pressed thumb overlaps the border, so it is as high as the track with it.
-    setDrag({ from: event.clientX, max, offset: 0, start: track.current.clientHeight + 1 });
+    setDrag({ from: event.clientX, max, offset: 0, pressedEnd: track.current.clientHeight + 1 });
     atEnd.current = false;
     hapticLight();
   };
@@ -108,8 +108,8 @@ export const SlideButton = ({
   const active = drag !== undefined || stage !== 'idle';
   // Where the thumb ends, from the left edge of the track; a sliding thumb covers its border too.
   // At rest the thumb is 0.25rem from the edge and fills the track's height but 0.25rem on each side.
-  const thumbStart = drag === undefined ? '3.875rem' : `${drag.start}px`;
-  const thumbEnd = `(${thumbStart} + ${progress} * (100% + 1px - ${thumbStart}))`;
+  const restEnd = drag === undefined ? '3.875rem' : `${drag.pressedEnd}px`;
+  const thumbEnd = `(${restEnd} + ${progress} * (100% + 1px - ${restEnd}))`;
   // A press grows the thumb smoothly; once it moves, its end follows the finger at once.
   const pressed = drag?.offset === 0;
 

@@ -126,10 +126,10 @@ export const AdminLayout = () => {
           onClick={() => setPreference(THEME_NEXT[resolved])}
           aria-label={`Vzhled: ${THEME_LABEL[resolved]}, přepnout`}
         >
-          <ThemeIcon /> {THEME_LABEL[resolved]}
+          <ThemeIcon /> <span className='hidden md:inline'>{THEME_LABEL[resolved]}</span>
         </Button>
-        <Button variant='ghost' size='sm' onClick={() => logout.mutate()}>
-          Odhlásit se <IconLogout />
+        <Button variant='ghost' size='sm' onClick={() => logout.mutate()} aria-label='Odhlásit se'>
+          <span className='hidden md:inline'>Odhlásit se</span> <IconLogout />
         </Button>
       </header>
       <div className='min-h-0 flex-1 overflow-auto print:overflow-visible'>
