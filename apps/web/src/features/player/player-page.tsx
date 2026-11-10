@@ -13,6 +13,7 @@ import { ConfirmDialog } from './confirm-dialog';
 import { NodeScreens } from './node-screens';
 import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
+import { jittered, pollSeed } from './poll';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
 import { CLOSED_TEXT, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
@@ -22,13 +23,11 @@ const INTRO_KEY = ['player', 'intro'] as const;
 
 /**
  * Polling keeps every device of a team on the same node and stops it soon after the organizers
- * pause the game. The same pace on a scan screen: a team walking to a code with the scanner open
- * turns no page, so the poll is the only thing that tells it about a pause.
+ * pause the game; slower while the team walks to a code. Every interval is jittered, so the phones
+ * of all teams do not ask the server at the same moment.
  */
-const POLL_MS = 10_000;
-
 const refetchInterval = (view: PlayerView | null | undefined) =>
-  view == null || view.status === 'finished' ? false : POLL_MS;
+  view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
@@ -64,8 +63,11 @@ export const PlayerPage = () => {
         if (isApiError(error, 'Unauthorized')) return null;
         throw error;
       }),
-    refetchInterval: (query) =>
-      query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data),
+    refetchInterval: (query) => {
+      const interval =
+        query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data);
+      return interval === false ? false : jittered(interval, pollSeed(query.state));
+    },
     // A poll that left before a move and arrives after it carries the team's old step; it must
     // not take the screen back. Being logged out (null) or in is not a step and always applies.
     structuralSharing: (old: unknown, next: unknown) =>
@@ -302,7 +304,7 @@ const Intro = ({
     staleTime: Infinity,
     refetchInterval: (query) =>
       query.state.data !== undefined && (!query.state.data.started || query.state.data.closed)
-        ? WAITING_POLL_MS
+        ? jittered(WAITING_POLL_MS, pollSeed(query.state))
         : false,
   });
   // A poll that fails while waiting keeps the last answer on the screen and the next one tries
