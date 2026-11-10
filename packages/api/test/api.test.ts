@@ -300,6 +300,70 @@ describe('api', () => {
     expect((await team()).playMs).toBeGreaterThanOrEqual(0);
   });
 
+  it('keeps the first login as the start, whoever logs in later', async () => {
+    const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[0];
+    await admin('POST', '/api/admin/teams/1/reset');
+    const phone = device();
+    await phone('POST', '/api/player/login', { code: vlci });
+    // For the test the first login was a minute ago, so a later one would visibly move it.
+    const first = new Date(Date.now() - 60_000);
+    shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: first });
+
+    // The same phone again, and another one.
+    await phone('POST', '/api/player/login', { code: vlci });
+    await device()('POST', '/api/player/login', { code: vlci });
+    expect((await team()).startedAt).toBe(first.toISOString());
+    expect((await team()).playMs).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it('resets the time of a team and keeps its progress', async () => {
+    const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
+    const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[0];
+    await admin('POST', '/api/admin/teams/1/reset');
+    const phone = device();
+    const start = (await phone('POST', '/api/player/login', { code: vlci })).body;
+    const a2 = (await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step }))
+      .body;
+    shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: new Date(Date.now() - 600_000) });
+    await phone('POST', '/api/player/reading', { intervals: [{ ms: 60_000, agoMs: 0 }] });
+    const before = await team();
+    expect(before.readingMs).toBeGreaterThan(0);
+
+    // The times are gone and the phones logged out; the node, the state and the step stay.
+    const reset = await admin('POST', '/api/admin/teams/1/reset-time');
+    expect(reset.status).toBe(200);
+    expect(reset.body).toMatchObject({
+      node: before.node,
+      state: before.state,
+      step: before.step,
+      readingMs: 0,
+      devices: 0,
+    });
+    expect(reset.body.startedAt).toBeUndefined();
+    expect(reset.body.playMs).toBeUndefined();
+    expect((await phone('GET', '/api/player/state')).status).toBe(401);
+    expect((await team()).startedAt).toBeUndefined();
+
+    // The next login starts the clock and the team goes on where it was.
+    const back = (await phone('POST', '/api/player/login', { code: vlci })).body;
+    expect(back).toMatchObject({ step: a2.step, node: { id: a2.node.id } });
+    expect((await team()).playMs).toBeLessThan(60_000);
+
+    // A team at the end keeps its time: only a restart of its game clears it.
+    const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
+    const b1 = await phone('POST', '/api/player/scan', { code: studna, expectedStep: back.step });
+    await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
+    expect((await team()).finished).toBe(true);
+    const refused = await admin('POST', '/api/admin/teams/1/reset-time');
+    expect(refused).toMatchObject({ status: 409, body: { _tag: 'TeamFinished' } });
+    expect((await team()).startedAt).toBeDefined();
+
+    expect((await admin('POST', '/api/admin/teams/3/reset-time')).status).toBe(404);
+    expect((await device()('POST', '/api/admin/teams/1/reset-time')).status).toBe(401);
+    await admin('POST', '/api/admin/teams/1/reset');
+  });
+
   it('resets a team to the start', async () => {
     const reset = (await admin('POST', '/api/admin/teams/1/reset')).body;
     expect(reset).toMatchObject({ node: 'A1', finished: false, state: { gold: 100 } });

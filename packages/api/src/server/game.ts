@@ -31,6 +31,7 @@ import {
   InvalidState,
   NotFound,
   StepConflict,
+  TeamFinished,
   type BannedDevice,
   type Device,
   type Devices,
@@ -632,6 +633,21 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     /**
+     * Forgets when the team started and what it read, and logs its devices out; where the team is
+     * stays. The clock then runs from the next login, as at the start of the game. A team at the
+     * end is refused: its end would come before its new start.
+     */
+    const resetTeamTime = Effect.fn('Game.resetTeamTime')(function* (id: number) {
+      const team = yield* requireTeam(id);
+      if (team.finishedAt !== undefined)
+        return yield* new TeamFinished({
+          message: 'Tým už je v cíli. Jeho čas jde vynulovat jen restartem hry týmu.',
+        });
+      yield* store.clearTiming(id);
+      return yield* singleTeamStatus({ ...team, startedAt: undefined });
+    });
+
+    /**
      * A new game: every team back on the start, in one write, so no team is left behind. The game
      * is no longer started and every device is logged out, so the teams log in again once the
      * organisers start it and their clocks run from then.
@@ -783,6 +799,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       singleTeamStatus,
       requireTeam,
       resetTeam,
+      resetTeamTime,
       resetAll,
       moveTeam,
       playtest,

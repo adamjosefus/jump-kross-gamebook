@@ -83,6 +83,13 @@ export class DeviceNotBannable extends Schema.TaggedError<DeviceNotBannable>()(
   { httpApiStatus: 409 },
 ) {}
 
+/** The team reached the end; its clock has stopped and resetting it alone would leave no time. */
+export class TeamFinished extends Schema.TaggedError<TeamFinished>()(
+  'TeamFinished',
+  { message: Schema.String },
+  { httpApiStatus: 409 },
+) {}
+
 /** What a player reads while the game is closed, on the screen and in the refused request. */
 export const GAME_CLOSED_MESSAGE = 'Hra je teď pozastavená. Vyčkejte na pokyn organizátorů.';
 
@@ -476,6 +483,15 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       params: teamParams,
       success: TeamStatus,
       error: NotFound,
+    }).middleware(AdminAuth),
+    /**
+     * Forgets the team's times and logs its devices out; the progress stays. The clock runs again
+     * from the team's next login.
+     */
+    HttpApiEndpoint.post('resetTeamTime', '/teams/:id/reset-time', {
+      params: teamParams,
+      success: TeamStatus,
+      error: [NotFound, TeamFinished],
     }).middleware(AdminAuth),
     HttpApiEndpoint.post('moveTeam', '/teams/:id/move', {
       params: teamParams,
