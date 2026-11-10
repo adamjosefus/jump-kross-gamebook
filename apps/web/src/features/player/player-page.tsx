@@ -1,5 +1,4 @@
 import type { PlayerView } from '@gamebook/api';
-import { GAME_CLOSED_MESSAGE, GAME_NOT_STARTED_MESSAGE } from '@gamebook/api';
 import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,25 +13,63 @@ import { ConfirmDialog } from './confirm-dialog';
 import { NodeScreens } from './node-screens';
 import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
+import { jittered, pollSeed } from './poll';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
-import { NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
+import { CLOSED_TEXT, type NextCheck, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
 
-/** Polling keeps every device of a team on the same node; slower while the team walks to a code. */
+/**
+ * Polling keeps every device of a team on the same node and stops it soon after the organizers
+ * pause the game; slower while the team walks to a code. Every interval is jittered, so the phones
+ * of all teams do not ask the server at the same moment.
+ */
 const refetchInterval = (view: PlayerView | null | undefined) =>
   view == null || view.status === 'finished' ? false : view.node?.scan === true ? 30_000 : 10_000;
 
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
 
+type PollState<T> = {
+  readonly status: 'pending' | 'error' | 'success';
+  readonly data: T | undefined;
+  readonly dataUpdatedAt: number;
+  readonly errorUpdatedAt: number;
+};
+
+/** The jittered delay of the team's next poll, or false when it does not poll. */
+const statePoll = (state: PollState<PlayerView | null>) => {
+  const interval = state.status === 'error' ? RETRY_MS : refetchInterval(state.data);
+  return interval === false ? false : jittered(interval, pollSeed(state));
+};
+
+/** The same delay the query runs on, as the span the waiting screen shows. */
+const nextCheck = (state: PollState<unknown>, delay: number | false): NextCheck | undefined => {
+  if (delay === false) return undefined;
+  const from = pollSeed(state);
+  return { from, at: from + delay };
+};
+
 /**
  * While the game is not started yet or the admin keeps it closed, the device asks now and then
  * whether the teams can log in.
  */
 const WAITING_POLL_MS = 15_000;
+
+/** The jittered delay of the intro's next poll, or false once the teams can log in. */
+const introPoll = (state: PollState<{ readonly started: boolean; readonly closed: boolean }>) =>
+  state.data !== undefined && (!state.data.started || state.data.closed)
+    ? jittered(WAITING_POLL_MS, pollSeed(state))
+    : false;
+
+/**
+ * Turning a page asks the server again when its last answer is older than this, so a paused game
+ * stops a team in the middle of a text, not only at the next poll. Paging quickly through a text
+ * does not send a request per page.
+ */
+const PAGE_CHECK_MS = 3_000;
 
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
@@ -52,8 +89,7 @@ export const PlayerPage = () => {
         if (isApiError(error, 'Unauthorized')) return null;
         throw error;
       }),
-    refetchInterval: (query) =>
-      query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data),
+    refetchInterval: (query) => statePoll(query.state),
     // A poll that left before a move and arrives after it carries the team's old step; it must
     // not take the screen back. Being logged out (null) or in is not a step and always applies.
     structuralSharing: (old: unknown, next: unknown) =>
@@ -62,6 +98,12 @@ export const PlayerPage = () => {
         : next,
   });
   const view = state.data;
+
+  // A request already in flight is enough; it is not cancelled for a new one.
+  const checkOnPage = () => {
+    if (!state.isFetching && Date.now() - state.dataUpdatedAt > PAGE_CHECK_MS)
+      void state.refetch({ cancelRefetch: false });
+  };
 
   // A poll still in flight would overwrite the move's result when it lands; it is dropped first.
   const onResult = async (next: PlayerView) => {
@@ -189,13 +231,19 @@ export const PlayerPage = () => {
           onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
         />
       ) : view.status === 'closed' ? (
-        <PlayerFrame aside={aside}>
-          <Centered>
-            <p className='text-center text-balance'>{GAME_CLOSED_MESSAGE}</p>
-          </Centered>
-        </PlayerFrame>
+        // The node is gone from the screen: a paused game is not read on. The page polls and
+        // opens the team's screen again once the game runs.
+        <WaitingScreen
+          message={CLOSED_TEXT}
+          aside={aside}
+          nextCheck={nextCheck(state, statePoll(state))}
+        />
       ) : view.status === 'not-ready' || view.node === undefined ? (
-        <WaitingScreen message={GAME_NOT_STARTED_MESSAGE} aside={aside} />
+        <WaitingScreen
+          message={NOT_STARTED_TEXT}
+          aside={aside}
+          nextCheck={nextCheck(state, statePoll(state))}
+        />
       ) : (
         <TeamNodeScreens
           teamId={view.team.id}
@@ -208,9 +256,10 @@ export const PlayerPage = () => {
           onPick={pick}
           // The screen in the URL belongs to one step; after a move the node opens at its start.
           initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
-          onIndexChange={(screen) =>
-            void navigate({ to: '/', search: { step: view.step, screen }, replace: true })
-          }
+          onIndexChange={(screen) => {
+            checkOnPage();
+            void navigate({ to: '/', search: { step: view.step, screen }, replace: true });
+          }}
         />
       )}
 
@@ -283,10 +332,7 @@ const Intro = ({
     // The story changes only with a deploy; only a game the teams cannot log in to yet is asked
     // again, until they can.
     staleTime: Infinity,
-    refetchInterval: (query) =>
-      query.state.data !== undefined && (!query.state.data.started || query.state.data.closed)
-        ? WAITING_POLL_MS
-        : false,
+    refetchInterval: (query) => introPoll(query.state),
   });
   // A poll that fails while waiting keeps the last answer on the screen and the next one tries
   // again; only an intro never loaded shows the problem.
@@ -307,8 +353,9 @@ const Intro = ({
   if (!started || closed)
     return (
       <WaitingScreen
-        message={started ? GAME_CLOSED_MESSAGE : NOT_STARTED_TEXT}
+        message={started ? CLOSED_TEXT : NOT_STARTED_TEXT}
         corner={APP_VERSION}
+        nextCheck={nextCheck(intro, introPoll(intro))}
       />
     );
   return (
