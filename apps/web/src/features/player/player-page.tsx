@@ -16,7 +16,7 @@ import { playerToast } from './player-toast';
 import { jittered, pollSeed } from './poll';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
 import { useReadingReport } from './reading';
-import { CLOSED_TEXT, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
+import { CLOSED_TEXT, type NextCheck, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
 const INTRO_KEY = ['player', 'intro'] as const;
@@ -32,11 +32,37 @@ const refetchInterval = (view: PlayerView | null | undefined) =>
 /** After a failed request (no signal in the field) the next try comes soon, whatever the node. */
 const RETRY_MS = 10_000;
 
+type PollState<T> = {
+  readonly status: 'pending' | 'error' | 'success';
+  readonly data: T | undefined;
+  readonly dataUpdatedAt: number;
+  readonly errorUpdatedAt: number;
+};
+
+/** The jittered delay of the team's next poll, or false when it does not poll. */
+const statePoll = (state: PollState<PlayerView | null>) => {
+  const interval = state.status === 'error' ? RETRY_MS : refetchInterval(state.data);
+  return interval === false ? false : jittered(interval, pollSeed(state));
+};
+
+/** The same delay the query runs on, as the span the waiting screen shows. */
+const nextCheck = (state: PollState<unknown>, delay: number | false): NextCheck | undefined => {
+  if (delay === false) return undefined;
+  const from = pollSeed(state);
+  return { from, at: from + delay };
+};
+
 /**
  * While the game is not started yet or the admin keeps it closed, the device asks now and then
  * whether the teams can log in.
  */
 const WAITING_POLL_MS = 15_000;
+
+/** The jittered delay of the intro's next poll, or false once the teams can log in. */
+const introPoll = (state: PollState<{ readonly started: boolean; readonly closed: boolean }>) =>
+  state.data !== undefined && (!state.data.started || state.data.closed)
+    ? jittered(WAITING_POLL_MS, pollSeed(state))
+    : false;
 
 /**
  * Turning a page asks the server again when its last answer is older than this, so a paused game
@@ -63,11 +89,7 @@ export const PlayerPage = () => {
         if (isApiError(error, 'Unauthorized')) return null;
         throw error;
       }),
-    refetchInterval: (query) => {
-      const interval =
-        query.state.status === 'error' ? RETRY_MS : refetchInterval(query.state.data);
-      return interval === false ? false : jittered(interval, pollSeed(query.state));
-    },
+    refetchInterval: (query) => statePoll(query.state),
     // A poll that left before a move and arrives after it carries the team's old step; it must
     // not take the screen back. Being logged out (null) or in is not a step and always applies.
     structuralSharing: (old: unknown, next: unknown) =>
@@ -211,9 +233,17 @@ export const PlayerPage = () => {
       ) : view.status === 'closed' ? (
         // The node is gone from the screen: a paused game is not read on. The page polls and
         // opens the team's screen again once the game runs.
-        <WaitingScreen message={CLOSED_TEXT} aside={aside} />
+        <WaitingScreen
+          message={CLOSED_TEXT}
+          aside={aside}
+          nextCheck={nextCheck(state, statePoll(state))}
+        />
       ) : view.status === 'not-ready' || view.node === undefined ? (
-        <WaitingScreen message={NOT_STARTED_TEXT} aside={aside} />
+        <WaitingScreen
+          message={NOT_STARTED_TEXT}
+          aside={aside}
+          nextCheck={nextCheck(state, statePoll(state))}
+        />
       ) : (
         <TeamNodeScreens
           teamId={view.team.id}
@@ -302,10 +332,7 @@ const Intro = ({
     // The story changes only with a deploy; only a game the teams cannot log in to yet is asked
     // again, until they can.
     staleTime: Infinity,
-    refetchInterval: (query) =>
-      query.state.data !== undefined && (!query.state.data.started || query.state.data.closed)
-        ? jittered(WAITING_POLL_MS, pollSeed(query.state))
-        : false,
+    refetchInterval: (query) => introPoll(query.state),
   });
   // A poll that fails while waiting keeps the last answer on the screen and the next one tries
   // again; only an intro never loaded shows the problem.
@@ -325,7 +352,11 @@ const Intro = ({
   // Until the teams can log in, the waiting screen comes first, before the intro.
   if (!started || closed)
     return (
-      <WaitingScreen message={started ? CLOSED_TEXT : NOT_STARTED_TEXT} corner={APP_VERSION} />
+      <WaitingScreen
+        message={started ? CLOSED_TEXT : NOT_STARTED_TEXT}
+        corner={APP_VERSION}
+        nextCheck={nextCheck(intro, introPoll(intro))}
+      />
     );
   return (
     <NodeScreens
