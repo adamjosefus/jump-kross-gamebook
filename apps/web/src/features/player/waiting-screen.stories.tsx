@@ -38,7 +38,7 @@ export const NotStarted: StoryObj<typeof meta> = {};
 /** The organizers closed the game for a while. */
 export const Closed: StoryObj<typeof meta> = { args: { message: CLOSED_TEXT } };
 
-/** The line under the dots fills up until the phone asks the server again. */
+/** The ring after the dots fills up until the phone asks the server again, then drains. */
 export const WithNextCheck: StoryObj<typeof meta> = {
   args: { message: CLOSED_TEXT },
   render: (args) => <Polling {...args} />,

@@ -289,6 +289,42 @@ html:has(.player-page) {
 }
 
 /*
+ * The waiting screen (WaitingScreen): three dots that light up one after another, then a ring of
+ * the same size that slowly turns while its arc fills up until the next check. The arc itself is
+ * animated from the component, which knows the time of the check.
+ */
+@keyframes waiting-dot {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.waiting-dot {
+  opacity: 0.2;
+  animation: waiting-dot 1.4s ease-in-out infinite;
+}
+@keyframes waiting-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.waiting-ring {
+  animation: waiting-ring 6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .waiting-dot,
+  .waiting-ring {
+    animation: none;
+  }
+  .waiting-dot {
+    opacity: 1;
+  }
+}
+
+/*
  * The scanner's aim (ScanFrame) in a 1 × 1 box over the camera: dark shade with a hole, and an
  * outline as one dash per corner of a path 100 long, white with a soft shadow. Once a code is in
  * view the dashes turn amber, the color that stands out most on the black and white camera

@@ -16,50 +16,83 @@ export const NOT_STARTED_TEXT = `${GAME_NOT_STARTED_MESSAGE}\n\nAž hra začne, 
  */
 export const CLOSED_TEXT = `${GAME_CLOSED_MESSAGE}\n\nAž bude hra pokračovat, sama se načte.`;
 
-/** Delays of the three dots, so they light up one after another. */
-const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
-
 /** When the phone last asked the server and when it asks again, in epoch milliseconds. */
 export type NextCheck = { readonly from: number; readonly at: number };
 
+/** Delays of the three dots, so they light up one after another. */
+const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
+
+/** How long the full arc takes to drain after a check, before it fills again. */
+const DRAIN_MS = 900;
+
+/** Size of each of the three dots and of the ring. */
+const CIRCLE = 'size-3.5';
+
 /**
- * A hairline that fills up until the phone asks the server again whether the game runs, so the
- * team sees the screen is alive and when it may move on. It starts again with every answer.
+ * The fourth circle after the dots: an arc that fills up until the phone asks the server again,
+ * while the whole ring slowly turns. After every answer the arc drains, its tail chasing its head,
+ * and fills again, so the team sees the screen is alive and when it may move on.
  */
-const NextCheckBar = ({ from, at }: NextCheck) => {
-  const bar = useRef<HTMLSpanElement>(null);
+const CheckRing = ({ from, at }: NextCheck) => {
+  const arc = useRef<SVGCircleElement>(null);
+  const running = useRef<Animation | null>(null);
   useEffect(() => {
-    const element = bar.current;
-    if (element === null) return undefined;
-    const total = Math.max(at - from, 1);
-    const done = Math.min(Math.max((Date.now() - from) / total, 0), 1);
-    const animation = element.animate(
-      [{ transform: `scaleX(${done})` }, { transform: 'scaleX(1)' }],
-      { duration: Math.max(at - Date.now(), 0), easing: 'linear', fill: 'forwards' },
+    const element = arc.current;
+    if (element === null) return;
+    const now = Date.now();
+    const previous = running.current;
+    // Where the arc stands right now, before the old animation is dropped.
+    const current = Number.parseFloat(getComputedStyle(element).strokeDashoffset) || 0;
+    previous?.cancel();
+    const remaining = Math.max(at - now, 1);
+    if (previous === null) {
+      // The first check: the arc starts as full as the time already gone.
+      const done = Math.min(Math.max((now - from) / Math.max(at - from, 1), 0), 1);
+      running.current = element.animate(
+        [{ strokeDashoffset: String(1 - done) }, { strokeDashoffset: '0' }],
+        { duration: remaining, easing: 'linear', fill: 'forwards' },
+      );
+      return;
+    }
+    const split = Math.min(DRAIN_MS, remaining / 2) / remaining;
+    running.current = element.animate(
+      [
+        { strokeDashoffset: String(current), easing: 'ease-in-out' },
+        { strokeDashoffset: '-1', offset: split },
+        // Empty at -1 and at 1 alike, so the jump does not show.
+        { strokeDashoffset: '1', offset: split },
+        { strokeDashoffset: '0' },
+      ],
+      { duration: remaining, easing: 'linear', fill: 'forwards' },
     );
-    return () => animation.cancel();
   }, [from, at]);
+  useEffect(() => () => running.current?.cancel(), []);
   return (
-    <span
-      className='block h-0.5 w-14 overflow-hidden rounded-full bg-muted-foreground/20'
-      aria-hidden='true'
-    >
-      <span
-        ref={bar}
-        className='block h-full origin-left bg-muted-foreground'
-        // Not Tailwind's scale-x-0: it sets `scale`, which would multiply the animated transform.
-        style={{ transform: 'scaleX(0)' }}
+    <svg viewBox='0 0 14 14' className={cn(CIRCLE, 'waiting-ring')}>
+      <circle
+        ref={arc}
+        cx='7'
+        cy='7'
+        r='6'
+        fill='none'
+        strokeWidth='2'
+        strokeLinecap='round'
+        pathLength={1}
+        strokeDasharray='1'
+        strokeDashoffset='1'
+        transform='rotate(-90 7 7)'
+        className='stroke-muted-foreground'
       />
-    </span>
+    </svg>
   );
 };
 
 /**
  * What a phone shows while the teams cannot play: before the organizers start the game, or while
  * they keep it paused, whether the phone is logged in to a team or not yet. The message is set
- * like the story's text, at the same place as a block, with three breathing dots above it, so the
- * screen does not look frozen; the page asks the server on its own and moves on once the game
- * opens. A line under the dots fills up until the next time it asks.
+ * like the story's text, at the same place as a block, with three dots lighting up above it, so
+ * the screen does not look frozen; the page asks the server on its own and moves on once the game
+ * opens. A ring after the dots fills up until the next time it asks.
  */
 export const WaitingScreen = ({
   message,
@@ -73,7 +106,7 @@ export const WaitingScreen = ({
   readonly corner?: ReactNode;
   /** Shown at the right end of the bar, like the sign of a lost connection. */
   readonly aside?: ReactNode;
-  /** When the page asks the server again; without it, no line is shown. */
+  /** When the page asks the server again; without it, only the dots are shown. */
   readonly nextCheck?: NextCheck | undefined;
 }) => (
   <PlayerFrame
@@ -88,17 +121,15 @@ export const WaitingScreen = ({
   >
     <div className={cn('flex-1', OPTICAL_CENTER)} role='status'>
       <div className='flex flex-col gap-6'>
-        <div className='flex flex-col gap-3'>
-          <div className='flex gap-2' aria-hidden='true'>
-            {DOT_DELAYS.map((delay) => (
-              <span
-                key={delay}
-                className='size-2 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none'
-                style={{ animationDelay: delay }}
-              />
-            ))}
-          </div>
-          {nextCheck !== undefined && <NextCheckBar {...nextCheck} />}
+        <div className='flex items-center gap-2.5' aria-hidden='true'>
+          {DOT_DELAYS.map((delay) => (
+            <span
+              key={delay}
+              className={cn(CIRCLE, 'waiting-dot rounded-full bg-muted-foreground')}
+              style={{ animationDelay: delay }}
+            />
+          ))}
+          {nextCheck !== undefined && <CheckRing {...nextCheck} />}
         </div>
         <StoryText content={message} theme='default' instant />
       </div>
