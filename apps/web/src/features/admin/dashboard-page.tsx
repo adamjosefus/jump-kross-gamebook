@@ -2,6 +2,7 @@ import type { TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
+  IconClockOff,
   IconCheck,
   IconChevronsRight,
   IconCopy,
@@ -11,12 +12,23 @@ import {
   IconPin,
   IconPinnedOff,
   IconRotate,
+  IconSortAscending,
+  IconSortDescending,
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +56,14 @@ import { formatTime, timeAgo } from './format';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
+import {
+  DEFAULT_TEAM_SORT,
+  isTeamSortKey,
+  readTeamSort,
+  sortOptions,
+  sortTeams,
+  type TeamSort,
+} from './team-sort';
 
 const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   typeof value === 'object' &&
@@ -174,6 +194,79 @@ const usePanels = () => {
   return [value, update] as const;
 };
 
+const TEAM_SORT_KEY = 'dashboard-team-sort';
+
+/** How the list of teams is ordered; remembered per browser. */
+const useTeamSort = () => {
+  const [value, setValue] = useState<TeamSort>(() => {
+    try {
+      return readTeamSort(JSON.parse(localStorage.getItem(TEAM_SORT_KEY) ?? 'null'));
+    } catch {
+      return DEFAULT_TEAM_SORT;
+    }
+  });
+  const update = (next: TeamSort) => {
+    setValue(next);
+    try {
+      localStorage.setItem(TEAM_SORT_KEY, JSON.stringify(next));
+    } catch {
+      // The choice then lasts for this visit only.
+    }
+  };
+  return [value, update] as const;
+};
+
+/** Picks what the teams are ordered by and in which direction. */
+const TeamSortControl = ({
+  teams,
+  sort,
+  onChange,
+}: {
+  readonly teams: readonly TeamStatus[];
+  readonly sort: TeamSort;
+  readonly onChange: (next: TeamSort) => void;
+}) => {
+  const options = sortOptions(teams);
+  const ascending = sort.direction === 'asc';
+  return (
+    <div className='flex items-center gap-1 px-2 pb-2'>
+      <span id='team-sort-label' className='text-xs text-muted-foreground'>
+        Řadit podle:
+      </span>
+      <Select
+        value={sort.key}
+        onValueChange={(key) => {
+          if (isTeamSortKey(key)) onChange({ ...sort, key });
+        }}
+      >
+        <SelectTrigger size='sm' className='h-7 flex-1 text-xs' aria-labelledby='team-sort-label'>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {/* A remembered key of the state that no team has anymore is still shown as chosen. */}
+          {(options.some((option) => option.key === sort.key)
+            ? options
+            : [...options, { key: sort.key, label: `Stav: ${sort.key.slice('state:'.length)}` }]
+          ).map((option) => (
+            <SelectItem key={option.key} value={option.key}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant='ghost'
+        size='icon-sm'
+        title={ascending ? 'Vzestupně; přepnout na sestupně' : 'Sestupně; přepnout na vzestupně'}
+        aria-label={ascending ? 'Řadit sestupně' : 'Řadit vzestupně'}
+        onClick={() => onChange({ ...sort, direction: ascending ? 'desc' : 'asc' })}
+      >
+        {ascending ? <IconSortAscending /> : <IconSortDescending />}
+      </Button>
+    </div>
+  );
+};
+
 /** A panel on the right of the graph, or the button that opens it when it is closed. */
 const FloatingPanel = ({
   title,
@@ -232,6 +325,7 @@ export const DashboardPage = () => {
   const [moving, setMoving] = useState<TeamStatus>();
   const [panels, setPanels] = usePanels();
   const now = useNow();
+  const [sort, setSort] = useTeamSort();
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   // Without anything to show the error is the page; with the last data it is a bar above them.
@@ -280,8 +374,9 @@ export const DashboardPage = () => {
             </p>
             <CopyResults teams={teams} now={now} />
           </div>
+          <TeamSortControl teams={teams} sort={sort} onChange={setSort} />
           <ul className='flex flex-col'>
-            {teams.map((team) => (
+            {sortTeams(teams, sort, now).map((team) => (
               <li
                 key={team.id}
                 className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
@@ -402,6 +497,7 @@ const MoveDialog = ({
   const queryClient = useQueryClient();
   const [node, setNode] = useState(team.node ?? graph.start ?? graph.order[0] ?? '');
   const [resetting, setResetting] = useState(false);
+  const [clearingTime, setClearingTime] = useState(false);
   const [typed, setTyped] = useState('');
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2));
   // The step the form was filled from; the team may have moved on since.
@@ -440,6 +536,18 @@ const MoveDialog = ({
     onSuccess: done,
     onError: (error) => toast.error(errorMessage(error)),
   });
+
+  const resetTime = useMutation({
+    mutationFn: () => api((client) => client.admin.resetTeamTime({ params: { id: team.id } })),
+    onSuccess: () => {
+      toast.success(`Čas týmu ${team.name} je vynulovaný.`);
+      done();
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  // The time of a team that never logged in is empty already; one at the end can only restart.
+  const latest = current ?? team;
+  const timeResettable = latest.startedAt !== undefined && !latest.finished;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -511,15 +619,33 @@ const MoveDialog = ({
               />
             </div>
           </div>
-          <DialogFooter className='sm:justify-between'>
-            <Button
-              type='button'
-              className='bg-red-700 text-white hover:bg-red-800'
-              onClick={() => setResetting(true)}
-            >
-              <IconRotate /> Restartovat hru
-            </Button>
+          {/* Four buttons do not fit in one row of the dialog: the resets above, the move below. */}
+          <DialogFooter className='sm:flex-col'>
             <div className='flex flex-col-reverse gap-2 sm:flex-row'>
+              <Button
+                type='button'
+                className='bg-red-700 text-white hover:bg-red-800'
+                onClick={() => setResetting(true)}
+              >
+                <IconRotate /> Restartovat hru
+              </Button>
+              <Button
+                type='button'
+                variant='outline'
+                disabled={!timeResettable}
+                title={
+                  timeResettable
+                    ? 'Vynulovat čas týmu a nechat mu postup'
+                    : latest.finished
+                      ? 'Tým už je v cíli; čas jde vynulovat jen restartem hry'
+                      : 'Tým se ještě nepřihlásil, čas mu neběží'
+                }
+                onClick={() => setClearingTime(true)}
+              >
+                <IconClockOff /> Vynulovat čas
+              </Button>
+            </div>
+            <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
               <Button type='button' variant='outline' onClick={onClose}>
                 Zrušit
               </Button>
@@ -535,6 +661,29 @@ const MoveDialog = ({
           </DialogFooter>
         </form>
         <ResetDialog team={team} open={resetting} onOpenChange={setResetting} onDone={onClose} />
+        <AlertDialog open={clearingTime} onOpenChange={setClearingTime}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Vynulovat čas týmu {team.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Čas hry i čas čtení se vynulují a telefony týmu se odhlásí. Postup a stav týmu
+                zůstanou. Čas se rozběhne znovu, až tým naskenuje svůj kód. Nejde to vrátit.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Zrušit</AlertDialogCancel>
+              {/* A plain button, so the dialog stays open until the server confirms. */}
+              <Button
+                variant='destructive'
+                disabled={resetTime.isPending}
+                onClick={() => resetTime.mutate()}
+              >
+                {resetTime.isPending && <IconLoader2 className='animate-spin' />}
+                Vynulovat čas
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
