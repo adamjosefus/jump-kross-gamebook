@@ -7,7 +7,13 @@ import { playTime } from './results';
  * What the live list of teams is ordered by: the story's own order, the name, one of the three
  * times, or one key of the state (the state is flat, so a key is a column).
  */
-export type TeamSortKey = 'order' | 'name' | 'playtime' | 'liveAction' | 'story' | `state:${string}`;
+export type TeamSortKey =
+  | 'order'
+  | 'name'
+  | 'playtime'
+  | 'liveAction'
+  | 'story'
+  | `state:${string}`;
 
 export type SortDirection = 'asc' | 'desc';
 

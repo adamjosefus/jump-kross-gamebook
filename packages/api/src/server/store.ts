@@ -134,7 +134,9 @@ export interface StoreShape {
    * nothing changed.
    */
   readonly resetTiming: (id: number) => Effect.Effect<boolean, StoreError>;
-  readonly addStoryIntervals: (rows: readonly StoryIntervalRow[]) => Effect.Effect<void, StoreError>;
+  readonly addStoryIntervals: (
+    rows: readonly StoryIntervalRow[],
+  ) => Effect.Effect<void, StoreError>;
   readonly listStoryIntervals: () => Effect.Effect<readonly StoryIntervalRow[], StoreError>;
 
   readonly createSession: (

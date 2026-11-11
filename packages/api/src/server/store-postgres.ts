@@ -287,7 +287,9 @@ export const makePostgresStore = (client: SqlClient) => {
         ),
       ),
     listStoryIntervals: () =>
-      query(async () => (await run(sql`select * from story_interval order by id`)).map(toStoryInterval)),
+      query(async () =>
+        (await run(sql`select * from story_interval order by id`)).map(toStoryInterval),
+      ),
 
     createSession: (id, teamId, { ip, userAgent, deviceId }) =>
       query(

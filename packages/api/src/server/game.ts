@@ -43,7 +43,6 @@ import {
   type TeamStatus,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
-import { storyTotals } from './story-time.ts';
 import {
   Store,
   type BanRow,
@@ -53,6 +52,7 @@ import {
   type TeamMove,
   type TeamRow,
 } from './store.ts';
+import { storyTotals } from './story-time.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
   'wrong-code': 'Tento kód vás teď nikam nevede.',
@@ -461,11 +461,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
         store.listStoryIntervals(),
       ]);
-      return teamStatus(
-        team,
-        devices.get(team.id) ?? 0,
-        storyTotals(storyRows).get(team.id) ?? 0,
-      );
+      return teamStatus(team, devices.get(team.id) ?? 0, storyTotals(storyRows).get(team.id) ?? 0);
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({

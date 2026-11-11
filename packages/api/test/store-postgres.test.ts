@@ -152,7 +152,9 @@ describe('postgres store', () => {
     );
     await run(store.ensureTeam(2));
     await run(
-      store.addStoryIntervals([{ teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) }]),
+      store.addStoryIntervals([
+        { teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) },
+      ]),
     );
     const reading = await run(store.listStoryIntervals());
     expect(reading.map(({ teamId }) => teamId)).toEqual([1, 1, 2]);
@@ -389,7 +391,9 @@ describe('postgres store', () => {
     await run(store.markStarted(2));
     const now = Date.now();
     await run(
-      store.addStoryIntervals([{ teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) }]),
+      store.addStoryIntervals([
+        { teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) },
+      ]),
     );
     await run(
       store.createSession('reset-phone', 2, {
