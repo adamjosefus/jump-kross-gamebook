@@ -89,7 +89,7 @@ const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: num
   if (playMs === undefined) return null;
   return (
     <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-      Hra {formatDuration(playMs)} · čtení {formatDuration(team.readingMs)} · mimo čtení{' '}
+      Hra {formatDuration(playMs)} · čtení {formatDuration(team.readingMs)} · bez čtení{' '}
       {formatDuration(playMs - team.readingMs)}
     </div>
   );
@@ -143,6 +143,7 @@ const formatState = (state: Readonly<Record<string, Value>>) =>
 const ACTION_LABELS: Readonly<Record<string, string>> = {
   start: 'start',
   reset: 'reset',
+  'reset-time': 'vynulování času',
   admin: 'zásah organizátora',
 } as const;
 const actionLabel = (action: string) =>
@@ -547,7 +548,12 @@ const MoveDialog = ({
   });
   // The time of a team that never logged in is empty already; one at the end can only restart.
   const latest = current ?? team;
-  const timeResettable = latest.startedAt !== undefined && !latest.finished;
+  // Said under the buttons: a disabled button shows no tooltip.
+  const timeLocked = latest.finished
+    ? 'Tým už je v cíli; čas jde vynulovat jen restartem hry.'
+    : latest.startedAt === undefined
+      ? 'Týmu teď čas neběží, není co vynulovat.'
+      : undefined;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -632,19 +638,19 @@ const MoveDialog = ({
               <Button
                 type='button'
                 variant='outline'
-                disabled={!timeResettable}
-                title={
-                  timeResettable
-                    ? 'Vynulovat čas týmu a nechat mu postup'
-                    : latest.finished
-                      ? 'Tým už je v cíli; čas jde vynulovat jen restartem hry'
-                      : 'Tým se ještě nepřihlásil, čas mu neběží'
-                }
+                disabled={timeLocked !== undefined}
+                title='Vynulovat čas týmu a nechat mu postup'
+                aria-describedby={timeLocked === undefined ? undefined : 'time-locked'}
                 onClick={() => setClearingTime(true)}
               >
                 <IconClockOff /> Vynulovat čas
               </Button>
             </div>
+            {timeLocked !== undefined && (
+              <p id='time-locked' className='text-xs text-muted-foreground'>
+                {timeLocked}
+              </p>
+            )}
             <div className='flex flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
               <Button type='button' variant='outline' onClick={onClose}>
                 Zrušit

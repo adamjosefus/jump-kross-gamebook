@@ -70,8 +70,9 @@ const cell = (value: Value | undefined) => {
 
 /**
  * The results as a table, one row per team: the times both as `h:mm:ss` and as whole seconds,
- * then one column per key of the state. The column names are English, like the keys of the JSON,
- * so both read the same in whatever processes them. Separated by semicolons, which is what a Czech Excel
+ * then one column per key of the state. The column names are English, as the JSON's keys
+ * are, though not the same ones: a table has `team` and `play_s` where the JSON has `name` and
+ * `playSeconds`. Separated by semicolons, which is what a Czech Excel
  * expects, and ended with CRLF.
  */
 export const resultsCsv = (results: readonly TeamResult[]) => {
