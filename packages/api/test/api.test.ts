@@ -344,6 +344,14 @@ describe('api', () => {
     expect(reset.body.playMs).toBeUndefined();
     expect((await phone('GET', '/api/player/state')).status).toBe(401);
     expect((await team()).startedAt).toBeUndefined();
+    // The organisers can see later why the team's time is shorter; it is no visit of the node.
+    const overview = (await admin('GET', '/api/admin/overview')).body;
+    expect(overview.log[0]).toMatchObject({
+      teamId: 1,
+      action: 'reset-time',
+      fromNode: before.node,
+    });
+    expect(overview.log[0].toNode).toBeUndefined();
 
     // The next login starts the clock and the team goes on where it was.
     const back = (await phone('POST', '/api/player/login', { code: vlci })).body;
@@ -839,6 +847,7 @@ describe('server failures', () => {
       resetTeams: fail,
       markStarted: fail,
       clearTiming: fail,
+      resetTiming: fail,
       gameStartedAt: fail,
       startGame: fail,
       addReading: fail,

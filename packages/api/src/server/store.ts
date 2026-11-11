@@ -123,10 +123,17 @@ export interface StoreShape {
   /** Records the team's first login; later calls change nothing. */
   readonly markStarted: (id: number) => Effect.Effect<void, StoreError>;
   /**
-   * Forgets the first login and the reading and logs the team's devices out, for a new game of the
-   * team: its next login starts its clock.
+   * Forgets the first login and the reading and logs the team's devices out, whatever the team's
+   * state, as after its move back to the start: its next login starts its clock.
    */
   readonly clearTiming: (id: number) => Effect.Effect<void, StoreError>;
+  /**
+   * The same for a team on its way, which keeps where it is: in one write, so a team that reaches
+   * the end at the same moment keeps its times. The step log gets a `reset-time` row with no
+   * target node, which is not a visit. False when the team is at the end or does not exist, and
+   * nothing changed.
+   */
+  readonly resetTiming: (id: number) => Effect.Effect<boolean, StoreError>;
   readonly addReading: (rows: readonly ReadingRow[]) => Effect.Effect<void, StoreError>;
   readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;
 

@@ -639,12 +639,16 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
      */
     const resetTeamTime = Effect.fn('Game.resetTeamTime')(function* (id: number) {
       const team = yield* requireTeam(id);
-      if (team.finishedAt !== undefined)
+      // The store checks the end itself, in the same write: the team may finish right now.
+      if (!(yield* store.resetTiming(id)))
         return yield* new TeamFinished({
           message: 'Tým už je v cíli. Jeho čas jde vynulovat jen restartem hry týmu.',
         });
-      yield* store.clearTiming(id);
-      return yield* singleTeamStatus({ ...team, startedAt: undefined });
+      // The row read before the write may be a step behind the team.
+      return yield* singleTeamStatus({
+        ...((yield* store.getTeam(id)) ?? team),
+        startedAt: undefined,
+      });
     });
 
     /**

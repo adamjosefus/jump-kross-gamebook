@@ -133,6 +133,27 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         for (const [sessionId, session] of sessions)
           if (session.teamId === id) sessions.delete(sessionId);
       }),
+    resetTiming: (id) =>
+      Effect.sync(() => {
+        const team = teams.get(id);
+        if (team === undefined || team.finishedAt !== undefined) return false;
+        teams.set(id, { ...team, startedAt: undefined });
+        data.log = [
+          ...data.log,
+          {
+            teamId: id,
+            at: new Date(),
+            action: 'reset-time',
+            fromNode: team.node,
+            toNode: undefined,
+            state: team.state,
+          },
+        ];
+        data.reading = data.reading.filter((row) => row.teamId !== id);
+        for (const [sessionId, session] of sessions)
+          if (session.teamId === id) sessions.delete(sessionId);
+        return true;
+      }),
     addReading: (rows) =>
       Effect.sync(() => {
         data.reading = [...data.reading, ...rows];
