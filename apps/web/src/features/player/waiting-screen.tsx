@@ -30,10 +30,10 @@ const CIRCLE = 'size-3.5';
 
 /**
  * The fourth circle after the dots: a pie chart whose slice grows clockwise from the top until the
- * phone asks the server again. Its empty part is as faint as a dim dot. After every answer the
- * slice drains, its tail chasing its head, and grows again, so the team sees the screen is alive
- * and when it may move on. The slice is a stroke as wide as the radius of its circle, so it covers
- * the disc from the center to the edge.
+ * phone asks the server again, with nothing drawn behind it. After every answer the slice drains,
+ * its tail chasing its head, and grows again, so the team sees the screen is alive and when it may
+ * move on. The slice is a stroke as wide as the radius of its circle, so it covers the disc from
+ * the center to the edge.
  */
 const CheckPie = ({ from, at }: NextCheck) => {
   const arc = useRef<SVGCircleElement>(null);
@@ -71,7 +71,6 @@ const CheckPie = ({ from, at }: NextCheck) => {
   useEffect(() => () => running.current?.cancel(), []);
   return (
     <svg viewBox='0 0 14 14' className={CIRCLE}>
-      <circle cx='7' cy='7' r='7' className='fill-muted-foreground opacity-20' />
       <circle
         ref={arc}
         cx='7'
