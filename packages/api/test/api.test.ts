@@ -229,40 +229,40 @@ describe('api', () => {
   it('measures the game and the reading', async () => {
     const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
     const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[1];
-    expect(await team()).toMatchObject({ readingMs: 0 });
-    expect((await team()).playMs).toBeUndefined();
+    expect(await team()).toMatchObject({ storyMs: 0 });
+    expect((await team()).playtimeMs).toBeUndefined();
 
     const phone = device();
     const tablet = device();
     const anonymous = { intervals: [{ ms: 1000, agoMs: 0 }] };
-    expect((await phone('POST', '/api/player/reading', anonymous)).status).toBe(401);
+    expect((await phone('POST', '/api/player/story-time', anonymous)).status).toBe(401);
 
     // The clock runs from the first login.
     const start = (await phone('POST', '/api/player/login', { code: lisky })).body;
     await tablet('POST', '/api/player/login', { code: lisky });
-    expect((await team()).playMs).toBeGreaterThanOrEqual(0);
+    expect((await team()).playtimeMs).toBeGreaterThanOrEqual(0);
     // Reading counts from the first login on, so for the test the login was ten minutes ago.
     shared.teams.set(2, { ...shared.teams.get(2)!, startedAt: new Date(Date.now() - 600_000) });
 
     // Two phones reading at the same time are one team reading.
     const read = (who: typeof phone, ms: number, agoMs: number) =>
-      who('POST', '/api/player/reading', { intervals: [{ ms, agoMs }] });
+      who('POST', '/api/player/story-time', { intervals: [{ ms, agoMs }] });
     await read(phone, 60_000, 100_000);
     await read(tablet, 60_000, 70_000);
     // 100–40 s ago and 70–10 s ago make 90 s, give or take the milliseconds of the test.
-    expect((await team()).readingMs).toBeGreaterThanOrEqual(89_000);
-    expect((await team()).readingMs).toBeLessThanOrEqual(91_000);
+    expect((await team()).storyMs).toBeGreaterThanOrEqual(89_000);
+    expect((await team()).storyMs).toBeLessThanOrEqual(91_000);
 
     // A phone left on a text counts for 5 minutes at most; nonsense counts for nothing, and
     // neither does reading before the first scan or reading reported for another team.
     await read(phone, 3_600_000, 200_000);
     await read(phone, -5, 0);
     await read(phone, 60_000, 1_000_000);
-    await phone('POST', '/api/player/reading', {
+    await phone('POST', '/api/player/story-time', {
       teamId: 1,
       intervals: [{ ms: 60_000, agoMs: 0 }],
     });
-    const capped = (await team()).readingMs;
+    const capped = (await team()).storyMs;
     expect(capped).toBeGreaterThanOrEqual(389_000);
     expect(capped).toBeLessThanOrEqual(391_000);
 
@@ -276,28 +276,28 @@ describe('api', () => {
     await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
     const done = await team();
     await new Promise((resolve) => setTimeout(resolve, 5));
-    expect((await team()).playMs).toBe(done.playMs);
+    expect((await team()).playtimeMs).toBe(done.playtimeMs);
     // The times themselves are sent too, so the admin can count to the second.
-    expect(Date.parse(done.finishedAt) - Date.parse(done.startedAt)).toBe(done.playMs);
+    expect(Date.parse(done.finishedAt) - Date.parse(done.startedAt)).toBe(done.playtimeMs);
     // Reading after the end is clipped to the end: with an end right at the start nothing is left.
-    const readBefore = (await team()).readingMs;
+    const readBefore = (await team()).storyMs;
     const row = shared.teams.get(2)!;
     shared.teams.set(2, { ...row, finishedAt: row.startedAt });
     await read(phone, 60_000, 0);
-    expect((await team()).readingMs).toBe(readBefore);
+    expect((await team()).storyMs).toBe(readBefore);
     shared.teams.set(2, row);
 
     // A reset starts over and logs the phones out, so the next login starts the clock.
     const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
-    expect(reset).toMatchObject({ readingMs: 0, devices: 0 });
-    expect(reset.playMs).toBeUndefined();
+    expect(reset).toMatchObject({ storyMs: 0, devices: 0 });
+    expect(reset.playtimeMs).toBeUndefined();
     expect(reset.startedAt).toBeUndefined();
     expect(
       (await phone('POST', '/api/player/scan', { code: studna, expectedStep: reset.step })).status,
     ).toBe(401);
-    expect((await team()).playMs).toBeUndefined();
+    expect((await team()).playtimeMs).toBeUndefined();
     await phone('POST', '/api/player/login', { code: lisky });
-    expect((await team()).playMs).toBeGreaterThanOrEqual(0);
+    expect((await team()).playtimeMs).toBeGreaterThanOrEqual(0);
   });
 
   it('keeps the first login as the start, whoever logs in later', async () => {
@@ -314,7 +314,7 @@ describe('api', () => {
     await phone('POST', '/api/player/login', { code: vlci });
     await device()('POST', '/api/player/login', { code: vlci });
     expect((await team()).startedAt).toBe(first.toISOString());
-    expect((await team()).playMs).toBeGreaterThanOrEqual(60_000);
+    expect((await team()).playtimeMs).toBeGreaterThanOrEqual(60_000);
   });
 
   it('resets the time of a team and keeps its progress', async () => {
@@ -326,9 +326,9 @@ describe('api', () => {
     const a2 = (await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step }))
       .body;
     shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: new Date(Date.now() - 600_000) });
-    await phone('POST', '/api/player/reading', { intervals: [{ ms: 60_000, agoMs: 0 }] });
+    await phone('POST', '/api/player/story-time', { intervals: [{ ms: 60_000, agoMs: 0 }] });
     const before = await team();
-    expect(before.readingMs).toBeGreaterThan(0);
+    expect(before.storyMs).toBeGreaterThan(0);
 
     // The times are gone and the phones logged out; the node, the state and the step stay.
     const reset = await admin('POST', '/api/admin/teams/1/reset-time');
@@ -337,11 +337,11 @@ describe('api', () => {
       node: before.node,
       state: before.state,
       step: before.step,
-      readingMs: 0,
+      storyMs: 0,
       devices: 0,
     });
     expect(reset.body.startedAt).toBeUndefined();
-    expect(reset.body.playMs).toBeUndefined();
+    expect(reset.body.playtimeMs).toBeUndefined();
     expect((await phone('GET', '/api/player/state')).status).toBe(401);
     expect((await team()).startedAt).toBeUndefined();
     // The organisers can see later why the team's time is shorter; it is no visit of the node.
@@ -356,7 +356,7 @@ describe('api', () => {
     // The next login starts the clock and the team goes on where it was.
     const back = (await phone('POST', '/api/player/login', { code: vlci })).body;
     expect(back).toMatchObject({ step: a2.step, node: { id: a2.node.id } });
-    expect((await team()).playMs).toBeLessThan(60_000);
+    expect((await team()).playtimeMs).toBeLessThan(60_000);
 
     // A team at the end keeps its time: only a restart of its game clears it.
     const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
@@ -421,7 +421,7 @@ describe('game start', () => {
     expect((await phone('POST', '/api/player/login', { code: vlci })).status).toBe(200);
     const team = (await admin('GET', '/api/admin/overview')).body.teams[0];
     expect(Date.parse(team.startedAt)).toBeGreaterThanOrEqual(Date.parse(started.startedAt));
-    expect(team.playMs).toBeGreaterThanOrEqual(0);
+    expect(team.playtimeMs).toBeGreaterThanOrEqual(0);
     expect(team.finishedAt).toBeUndefined();
     await fresh.dispose();
   });
@@ -850,8 +850,8 @@ describe('server failures', () => {
       resetTiming: fail,
       gameStartedAt: fail,
       startGame: fail,
-      addReading: fail,
-      listReading: fail,
+      addStoryIntervals: fail,
+      listStoryIntervals: fail,
       createSession: fail,
       touchSession: fail,
       deleteSession: fail,

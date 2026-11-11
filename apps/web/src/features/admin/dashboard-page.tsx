@@ -85,12 +85,12 @@ const useNow = () => {
 
 /** The team's play time, reading time and the rest (walking, puzzles), all to the second. */
 const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: number }) => {
-  const playMs = playTime(team, now);
-  if (playMs === undefined) return null;
+  const playtimeMs = playTime(team, now);
+  if (playtimeMs === undefined) return null;
   return (
     <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-      Hra {formatDuration(playMs)} · čtení {formatDuration(team.readingMs)} · bez čtení{' '}
-      {formatDuration(playMs - team.readingMs)}
+      Hra {formatDuration(playtimeMs)} · čtení {formatDuration(team.storyMs)} · bez čtení{' '}
+      {formatDuration(playtimeMs - team.storyMs)}
     </div>
   );
 };

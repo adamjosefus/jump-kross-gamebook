@@ -6,7 +6,7 @@ import {
   type BanRow,
   type GameSettingsRow,
   type LogRow,
-  type ReadingRow,
+  type StoryIntervalRow,
   type SessionRow,
   type TeamMove,
   type TeamRow,
@@ -29,7 +29,7 @@ export interface MemoryData {
   readonly adminFailures: Map<string, AdminFailures>;
   readonly bans: Map<string, BanRow>;
   log: readonly LogRow[];
-  reading: readonly ReadingRow[];
+  storyIntervals: readonly StoryIntervalRow[];
   gameStartedAt: Date | undefined;
   settings: GameSettingsRow;
 }
@@ -40,7 +40,7 @@ export const emptyMemoryData = (): MemoryData => ({
   adminFailures: new Map(),
   bans: new Map(),
   log: [],
-  reading: [],
+  storyIntervals: [],
   gameStartedAt: undefined,
   settings: { closed: false, changedAt: undefined },
 });
@@ -110,7 +110,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
           teams.set(id, cleared);
           return cleared;
         });
-        data.reading = data.reading.filter((row) => !ids.includes(row.teamId));
+        data.storyIntervals = data.storyIntervals.filter((row) => !ids.includes(row.teamId));
         for (const [sessionId, session] of sessions)
           if (ids.includes(session.teamId)) sessions.delete(sessionId);
         data.gameStartedAt = undefined;
@@ -129,7 +129,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       Effect.sync(() => {
         const team = teams.get(id);
         if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
-        data.reading = data.reading.filter((row) => row.teamId !== id);
+        data.storyIntervals = data.storyIntervals.filter((row) => row.teamId !== id);
         for (const [sessionId, session] of sessions)
           if (session.teamId === id) sessions.delete(sessionId);
       }),
@@ -149,16 +149,16 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             state: team.state,
           },
         ];
-        data.reading = data.reading.filter((row) => row.teamId !== id);
+        data.storyIntervals = data.storyIntervals.filter((row) => row.teamId !== id);
         for (const [sessionId, session] of sessions)
           if (session.teamId === id) sessions.delete(sessionId);
         return true;
       }),
-    addReading: (rows) =>
+    addStoryIntervals: (rows) =>
       Effect.sync(() => {
-        data.reading = [...data.reading, ...rows];
+        data.storyIntervals = [...data.storyIntervals, ...rows];
       }),
-    listReading: () => Effect.sync(() => data.reading),
+    listStoryIntervals: () => Effect.sync(() => data.storyIntervals),
 
     createSession: (id, teamId, client) =>
       Effect.sync(() => {

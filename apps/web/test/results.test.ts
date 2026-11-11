@@ -23,8 +23,8 @@ const finished: TeamStatus = {
   devices: 2,
   startedAt: '2027-05-15T08:00:00.000Z',
   finishedAt: '2027-05-15T09:40:12.500Z',
-  playMs: 6_012_500,
-  readingMs: 1_230_900,
+  playtimeMs: 6_012_500,
+  storyMs: 1_230_900,
 };
 
 const running: TeamStatus = {
@@ -39,8 +39,8 @@ const running: TeamStatus = {
   devices: 1,
   startedAt: '2027-05-15T09:30:00.000Z',
   // The server counted this a poll ago; the client's clock has moved on since.
-  playMs: 1_795_000,
-  readingMs: 60_000,
+  playtimeMs: 1_795_000,
+  storyMs: 60_000,
 };
 
 const waiting: TeamStatus = {
@@ -51,7 +51,7 @@ const waiting: TeamStatus = {
   step: 0,
   finished: false,
   devices: 0,
-  readingMs: 0,
+  storyMs: 0,
 };
 
 describe('formatDuration', () => {
@@ -84,17 +84,17 @@ describe('teamResults', () => {
       finished: true,
       startedAt: '2027-05-15T08:00:00.000Z',
       finishedAt: '2027-05-15T09:40:12.500Z',
-      playSeconds: 6_012,
-      readingSeconds: 1_230,
-      otherSeconds: 4_781,
+      playtimeDuration: 6_012,
+      storyDuration: 1_230,
+      liveActionDuration: 4_781,
       state: { coins: 30, hasMap: true, note: 'řekl; "ano"' },
     });
     expect(results[1]).toMatchObject({
-      playSeconds: 1_800,
-      readingSeconds: 60,
-      otherSeconds: 1_740,
+      playtimeDuration: 1_800,
+      storyDuration: 60,
+      liveActionDuration: 1_740,
     });
-    // Every key is there, with null for what is not known yet.
+    // Every key is there, with null for what is not known yet and zero for the durations.
     expect(results[2]).toStrictEqual({
       id: 3,
       name: 'Sovy',
@@ -102,9 +102,9 @@ describe('teamResults', () => {
       finished: false,
       startedAt: null,
       finishedAt: null,
-      playSeconds: null,
-      readingSeconds: 0,
-      otherSeconds: null,
+      playtimeDuration: 0,
+      storyDuration: 0,
+      liveActionDuration: 0,
       state: {},
     });
   });
@@ -119,10 +119,10 @@ describe('teamResults', () => {
 
   it('writes a semicolon CSV with a column per state key and quoted cells where needed', () => {
     expect(resultsCsv(results).split('\r\n')).toEqual([
-      'id;team;node_id;finished;started_at;finished_at;play;reading;other;play_s;reading_s;other_s;state_coins;state_hasMap;state_note',
+      'id;team;node_id;finished;started_at;finished_at;playtime;story;live_action;playtime_s;story_s;live_action_s;state_coins;state_hasMap;state_note',
       '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;20:30;1:19:41;6012;1230;4781;30;true;"řekl; ""ano"""',
       '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;1:00;29:00;1800;60;1740;10;false;',
-      '3;Sovy;;false;;;;0:00;;;0;;;;',
+      '3;Sovy;;false;;;0:00;0:00;0:00;0;0;0;;;',
       '',
     ]);
   });
