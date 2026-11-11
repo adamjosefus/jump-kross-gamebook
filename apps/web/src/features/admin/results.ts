@@ -22,20 +22,24 @@ export const playTime = (team: TeamStatus, now: number) => {
   return Math.max(team.playMs ?? 0, now - Date.parse(team.startedAt));
 };
 
-/** One team's result, as the organisers take it away: times to the second and the state. */
+/**
+ * One team's result, as the organisers take it away: times to the second and the state. A value
+ * not known yet is null rather than missing, so every team has every key in the JSON (which
+ * leaves out undefined ones) and a script reading it finds the same fields for every team.
+ */
 export interface TeamResult {
   readonly id: number;
   readonly name: string;
-  /** Where the team is; undefined for one that never logged in. */
-  readonly node: string | undefined;
+  /** Where the team is; null for one that never logged in. */
+  readonly nodeId: string | null;
   readonly finished: boolean;
-  readonly startedAt: string | undefined;
-  readonly finishedAt: string | undefined;
-  /** Whole seconds; undefined before the first login. */
-  readonly playSeconds: number | undefined;
+  readonly startedAt: string | null;
+  readonly finishedAt: string | null;
+  /** Whole seconds; null before the first login. */
+  readonly playSeconds: number | null;
   readonly readingSeconds: number;
   /** Play time outside reading: walking and puzzles. */
-  readonly otherSeconds: number | undefined;
+  readonly otherSeconds: number | null;
   readonly state: Readonly<Record<string, Value>>;
 }
 
@@ -47,13 +51,13 @@ export const teamResults = (teams: readonly TeamStatus[], now: number): readonly
     return {
       id: team.id,
       name: team.name,
-      node: team.node,
+      nodeId: team.node ?? null,
       finished: team.finished,
-      startedAt: team.startedAt,
-      finishedAt: team.finishedAt,
-      playSeconds: playMs === undefined ? undefined : seconds(playMs),
+      startedAt: team.startedAt ?? null,
+      finishedAt: team.finishedAt ?? null,
+      playSeconds: playMs === undefined ? null : seconds(playMs),
       readingSeconds: seconds(team.readingMs),
-      otherSeconds: playMs === undefined ? undefined : seconds(playMs - team.readingMs),
+      otherSeconds: playMs === undefined ? null : seconds(playMs - team.readingMs),
       state: team.state,
     };
   });
@@ -62,8 +66,8 @@ export const teamResults = (teams: readonly TeamStatus[], now: number): readonly
 export const resultsJson = (results: readonly TeamResult[]) => JSON.stringify(results, null, 2);
 
 /** A CSV cell: quoted when it holds the separator, a quote or a line break. */
-const cell = (value: Value | undefined) => {
-  if (value === undefined) return '';
+const cell = (value: Value | null | undefined) => {
+  if (value === null || value === undefined) return '';
   const text = String(value);
   return /[;"\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
@@ -80,7 +84,7 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
   const header = [
     'id',
     'team',
-    'node',
+    'node_id',
     'finished',
     'started_at',
     'finished_at',
@@ -92,12 +96,12 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     'other_s',
     ...stateKeys.map((key) => `state_${key}`),
   ];
-  const formatted = (value: number | undefined) =>
-    value === undefined ? undefined : formatDuration(value * 1000);
+  const formatted = (value: number | null) =>
+    value === null ? null : formatDuration(value * 1000);
   const rows = results.map((result) => [
     result.id,
     result.name,
-    result.node,
+    result.nodeId,
     result.finished,
     result.startedAt,
     result.finishedAt,
