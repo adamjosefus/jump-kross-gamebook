@@ -30,4 +30,4 @@ Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, a�
 
 ## Výsledky
 
-CSV i JSON mají anglické názvy. CSV: `id`, `team`, `node`, `finished`, `started_at`, `finished_at`, časy `play`, `reading` a `other` jako `h:mm:ss`, tytéž v sekundách jako `play_s`, `reading_s` a `other_s`, a za nimi sloupec `state_<klíč>` pro každou hodnotu stavu. JSON: `id`, `name`, `node`, `finished`, `startedAt`, `finishedAt`, `playSeconds`, `readingSeconds`, `otherSeconds` a `state`.
+CSV i JSON mají anglické názvy. CSV: `id`, `team`, `node_id`, `finished`, `started_at`, `finished_at`, časy `play`, `reading` a `other` jako `h:mm:ss`, tytéž v sekundách jako `play_s`, `reading_s` a `other_s`, a za nimi sloupec `state_<klíč>` pro každou hodnotu stavu. JSON: `id`, `name`, `nodeId`, `finished`, `startedAt`, `finishedAt`, `playSeconds`, `readingSeconds`, `otherSeconds` a `state`. Každý tým má v JSON všechny klíče; co ještě není známé (u týmu, který se nepřihlásil, uzel, začátek, celkový čas a čas bez čtení, u týmu na cestě konec), má hodnotu `null`. V CSV je taková buňka prázdná.

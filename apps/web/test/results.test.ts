@@ -80,7 +80,7 @@ describe('teamResults', () => {
     expect(results[0]).toEqual({
       id: 1,
       name: 'Vlci',
-      node: 'OUTRO',
+      nodeId: 'OUTRO',
       finished: true,
       startedAt: '2027-05-15T08:00:00.000Z',
       finishedAt: '2027-05-15T09:40:12.500Z',
@@ -94,22 +94,32 @@ describe('teamResults', () => {
       readingSeconds: 60,
       otherSeconds: 1_740,
     });
-    expect(results[2]).toMatchObject({
-      node: undefined,
-      playSeconds: undefined,
+    // Every key is there, with null for what is not known yet.
+    expect(results[2]).toStrictEqual({
+      id: 3,
+      name: 'Sovy',
+      nodeId: null,
+      finished: false,
+      startedAt: null,
+      finishedAt: null,
+      playSeconds: null,
       readingSeconds: 0,
-      otherSeconds: undefined,
+      otherSeconds: null,
+      state: {},
     });
   });
 
   it('writes JSON one can read back', () => {
-    expect(JSON.parse(resultsJson(results))).toEqual(results);
+    // Strict, so a key JSON leaves out (an undefined value) fails here.
+    expect(JSON.parse(resultsJson(results))).toStrictEqual(results);
+    const keys = (index: number) => Object.keys(JSON.parse(resultsJson(results))[index]);
+    expect(keys(2)).toEqual(keys(0));
     expect(resultsJson(results)).toContain('\n  {\n    "id": 1,');
   });
 
   it('writes a semicolon CSV with a column per state key and quoted cells where needed', () => {
     expect(resultsCsv(results).split('\r\n')).toEqual([
-      'id;team;node;finished;started_at;finished_at;play;reading;other;play_s;reading_s;other_s;state_coins;state_hasMap;state_note',
+      'id;team;node_id;finished;started_at;finished_at;play;reading;other;play_s;reading_s;other_s;state_coins;state_hasMap;state_note',
       '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;20:30;1:19:41;6012;1230;4781;30;true;"řekl; ""ano"""',
       '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;1:00;29:00;1800;60;1740;10;false;',
       '3;Sovy;;false;;;;0:00;;;0;;;;',
