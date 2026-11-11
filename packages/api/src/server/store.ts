@@ -28,7 +28,7 @@ export interface LogRow {
 }
 
 /** A time a device of the team showed a text. */
-export interface ReadingRow {
+export interface StoryIntervalRow {
   readonly teamId: number;
   readonly startedAt: Date;
   readonly endedAt: Date;
@@ -134,8 +134,8 @@ export interface StoreShape {
    * nothing changed.
    */
   readonly resetTiming: (id: number) => Effect.Effect<boolean, StoreError>;
-  readonly addReading: (rows: readonly ReadingRow[]) => Effect.Effect<void, StoreError>;
-  readonly listReading: () => Effect.Effect<readonly ReadingRow[], StoreError>;
+  readonly addStoryIntervals: (rows: readonly StoryIntervalRow[]) => Effect.Effect<void, StoreError>;
+  readonly listStoryIntervals: () => Effect.Effect<readonly StoryIntervalRow[], StoreError>;
 
   readonly createSession: (
     id: string,

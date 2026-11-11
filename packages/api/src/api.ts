@@ -163,7 +163,7 @@ export const PlayerView = Schema.Struct({
 export type PlayerView = typeof PlayerView.Type;
 
 /** More than a device can have waiting: it reports after every text, or when the signal is back. */
-export const MAX_READING_INTERVALS = 200;
+export const MAX_STORY_INTERVALS = 200;
 
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
@@ -225,11 +225,11 @@ export class PlayerGroup extends HttpApiGroup.make('player')
      * device names the team it read for; times of another team (the device switched meanwhile)
      * are dropped.
      */
-    HttpApiEndpoint.post('reading', '/reading', {
+    HttpApiEndpoint.post('storyTime', '/story-time', {
       payload: Schema.Struct({
         teamId: Schema.optionalKey(Schema.Number),
         intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })).check(
-          Schema.isMaxLength(MAX_READING_INTERVALS),
+          Schema.isMaxLength(MAX_STORY_INTERVALS),
         ),
       }),
     }).middleware(PlayerAuth),
@@ -300,9 +300,9 @@ export const TeamStatus = Schema.Struct({
   /** When the team reached the end; missing while it plays. */
   finishedAt: Schema.optionalKey(Schema.String),
   /** From `startedAt` until `finishedAt`, or until now; missing before the first login. */
-  playMs: Schema.optionalKey(Schema.Number),
+  playtimeMs: Schema.optionalKey(Schema.Number),
   /** How long a text was on at least one of the team's devices. */
-  readingMs: Schema.Number,
+  storyMs: Schema.Number,
 });
 export type TeamStatus = typeof TeamStatus.Type;
 

@@ -11,7 +11,7 @@ import { BLOCK_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
-import { useReadingTime } from './reading';
+import { useStoryTime } from './story-time';
 import { StoryText } from './story-text/story-text';
 import { useRecentVisit } from './visits';
 
@@ -26,7 +26,7 @@ const VisitedStoryText = ({
   readonly block: string;
   readonly onRead: ((ms: number) => void) | undefined;
 }) => {
-  useReadingTime(onRead);
+  useStoryTime(onRead);
   return <StoryText {...props} fast={useRecentVisit(block)} />;
 };
 

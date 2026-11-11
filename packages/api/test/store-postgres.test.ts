@@ -145,23 +145,23 @@ describe('postgres store', () => {
 
     const now = Date.now();
     await run(
-      store.addReading([
+      store.addStoryIntervals([
         { teamId: 1, startedAt: new Date(now - 5000), endedAt: new Date(now - 1000) },
         { teamId: 1, startedAt: new Date(now - 3000), endedAt: new Date(now) },
       ]),
     );
     await run(store.ensureTeam(2));
     await run(
-      store.addReading([{ teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) }]),
+      store.addStoryIntervals([{ teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) }]),
     );
-    const reading = await run(store.listReading());
+    const reading = await run(store.listStoryIntervals());
     expect(reading.map(({ teamId }) => teamId)).toEqual([1, 1, 2]);
     expect(reading[0]!.startedAt.getTime()).toBe(now - 5000);
     expect(reading[0]!.endedAt.getTime()).toBe(now - 1000);
 
     await run(store.clearTiming(1));
     expect((await run(store.getTeam(1)))!.startedAt).toBeUndefined();
-    expect((await run(store.listReading())).map(({ teamId }) => teamId)).toEqual([2]);
+    expect((await run(store.listStoryIntervals())).map(({ teamId }) => teamId)).toEqual([2]);
     const old = new Date(Date.now() - 60_000);
     expect(await run(store.touchSession('forgotten', old))).toBeUndefined();
   });
@@ -353,7 +353,7 @@ describe('postgres store', () => {
       [3, 'A1', { gold: 100 }, undefined, undefined],
     ]);
     expect(rows.map(({ step }) => step)).toEqual([rows[0]!.step, 1, 1]);
-    expect(await run(store.listReading())).toEqual([]);
+    expect(await run(store.listStoryIntervals())).toEqual([]);
     // The devices are logged out and the game waits for the organisers to start it again.
     expect(await run(store.touchSession('again', new Date(Date.now() - 60_000)))).toBeUndefined();
     expect(await run(store.gameStartedAt())).toBeUndefined();
@@ -389,7 +389,7 @@ describe('postgres store', () => {
     await run(store.markStarted(2));
     const now = Date.now();
     await run(
-      store.addReading([{ teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) }]),
+      store.addStoryIntervals([{ teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) }]),
     );
     await run(
       store.createSession('reset-phone', 2, {
@@ -407,7 +407,7 @@ describe('postgres store', () => {
       step: moved!.step,
       startedAt: undefined,
     });
-    expect((await run(store.listReading())).filter((row) => row.teamId === 2)).toEqual([]);
+    expect((await run(store.listStoryIntervals())).filter((row) => row.teamId === 2)).toEqual([]);
     expect(await run(store.touchSession('reset-phone', new Date(now - 60_000)))).toBeUndefined();
     expect((await run(store.recentLog(1)))[0]).toMatchObject({
       teamId: 2,

@@ -18,14 +18,15 @@ export const formatDuration = (ms: number) => {
  */
 export const playTime = (team: TeamStatus, now: number) => {
   if (team.startedAt === undefined) return undefined;
-  if (team.finishedAt !== undefined) return team.playMs ?? 0;
-  return Math.max(team.playMs ?? 0, now - Date.parse(team.startedAt));
+  if (team.finishedAt !== undefined) return team.playtimeMs ?? 0;
+  return Math.max(team.playtimeMs ?? 0, now - Date.parse(team.startedAt));
 };
 
 /**
  * One team's result, as the organisers take it away: times to the second and the state. A value
  * not known yet is null rather than missing, so every team has every key in the JSON (which
- * leaves out undefined ones) and a script reading it finds the same fields for every team.
+ * leaves out undefined ones) and a script reading it finds the same fields for every team. The
+ * durations are always whole seconds, zero before the first login, so they add up without checks.
  */
 export interface TeamResult {
   readonly id: number;
@@ -35,11 +36,12 @@ export interface TeamResult {
   readonly finished: boolean;
   readonly startedAt: string | null;
   readonly finishedAt: string | null;
-  /** Whole seconds; null before the first login. */
-  readonly playSeconds: number | null;
-  readonly readingSeconds: number;
-  /** Play time outside reading: walking and puzzles. */
-  readonly otherSeconds: number | null;
+  /** Whole seconds of play time; zero before the first login. */
+  readonly playtimeDuration: number;
+  /** Whole seconds spent reading the story. */
+  readonly storyDuration: number;
+  /** Whole seconds of play time outside reading: walking and puzzles; zero before the first login. */
+  readonly liveActionDuration: number;
   readonly state: Readonly<Record<string, Value>>;
 }
 
@@ -47,7 +49,7 @@ const seconds = (ms: number) => Math.max(0, Math.floor(ms / 1000));
 
 export const teamResults = (teams: readonly TeamStatus[], now: number): readonly TeamResult[] =>
   teams.map((team) => {
-    const playMs = playTime(team, now);
+    const playtimeMs = playTime(team, now) ?? 0;
     return {
       id: team.id,
       name: team.name,
@@ -55,9 +57,9 @@ export const teamResults = (teams: readonly TeamStatus[], now: number): readonly
       finished: team.finished,
       startedAt: team.startedAt ?? null,
       finishedAt: team.finishedAt ?? null,
-      playSeconds: playMs === undefined ? null : seconds(playMs),
-      readingSeconds: seconds(team.readingMs),
-      otherSeconds: playMs === undefined ? null : seconds(playMs - team.readingMs),
+      playtimeDuration: seconds(playtimeMs),
+      storyDuration: seconds(team.storyMs),
+      liveActionDuration: seconds(playtimeMs - team.storyMs),
       state: team.state,
     };
   });
@@ -75,8 +77,8 @@ const cell = (value: Value | null | undefined) => {
 /**
  * The results as a table, one row per team: the times both as `h:mm:ss` and as whole seconds,
  * then one column per key of the state. The column names are English, as the JSON's keys
- * are, though not the same ones: a table has `team` and `play_s` where the JSON has `name` and
- * `playSeconds`. Separated by semicolons, which is what a Czech Excel
+ * are, though not the same ones: a table has `team` and `playtime_s` where the JSON has `name` and
+ * `playtimeDuration`. Separated by semicolons, which is what a Czech Excel
  * expects, and ended with CRLF.
  */
 export const resultsCsv = (results: readonly TeamResult[]) => {
@@ -88,16 +90,15 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     'finished',
     'started_at',
     'finished_at',
-    'play',
-    'reading',
-    'other',
-    'play_s',
-    'reading_s',
-    'other_s',
+    'playtime',
+    'story',
+    'live_action',
+    'playtime_s',
+    'story_s',
+    'live_action_s',
     ...stateKeys.map((key) => `state_${key}`),
   ];
-  const formatted = (value: number | null) =>
-    value === null ? null : formatDuration(value * 1000);
+  const formatted = (value: number) => formatDuration(value * 1000);
   const rows = results.map((result) => [
     result.id,
     result.name,
@@ -105,12 +106,12 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     result.finished,
     result.startedAt,
     result.finishedAt,
-    formatted(result.playSeconds),
-    formatted(result.readingSeconds),
-    formatted(result.otherSeconds),
-    result.playSeconds,
-    result.readingSeconds,
-    result.otherSeconds,
+    formatted(result.playtimeDuration),
+    formatted(result.storyDuration),
+    formatted(result.liveActionDuration),
+    result.playtimeDuration,
+    result.storyDuration,
+    result.liveActionDuration,
     ...stateKeys.map((key) => result.state[key]),
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(';')).join('\r\n') + '\r\n';

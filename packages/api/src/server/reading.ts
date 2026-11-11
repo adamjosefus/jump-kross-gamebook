@@ -1,4 +1,4 @@
-import type { ReadingRow } from './store.ts';
+import type { StoryIntervalRow } from './store.ts';
 
 interface Coverage {
   readonly total: number;
@@ -7,7 +7,7 @@ interface Coverage {
 }
 
 /** Total ms of the intervals, sorted by start, with overlaps counted once. */
-const coveredMs = (intervals: readonly ReadingRow[]): number =>
+const coveredMs = (intervals: readonly StoryIntervalRow[]): number =>
   intervals.reduce<Coverage>(
     ({ total, coveredTo }, { startedAt, endedAt }) => {
       const from = Math.max(startedAt.getTime(), coveredTo);
@@ -21,7 +21,7 @@ const coveredMs = (intervals: readonly ReadingRow[]): number =>
  * Reading time per team in ms. Phones of one team often show a text at the same moment, and
  * that is one team reading, so overlapping intervals count once.
  */
-export const readingTotals = (rows: readonly ReadingRow[]): ReadonlyMap<number, number> => {
+export const storyTotals = (rows: readonly StoryIntervalRow[]): ReadonlyMap<number, number> => {
   const sorted = rows.toSorted(
     (first, second) => first.startedAt.getTime() - second.startedAt.getTime(),
   );

@@ -19,24 +19,24 @@ const team = (id: number, name: string, rest: Partial<TeamStatus> = {}): TeamSta
   step: 0,
   finished: false,
   devices: 0,
-  readingMs: 0,
+  storyMs: 0,
   ...rest,
 });
 
-/** Finished after `playMs`, of which `readingMs` was reading. */
+/** Finished after `playtimeMs`, of which `storyMs` was reading. */
 const played = (
   id: number,
   name: string,
-  playMs: number,
-  readingMs: number,
+  playtimeMs: number,
+  storyMs: number,
   state: TeamStatus['state'],
 ) =>
   team(id, name, {
     startedAt: '2027-05-15T08:00:00.000Z',
-    finishedAt: new Date(Date.parse('2027-05-15T08:00:00.000Z') + playMs).toISOString(),
+    finishedAt: new Date(Date.parse('2027-05-15T08:00:00.000Z') + playtimeMs).toISOString(),
     finished: true,
-    playMs,
-    readingMs,
+    playtimeMs,
+    storyMs,
     state,
   });
 
@@ -62,23 +62,23 @@ describe('sortTeams', () => {
   });
 
   it('orders by each of the three times, a team without a time last either way', () => {
-    expect(ids({ key: 'play', direction: 'asc' })).toEqual([2, 4, 1, 3]);
-    expect(ids({ key: 'play', direction: 'desc' })).toEqual([1, 4, 2, 3]);
-    expect(ids({ key: 'reading', direction: 'asc' })).toEqual([4, 1, 2, 3]);
-    expect(ids({ key: 'reading', direction: 'desc' })).toEqual([2, 1, 4, 3]);
+    expect(ids({ key: 'playtime', direction: 'asc' })).toEqual([2, 4, 1, 3]);
+    expect(ids({ key: 'playtime', direction: 'desc' })).toEqual([1, 4, 2, 3]);
+    expect(ids({ key: 'story', direction: 'asc' })).toEqual([4, 1, 2, 3]);
+    expect(ids({ key: 'story', direction: 'desc' })).toEqual([2, 1, 4, 3]);
     // Play without reading: 2 400 s, 500 s and 2 400 s; the tie keeps the story's order.
-    expect(ids({ key: 'other', direction: 'asc' })).toEqual([2, 1, 4, 3]);
-    expect(ids({ key: 'other', direction: 'desc' })).toEqual([1, 4, 2, 3]);
+    expect(ids({ key: 'liveAction', direction: 'asc' })).toEqual([2, 1, 4, 3]);
+    expect(ids({ key: 'liveAction', direction: 'desc' })).toEqual([1, 4, 2, 3]);
   });
 
   it('puts the teams at the end before the running ones when ordering by a time', () => {
     // A minute and two minutes on the way: both shorter than any finished team's time.
-    const late = team(5, 'Běžci', { startedAt: '2027-05-15T09:59:00.000Z', playMs: 0 });
-    const early = team(6, 'Chodci', { startedAt: '2027-05-15T09:58:00.000Z', playMs: 0 });
+    const late = team(5, 'Běžci', { startedAt: '2027-05-15T09:59:00.000Z', playtimeMs: 0 });
+    const early = team(6, 'Chodci', { startedAt: '2027-05-15T09:58:00.000Z', playtimeMs: 0 });
     const order = (sort: TeamSort) =>
       sortTeams([...teams, late, early], sort, NOW).map(({ id }) => id);
-    expect(order({ key: 'play', direction: 'asc' })).toEqual([2, 4, 1, 5, 6, 3]);
-    expect(order({ key: 'play', direction: 'desc' })).toEqual([1, 4, 2, 6, 5, 3]);
+    expect(order({ key: 'playtime', direction: 'asc' })).toEqual([2, 4, 1, 5, 6, 3]);
+    expect(order({ key: 'playtime', direction: 'desc' })).toEqual([1, 4, 2, 6, 5, 3]);
     // Other orders do not group them.
     expect(order({ key: 'order', direction: 'asc' })).toEqual([1, 2, 3, 4, 5, 6]);
   });
@@ -97,9 +97,9 @@ describe('sortOptions', () => {
     expect(sortOptions(teams).map(({ key }) => key)).toEqual([
       'order',
       'name',
-      'play',
-      'other',
-      'reading',
+      'playtime',
+      'liveAction',
+      'story',
       'state:coins',
       'state:hasMap',
       'state:note',

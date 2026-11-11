@@ -43,7 +43,7 @@ import {
   type TeamStatus,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
-import { readingTotals } from './reading.ts';
+import { storyTotals } from './story-time.ts';
 import {
   Store,
   type BanRow,
@@ -126,7 +126,7 @@ const gameInfo = (startedAt: Date | undefined, settings: GameSettingsRow): GameI
  * The most one continuous view of a text counts for. A phone left unlocked on a text while the
  * team walks is not reading.
  */
-const MAX_READING_MS = 5 * 60 * 1000;
+const MAX_STORY_MS = 5 * 60 * 1000;
 
 /** The state the game cannot hold, named for the admin. */
 const invalidState = (state: State) =>
@@ -396,7 +396,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return { sessionId, view: yield* playerView(team.id) };
     });
 
-    const reading = Effect.fn('Game.reading')(function* (
+    const storyTime = Effect.fn('Game.storyTime')(function* (
       teamId: number,
       readFor: number | undefined,
       intervals: readonly { readonly ms: number; readonly agoMs: number }[],
@@ -415,18 +415,18 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const rows = intervals.flatMap(({ ms, agoMs }) => {
         if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
         const ended = Math.min(now - Math.max(agoMs, 0), to);
-        const started = Math.max(ended - Math.min(ms, MAX_READING_MS), from);
+        const started = Math.max(ended - Math.min(ms, MAX_STORY_MS), from);
         return ended > started
           ? [{ teamId, startedAt: new Date(started), endedAt: new Date(ended) }]
           : [];
       });
-      if (rows.length > 0) yield* store.addReading(rows);
+      if (rows.length > 0) yield* store.addStoryIntervals(rows);
     });
 
     // -------------------------------------------------------------------------------------------
     // Admin
 
-    const teamStatus = (team: TeamRow, devices: number, readingMs: number): TeamStatus => ({
+    const teamStatus = (team: TeamRow, devices: number, storyMs: number): TeamStatus => ({
       id: team.id,
       name: teamName(team.id),
       ...(team.node === undefined ? {} : { node: team.node }),
@@ -443,10 +443,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         ? {}
         : {
             startedAt: team.startedAt.toISOString(),
-            playMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime(),
+            playtimeMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime(),
           }),
       ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
-      readingMs,
+      storyMs,
     });
 
     const startGame = Effect.fn('Game.startGame')(function* () {
@@ -457,14 +457,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const [devices, readingRows] = yield* Effect.all([
+      const [devices, storyRows] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
-        store.listReading(),
+        store.listStoryIntervals(),
       ]);
       return teamStatus(
         team,
         devices.get(team.id) ?? 0,
-        readingTotals(readingRows).get(team.id) ?? 0,
+        storyTotals(storyRows).get(team.id) ?? 0,
       );
     });
 
@@ -554,20 +554,20 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits, readingRows, gameStartedAt, settings] = yield* Effect.all(
+      const [teams, log, devices, visits, storyRows, gameStartedAt, settings] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
-          store.listReading(),
+          store.listStoryIntervals(),
           store.gameStartedAt(),
           // The admin sees the stored setting, not this instance's cached copy.
           store.gameSettings(),
         ],
         { concurrency: 'unbounded' },
       );
-      const readingMs = readingTotals(readingRows);
+      const storyMs = storyTotals(storyRows);
       const result: Overview = {
         game: gameInfo(gameStartedAt, settings),
         // Every team of the story; one that never logged in has no row yet.
@@ -575,7 +575,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           teamStatus(
             teams.find((team) => team.id === id) ?? notStarted(id),
             devices.get(id) ?? 0,
-            readingMs.get(id) ?? 0,
+            storyMs.get(id) ?? 0,
           ),
         ),
         codes: story.codes,
@@ -795,7 +795,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       playerView,
       choose,
       scan,
-      reading,
+      storyTime,
       graph,
       intro,
       overview,

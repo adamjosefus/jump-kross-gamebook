@@ -15,7 +15,7 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { jittered, pollSeed } from './poll';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
-import { useReadingReport } from './reading';
+import { useStoryTimeReport } from './story-time';
 import { CLOSED_TEXT, type NextCheck, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
@@ -284,7 +284,7 @@ const TeamNodeScreens = ({
   teamId,
   ...props
 }: ComponentProps<typeof NodeScreens> & { readonly teamId: number }) => (
-  <NodeScreens {...props} onRead={useReadingReport(teamId)} />
+  <NodeScreens {...props} onRead={useStoryTimeReport(teamId)} />
 );
 
 const PAGE = 'player-page flex min-h-dvh flex-col font-story';

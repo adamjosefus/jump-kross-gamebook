@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 
-const QUEUE_KEY = 'reading-queue';
+const QUEUE_KEY = 'story-time-queue';
 /** A glance while paging is not reading. */
-const MIN_READING_MS = 1000;
+const MIN_STORY_MS = 1000;
 
-interface QueuedReading {
+interface QueuedStoryTime {
   readonly id: string;
   readonly teamId: number;
   readonly endedAt: number;
   readonly ms: number;
 }
 
-const isQueued = (value: unknown): value is QueuedReading =>
+const isQueued = (value: unknown): value is QueuedStoryTime =>
   typeof value === 'object' &&
   value !== null &&
   'id' in value &&
@@ -19,7 +19,7 @@ const isQueued = (value: unknown): value is QueuedReading =>
   'endedAt' in value &&
   'ms' in value;
 
-const readQueue = (): readonly QueuedReading[] => {
+const readQueue = (): readonly QueuedStoryTime[] => {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem(QUEUE_KEY) ?? '[]');
     return Array.isArray(stored) ? stored.filter(isQueued) : [];
@@ -28,7 +28,7 @@ const readQueue = (): readonly QueuedReading[] => {
   }
 };
 
-const writeQueue = (queue: readonly QueuedReading[]) => {
+const writeQueue = (queue: readonly QueuedStoryTime[]) => {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
   } catch {
@@ -47,7 +47,7 @@ const flush = (teamId: number) => {
   writeQueue(queue);
   if (queue.length === 0) return;
   const now = Date.now();
-  void fetch('/api/player/reading', {
+  void fetch('/api/player/story-time', {
     method: 'POST',
     keepalive: true,
     credentials: 'same-origin',
@@ -71,7 +71,7 @@ const flush = (teamId: number) => {
 };
 
 /** Reports reading of a logged-in team and sends what is still waiting whenever it can. */
-export const useReadingReport = (teamId: number) => {
+export const useStoryTimeReport = (teamId: number) => {
   useEffect(() => {
     const retry = () => {
       if (document.visibilityState === 'visible') flush(teamId);
@@ -95,7 +95,7 @@ export const useReadingReport = (teamId: number) => {
 };
 
 /** Calls `onRead` with how long the mounted text was on a visible page, each time it stops being. */
-export const useReadingTime = (onRead: ((ms: number) => void) | undefined) => {
+export const useStoryTime = (onRead: ((ms: number) => void) | undefined) => {
   const report = useEffectEvent((ms: number) => onRead?.(ms));
   const shownAt = useRef<number | undefined>(undefined);
   useEffect(() => {
@@ -103,7 +103,7 @@ export const useReadingTime = (onRead: ((ms: number) => void) | undefined) => {
       if (shownAt.current === undefined) return;
       const ms = Date.now() - shownAt.current;
       shownAt.current = undefined;
-      if (ms >= MIN_READING_MS) report(ms);
+      if (ms >= MIN_STORY_MS) report(ms);
     };
     const follow = () => {
       if (document.visibilityState === 'visible') shownAt.current ??= Date.now();
