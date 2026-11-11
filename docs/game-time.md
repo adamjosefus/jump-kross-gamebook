@@ -5,7 +5,7 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, a č
 ## Co se zapisuje
 
 - **Začátek hry týmu** je první přihlášení týmu kódem klanu po tom, co organizátoři hru spustili. Další přihlášení, ze stejného i z jiného zařízení, začátek nemění.
-- **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, tedy naskenuje poslední kód.
+- **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, ať volbou, nebo naskenováním kódu.
 - **Čtení** hlásí telefony: jak dlouho byl na viditelné stránce text příběhu. Obrazovka se skenerem se nepočítá, s tou tým jde na další stanoviště. Jedna obrazovka se počítá nejvýš 5 minut a čte-li víc telefonů týmu najednou, počítá se to jednou. Bez signálu čas počká v telefonu a odešle se později.
 
 Telefon neposílá svůj čas, ale „jak dlouho“ a „před jak dlouhou dobou“; okamžik určí server. Špatně nastavené hodiny v telefonu tak výsledek nezkreslí.
@@ -18,15 +18,15 @@ Telefon neposílá svůj čas, ale „jak dlouho“ a „před jak dlouhou dobou
 | Čas čtení     | součet čtení mezi začátkem a koncem            |
 | Čas bez čtení | celkový čas − čas čtení (chůze a úkoly)        |
 
-Všechny tři jsou v administraci na stránce Živě v panelu „Klany“, kde se podle nich dá i řadit, a ve výsledcích zkopírovaných jako CSV nebo JSON.
+Všechny tři jsou v administraci na stránce Živě v panelu „Klany“, kde se podle nich dá i řadit, a ve výsledcích zkopírovaných jako CSV nebo JSON. Při řazení podle času jsou týmy v cíli vždy před týmy na cestě, protože jejich čas už se nemění.
 
 ## Kdy se čas vynuluje
 
 - **Nová hra** („Smazat postup“ na stránce Hra) vynuluje čas i postup všem týmům.
 - **Restartovat hru** v dialogu týmu vynuluje čas i postup jednomu týmu.
-- **Vynulovat čas** v dialogu týmu vynuluje jednomu týmu jen čas a čtení; postup mu zůstane. U týmu v cíli to nejde.
+- **Vynulovat čas** v dialogu týmu vynuluje jednomu týmu jen čas a čtení; postup mu zůstane. U týmu v cíli to nejde. Vynulování se zapíše do panelu „Kroky“.
 
-Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, až tým znovu naskenuje svůj kód.
+Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, až tým znovu naskenuje svůj kód. Po nové hře to jde až poté, co organizátoři hru znovu spustí.
 
 ## Výsledky
 
