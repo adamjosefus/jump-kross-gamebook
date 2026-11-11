@@ -25,15 +25,17 @@ const DOT_DELAYS = ['0ms', '200ms', '400ms'] as const;
 /** How long the full arc takes to drain after a check, before it fills again. */
 const DRAIN_MS = 900;
 
-/** Size of each of the three dots and of the ring. */
+/** Size of each of the three dots and of the pie. */
 const CIRCLE = 'size-3.5';
 
 /**
- * The fourth circle after the dots: an arc that fills up until the phone asks the server again,
- * while the whole ring slowly turns. After every answer the arc drains, its tail chasing its head,
- * and fills again, so the team sees the screen is alive and when it may move on.
+ * The fourth circle after the dots: a pie chart whose slice grows clockwise from the top until the
+ * phone asks the server again. Its empty part is as faint as a dim dot. After every answer the
+ * slice drains, its tail chasing its head, and grows again, so the team sees the screen is alive
+ * and when it may move on. The slice is a stroke as wide as the radius of its circle, so it covers
+ * the disc from the center to the edge.
  */
-const CheckRing = ({ from, at }: NextCheck) => {
+const CheckPie = ({ from, at }: NextCheck) => {
   const arc = useRef<SVGCircleElement>(null);
   const running = useRef<Animation | null>(null);
   useEffect(() => {
@@ -68,15 +70,15 @@ const CheckRing = ({ from, at }: NextCheck) => {
   }, [from, at]);
   useEffect(() => () => running.current?.cancel(), []);
   return (
-    <svg viewBox='0 0 14 14' className={cn(CIRCLE, 'waiting-ring')}>
+    <svg viewBox='0 0 14 14' className={CIRCLE}>
+      <circle cx='7' cy='7' r='7' className='fill-muted-foreground opacity-20' />
       <circle
         ref={arc}
         cx='7'
         cy='7'
-        r='6'
+        r='3.5'
         fill='none'
-        strokeWidth='2'
-        strokeLinecap='round'
+        strokeWidth='7'
         pathLength={1}
         strokeDasharray='1'
         strokeDashoffset='1'
@@ -92,7 +94,7 @@ const CheckRing = ({ from, at }: NextCheck) => {
  * they keep it paused, whether the phone is logged in to a team or not yet. The message is set
  * like the story's text, at the same place as a block, with three dots lighting up above it, so
  * the screen does not look frozen; the page asks the server on its own and moves on once the game
- * opens. A ring after the dots fills up until the next time it asks.
+ * opens. A pie after the dots fills up until the next time it asks.
  */
 export const WaitingScreen = ({
   message,
@@ -129,7 +131,7 @@ export const WaitingScreen = ({
               style={{ animationDelay: delay }}
             />
           ))}
-          {nextCheck !== undefined && <CheckRing {...nextCheck} />}
+          {nextCheck !== undefined && <CheckPie {...nextCheck} />}
         </div>
         <StoryText content={message} theme='default' instant />
       </div>

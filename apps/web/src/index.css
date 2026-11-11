@@ -289,9 +289,9 @@ html:has(.player-page) {
 }
 
 /*
- * The waiting screen (WaitingScreen): three dots that light up one after another, then a ring of
- * the same size that slowly turns while its arc fills up until the next check. The arc itself is
- * animated from the component, which knows the time of the check.
+ * The waiting screen (WaitingScreen): three dots that light up one after another, then a pie
+ * chart of the same size that fills up until the next check. The pie is animated from the
+ * component, which knows the time of the check.
  */
 @keyframes waiting-dot {
   0%,
@@ -306,17 +306,8 @@ html:has(.player-page) {
   opacity: 0.2;
   animation: waiting-dot 1.4s ease-in-out infinite;
 }
-@keyframes waiting-ring {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.waiting-ring {
-  animation: waiting-ring 6s linear infinite;
-}
 @media (prefers-reduced-motion: reduce) {
-  .waiting-dot,
-  .waiting-ring {
+  .waiting-dot {
     animation: none;
   }
   .waiting-dot {
