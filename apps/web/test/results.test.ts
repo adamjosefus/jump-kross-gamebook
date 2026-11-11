@@ -109,10 +109,10 @@ describe('teamResults', () => {
 
   it('writes a semicolon CSV with a column per state key and quoted cells where needed', () => {
     expect(resultsCsv(results).split('\r\n')).toEqual([
-      'id;tym;uzel;v_cili;zacatek;konec;hra;cteni;mimo_cteni;hra_s;cteni_s;mimo_cteni_s;stav_coins;stav_hasMap;stav_note',
-      '1;Vlci;OUTRO;ano;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;20:30;1:19:41;6012;1230;4781;30;true;"řekl; ""ano"""',
-      '2;Lišky;MISTO_2;ne;2027-05-15T09:30:00.000Z;;30:00;1:00;29:00;1800;60;1740;10;false;',
-      '3;Sovy;;ne;;;;0:00;;;0;;;;',
+      'id;team;node;finished;started_at;finished_at;play;reading;other;play_s;reading_s;other_s;state_coins;state_hasMap;state_note',
+      '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;20:30;1:19:41;6012;1230;4781;30;true;"řekl; ""ano"""',
+      '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;1:00;29:00;1800;60;1740;10;false;',
+      '3;Sovy;;false;;;;0:00;;;0;;;;',
       '',
     ]);
   });

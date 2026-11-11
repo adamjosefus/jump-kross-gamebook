@@ -258,6 +258,24 @@ export const makePostgresStore = (client: SqlClient) => {
           sql`delete from session where team_id = ${id}`,
         ]),
       ),
+    resetTiming: (id) =>
+      query(async () => {
+        // One statement, so the check of the end and the clearing cannot be split by a move.
+        const rows = await run(sql`
+          with cleared as (
+            update team set started_at = null
+            where id = ${id} and finished_at is null
+            returning id, node, state
+          ),
+          logged as (
+            insert into step_log (team_id, action, from_node, to_node, state)
+            select cleared.id, 'reset-time', cleared.node, null, cleared.state from cleared
+          ),
+          unread as (delete from reading where team_id in (select id from cleared)),
+          logged_out as (delete from session where team_id in (select id from cleared))
+          select id from cleared`);
+        return rows.length > 0;
+      }),
     addReading: (rows) =>
       query(() =>
         transaction(

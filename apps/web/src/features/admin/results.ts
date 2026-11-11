@@ -70,25 +70,27 @@ const cell = (value: Value | undefined) => {
 
 /**
  * The results as a table, one row per team: the times both as `h:mm:ss` and as whole seconds,
- * then one column per key of the state. Separated by semicolons, which is what a Czech Excel
+ * then one column per key of the state. The column names are English, as the JSON's keys
+ * are, though not the same ones: a table has `team` and `play_s` where the JSON has `name` and
+ * `playSeconds`. Separated by semicolons, which is what a Czech Excel
  * expects, and ended with CRLF.
  */
 export const resultsCsv = (results: readonly TeamResult[]) => {
   const stateKeys = [...new Set(results.flatMap((result) => Object.keys(result.state)))];
   const header = [
     'id',
-    'tym',
-    'uzel',
-    'v_cili',
-    'zacatek',
-    'konec',
-    'hra',
-    'cteni',
-    'mimo_cteni',
-    'hra_s',
-    'cteni_s',
-    'mimo_cteni_s',
-    ...stateKeys.map((key) => `stav_${key}`),
+    'team',
+    'node',
+    'finished',
+    'started_at',
+    'finished_at',
+    'play',
+    'reading',
+    'other',
+    'play_s',
+    'reading_s',
+    'other_s',
+    ...stateKeys.map((key) => `state_${key}`),
   ];
   const formatted = (value: number | undefined) =>
     value === undefined ? undefined : formatDuration(value * 1000);
@@ -96,7 +98,7 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     result.id,
     result.name,
     result.node,
-    result.finished ? 'ano' : 'ne',
+    result.finished,
     result.startedAt,
     result.finishedAt,
     formatted(result.playSeconds),

@@ -199,6 +199,7 @@ const AdminHandlers = HttpApiBuilder.group(
       unbanDevice: ({ params }) => orDie(game.unbanDevice(params.id)),
       resetAll: () => orDie(game.resetAll()),
       resetTeam: ({ params }) => orDie(game.resetTeam(params.id)),
+      resetTeamTime: ({ params }) => orDie(game.resetTeamTime(params.id)),
       moveTeam: ({ params, payload }) =>
         orDie(game.moveTeam(params.id, payload.node, payload.state)),
       codes: () => orDie(game.codes()),

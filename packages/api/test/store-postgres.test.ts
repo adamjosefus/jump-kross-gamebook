@@ -375,6 +375,63 @@ describe('postgres store', () => {
     await run(store.clearAdminFailures('1.2.3.4'));
     expect(await run(store.adminFailures('1.2.3.4'))).toBeUndefined();
   });
+
+  it('resets the timing of a team on its way only', async () => {
+    const team = await run(store.ensureTeam(2));
+    const moved = await run(
+      store.moveTeam(2, team.step, {
+        node: 'A2',
+        state: { gold: 80 },
+        finished: false,
+        action: 'choice:1',
+      }),
+    );
+    await run(store.markStarted(2));
+    const now = Date.now();
+    await run(
+      store.addReading([{ teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) }]),
+    );
+    await run(
+      store.createSession('reset-phone', 2, {
+        ip: undefined,
+        userAgent: undefined,
+        deviceId: undefined,
+      }),
+    );
+    const visits = await run(store.visitCounts());
+
+    expect(await run(store.resetTiming(2))).toBe(true);
+    expect(await run(store.getTeam(2))).toMatchObject({
+      node: 'A2',
+      state: { gold: 80 },
+      step: moved!.step,
+      startedAt: undefined,
+    });
+    expect((await run(store.listReading())).filter((row) => row.teamId === 2)).toEqual([]);
+    expect(await run(store.touchSession('reset-phone', new Date(now - 60_000)))).toBeUndefined();
+    expect((await run(store.recentLog(1)))[0]).toMatchObject({
+      teamId: 2,
+      action: 'reset-time',
+      fromNode: 'A2',
+      toNode: undefined,
+    });
+    expect(await run(store.visitCounts())).toEqual(visits);
+
+    // At the end the times stay, and so does everything else.
+    await run(store.markStarted(2));
+    await run(
+      store.moveTeam(2, undefined, {
+        node: 'END',
+        state: { gold: 80 },
+        finished: true,
+        action: 'choice:0',
+      }),
+    );
+    expect(await run(store.resetTiming(2))).toBe(false);
+    expect((await run(store.getTeam(2)))!.startedAt).toBeInstanceOf(Date);
+    expect((await run(store.recentLog(1)))[0]!.action).toBe('choice:0');
+    expect(await run(store.resetTiming(99))).toBe(false);
+  });
 });
 
 describe('the api on postgres', () => {
