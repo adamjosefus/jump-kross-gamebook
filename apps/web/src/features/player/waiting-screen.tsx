@@ -29,8 +29,8 @@ const DRAIN_MS = 900;
 const CIRCLE = 'size-3.5';
 
 /**
- * The fourth circle after the dots: a pie chart whose slice grows clockwise from the top until the
- * phone asks the server again, with nothing drawn behind it. After every answer the slice drains,
+ * The fourth circle after the dots: a pie chart that slowly turns while its slice grows clockwise
+ * until the phone asks the server again, with nothing drawn behind it. After every answer the slice drains,
  * its tail chasing its head, and grows again, so the team sees the screen is alive and when it may
  * move on. The slice is a stroke as wide as the radius of its circle, so it covers the disc from
  * the center to the edge.
@@ -70,7 +70,7 @@ const CheckPie = ({ from, at }: NextCheck) => {
   }, [from, at]);
   useEffect(() => () => running.current?.cancel(), []);
   return (
-    <svg viewBox='0 0 14 14' className={CIRCLE}>
+    <svg viewBox='0 0 14 14' className={cn(CIRCLE, 'waiting-pie')}>
       <circle
         ref={arc}
         cx='7'
