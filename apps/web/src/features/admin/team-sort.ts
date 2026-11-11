@@ -68,9 +68,13 @@ const sortValue = (team: TeamStatus, key: TeamSortKey, now: number): Value | und
   return key === 'reading' ? team.readingMs : playMs - team.readingMs;
 };
 
+const TIME_KEYS: ReadonlySet<TeamSortKey> = new Set(['play', 'other', 'reading']);
+
 /**
  * The teams in the chosen order. A team without the value stays at the end in both directions,
  * so the ones that have something to compare are always on top; equal teams keep the story's order.
+ * By a time, the teams at the end come first, as the standings: their times are final, while the
+ * clock of a team on its way still runs and would carry it through the list.
  */
 export const sortTeams = (
   teams: readonly TeamStatus[],
@@ -85,6 +89,8 @@ export const sortTeams = (
         if (second.value !== undefined) return 1;
         return first.team.id - second.team.id;
       }
+      if (TIME_KEYS.has(key) && first.team.finished !== second.team.finished)
+        return first.team.finished ? -1 : 1;
       const order = compareValues(first.value, second.value);
       if (order === 0) return first.team.id - second.team.id;
       return direction === 'asc' ? order : -order;

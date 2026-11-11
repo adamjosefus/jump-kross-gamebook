@@ -71,11 +71,16 @@ describe('sortTeams', () => {
     expect(ids({ key: 'other', direction: 'desc' })).toEqual([1, 4, 2, 3]);
   });
 
-  it('counts a running team up to now', () => {
-    const running = team(5, 'Běžci', { startedAt: '2027-05-15T09:59:00.000Z', playMs: 0 });
-    expect(
-      sortTeams([...teams, running], { key: 'play', direction: 'asc' }, NOW).map(({ id }) => id),
-    ).toEqual([5, 2, 4, 1, 3]);
+  it('puts the teams at the end before the running ones when ordering by a time', () => {
+    // A minute and two minutes on the way: both shorter than any finished team's time.
+    const late = team(5, 'Běžci', { startedAt: '2027-05-15T09:59:00.000Z', playMs: 0 });
+    const early = team(6, 'Chodci', { startedAt: '2027-05-15T09:58:00.000Z', playMs: 0 });
+    const order = (sort: TeamSort) =>
+      sortTeams([...teams, late, early], sort, NOW).map(({ id }) => id);
+    expect(order({ key: 'play', direction: 'asc' })).toEqual([2, 4, 1, 5, 6, 3]);
+    expect(order({ key: 'play', direction: 'desc' })).toEqual([1, 4, 2, 6, 5, 3]);
+    // Other orders do not group them.
+    expect(order({ key: 'order', direction: 'asc' })).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('orders by a key of the state, teams without the key last', () => {
