@@ -40,7 +40,6 @@ import { adminKeys, useStoryGraph } from './queries';
 import { NARROW_PX, Subpage, useNarrow, useSubpageBack } from './subpage';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
-
 const LOG_KEY = 'gamebook.playtest.log';
 
 const remPx = (rem: number) =>
@@ -357,23 +356,16 @@ export const PlaytestPage = () => {
     gcTime: 0,
   });
   // Steps after the intro; undefined until the first move, while the replayed path stands.
-  const [moves, setMovesState] = useState<readonly Step[]>();
+  // The URL follows the moves (see the effect below).
+  const [moves, setMoves] = useState<readonly Step[]>();
   const steps = moves ?? (opened === '' ? [] : (replay.data ?? []));
   const path: readonly Step[] = start === undefined ? [] : [start, ...steps];
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
   const pathParam = steps.map((step) => step.token).join('.');
-  const panelParam = search.panel === undefined ? {} : { panel: search.panel };
-
-  const setMoves = (next: readonly Step[]) => {
-    setMovesState(next);
-    const param = next.map((step) => step.token).join('.');
-    void navigate({
-      to: '/admin/playtest',
-      search: { ...(param === '' ? {} : { path: param }), ...panelParam },
-      replace: true,
-    });
-  };
+  // The log's subpage goes along with the moves only on a phone; a wider page has no subpage.
+  const urlPanel = narrow ? search.panel : undefined;
+  const panelParam = urlPanel === undefined ? {} : { panel: urlPanel };
 
   const play = useMutation({
     mutationFn: ({ from, move }: { readonly from: Step; readonly move?: Move }) =>
@@ -470,11 +462,28 @@ export const PlaytestPage = () => {
     const { panel: _closed, ...rest } = search;
     void navigate({ to: '/admin/playtest', search: rest, replace: true });
   });
-  const toggleLog = () => {
+  const openLog = () => {
     if (!narrow) return setLogOpen(true);
     subpageBack.opened();
     void navigate({ to: '/admin/playtest', search: { ...search, panel: 'log' } });
   };
+
+  // The run's moves go to the URL in place of its entry, so a reload replays them. It is done
+  // after every change, not only after a move: going back in the history, such as from the log's
+  // subpage, lands on an entry written before the last moves while the page keeps its run, and a
+  // reload would then replay another path than the one shown.
+  const urlPath = search.path ?? '';
+  useEffect(() => {
+    if (moves === undefined || urlPath === pathParam) return;
+    void navigate({
+      to: '/admin/playtest',
+      search: {
+        ...(pathParam === '' ? {} : { path: pathParam }),
+        ...(urlPanel === undefined ? {} : { panel: urlPanel }),
+      },
+      replace: true,
+    });
+  }, [moves, urlPath, pathParam, urlPanel, navigate]);
 
   if (intro.isPending || (opened !== '' && replay.isPending))
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
@@ -659,7 +668,7 @@ export const PlaytestPage = () => {
         </aside>
       ) : (
         <div className='absolute top-4 right-4 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
-          <Button variant='ghost' size='sm' onClick={toggleLog}>
+          <Button variant='ghost' size='sm' onClick={openLog}>
             {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
             <span className='text-muted-foreground'>{path.length}</span>
             {problems.length > 0 && (
