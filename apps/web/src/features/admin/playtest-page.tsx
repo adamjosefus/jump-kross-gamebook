@@ -39,6 +39,13 @@ import { cn } from '@/lib/utils';
 import { adminKeys, useStoryGraph } from './queries';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
+
+/**
+ * Below this width (Tailwind's `md`) the page is a phone: the preview takes the whole width, since
+ * a third of it would be too small to read, and the graph stays behind it.
+ */
+const NARROW_PX = 768;
+
 const LOG_KEY = 'gamebook.playtest.log';
 
 const remPx = (rem: number) =>
@@ -48,7 +55,11 @@ const remPx = (rem: number) =>
 const useLogPanel = () => {
   const [open, setOpen] = useState(() => {
     try {
-      return localStorage.getItem(LOG_KEY) !== 'hidden';
+      // On a phone the panel would cover the preview, so there it starts closed.
+      return (
+        localStorage.getItem(LOG_KEY) !== 'hidden' &&
+        window.matchMedia(`(min-width: ${NARROW_PX}px)`).matches
+      );
     } catch {
       return true;
     }
@@ -105,7 +116,11 @@ const usePreviewScale = () => {
       // The offset sizes ignore the transform, so these are the block's natural size.
       if (block.offsetWidth === 0 || block.offsetHeight === 0) return;
       const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
-      const width = (page.clientWidth * PREVIEW_WIDTH_SHARE) / block.offsetWidth;
+      const available =
+        page.clientWidth < NARROW_PX
+          ? page.clientWidth - 2 * remPx(1)
+          : page.clientWidth * PREVIEW_WIDTH_SHARE;
+      const width = available / block.offsetWidth;
       setScale(Math.min(1, height, width));
     };
     const observer = new ResizeObserver(measure);

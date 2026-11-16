@@ -73,9 +73,9 @@ export const DevicesPage = () => {
   const active = devices.filter((device) => device.active).length;
 
   return (
-    <div className='mx-auto flex max-w-6xl flex-col gap-6 p-6'>
+    <div className='mx-auto flex max-w-6xl flex-col gap-4 p-4 md:gap-6 md:p-6'>
       <Card>
-        <CardHeader className='flex flex-row items-start justify-between gap-4'>
+        <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
           <div className='flex flex-col gap-1.5'>
             <CardTitle>
               Přihlášená zařízení{' '}
@@ -91,7 +91,7 @@ export const DevicesPage = () => {
             </CardDescription>
           </div>
           <Select value={selected} onValueChange={setTeam}>
-            <SelectTrigger className='w-44 shrink-0' aria-label='Tým'>
+            <SelectTrigger className='w-full shrink-0 sm:w-44' aria-label='Tým'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -116,9 +116,9 @@ export const DevicesPage = () => {
               <TableRow>
                 <TableHead>Tým</TableHead>
                 <TableHead>Zařízení</TableHead>
-                <TableHead>Přihlášeno</TableHead>
+                <TableHead className='hidden md:table-cell'>Přihlášeno</TableHead>
                 <TableHead>Naposledy</TableHead>
-                <TableHead>IP adresa</TableHead>
+                <TableHead className='hidden md:table-cell'>IP adresa</TableHead>
                 <TableHead className='w-20' />
               </TableRow>
             </TableHeader>
@@ -174,8 +174,12 @@ const DeviceRow = ({
         {deviceLabel(device.userAgent)}
         <span className='font-mono text-xs text-muted-foreground'>{device.id.slice(0, 6)}</span>
       </span>
+      {/* On a phone the address has no column of its own. */}
+      <span className='font-mono text-xs text-muted-foreground md:hidden'>
+        {device.ip ?? 'IP neznámá'}
+      </span>
     </TableCell>
-    <TableCell className='tabular-nums'>
+    <TableCell className='hidden tabular-nums md:table-cell'>
       {formatDateTime(device.loggedInAt, { seconds: true })}
     </TableCell>
     <TableCell
@@ -191,7 +195,7 @@ const DeviceRow = ({
         {timeAgo(device.lastSeenAt)}
       </span>
     </TableCell>
-    <TableCell className='font-mono text-xs'>
+    <TableCell className='hidden font-mono text-xs md:table-cell'>
       {device.ip ?? <span className='text-muted-foreground'>neznámá</span>}
     </TableCell>
     <TableCell>
@@ -260,7 +264,7 @@ const BansCard = ({ bans }: { readonly bans: readonly BannedDevice[] }) => {
               <TableHead>Tým</TableHead>
               <TableHead>Zařízení</TableHead>
               <TableHead>Zablokováno</TableHead>
-              <TableHead>IP adresa</TableHead>
+              <TableHead className='hidden md:table-cell'>IP adresa</TableHead>
               <TableHead className='w-32' />
             </TableRow>
           </TableHeader>
@@ -273,9 +277,14 @@ const BansCard = ({ bans }: { readonly bans: readonly BannedDevice[] }) => {
                     {ban.teamName}
                   </span>
                 </TableCell>
-                <TableCell title={ban.userAgent}>{deviceLabel(ban.userAgent)}</TableCell>
+                <TableCell title={ban.userAgent}>
+                  {deviceLabel(ban.userAgent)}
+                  <span className='block font-mono text-xs text-muted-foreground md:hidden'>
+                    {ban.ip ?? 'IP neznámá'}
+                  </span>
+                </TableCell>
                 <TableCell className='tabular-nums'>{formatDateTime(ban.bannedAt)}</TableCell>
-                <TableCell className='font-mono text-xs'>
+                <TableCell className='hidden font-mono text-xs md:table-cell'>
                   {ban.ip ?? <span className='text-muted-foreground'>neznámá</span>}
                 </TableCell>
                 <TableCell>

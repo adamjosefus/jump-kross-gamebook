@@ -48,7 +48,7 @@ export const GamePage = () => {
   const { game, teams, codes } = overview.data;
 
   return (
-    <div className='mx-auto grid max-w-5xl gap-6 p-6 lg:grid-cols-2'>
+    <div className='mx-auto grid max-w-5xl gap-4 p-4 md:gap-6 md:p-6 lg:grid-cols-2'>
       <GameControl game={game} teams={teams} onResetAll={() => openReset(null)} />
 
       <Card>
