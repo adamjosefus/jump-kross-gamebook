@@ -14,8 +14,8 @@ const NO_QUIET_ZONE: QrStyle = { quietZone: 0 };
 const NO_SCAN_TEXT = '—';
 
 /**
- * Light outline buttons for `actions`: they show only over the card turned light, so they keep
- * light colors in dark mode too.
+ * Light outline buttons for `actions`: they show only over the card turned light (on hover, or
+ * always on a touch screen), so they keep light colors in dark mode too.
  */
 export const QR_CARD_ACTION =
   'border-black/10 bg-white text-black hover:bg-black/5 hover:text-black dark:border-black/10 dark:bg-white dark:hover:bg-black/5';
@@ -41,7 +41,8 @@ interface QrCardProps {
  * the code stays in the middle, bigger in print. In the colors of the app theme, the code included:
  * it has no background or margin of its own and takes the text color. On hover or keyboard focus,
  * and in print, the card turns black on white, so the code scans in dark mode too; the card's
- * padding is the code's quiet zone.
+ * padding is the code's quiet zone. On a touch screen, where there is no hover, a card with
+ * `actions` is black on white all the time, since its buttons are always shown.
  */
 const QrCard = ({
   value,
@@ -55,6 +56,8 @@ const QrCard = ({
   <figure
     className={cn(
       'group relative flex w-min break-inside-avoid flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-card-foreground focus-within:border-black/10 focus-within:bg-white focus-within:text-black hover:border-black/10 hover:bg-white hover:text-black print:border-2 print:border-black print:bg-white print:text-black',
+      actions !== undefined &&
+        '[@media(hover:none)]:border-black/10 [@media(hover:none)]:bg-white [@media(hover:none)]:text-black',
       className,
     )}
   >
