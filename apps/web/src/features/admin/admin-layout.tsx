@@ -108,18 +108,22 @@ export const AdminLayout = () => {
     // When printed (the QR codes), the page grows with its content and the bar is left out.
     <div className='flex h-dvh flex-col print:h-auto'>
       <PausedBar pathname={pathname} />
-      <header className='flex items-center gap-1 border-b px-4 py-2 print:hidden'>
-        <span className='mr-4 font-semibold'>Gamebook</span>
-        <nav className='flex gap-1'>
+      {/*
+        On a phone the pages get a row of their own under the name and the two buttons; when they
+        do not fit even there, the row scrolls sideways instead of widening the whole page.
+      */}
+      <header className='flex flex-wrap items-center gap-1 border-b px-2 py-1 md:flex-nowrap md:px-4 md:py-2 print:hidden'>
+        <span className='mr-auto px-2 font-semibold md:mr-4 md:px-0'>Gamebook</span>
+        <nav className='order-last flex w-full [scrollbar-width:none] gap-1 overflow-x-auto pb-1 md:order-none md:w-auto md:overflow-visible md:pb-0'>
           {NAV.map((item) => (
-            <Button key={item.to} variant='ghost' size='sm' asChild>
+            <Button key={item.to} variant='ghost' size='sm' className='shrink-0' asChild>
               <Link to={item.to} activeProps={{ className: 'bg-accent' }}>
                 {item.label}
               </Link>
             </Button>
           ))}
         </nav>
-        <span className='flex-1' />
+        <span className='hidden flex-1 md:block' />
         <Button
           variant='ghost'
           size='sm'

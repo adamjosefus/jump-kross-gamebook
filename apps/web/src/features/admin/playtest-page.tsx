@@ -37,6 +37,7 @@ import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { adminKeys, useStoryGraph } from './queries';
+import { NARROW_PX, Subpage, useNarrow, useSubpageBack } from './subpage';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
 const LOG_KEY = 'gamebook.playtest.log';
@@ -105,7 +106,12 @@ const usePreviewScale = () => {
       // The offset sizes ignore the transform, so these are the block's natural size.
       if (block.offsetWidth === 0 || block.offsetHeight === 0) return;
       const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
-      const width = (page.clientWidth * PREVIEW_WIDTH_SHARE) / block.offsetWidth;
+      // On a phone a third of the width would be too small to read; the graph stays behind it.
+      const available =
+        page.clientWidth < NARROW_PX
+          ? page.clientWidth - 2 * remPx(1)
+          : page.clientWidth * PREVIEW_WIDTH_SHARE;
+      const width = available / block.offsetWidth;
       setScale(Math.min(1, height, width));
     };
     const observer = new ResizeObserver(measure);
@@ -322,7 +328,10 @@ export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
   const navigate = useNavigate();
   const [animated, setAnimated] = useAnimations();
-  const [logOpen, setLogOpen] = useLogPanel();
+  const [logPanelOpen, setLogOpen] = useLogPanel();
+  // On a phone the log is a subpage kept in the URL instead of a floating panel.
+  const narrow = useNarrow();
+  const logOpen = !narrow && logPanelOpen;
   const [pageRef, blockRef, scale] = usePreviewScale();
   const graph = useStoryGraph();
   const problems = useMemo(
@@ -347,22 +356,16 @@ export const PlaytestPage = () => {
     gcTime: 0,
   });
   // Steps after the intro; undefined until the first move, while the replayed path stands.
-  const [moves, setMovesState] = useState<readonly Step[]>();
+  // The URL follows the moves (see the effect below).
+  const [moves, setMoves] = useState<readonly Step[]>();
   const steps = moves ?? (opened === '' ? [] : (replay.data ?? []));
   const path: readonly Step[] = start === undefined ? [] : [start, ...steps];
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
   const pathParam = steps.map((step) => step.token).join('.');
-
-  const setMoves = (next: readonly Step[]) => {
-    setMovesState(next);
-    const param = next.map((step) => step.token).join('.');
-    void navigate({
-      to: '/admin/playtest',
-      search: param === '' ? {} : { path: param },
-      replace: true,
-    });
-  };
+  // The log's subpage goes along with the moves only on a phone; a wider page has no subpage.
+  const urlPanel = narrow ? search.panel : undefined;
+  const panelParam = urlPanel === undefined ? {} : { panel: urlPanel };
 
   const play = useMutation({
     mutationFn: ({ from, move }: { readonly from: Step; readonly move?: Move }) =>
@@ -393,6 +396,94 @@ export const PlaytestPage = () => {
       return 'rejected';
     }
   };
+
+  const logContent = (
+    <>
+      {problems.length > 0 && (
+        <section className='flex flex-col gap-2 text-destructive'>
+          <h2 className='flex items-center gap-1.5 font-medium'>
+            <IconAlertTriangle className='size-4' /> Chyby v příběhu:
+          </h2>
+          <ul className='flex flex-col gap-1'>
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {current !== undefined && current.intro !== true && (
+        <section className='flex flex-col gap-2'>
+          <div className='flex items-baseline gap-1.5'>
+            <h2 className='font-medium'>Tým:</h2>
+            <p>{current.team.name}</p>
+          </div>
+          <h2 className='mt-4 font-medium'>Stav:</h2>
+          <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
+            {Object.entries(current.state).map(([key, value]) => (
+              <div key={key} className='contents'>
+                <dt className='text-muted-foreground'>{key}</dt>
+                <dd>{JSON.stringify(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+      <section className='flex flex-col gap-2'>
+        <h2 className='font-medium'>Cesta:</h2>
+        <ol className='flex flex-col gap-1'>
+          {path.map((step, index) => (
+            <li key={index}>
+              <button
+                type='button'
+                className={cn(
+                  'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
+                  index === path.length - 1 && 'bg-accent',
+                )}
+                disabled={play.isPending}
+                onClick={() => backTo(index)}
+                title='Vrátit se sem'
+              >
+                <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
+                  {index + 1}.
+                </span>
+                <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
+                {step.via !== undefined && (
+                  <span className='truncate text-muted-foreground'>← {step.via}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <p className='text-xs text-muted-foreground'>Test se nikam neukládá.</p>
+    </>
+  );
+  const subpageBack = useSubpageBack(() => {
+    const { panel: _closed, ...rest } = search;
+    void navigate({ to: '/admin/playtest', search: rest, replace: true });
+  });
+  const openLog = () => {
+    if (!narrow) return setLogOpen(true);
+    subpageBack.opened();
+    void navigate({ to: '/admin/playtest', search: { ...search, panel: 'log' } });
+  };
+
+  // The run's moves go to the URL in place of its entry, so a reload replays them. It is done
+  // after every change, not only after a move: going back in the history, such as from the log's
+  // subpage, lands on an entry written before the last moves while the page keeps its run, and a
+  // reload would then replay another path than the one shown.
+  const urlPath = search.path ?? '';
+  useEffect(() => {
+    if (moves === undefined || urlPath === pathParam) return;
+    void navigate({
+      to: '/admin/playtest',
+      search: {
+        ...(pathParam === '' ? {} : { path: pathParam }),
+        ...(urlPanel === undefined ? {} : { panel: urlPanel }),
+      },
+      replace: true,
+    });
+  }, [moves, urlPath, pathParam, urlPanel, navigate]);
 
   if (intro.isPending || (opened !== '' && replay.isPending))
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
@@ -445,7 +536,11 @@ export const PlaytestPage = () => {
                 onIndexChange={(screen) =>
                   void navigate({
                     to: '/admin/playtest',
-                    search: { ...(pathParam === '' ? {} : { path: pathParam }), screen },
+                    search: {
+                      ...(pathParam === '' ? {} : { path: pathParam }),
+                      screen,
+                      ...panelParam,
+                    },
                     replace: true,
                   })
                 }
@@ -568,68 +663,12 @@ export const PlaytestPage = () => {
             </Hint>
           </header>
           <div className='flex min-h-0 flex-col gap-6 overflow-y-auto p-4 text-sm'>
-            {problems.length > 0 && (
-              <section className='flex flex-col gap-2 text-destructive'>
-                <h2 className='flex items-center gap-1.5 font-medium'>
-                  <IconAlertTriangle className='size-4' /> Chyby v příběhu:
-                </h2>
-                <ul className='flex flex-col gap-1'>
-                  {problems.map((problem) => (
-                    <li key={problem}>{problem}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {current !== undefined && current.intro !== true && (
-              <section className='flex flex-col gap-2'>
-                <div className='flex items-baseline gap-1.5'>
-                  <h2 className='font-medium'>Tým:</h2>
-                  <p>{current.team.name}</p>
-                </div>
-                <h2 className='mt-4 font-medium'>Stav:</h2>
-                <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
-                  {Object.entries(current.state).map(([key, value]) => (
-                    <div key={key} className='contents'>
-                      <dt className='text-muted-foreground'>{key}</dt>
-                      <dd>{JSON.stringify(value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            )}
-            <section className='flex flex-col gap-2'>
-              <h2 className='font-medium'>Cesta:</h2>
-              <ol className='flex flex-col gap-1'>
-                {path.map((step, index) => (
-                  <li key={index}>
-                    <button
-                      type='button'
-                      className={cn(
-                        'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
-                        index === path.length - 1 && 'bg-accent',
-                      )}
-                      disabled={play.isPending}
-                      onClick={() => backTo(index)}
-                      title='Vrátit se sem'
-                    >
-                      <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
-                        {index + 1}.
-                      </span>
-                      <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
-                      {step.via !== undefined && (
-                        <span className='truncate text-muted-foreground'>← {step.via}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
-            <p className='text-xs text-muted-foreground'>Test se nikam neukládá.</p>
+            {logContent}
           </div>
         </aside>
       ) : (
         <div className='absolute top-4 right-4 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
-          <Button variant='ghost' size='sm' onClick={() => setLogOpen(true)}>
+          <Button variant='ghost' size='sm' onClick={openLog}>
             {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
             <span className='text-muted-foreground'>{path.length}</span>
             {problems.length > 0 && (
@@ -639,6 +678,20 @@ export const PlaytestPage = () => {
             )}
           </Button>
         </div>
+      )}
+
+      {narrow && search.panel === 'log' && (
+        <Subpage
+          title='Průběh testu'
+          aside={
+            play.isPending && (
+              <IconLoader2 className='mr-2 size-4 animate-spin text-muted-foreground' />
+            )
+          }
+          onBack={subpageBack.back}
+        >
+          <div className='flex flex-col gap-6 p-2 text-sm'>{logContent}</div>
+        </Subpage>
       )}
     </div>
   );

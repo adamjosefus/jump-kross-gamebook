@@ -58,6 +58,8 @@ const story = createRoute({
 export interface PlaytestSearch {
   readonly path?: string;
   readonly screen?: number;
+  /** The log opened as a subpage on a phone. */
+  readonly panel?: 'log';
 }
 
 const playtest = createRoute({
@@ -69,6 +71,7 @@ const playtest = createRoute({
     return {
       ...(path === undefined || path === '' ? {} : { path }),
       ...(screen === undefined ? {} : { screen }),
+      ...(search['panel'] === 'log' ? { panel: 'log' } : {}),
     };
   },
   component: lazyRouteComponent(() => import('@/features/admin/playtest-page'), 'PlaytestPage'),
@@ -78,9 +81,16 @@ const game = createRoute({
   path: '/game',
   component: lazyRouteComponent(() => import('@/features/admin/game-page'), 'GamePage'),
 });
+/** The live view's panel opened as a subpage on a phone. */
+export interface DashboardSearch {
+  readonly panel?: 'teams' | 'log';
+}
+
 const dashboard = createRoute({
   getParentRoute: () => admin,
   path: '/dashboard',
+  validateSearch: (search): DashboardSearch =>
+    search['panel'] === 'teams' || search['panel'] === 'log' ? { panel: search['panel'] } : {},
   component: lazyRouteComponent(() => import('@/features/admin/dashboard-page'), 'DashboardPage'),
 });
 const devices = createRoute({

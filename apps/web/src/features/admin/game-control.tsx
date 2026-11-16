@@ -138,7 +138,7 @@ export const GameControl = ({
 
   return (
     <Card className={cn('lg:col-span-2', phase === 'paused' && 'ring-2 ring-destructive')}>
-      <CardHeader className='flex flex-row items-center justify-between gap-4'>
+      <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex flex-col gap-1.5'>
           <CardTitle className='flex items-center gap-2'>
             Hra
@@ -165,7 +165,7 @@ export const GameControl = ({
       </CardHeader>
 
       {hasProgress && (
-        <CardFooter className='justify-between gap-4'>
+        <CardFooter className='flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
           <p className='text-sm text-muted-foreground'>
             Smaže postup všech týmů a odhlásí jejich telefony. Hru pak spustíte znovu.
           </p>

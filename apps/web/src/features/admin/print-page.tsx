@@ -88,7 +88,7 @@ export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }
   });
 
   return (
-    <div className='flex flex-col gap-8 p-6'>
+    <div className='flex flex-col gap-6 p-4 md:gap-8 md:p-6 print:gap-8 print:p-6'>
       <div className='relative max-w-sm print:hidden'>
         <IconSearch className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
         <Input
@@ -121,7 +121,8 @@ export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }
               </h2>
               <p className='text-sm text-muted-foreground'>{section.description}</p>
             </header>
-            <div className='grid grid-cols-[repeat(auto-fill,13rem)] gap-4 print:grid-cols-[repeat(auto-fill,8cm)]'>
+            {/* A phone fits one card across, so it stands in the middle rather than at the left edge. */}
+            <div className='grid grid-cols-[repeat(auto-fill,13rem)] justify-center gap-4 sm:justify-start print:grid-cols-[repeat(auto-fill,8cm)] print:justify-start'>
               {entries.map((entry) => (
                 <CodeCard key={entry.code} entry={entry} />
               ))}
