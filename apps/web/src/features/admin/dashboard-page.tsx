@@ -17,6 +17,7 @@ import {
   IconUsers,
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
@@ -56,6 +57,7 @@ import { formatTime, timeAgo } from './format';
 import { adminKeys, useOverview, useStoryGraph } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
+import { Subpage, useNarrow, useSubpageBack } from './subpage';
 import {
   DEFAULT_TEAM_SORT,
   isTeamSortKey,
@@ -319,7 +321,12 @@ const FloatingPanel = ({
     </div>
   );
 
-/** Live view: the story graph with every clan on its node, teams and steps in floating panels. */
+const PANEL_TITLES = { teams: 'Klany', log: 'Poslední kroky' } as const;
+
+/**
+ * Live view: the story graph with every clan on its node, teams and steps in floating panels. On a
+ * phone a panel opens as a subpage instead, kept in the URL so the back gesture closes it.
+ */
 export const DashboardPage = () => {
   const overview = useOverview(POLL_MS);
   const graph = useStoryGraph().data;
@@ -327,6 +334,29 @@ export const DashboardPage = () => {
   const [panels, setPanels] = usePanels();
   const now = useNow();
   const [sort, setSort] = useTeamSort();
+  const narrow = useNarrow();
+  const { panel: subpage } = useSearch({ from: '/admin/dashboard' });
+  const navigate = useNavigate();
+  const subpageBack = useSubpageBack(
+    () => void navigate({ to: '/admin/dashboard', search: {}, replace: true }),
+  );
+  const openSubpage = (panel: Panel) => {
+    subpageBack.opened();
+    void navigate({ to: '/admin/dashboard', search: { panel } });
+  };
+  /** The floating panel's state and its change; on a phone it is only the button to the subpage. */
+  const panelProps = (panel: Panel) =>
+    narrow
+      ? {
+          state: CLOSED,
+          onChange: (next: PanelState) => {
+            if (next.open) openSubpage(panel);
+          },
+        }
+      : {
+          state: panels[panel],
+          onChange: (next: PanelState) => setPanels({ ...panels, [panel]: next }),
+        };
 
   if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
   // Without anything to show the error is the page; with the last data it is a bar above them.
@@ -334,6 +364,84 @@ export const DashboardPage = () => {
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { game, teams, log } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
+
+  const teamsContent = (
+    <>
+      <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2'>
+        <p className='text-xs text-muted-foreground'>
+          {game.startedAt === undefined
+            ? 'Hra není spuštěná, týmy se nemohou přihlásit.'
+            : `Hra běží od ${formatTime(game.startedAt)}.`}
+        </p>
+        <CopyResults teams={teams} now={now} />
+      </div>
+      <TeamSortControl teams={teams} sort={sort} onChange={setSort} />
+      <ul className='flex flex-col'>
+        {sortTeams(teams, sort, now).map((team) => (
+          <li
+            key={team.id}
+            className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
+          >
+            <TeamAvatar id={team.id} name={team.name} />
+            <div className='min-w-0 flex-1'>
+              <div className='flex items-center gap-1.5'>
+                <span className='truncate font-medium'>{team.name}</span>
+                <span className='font-mono text-xs text-muted-foreground'>{team.node ?? '—'}</span>
+                {!team.nodeExists && (
+                  <IconAlertTriangle
+                    className='size-3.5 text-destructive'
+                    aria-label='Uzel v příběhu chybí'
+                  />
+                )}
+                {team.finished && <Badge variant='secondary'>cíl</Badge>}
+              </div>
+              <div
+                className='truncate font-mono text-xs text-muted-foreground'
+                title={formatState(team.state)}
+              >
+                {formatState(team.state)}
+              </div>
+              <div className='text-xs text-muted-foreground'>
+                {team.devices} zař. ·{' '}
+                {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
+              </div>
+              <TeamTimes team={team} now={now} />
+            </div>
+            <Button
+              variant='ghost'
+              size='icon'
+              title='Přesunout tým'
+              aria-label={`Přesunout tým ${team.name}`}
+              onClick={() => setMoving(team)}
+            >
+              <IconPencil />
+            </Button>
+          </li>
+        ))}
+        {teams.length === 0 && (
+          <li className='p-2 text-sm text-muted-foreground'>Zatím žádné klany.</li>
+        )}
+      </ul>
+    </>
+  );
+  const logContent = (
+    <ol className='flex flex-col gap-1 text-sm'>
+      {log.map((entry, index) => (
+        <li key={index} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
+          <TeamAvatar id={entry.teamId} name={names.get(entry.teamId) ?? `#${entry.teamId}`} />
+          <div className='min-w-0 flex-1'>
+            <div className='font-mono text-xs'>
+              {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
+            </div>
+            <div className='text-xs text-muted-foreground'>
+              {actionLabel(entry.action)} · {timeAgo(entry.at)}
+            </div>
+          </div>
+        </li>
+      ))}
+      {log.length === 0 && <li className='p-2 text-muted-foreground'>Zatím nic.</li>}
+    </ol>
+  );
 
   return (
     <div className='relative h-full'>
@@ -364,95 +472,25 @@ export const DashboardPage = () => {
               Klany <span className='text-muted-foreground'>{teams.length}</span>
             </>
           }
-          state={panels.teams}
-          onChange={(teamsPanel) => setPanels({ ...panels, teams: teamsPanel })}
+          {...panelProps('teams')}
         >
-          <div className='flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2 pb-2'>
-            <p className='text-xs text-muted-foreground'>
-              {game.startedAt === undefined
-                ? 'Hra není spuštěná, týmy se nemohou přihlásit.'
-                : `Hra běží od ${formatTime(game.startedAt)}.`}
-            </p>
-            <CopyResults teams={teams} now={now} />
-          </div>
-          <TeamSortControl teams={teams} sort={sort} onChange={setSort} />
-          <ul className='flex flex-col'>
-            {sortTeams(teams, sort, now).map((team) => (
-              <li
-                key={team.id}
-                className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
-              >
-                <TeamAvatar id={team.id} name={team.name} />
-                <div className='min-w-0 flex-1'>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='truncate font-medium'>{team.name}</span>
-                    <span className='font-mono text-xs text-muted-foreground'>
-                      {team.node ?? '—'}
-                    </span>
-                    {!team.nodeExists && (
-                      <IconAlertTriangle
-                        className='size-3.5 text-destructive'
-                        aria-label='Uzel v příběhu chybí'
-                      />
-                    )}
-                    {team.finished && <Badge variant='secondary'>cíl</Badge>}
-                  </div>
-                  <div
-                    className='truncate font-mono text-xs text-muted-foreground'
-                    title={formatState(team.state)}
-                  >
-                    {formatState(team.state)}
-                  </div>
-                  <div className='text-xs text-muted-foreground'>
-                    {team.devices} zař. ·{' '}
-                    {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
-                  </div>
-                  <TeamTimes team={team} now={now} />
-                </div>
-                <Button
-                  variant='ghost'
-                  size='icon'
-                  title='Přesunout tým'
-                  aria-label={`Přesunout tým ${team.name}`}
-                  onClick={() => setMoving(team)}
-                >
-                  <IconPencil />
-                </Button>
-              </li>
-            ))}
-            {teams.length === 0 && (
-              <li className='p-2 text-sm text-muted-foreground'>Zatím žádné klany.</li>
-            )}
-          </ul>
+          {teamsContent}
         </FloatingPanel>
         <FloatingPanel
           title='Poslední kroky'
           icon={<IconHistory />}
           label='Kroky'
-          state={panels.log}
-          onChange={(logPanel) => setPanels({ ...panels, log: logPanel })}
+          {...panelProps('log')}
         >
-          <ol className='flex flex-col gap-1 text-sm'>
-            {log.map((entry, index) => (
-              <li key={index} className='flex items-center gap-2 rounded-md px-2 py-1.5'>
-                <TeamAvatar
-                  id={entry.teamId}
-                  name={names.get(entry.teamId) ?? `#${entry.teamId}`}
-                />
-                <div className='min-w-0 flex-1'>
-                  <div className='font-mono text-xs'>
-                    {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
-                  </div>
-                  <div className='text-xs text-muted-foreground'>
-                    {actionLabel(entry.action)} · {timeAgo(entry.at)}
-                  </div>
-                </div>
-              </li>
-            ))}
-            {log.length === 0 && <li className='p-2 text-muted-foreground'>Zatím nic.</li>}
-          </ol>
+          {logContent}
         </FloatingPanel>
       </div>
+
+      {narrow && subpage !== undefined && (
+        <Subpage title={PANEL_TITLES[subpage]} onBack={subpageBack.back}>
+          {subpage === 'teams' ? teamsContent : logContent}
+        </Subpage>
+      )}
 
       {moving !== undefined && graph !== undefined && (
         <MoveDialog

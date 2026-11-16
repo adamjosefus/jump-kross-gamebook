@@ -37,14 +37,9 @@ import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { adminKeys, useStoryGraph } from './queries';
+import { NARROW_PX, Subpage, useNarrow, useSubpageBack } from './subpage';
 
 const ANIMATIONS_KEY = 'gamebook.playtest.animations';
-
-/**
- * Below this width (Tailwind's `md`) the page is a phone: the preview takes the whole width, since
- * a third of it would be too small to read, and the graph stays behind it.
- */
-const NARROW_PX = 768;
 
 const LOG_KEY = 'gamebook.playtest.log';
 
@@ -55,11 +50,7 @@ const remPx = (rem: number) =>
 const useLogPanel = () => {
   const [open, setOpen] = useState(() => {
     try {
-      // On a phone the panel would cover the preview, so there it starts closed.
-      return (
-        localStorage.getItem(LOG_KEY) !== 'hidden' &&
-        window.matchMedia(`(min-width: ${NARROW_PX}px)`).matches
-      );
+      return localStorage.getItem(LOG_KEY) !== 'hidden';
     } catch {
       return true;
     }
@@ -116,6 +107,7 @@ const usePreviewScale = () => {
       // The offset sizes ignore the transform, so these are the block's natural size.
       if (block.offsetWidth === 0 || block.offsetHeight === 0) return;
       const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
+      // On a phone a third of the width would be too small to read; the graph stays behind it.
       const available =
         page.clientWidth < NARROW_PX
           ? page.clientWidth - 2 * remPx(1)
@@ -337,7 +329,10 @@ export const PlaytestPage = () => {
   const search = useSearch({ from: '/admin/playtest' });
   const navigate = useNavigate();
   const [animated, setAnimated] = useAnimations();
-  const [logOpen, setLogOpen] = useLogPanel();
+  const [logPanelOpen, setLogOpen] = useLogPanel();
+  // On a phone the log is a subpage kept in the URL instead of a floating panel.
+  const narrow = useNarrow();
+  const logOpen = !narrow && logPanelOpen;
   const [pageRef, blockRef, scale] = usePreviewScale();
   const graph = useStoryGraph();
   const problems = useMemo(
@@ -368,13 +363,14 @@ export const PlaytestPage = () => {
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
   const pathParam = steps.map((step) => step.token).join('.');
+  const panelParam = search.panel === undefined ? {} : { panel: search.panel };
 
   const setMoves = (next: readonly Step[]) => {
     setMovesState(next);
     const param = next.map((step) => step.token).join('.');
     void navigate({
       to: '/admin/playtest',
-      search: param === '' ? {} : { path: param },
+      search: { ...(param === '' ? {} : { path: param }), ...panelParam },
       replace: true,
     });
   };
@@ -407,6 +403,77 @@ export const PlaytestPage = () => {
     } catch {
       return 'rejected';
     }
+  };
+
+  const logContent = (
+    <>
+      {problems.length > 0 && (
+        <section className='flex flex-col gap-2 text-destructive'>
+          <h2 className='flex items-center gap-1.5 font-medium'>
+            <IconAlertTriangle className='size-4' /> Chyby v příběhu:
+          </h2>
+          <ul className='flex flex-col gap-1'>
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {current !== undefined && current.intro !== true && (
+        <section className='flex flex-col gap-2'>
+          <div className='flex items-baseline gap-1.5'>
+            <h2 className='font-medium'>Tým:</h2>
+            <p>{current.team.name}</p>
+          </div>
+          <h2 className='mt-4 font-medium'>Stav:</h2>
+          <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
+            {Object.entries(current.state).map(([key, value]) => (
+              <div key={key} className='contents'>
+                <dt className='text-muted-foreground'>{key}</dt>
+                <dd>{JSON.stringify(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+      <section className='flex flex-col gap-2'>
+        <h2 className='font-medium'>Cesta:</h2>
+        <ol className='flex flex-col gap-1'>
+          {path.map((step, index) => (
+            <li key={index}>
+              <button
+                type='button'
+                className={cn(
+                  'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
+                  index === path.length - 1 && 'bg-accent',
+                )}
+                disabled={play.isPending}
+                onClick={() => backTo(index)}
+                title='Vrátit se sem'
+              >
+                <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
+                  {index + 1}.
+                </span>
+                <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
+                {step.via !== undefined && (
+                  <span className='truncate text-muted-foreground'>← {step.via}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <p className='text-xs text-muted-foreground'>Test se nikam neukládá.</p>
+    </>
+  );
+  const subpageBack = useSubpageBack(() => {
+    const { panel: _closed, ...rest } = search;
+    void navigate({ to: '/admin/playtest', search: rest, replace: true });
+  });
+  const toggleLog = () => {
+    if (!narrow) return setLogOpen(true);
+    subpageBack.opened();
+    void navigate({ to: '/admin/playtest', search: { ...search, panel: 'log' } });
   };
 
   if (intro.isPending || (opened !== '' && replay.isPending))
@@ -460,7 +527,11 @@ export const PlaytestPage = () => {
                 onIndexChange={(screen) =>
                   void navigate({
                     to: '/admin/playtest',
-                    search: { ...(pathParam === '' ? {} : { path: pathParam }), screen },
+                    search: {
+                      ...(pathParam === '' ? {} : { path: pathParam }),
+                      screen,
+                      ...panelParam,
+                    },
                     replace: true,
                   })
                 }
@@ -583,68 +654,12 @@ export const PlaytestPage = () => {
             </Hint>
           </header>
           <div className='flex min-h-0 flex-col gap-6 overflow-y-auto p-4 text-sm'>
-            {problems.length > 0 && (
-              <section className='flex flex-col gap-2 text-destructive'>
-                <h2 className='flex items-center gap-1.5 font-medium'>
-                  <IconAlertTriangle className='size-4' /> Chyby v příběhu:
-                </h2>
-                <ul className='flex flex-col gap-1'>
-                  {problems.map((problem) => (
-                    <li key={problem}>{problem}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {current !== undefined && current.intro !== true && (
-              <section className='flex flex-col gap-2'>
-                <div className='flex items-baseline gap-1.5'>
-                  <h2 className='font-medium'>Tým:</h2>
-                  <p>{current.team.name}</p>
-                </div>
-                <h2 className='mt-4 font-medium'>Stav:</h2>
-                <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-md border p-3 font-mono'>
-                  {Object.entries(current.state).map(([key, value]) => (
-                    <div key={key} className='contents'>
-                      <dt className='text-muted-foreground'>{key}</dt>
-                      <dd>{JSON.stringify(value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            )}
-            <section className='flex flex-col gap-2'>
-              <h2 className='font-medium'>Cesta:</h2>
-              <ol className='flex flex-col gap-1'>
-                {path.map((step, index) => (
-                  <li key={index}>
-                    <button
-                      type='button'
-                      className={cn(
-                        'flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left hover:bg-accent',
-                        index === path.length - 1 && 'bg-accent',
-                      )}
-                      disabled={play.isPending}
-                      onClick={() => backTo(index)}
-                      title='Vrátit se sem'
-                    >
-                      <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
-                        {index + 1}.
-                      </span>
-                      <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
-                      {step.via !== undefined && (
-                        <span className='truncate text-muted-foreground'>← {step.via}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </section>
-            <p className='text-xs text-muted-foreground'>Test se nikam neukládá.</p>
+            {logContent}
           </div>
         </aside>
       ) : (
         <div className='absolute top-4 right-4 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
-          <Button variant='ghost' size='sm' onClick={() => setLogOpen(true)}>
+          <Button variant='ghost' size='sm' onClick={toggleLog}>
             {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
             <span className='text-muted-foreground'>{path.length}</span>
             {problems.length > 0 && (
@@ -654,6 +669,20 @@ export const PlaytestPage = () => {
             )}
           </Button>
         </div>
+      )}
+
+      {narrow && search.panel === 'log' && (
+        <Subpage
+          title='Průběh testu'
+          aside={
+            play.isPending && (
+              <IconLoader2 className='mr-2 size-4 animate-spin text-muted-foreground' />
+            )
+          }
+          onBack={subpageBack.back}
+        >
+          <div className='flex flex-col gap-6 p-2 text-sm'>{logContent}</div>
+        </Subpage>
       )}
     </div>
   );
