@@ -12,11 +12,11 @@
   "dependencies": {
     "@gamebook/core": "workspace:*",
     "@gamebook/story": "workspace:*",
-    "@neondatabase/serverless": "^1.2.0",
-    "effect": "^4.1.0"
+    "@neondatabase/serverless": "^1.2.1",
+    "effect": "^4.1.4"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.15",
+    "@electric-sql/pglite": "^0.5.16",
     "@types/node": "^26.6.6"
   }
 }
