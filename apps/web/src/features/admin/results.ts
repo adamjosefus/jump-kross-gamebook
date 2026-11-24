@@ -1,4 +1,4 @@
-import type { TeamStatus } from '@gamebook/api';
+import type { TeamStatus, TimeBreakdown } from '@gamebook/api';
 import type { Value } from '@gamebook/core';
 
 /** `m:ss`, and `h:mm:ss` from an hour on: the organisers compare teams to the second. */
@@ -42,14 +42,41 @@ export interface TeamResult {
   readonly storyDuration: number;
   /** Whole seconds of play time outside reading: walking and puzzles; zero before the first login. */
   readonly liveActionDuration: number;
+  /** By chapter id, every chapter of the story; "" holds the nodes without a chapter. */
+  readonly chapters: Readonly<Record<string, ChapterResult>>;
+  /** By station id, every station of the story. */
+  readonly stations: Readonly<Record<string, StationResult>>;
   readonly state: Readonly<Record<string, Value>>;
+}
+
+/** Whole seconds a team spent in a chapter, in all and split as its total time is. */
+export interface ChapterResult {
+  readonly duration: number;
+  readonly storyDuration: number;
+  readonly travelDuration: number;
+  readonly taskDuration: number;
+}
+
+/** Whole seconds of a station's task and of the way that led to it. */
+export interface StationResult {
+  readonly travelDuration: number;
+  readonly taskDuration: number;
 }
 
 const seconds = (ms: number) => Math.max(0, Math.floor(ms / 1000));
 
-export const teamResults = (teams: readonly TeamStatus[], now: number): readonly TeamResult[] =>
+/**
+ * The results of the teams; the chapters and stations come from `breakdown`, all zero without
+ * it. The breakdown is as of its own fetch, so a running team's parts may lag its total a little.
+ */
+export const teamResults = (
+  teams: readonly TeamStatus[],
+  now: number,
+  breakdown?: TimeBreakdown,
+): readonly TeamResult[] =>
   teams.map((team) => {
     const playtimeMs = playTime(team, now) ?? 0;
+    const times = breakdown?.teams.find((entry) => entry.id === team.id);
     return {
       id: team.id,
       name: team.name,
@@ -60,6 +87,32 @@ export const teamResults = (teams: readonly TeamStatus[], now: number): readonly
       playtimeDuration: seconds(playtimeMs),
       storyDuration: seconds(team.storyMs),
       liveActionDuration: seconds(playtimeMs - team.storyMs),
+      chapters: Object.fromEntries(
+        (breakdown?.chapters ?? []).map(({ id }) => {
+          const split = times?.chapters[id];
+          const storyDuration = seconds(split?.storyMs ?? 0);
+          const travelDuration = seconds(split?.travelMs ?? 0);
+          const taskDuration = seconds(split?.taskMs ?? 0);
+          return [
+            id,
+            {
+              duration: storyDuration + travelDuration + taskDuration,
+              storyDuration,
+              travelDuration,
+              taskDuration,
+            },
+          ];
+        }),
+      ),
+      stations: Object.fromEntries(
+        (breakdown?.stations ?? []).map(({ id }) => [
+          id,
+          {
+            travelDuration: seconds(times?.stations[id]?.travelMs ?? 0),
+            taskDuration: seconds(times?.stations[id]?.taskMs ?? 0),
+          },
+        ]),
+      ),
       state: team.state,
     };
   });
@@ -83,6 +136,10 @@ const cell = (value: Value | null | undefined) => {
  */
 export const resultsCsv = (results: readonly TeamResult[]) => {
   const stateKeys = [...new Set(results.flatMap((result) => Object.keys(result.state)))];
+  const chapterIds = Object.keys(results[0]?.chapters ?? {});
+  const stationIds = Object.keys(results[0]?.stations ?? {});
+  // Nodes without a chapter are the chapter "", which makes the columns `chapter_none_s` etc.
+  const chapterName = (id: string) => (id === '' ? 'none' : id);
   const header = [
     'id',
     'team',
@@ -96,6 +153,13 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     'playtime_s',
     'story_s',
     'live_action_s',
+    ...chapterIds.flatMap((id) => [
+      `chapter_${chapterName(id)}_s`,
+      `chapter_${chapterName(id)}_story_s`,
+      `chapter_${chapterName(id)}_travel_s`,
+      `chapter_${chapterName(id)}_task_s`,
+    ]),
+    ...stationIds.flatMap((id) => [`station_${id}_travel_s`, `station_${id}_task_s`]),
     ...stateKeys.map((key) => `state_${key}`),
   ];
   const formatted = (value: number) => formatDuration(value * 1000);
@@ -112,6 +176,19 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     result.playtimeDuration,
     result.storyDuration,
     result.liveActionDuration,
+    ...chapterIds.flatMap((id) => {
+      const chapter = result.chapters[id];
+      return [
+        chapter?.duration,
+        chapter?.storyDuration,
+        chapter?.travelDuration,
+        chapter?.taskDuration,
+      ];
+    }),
+    ...stationIds.flatMap((id) => [
+      result.stations[id]?.travelDuration,
+      result.stations[id]?.taskDuration,
+    ]),
     ...stateKeys.map((key) => result.state[key]),
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(';')).join('\r\n') + '\r\n';

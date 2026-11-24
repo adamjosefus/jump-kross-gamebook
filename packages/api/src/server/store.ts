@@ -30,6 +30,8 @@ export interface LogRow {
 /** A time a device of the team showed a text. */
 export interface StoryIntervalRow {
   readonly teamId: number;
+  /** The node whose text was shown. */
+  readonly node: string;
   readonly startedAt: Date;
   readonly endedAt: Date;
 }
@@ -174,6 +176,8 @@ export interface StoreShape {
   readonly clearAdminFailures: (key: string) => Effect.Effect<void, StoreError>;
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
+  /** The whole step log, the oldest first; the teams' times are worked out from it. */
+  readonly listLog: () => Effect.Effect<readonly LogRow[], StoreError>;
   /** Arrivals per node over the whole game, by choice, scan, start, reset or admin move. */
   readonly visitCounts: () => Effect.Effect<ReadonlyMap<string, number>, StoreError>;
 }

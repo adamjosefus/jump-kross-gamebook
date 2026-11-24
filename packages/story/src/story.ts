@@ -47,13 +47,26 @@ export const story = defineStory<State>()({
   },
   introNode: 'INTRO',
   outroNode: 'OUTRO',
-  // The names are printed on the cards, so they say where a code hangs, not where it leads.
+  // The names are printed on the cards, so they say where a code hangs, not where it leads. The
+  // bakery is a station: its arrival code hangs at the door and the baker hands out the reward
+  // when the task is done. The other codes only lead the way.
   codes: {
-    1: 'Pekárna',
+    1: { name: 'Pekárna', role: 'arrival', station: 'bakery' },
     2: 'Zelinář',
     3: 'Řeznictví',
     4: 'Autobusová zastávka',
     5: 'Park',
+    6: { name: 'Pekařka', role: 'reward', station: 'bakery' },
+  },
+  stations: {
+    bakery: 'Pekárna',
+  },
+  // The time of the nodes of a chapter is summed up in the admin's „Časy“.
+  chapters: {
+    home: 'Doma',
+    shopping: 'Nákup',
+    wayHome: 'Cesta domů',
+    dinner: 'Večeře',
   },
   nodes: {
     INTRO: {
@@ -83,6 +96,7 @@ export const story = defineStory<State>()({
       ],
     },
     START: {
+      chapter: 'home',
       initialState: { coins: 0 },
       blocks: (state, team) => [
         {
@@ -121,6 +135,7 @@ Na stole leží obálka s výplatou. Kolik si vezmete s sebou na nákup?
     },
     // The team picks one of three shops by scanning its code: the three parallel lines of the story.
     NAKUP: {
+      chapter: 'shopping',
       scanTitle: 'Kam na nákup?',
       scanText: 'Naskenujte kód obchodu, do kterého jdete.',
       blocks: (state) => [
@@ -139,11 +154,26 @@ Dohodněte se, kam půjdete, a naskenujte kód toho obchodu.
       ],
     },
 
-    // Line 1: the bakery.
+    // Line 1: the bakery, a station with a task. Scanning its door code started the task; the
+    // baker's reward code ends it.
     PEKARNA: {
+      chapter: 'shopping',
+      scanTitle: 'Uhodli jste?',
+      scanText: 'Naskenujte kód, který vám dala pekařka.',
+      blocks: [
+        `
+Voní to tu čerstvým chlebem. Pekařka se usměje: „Prodám vám, až uhodnete, kolik druhů pečiva mám ve vitríně.“
+
+Spočítejte to a řekněte jí výsledek. Za správnou odpověď vám dá kód.
+      `,
+      ],
+      scans: [{ code: 6, goto: 'PEKARNA_NAKUP' }],
+    },
+    PEKARNA_NAKUP: {
+      chapter: 'shopping',
       blocks: (state) => [
         `
-Voní to tu čerstvým chlebem. Za pultem čeká pekařka a vy máte ${coinsText(state.coins)}.
+Uhodli jste. Za pultem čeká pekařka a vy máte ${coinsText(state.coins)}.
 
 Co si koupíte?
       `,
@@ -162,6 +192,7 @@ Co si koupíte?
       ],
     },
     PEKARNA_CESTA: {
+      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -183,6 +214,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
       ],
     },
     PEKARNA_VARENI: {
+      chapter: 'dinner',
       blocks: (state) => [
         `
 Jste doma s nákupem z pekárny a ${coinsText(state.coins)} v peněžence.
@@ -203,6 +235,7 @@ Co bude k večeři?
 
     // Line 2: the greengrocer.
     ZELINAR: {
+      chapter: 'shopping',
       blocks: (state) => [
         `
 Bedýnky s bramborami, cibulí a mrkví. Zelinář vás vítá a vy máte ${coinsText(state.coins)}.
@@ -224,6 +257,7 @@ Co si koupíte?
       ],
     },
     ZELINAR_CESTA: {
+      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -244,6 +278,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
       ],
     },
     ZELINAR_VARENI: {
+      chapter: 'dinner',
       blocks: (state) => [
         `
 Jste doma, zelenina leží na lince a v peněžence máte ${coinsText(state.coins)}.
@@ -270,6 +305,7 @@ Co bude k večeři?
 
     // Line 3: the butcher.
     REZNICTVI: {
+      chapter: 'shopping',
       blocks: (state) => [
         `
 Za sklem leží maso a řezník si brousí nůž. V peněžence máte ${coinsText(state.coins)}.
@@ -291,6 +327,7 @@ Co si koupíte?
       ],
     },
     REZNICTVI_CESTA: {
+      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -311,6 +348,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
       ],
     },
     REZNICTVI_VARENI: {
+      chapter: 'dinner',
       blocks: (state) => [
         `
 Jste doma, maso je v lednici a v peněžence máte ${coinsText(state.coins)}.

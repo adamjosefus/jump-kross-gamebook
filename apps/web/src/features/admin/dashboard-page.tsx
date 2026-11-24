@@ -1,4 +1,4 @@
-import type { TeamStatus } from '@gamebook/api';
+import type { QrCode, TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
@@ -54,7 +54,7 @@ import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
 import { formatTime, timeAgo } from './format';
-import { adminKeys, useOverview, useStoryGraph } from './queries';
+import { adminKeys, useOverview, useStoryGraph, useTimeBreakdown } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
 import { Subpage, useNarrow, useSubpageBack } from './subpage';
@@ -74,6 +74,8 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
+/** The split by chapter and station is only for the copied results, so it is fetched less often. */
+const BREAKDOWN_POLL_MS = 15_000;
 
 /** The current time, refreshed every second, so a running clock ticks between two polls. */
 const useNow = () => {
@@ -85,15 +87,40 @@ const useNow = () => {
   return now;
 };
 
-/** The team's play time, reading time and the rest (walking, puzzles), all to the second. */
-const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: number }) => {
+/**
+ * The team's play time, reading time and the rest (walking, puzzles), all to the second, and
+ * whether it is on its way or at a station's task now, for how long. Reading is not shown live:
+ * the phones report it only once a text is no longer on.
+ */
+const TeamTimes = ({
+  team,
+  now,
+  stations,
+}: {
+  readonly team: TeamStatus;
+  readonly now: number;
+  readonly stations: ReadonlyMap<string, string>;
+}) => {
   const playtimeMs = playTime(team, now);
   if (playtimeMs === undefined) return null;
+  const phase = team.phase;
   return (
-    <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-      Hra {formatDuration(playtimeMs)} · čtení {formatDuration(team.storyMs)} · bez čtení{' '}
-      {formatDuration(playtimeMs - team.storyMs)}
-    </div>
+    <>
+      {phase !== undefined && (
+        <div className='text-xs'>
+          <Badge variant={phase.kind === 'task' ? 'default' : 'outline'} className='tabular-nums'>
+            {phase.kind === 'task'
+              ? `Úkol: ${stations.get(phase.station) ?? phase.station}`
+              : 'Cesta'}{' '}
+            {formatDuration(now - Date.parse(phase.since))}
+          </Badge>
+        </div>
+      )}
+      <div className='font-mono text-xs text-muted-foreground tabular-nums'>
+        Hra {formatDuration(playtimeMs)} · čtení {formatDuration(team.storyMs)} · bez čtení{' '}
+        {formatDuration(playtimeMs - team.storyMs)}
+      </div>
+    </>
   );
 };
 
@@ -106,8 +133,10 @@ const CopyResults = ({
   readonly now: number;
 }) => {
   const [copied, setCopied] = useState<'csv' | 'json'>();
+  // Fetched ahead: a clipboard write after a request would no longer count as the user's click.
+  const breakdown = useTimeBreakdown(BREAKDOWN_POLL_MS);
   const copy = async (format: 'csv' | 'json') => {
-    const results = teamResults(teams, now);
+    const results = teamResults(teams, now, breakdown.data);
     try {
       await navigator.clipboard.writeText(
         format === 'csv' ? resultsCsv(results) : resultsJson(results),
@@ -148,13 +177,20 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   'reset-time': 'vynulování času',
   admin: 'zásah organizátora',
 } as const;
-const actionLabel = (action: string) =>
-  ACTION_LABELS[action] ??
-  (action.startsWith('scan:')
-    ? `sken kódu ${action.slice(5)}`
-    : action.startsWith('choice:')
-      ? 'volba'
-      : action);
+const ROLE_LABELS = { navigation: 'sken', arrival: 'příchod', reward: 'odměna' } as const;
+
+/** A step of the log in words; a scan names its code and what it means for the team's time. */
+const actionLabel = (action: string, codes: readonly QrCode[]) => {
+  const label = ACTION_LABELS[action];
+  if (label !== undefined) return label;
+  if (action.startsWith('choice:')) return 'volba';
+  if (!action.startsWith('scan:')) return action;
+  const id = action.slice(5);
+  const code = codes.find((qrCode) => String(qrCode.id) === id);
+  return code === undefined
+    ? `sken kódu ${id}`
+    : `${ROLE_LABELS[code.role]}: ${code.name} (kód ${id})`;
+};
 
 type Panel = 'teams' | 'log';
 
@@ -362,8 +398,11 @@ export const DashboardPage = () => {
   // Without anything to show the error is the page; with the last data it is a bar above them.
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { game, teams, log } = overview.data;
+  const { game, teams, log, codes } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
+  const stationNames: ReadonlyMap<string, string> = new Map(
+    overview.data.stations.map((station) => [station.id, station.name]),
+  );
 
   const teamsContent = (
     <>
@@ -405,7 +444,7 @@ export const DashboardPage = () => {
                 {team.devices} zař. ·{' '}
                 {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
               </div>
-              <TeamTimes team={team} now={now} />
+              <TeamTimes team={team} now={now} stations={stationNames} />
             </div>
             <Button
               variant='ghost'
@@ -434,7 +473,7 @@ export const DashboardPage = () => {
               {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
             </div>
             <div className='text-xs text-muted-foreground'>
-              {actionLabel(entry.action)} · {timeAgo(entry.at)}
+              {actionLabel(entry.action, codes)} · {timeAgo(entry.at)}
             </div>
           </div>
         </li>

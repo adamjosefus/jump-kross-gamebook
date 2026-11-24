@@ -1,4 +1,4 @@
-import type { TeamStatus } from '@gamebook/api';
+import type { TeamStatus, TimeBreakdown } from '@gamebook/api';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -87,6 +87,8 @@ describe('teamResults', () => {
       playtimeDuration: 6_012,
       storyDuration: 1_230,
       liveActionDuration: 4_781,
+      chapters: {},
+      stations: {},
       state: { coins: 30, hasMap: true, note: 'řekl; "ano"' },
     });
     expect(results[1]).toMatchObject({
@@ -105,6 +107,8 @@ describe('teamResults', () => {
       playtimeDuration: 0,
       storyDuration: 0,
       liveActionDuration: 0,
+      chapters: {},
+      stations: {},
       state: {},
     });
   });
@@ -125,5 +129,34 @@ describe('teamResults', () => {
       '3;Sovy;;false;;;0:00;0:00;0:00;0;0;0;;;',
       '',
     ]);
+  });
+
+  it('adds the chapters and stations of the breakdown, zero where a team has none', () => {
+    const breakdown: TimeBreakdown = {
+      chapters: [
+        { id: 'shop', name: 'Nákup' },
+        { id: '', name: 'Bez kapitoly' },
+      ],
+      stations: [{ id: 'bakery', name: 'Pekárna' }],
+      teams: [
+        {
+          id: 1,
+          chapters: { shop: { storyMs: 60_500, travelMs: 120_000, taskMs: 300_900 } },
+          stations: { bakery: { travelMs: 120_000, taskMs: 300_900 } },
+          nodes: {},
+        },
+      ],
+    };
+    const split = teamResults([finished, waiting], NOW, breakdown);
+    expect(split[0]!.chapters).toEqual({
+      shop: { duration: 480, storyDuration: 60, travelDuration: 120, taskDuration: 300 },
+      '': { duration: 0, storyDuration: 0, travelDuration: 0, taskDuration: 0 },
+    });
+    expect(split[1]!.stations).toEqual({ bakery: { travelDuration: 0, taskDuration: 0 } });
+    const [header, first] = resultsCsv(split).split('\r\n');
+    expect(header).toContain(
+      'live_action_s;chapter_shop_s;chapter_shop_story_s;chapter_shop_travel_s;chapter_shop_task_s;chapter_none_s;chapter_none_story_s;chapter_none_travel_s;chapter_none_task_s;station_bakery_travel_s;station_bakery_task_s;state_coins',
+    );
+    expect(first).toContain(';4781;480;60;120;300;0;0;0;0;120;300;30;');
   });
 });

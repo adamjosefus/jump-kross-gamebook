@@ -40,7 +40,9 @@ import {
   type PlaytestView,
   type PlayerView,
   type PrintableCode,
+  type TeamPhase,
   type TeamStatus,
+  type TimeBreakdown,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
 import {
@@ -49,10 +51,13 @@ import {
   type GameSettingsRow,
   type SessionClient,
   type SessionRow,
+  type LogRow,
+  type StoryIntervalRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
 import { storyTotals } from './story-time.ts';
+import { NO_CHAPTER, teamTimeline } from './team-timeline.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
   'wrong-code': 'Tento kód vás teď nikam nevede.',
@@ -399,7 +404,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const storyTime = Effect.fn('Game.storyTime')(function* (
       teamId: number,
       readFor: number | undefined,
-      intervals: readonly { readonly ms: number; readonly agoMs: number }[],
+      intervals: readonly { readonly ms: number; readonly agoMs: number; readonly node: string }[],
     ) {
       // Times read for another team (the device switched meanwhile) belong to nobody now.
       if (readFor !== undefined && readFor !== teamId) return;
@@ -412,12 +417,20 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const to = Math.min(team.finishedAt?.getTime() ?? now, now);
       // A device's numbers are not trusted: a non-finite one would make an invalid date and fail
       // the insert, so such an interval is dropped like one of no length.
-      const rows = intervals.flatMap(({ ms, agoMs }) => {
+      // A node the story does not have is not credited; the reading still counts for the team.
+      const rows = intervals.flatMap(({ ms, agoMs, node }) => {
         if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
         const ended = Math.min(now - Math.max(agoMs, 0), to);
         const started = Math.max(ended - Math.min(ms, MAX_STORY_MS), from);
         return ended > started
-          ? [{ teamId, startedAt: new Date(started), endedAt: new Date(ended) }]
+          ? [
+              {
+                teamId,
+                node: Object.hasOwn(story.nodes, node) ? node : '',
+                startedAt: new Date(started),
+                endedAt: new Date(ended),
+              },
+            ]
           : [];
       });
       if (rows.length > 0) yield* store.addStoryIntervals(rows);
@@ -426,7 +439,25 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     // -------------------------------------------------------------------------------------------
     // Admin
 
-    const teamStatus = (team: TeamRow, devices: number, storyMs: number): TeamStatus => ({
+    /** The team's phase as the admin gets it; the log and reading are those of every team. */
+    const phaseOf = (
+      team: TeamRow,
+      log: readonly LogRow[],
+      intervals: readonly StoryIntervalRow[],
+    ): TeamPhase | undefined => {
+      const phase = teamTimeline(story, team, log, intervals, Date.now()).phase;
+      if (phase === undefined) return undefined;
+      return phase.kind === 'task'
+        ? { kind: 'task', station: phase.station, since: phase.since.toISOString() }
+        : { kind: 'travel', since: phase.since.toISOString() };
+    };
+
+    const teamStatus = (
+      team: TeamRow,
+      devices: number,
+      storyMs: number,
+      phase?: TeamPhase,
+    ): TeamStatus => ({
       id: team.id,
       name: teamName(team.id),
       ...(team.node === undefined ? {} : { node: team.node }),
@@ -447,6 +478,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           }),
       ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
       storyMs,
+      ...(phase === undefined ? {} : { phase }),
     });
 
     const startGame = Effect.fn('Game.startGame')(function* () {
@@ -457,11 +489,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const [devices, storyRows] = yield* Effect.all([
+      const [devices, storyRows, fullLog] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
         store.listStoryIntervals(),
+        store.listLog(),
       ]);
-      return teamStatus(team, devices.get(team.id) ?? 0, storyTotals(storyRows).get(team.id) ?? 0);
+      return teamStatus(
+        team,
+        devices.get(team.id) ?? 0,
+        storyTotals(storyRows).get(team.id) ?? 0,
+        phaseOf(team, fullLog, storyRows),
+      );
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
@@ -550,31 +588,36 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits, storyRows, gameStartedAt, settings] = yield* Effect.all(
-        [
-          store.listTeams(),
-          store.recentLog(50),
-          store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
-          store.visitCounts(),
-          store.listStoryIntervals(),
-          store.gameStartedAt(),
-          // The admin sees the stored setting, not this instance's cached copy.
-          store.gameSettings(),
-        ],
-        { concurrency: 'unbounded' },
-      );
+      const [teams, log, fullLog, devices, visits, storyRows, gameStartedAt, settings] =
+        yield* Effect.all(
+          [
+            store.listTeams(),
+            store.recentLog(50),
+            store.listLog(),
+            store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
+            store.visitCounts(),
+            store.listStoryIntervals(),
+            store.gameStartedAt(),
+            // The admin sees the stored setting, not this instance's cached copy.
+            store.gameSettings(),
+          ],
+          { concurrency: 'unbounded' },
+        );
       const storyMs = storyTotals(storyRows);
       const result: Overview = {
         game: gameInfo(gameStartedAt, settings),
         // Every team of the story; one that never logged in has no row yet.
-        teams: story.teams.map(({ id }) =>
-          teamStatus(
-            teams.find((team) => team.id === id) ?? notStarted(id),
+        teams: story.teams.map(({ id }) => {
+          const team = teams.find((row) => row.id === id) ?? notStarted(id);
+          return teamStatus(
+            team,
             devices.get(id) ?? 0,
             storyMs.get(id) ?? 0,
-          ),
-        ),
+            phaseOf(team, fullLog, storyRows),
+          );
+        }),
         codes: story.codes,
+        stations: story.stations,
         log: log.map((entry) => ({
           teamId: entry.teamId,
           at: entry.at.toISOString(),
@@ -584,6 +627,43 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ...(entry.toNode === undefined ? {} : { toNode: entry.toNode }),
         })),
         visits: Object.fromEntries(visits),
+      };
+      return result;
+    });
+
+    const timeBreakdown = Effect.fn('Game.timeBreakdown')(function* () {
+      const [teams, log, intervals] = yield* Effect.all(
+        [store.listTeams(), store.listLog(), store.listStoryIntervals()],
+        { concurrency: 'unbounded' },
+      );
+      const now = Date.now();
+      const usesNoChapter = story.order.some(
+        (id) =>
+          id !== story.introNode &&
+          id !== story.outroNode &&
+          story.nodes[id]?.chapter === undefined,
+      );
+      const result: TimeBreakdown = {
+        chapters: [
+          ...story.chapters,
+          ...(usesNoChapter ? [{ id: NO_CHAPTER, name: 'Bez kapitoly' }] : []),
+        ],
+        stations: story.stations,
+        teams: story.teams.map(({ id }) => {
+          const timeline = teamTimeline(
+            story,
+            teams.find((row) => row.id === id) ?? notStarted(id),
+            log,
+            intervals,
+            now,
+          );
+          return {
+            id,
+            chapters: Object.fromEntries(timeline.chapters),
+            stations: Object.fromEntries(timeline.stations),
+            nodes: Object.fromEntries(timeline.nodes),
+          };
+        }),
       };
       return result;
     });
@@ -771,15 +851,26 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         readonly kind: PrintableCode['kind'];
         readonly id: number;
         readonly label: string;
+        readonly note?: string;
       }[] = [
         ...story.teams.map((team) => ({ kind: 'T' as const, id: team.id, label: team.name })),
-        ...story.codes.map((qrCode) => ({ kind: 'L' as const, id: qrCode.id, label: qrCode.name })),
+        ...story.codes.map((qrCode) => {
+          const station = story.stations.find((known) => known.id === qrCode.station);
+          return {
+            kind: 'L' as const,
+            id: qrCode.id,
+            label: qrCode.name,
+            ...(qrCode.role === 'navigation' || station === undefined
+              ? {}
+              : { note: `${qrCode.role === 'arrival' ? 'Příchod' : 'Odměna'} · ${station.name}` }),
+          };
+        }),
       ];
       return yield* Effect.promise(() =>
         Promise.all(
           entries.map(async (entry) => ({
             ...entry,
-            code: await encodeQr(config.qrSecret, entry),
+            code: await encodeQr(config.qrSecret, { kind: entry.kind, id: entry.id }),
             scanTexts: scanTextsOf(entry.kind, entry.id),
           })),
         ),
@@ -795,6 +886,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       graph,
       intro,
       overview,
+      timeBreakdown,
       startGame,
       singleTeamStatus,
       requireTeam,

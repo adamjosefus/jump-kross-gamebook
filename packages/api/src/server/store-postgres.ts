@@ -132,6 +132,7 @@ const toSettings = (row: Row | undefined): GameSettingsRow => ({
 
 const toStoryInterval = (row: Row): StoryIntervalRow => ({
   teamId: Number(row['team_id']),
+  node: text(row['node']),
   startedAt: timestamp(row['started_at']),
   endedAt: timestamp(row['ended_at']),
 });
@@ -280,9 +281,9 @@ export const makePostgresStore = (client: SqlClient) => {
       query(() =>
         transaction(
           rows.map(
-            ({ teamId, startedAt, endedAt }) => sql`
-              insert into story_interval (team_id, started_at, ended_at)
-              values (${teamId}, ${startedAt.toISOString()}::timestamptz, ${endedAt.toISOString()}::timestamptz)`,
+            ({ teamId, node, startedAt, endedAt }) => sql`
+              insert into story_interval (team_id, node, started_at, ended_at)
+              values (${teamId}, ${node}, ${startedAt.toISOString()}::timestamptz, ${endedAt.toISOString()}::timestamptz)`,
           ),
         ),
       ),
@@ -390,6 +391,8 @@ export const makePostgresStore = (client: SqlClient) => {
           toLog,
         ),
       ),
+    listLog: () =>
+      query(async () => (await run(sql`select * from step_log order by at, id`)).map(toLog)),
     visitCounts: () =>
       query(async () => {
         const rows = await run(sql`

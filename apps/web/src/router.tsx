@@ -93,6 +93,11 @@ const dashboard = createRoute({
     search['panel'] === 'teams' || search['panel'] === 'log' ? { panel: search['panel'] } : {},
   component: lazyRouteComponent(() => import('@/features/admin/dashboard-page'), 'DashboardPage'),
 });
+const times = createRoute({
+  getParentRoute: () => admin,
+  path: '/times',
+  component: lazyRouteComponent(() => import('@/features/admin/times-page'), 'TimesPage'),
+});
 const devices = createRoute({
   getParentRoute: () => admin,
   path: '/devices',
@@ -121,7 +126,7 @@ const Crashed = ({ error }: { readonly error: unknown }) => {
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
-    admin.addChildren([adminIndex, story, playtest, game, dashboard, devices, print]),
+    admin.addChildren([adminIndex, story, playtest, game, dashboard, times, devices, print]),
   ]),
   defaultErrorComponent: Crashed,
 });

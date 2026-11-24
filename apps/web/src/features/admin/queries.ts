@@ -9,7 +9,16 @@ export const adminKeys = {
   overview: ['admin', 'overview'] as const,
   codes: ['admin', 'codes'] as const,
   devices: ['admin', 'devices'] as const,
+  timeBreakdown: ['admin', 'time-breakdown'] as const,
 } as const;
+
+/** Every team's time split by chapter, station and node. */
+export const useTimeBreakdown = (refetchInterval: number | false = false) =>
+  useQuery({
+    queryKey: adminKeys.timeBreakdown,
+    queryFn: ({ signal }) => api((client) => client.admin.timeBreakdown(), { signal }),
+    refetchInterval,
+  });
 
 export const useOverview = (refetchInterval: number | false = false) =>
   useQuery({

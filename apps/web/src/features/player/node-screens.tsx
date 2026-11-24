@@ -20,13 +20,15 @@ type PlayerNode = NonNullable<PlayerView['node']>;
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
 const VisitedStoryText = ({
   block,
+  node,
   onRead,
   ...props
 }: ComponentProps<typeof StoryText> & {
   readonly block: string;
-  readonly onRead: ((ms: number) => void) | undefined;
+  readonly node: string;
+  readonly onRead: ((ms: number, node: string) => void) | undefined;
 }) => {
-  useStoryTime(onRead);
+  useStoryTime(onRead, node);
   return <StoryText {...props} fast={useRecentVisit(block)} />;
 };
 
@@ -145,8 +147,11 @@ export const NodeScreens = ({
   readonly aside?: ReactNode;
   /** Shown small in the top left corner of the first screen, where the others have „Zpět“. */
   readonly corner?: ReactNode;
-  /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
-  readonly onRead?: (ms: number) => void;
+  /**
+   * How long a screen's text of the node was on; a test run or the anonymous intro measures
+   * nothing. While it is measured, the top edge of the screen shows the reading strip.
+   */
+  readonly onRead?: (ms: number, node: string) => void;
   /** A QR code read on the scan screen. */
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
@@ -186,6 +191,7 @@ export const NodeScreens = ({
         )
       }
       aside={aside}
+      reading={onRead !== undefined && screen !== undefined}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
@@ -202,6 +208,7 @@ export const NodeScreens = ({
               )}
               <VisitedStoryText
                 block={`${visitScope}/${node.id}/${index}`}
+                node={node.id}
                 onRead={onRead}
                 content={screen.content}
                 theme={theme}

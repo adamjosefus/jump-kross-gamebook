@@ -54,9 +54,12 @@ create table if not exists story_interval (
   id bigserial primary key,
   team_id int not null references team (id) on delete cascade,
   started_at timestamptz not null,
-  ended_at timestamptz not null
+  ended_at timestamptz not null,
+  node text not null
 );
 create index if not exists story_interval_team on story_interval (team_id);
+-- Reading used to be known per team only; such rows count towards no node.
+alter table story_interval add column if not exists node text not null default '';
 
 -- One row: when the organisers started the game; null until then and after a new game.
 create table if not exists game (

@@ -222,6 +222,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     clearAdminFailures: (key) => Effect.sync(() => void adminFailures.delete(key)),
 
     recentLog: (limit) => Effect.sync(() => data.log.slice(-limit).toReversed()),
+    listLog: () => Effect.sync(() => data.log),
     visitCounts: () =>
       Effect.sync(() =>
         countBy(data.log.flatMap((row) => (row.toNode === undefined ? [] : [row.toNode]))),

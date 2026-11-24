@@ -40,6 +40,7 @@ const CodeCard = ({ entry }: { readonly entry: PrintableCode }) => {
         <ProgressQr
           value={entry.code}
           name={entry.label}
+          note={entry.note}
           scanTexts={entry.scanTexts}
           actions={actions}
           className='w-full'

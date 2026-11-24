@@ -157,6 +157,45 @@ const codeProblems = (story: Story): readonly string[] => {
     ...story.codes.flatMap(({ id, name }) =>
       problemIf(!scanned.has(id), `Kód ${id} („${name}“) nepoužívá žádná QR volba.`),
     ),
+    ...story.codes.flatMap(({ id, name, role, station }) =>
+      role === 'navigation'
+        ? []
+        : problemIf(
+            !story.stations.some((known) => known.id === station),
+            `Kód ${id} („${name}“) patří k neznámému stanovišti ${String(station)}.`,
+          ),
+    ),
+  ];
+};
+
+/** Every station needs a code to start its task and one to end it. */
+const stationProblems = (story: Story): readonly string[] =>
+  story.stations.flatMap(({ id, name }) => {
+    const roles = new Set(
+      story.codes.filter((code) => code.station === id).map((code) => code.role),
+    );
+    return [
+      ...problemIf(name.trim() === '', `Stanoviště ${id} nemá název.`),
+      ...problemIf(!roles.has('arrival'), `Stanoviště ${id} („${name}“) nemá kód příchodu.`),
+      ...problemIf(!roles.has('reward'), `Stanoviště ${id} („${name}“) nemá kód odměny.`),
+    ];
+  });
+
+/** A node names a known chapter and every chapter has a node. */
+const chapterProblems = (story: Story): readonly string[] => {
+  const known = new Set(story.chapters.map((chapter) => chapter.id));
+  const used = new Set(story.order.map((id) => story.nodes[id]!.chapter));
+  return [
+    ...story.order.flatMap((id) => {
+      const chapter = story.nodes[id]!.chapter;
+      return chapter === undefined
+        ? []
+        : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
+    }),
+    ...story.chapters.flatMap(({ id, name }) => [
+      ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
+      ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
+    ]),
   ];
 };
 
@@ -526,6 +565,8 @@ export const validateStory = (
     ...outroProblems(story),
     ...teamProblems(story),
     ...codeProblems(story),
+    ...stationProblems(story),
+    ...chapterProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
     ...endProblems,

@@ -11,7 +11,7 @@ Organizers get an admin area with a graph of the whole story, a live view of whe
 ## Layout
 
 - `packages/core` – the story model, the engine that plays it and the validation of a story.
-- `packages/story` – the story itself: teams, QR codes and nodes. It changes only with a deploy.
+- `packages/story` – the story itself: teams, QR codes, stations, chapters and nodes. It changes only with a deploy.
 - `packages/api` – the HTTP API (Effect `HttpApi`) and its stores: Postgres over Neon's HTTP driver, or memory for local development.
 - `apps/web` – the player app and the admin area (React, TanStack Query and Router, Tailwind).
 - `scripts/build-vercel.ts` – builds the SPA and one Node function for Vercel.

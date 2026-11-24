@@ -401,7 +401,9 @@ describe('validateStory', () => {
   it('reports a goto to a missing node in an untyped story', () => {
     const story: Story = {
       teams: [{ id: 1, name: 'Tým' }],
-      codes: [{ id: 1, name: 'Studna' }],
+      codes: [{ id: 1, name: 'Studna', role: 'navigation' }],
+      stations: [],
+      chapters: [],
       introNode: 'I',
       outroNode: 'O',
       order: ['A'],
@@ -451,8 +453,8 @@ describe('validateStory', () => {
         { id: 1, name: 'Zase tým' },
       ],
       codes: [
-        { id: 1, name: 'Místo' },
-        { id: 1, name: 'Zase místo' },
+        { id: 1, name: 'Místo', role: 'navigation' },
+        { id: 1, name: 'Zase místo', role: 'navigation' },
       ],
     };
     expect(validateStory(twice)).toEqual(
@@ -697,5 +699,43 @@ describe('validateStory', () => {
     expect(validateStory(story, { maxStates: 50 })).toEqual([
       'Příběh má pro jeden tým víc než 50 kombinací uzlu a stavu, kontrola prošla jen část.',
     ]);
+  });
+  it('reports stations without both codes and unknown stations and chapters', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      codes: {
+        1: { name: 'Studna', role: 'arrival', station: 'well' },
+        2: { name: 'Studnař', role: 'reward', station: 'well' },
+        3: { name: 'Brána', role: 'arrival', station: 'gate' },
+      },
+      stations: { well: 'Studna', gate: 'Brána' },
+      chapters: { one: 'První', empty: 'Prázdná' },
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          chapter: 'one',
+          initialState: { n: 0 },
+          blocks: ['A'],
+          scans: [
+            { code: 1, goto: 'B' },
+            { code: 3, goto: 'B' },
+          ],
+        },
+        B: { chapter: 'nowhere', blocks: ['B'], scans: [{ code: 2, goto: 'C' }] },
+        C: { blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Stanoviště gate („Brána“) nemá kód odměny.',
+      'Uzel B patří k neznámé kapitole nowhere.',
+      'Kapitola empty („Prázdná“) nemá žádný uzel.',
+    ]);
+    const unknown: Story = {
+      ...story,
+      codes: [{ id: 1, name: 'Studna', role: 'arrival', station: 'cave' }, ...story.codes.slice(1)],
+    };
+    expect(validateStory(unknown)).toContain('Kód 1 („Studna“) patří k neznámému stanovišti cave.');
   });
 });

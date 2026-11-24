@@ -146,18 +146,19 @@ describe('postgres store', () => {
     const now = Date.now();
     await run(
       store.addStoryIntervals([
-        { teamId: 1, startedAt: new Date(now - 5000), endedAt: new Date(now - 1000) },
-        { teamId: 1, startedAt: new Date(now - 3000), endedAt: new Date(now) },
+        { teamId: 1, node: 'A1', startedAt: new Date(now - 5000), endedAt: new Date(now - 1000) },
+        { teamId: 1, node: 'A1', startedAt: new Date(now - 3000), endedAt: new Date(now) },
       ]),
     );
     await run(store.ensureTeam(2));
     await run(
       store.addStoryIntervals([
-        { teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) },
+        { teamId: 2, node: 'A1', startedAt: new Date(now - 500), endedAt: new Date(now) },
       ]),
     );
     const reading = await run(store.listStoryIntervals());
     expect(reading.map(({ teamId }) => teamId)).toEqual([1, 1, 2]);
+    expect(reading[0]!.node).toBe('A1');
     expect(reading[0]!.startedAt.getTime()).toBe(now - 5000);
     expect(reading[0]!.endedAt.getTime()).toBe(now - 1000);
 
@@ -392,7 +393,7 @@ describe('postgres store', () => {
     const now = Date.now();
     await run(
       store.addStoryIntervals([
-        { teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) },
+        { teamId: 2, node: 'A1', startedAt: new Date(now - 2000), endedAt: new Date(now) },
       ]),
     );
     await run(

@@ -228,9 +228,9 @@ export class PlayerGroup extends HttpApiGroup.make('player')
     HttpApiEndpoint.post('storyTime', '/story-time', {
       payload: Schema.Struct({
         teamId: Schema.optionalKey(Schema.Number),
-        intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })).check(
-          Schema.isMaxLength(MAX_STORY_INTERVALS),
-        ),
+        intervals: Schema.Array(
+          Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number, node: Schema.String }),
+        ).check(Schema.isMaxLength(MAX_STORY_INTERVALS)),
       }),
     }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
@@ -278,8 +278,53 @@ export const StoryGraph = Schema.Struct({
 export const QrCode = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
+  /** Navigation leads the way; the arrival starts a station's task and the reward ends it. */
+  role: Schema.Literals(['navigation', 'arrival', 'reward']),
+  /** Set for the arrival and the reward. */
+  station: Schema.optionalKey(Schema.String),
 });
 export type QrCode = typeof QrCode.Type;
+
+/** What a team is doing now, from its last scan; reading is not known until it is reported. */
+export const TeamPhase = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('travel'), since: Schema.String }),
+  Schema.Struct({ kind: Schema.Literal('task'), station: Schema.String, since: Schema.String }),
+]);
+export type TeamPhase = typeof TeamPhase.Type;
+
+/** How a stretch of a team's time is spent; together the three make its total time. */
+export const TimeSplit = Schema.Struct({
+  storyMs: Schema.Number,
+  travelMs: Schema.Number,
+  taskMs: Schema.Number,
+});
+export type TimeSplit = typeof TimeSplit.Type;
+
+/** A station or a chapter of the story. */
+export const NamedPart = Schema.Struct({ id: Schema.String, name: Schema.String });
+export type NamedPart = typeof NamedPart.Type;
+
+/** The times of every team split by chapter, station and node. */
+export const TimeBreakdown = Schema.Struct({
+  /** In the story's order; nodes without a chapter count under the id "". */
+  chapters: Schema.Array(NamedPart),
+  stations: Schema.Array(NamedPart),
+  teams: Schema.Array(
+    Schema.Struct({
+      id: Schema.Number,
+      /** By chapter id; a chapter the team never got to is missing. */
+      chapters: Schema.Record(Schema.String, TimeSplit),
+      /** By station id: the task, and the way that led to it. */
+      stations: Schema.Record(
+        Schema.String,
+        Schema.Struct({ travelMs: Schema.Number, taskMs: Schema.Number }),
+      ),
+      /** Reading by node id. */
+      nodes: Schema.Record(Schema.String, Schema.Number),
+    }),
+  ),
+});
+export type TimeBreakdown = typeof TimeBreakdown.Type;
 
 export const TeamStatus = Schema.Struct({
   id: Schema.Number,
@@ -303,6 +348,8 @@ export const TeamStatus = Schema.Struct({
   playtimeMs: Schema.optionalKey(Schema.Number),
   /** How long a text was on at least one of the team's devices. */
   storyMs: Schema.Number,
+  /** Missing before the first login and after the end. */
+  phase: Schema.optionalKey(TeamPhase),
 });
 export type TeamStatus = typeof TeamStatus.Type;
 
@@ -361,6 +408,8 @@ export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
   codes: Schema.Array(QrCode),
+  /** Where teams do tasks; the phase of a team names one by its id. */
+  stations: Schema.Array(NamedPart),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
   visits: Schema.Record(Schema.String, Schema.Number),
@@ -380,6 +429,11 @@ export const PrintableCode = Schema.Struct({
   kind: Schema.Literals(['T', 'L']),
   id: Schema.Number,
   label: Schema.String,
+  /**
+   * What the code means for the organisers, printed small on the card: „Příchod · Pekárna“ or
+   * „Odměna · Pekárna“ for a station's codes, missing for the others.
+   */
+  note: Schema.optionalKey(Schema.String),
   code: Schema.String,
   /**
    * The story's texts of the scan screens that take this code, each once: the intro's for a team's
@@ -455,6 +509,9 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       error: [InvalidCode, InvalidMove, InvalidState, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
+    HttpApiEndpoint.get('timeBreakdown', '/time-breakdown', { success: TimeBreakdown }).middleware(
+      AdminAuth,
+    ),
     /** Lets the teams log in; the clock of each starts with its first login. */
     HttpApiEndpoint.post('startGame', '/game/start', { success: GameInfo }).middleware(AdminAuth),
     HttpApiEndpoint.post('setClosed', '/game/closed', {

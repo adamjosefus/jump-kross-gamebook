@@ -191,6 +191,7 @@ const AdminHandlers = HttpApiBuilder.group(
       story: () => Effect.succeed(game.graph()),
       playtest: ({ payload }) => game.playtest(payload),
       overview: () => orDie(game.overview()),
+      timeBreakdown: () => orDie(game.timeBreakdown()),
       startGame: () => orDie(game.startGame()),
       setClosed: ({ payload }) => orDie(game.setClosed(payload.closed)),
       devices: () => orDie(game.devices()),

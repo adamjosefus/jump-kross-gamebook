@@ -52,7 +52,13 @@ const QrCard = ({
   icon,
   eyebrow,
   title,
-}: QrCardProps & QrCardText & { readonly icon: ReactNode }) => (
+  note,
+}: QrCardProps &
+  QrCardText & {
+    readonly icon: ReactNode;
+    /** What the code means for the organisers, printed small under the eyebrow. */
+    readonly note?: string | undefined;
+  }) => (
   <figure
     className={cn(
       'group relative flex w-min break-inside-avoid flex-col gap-3 overflow-hidden rounded-xl border bg-card p-4 text-card-foreground focus-within:border-black/10 focus-within:bg-white focus-within:text-black hover:border-black/10 hover:bg-white hover:text-black print:border-2 print:border-black print:bg-white print:text-black',
@@ -67,6 +73,7 @@ const QrCard = ({
         {eyebrow}
       </span>
       {title !== undefined && <span className='text-lg leading-tight font-semibold'>{title}</span>}
+      {note !== undefined && <span className='text-[10px] opacity-60'>{note}</span>}
     </figcaption>
     {/* The code in the middle; its text runs up on the left, centered between the edge and the
       code, and stays gray on hover too. An empty column of the same width on the right keeps the
@@ -109,6 +116,15 @@ export const TeamLoginQr = ({
 /**
  * Moves any team on. The name tells the organisers where to put the card; the players see it too.
  */
-export const ProgressQr = ({ name, ...props }: QrCardProps & { readonly name?: string }) => (
-  <QrCard {...props} {...qrCardText('L', name)} icon={<IconQrcode className='size-3.5' />} />
+export const ProgressQr = ({
+  name,
+  note,
+  ...props
+}: QrCardProps & { readonly name?: string; readonly note?: string | undefined }) => (
+  <QrCard
+    {...props}
+    {...qrCardText('L', name)}
+    note={note}
+    icon={<IconQrcode className='size-3.5' />}
+  />
 );

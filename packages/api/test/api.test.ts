@@ -234,7 +234,7 @@ describe('api', () => {
 
     const phone = device();
     const tablet = device();
-    const anonymous = { intervals: [{ ms: 1000, agoMs: 0 }] };
+    const anonymous = { intervals: [{ ms: 1000, agoMs: 0, node: 'A1' }] };
     expect((await phone('POST', '/api/player/story-time', anonymous)).status).toBe(401);
 
     // The clock runs from the first login.
@@ -246,7 +246,7 @@ describe('api', () => {
 
     // Two phones reading at the same time are one team reading.
     const read = (who: typeof phone, ms: number, agoMs: number) =>
-      who('POST', '/api/player/story-time', { intervals: [{ ms, agoMs }] });
+      who('POST', '/api/player/story-time', { intervals: [{ ms, agoMs, node: 'A1' }] });
     await read(phone, 60_000, 100_000);
     await read(tablet, 60_000, 70_000);
     // 100–40 s ago and 70–10 s ago make 90 s, give or take the milliseconds of the test.
@@ -260,7 +260,7 @@ describe('api', () => {
     await read(phone, 60_000, 1_000_000);
     await phone('POST', '/api/player/story-time', {
       teamId: 1,
-      intervals: [{ ms: 60_000, agoMs: 0 }],
+      intervals: [{ ms: 60_000, agoMs: 0, node: 'A1' }],
     });
     const capped = (await team()).storyMs;
     expect(capped).toBeGreaterThanOrEqual(389_000);
@@ -300,6 +300,21 @@ describe('api', () => {
     expect((await team()).playtimeMs).toBeGreaterThanOrEqual(0);
   });
 
+  it('splits the times by chapter and station and tells the phase', async () => {
+    const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    const phone = device();
+    await phone('POST', '/api/player/login', { code: lisky });
+    const overview = (await admin('GET', '/api/admin/overview')).body;
+    expect(overview.teams[1].phase).toMatchObject({ kind: 'travel' });
+
+    const breakdown = (await admin('GET', '/api/admin/time-breakdown')).body;
+    // The sample story has no stations and no chapters, so every node is in none.
+    expect(breakdown.stations).toEqual([]);
+    expect(breakdown.chapters).toEqual([{ id: '', name: 'Bez kapitoly' }]);
+    expect(breakdown.teams.map((team: { readonly id: number }) => team.id)).toEqual([1, 2]);
+    expect(Object.keys(breakdown.teams[1].chapters)).toEqual(['']);
+  });
+
   it('keeps the first login as the start, whoever logs in later', async () => {
     const vlci = await encodeQr(config.qrSecret, { kind: 'T', id: 1 });
     const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[0];
@@ -326,7 +341,9 @@ describe('api', () => {
     const a2 = (await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step }))
       .body;
     shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: new Date(Date.now() - 600_000) });
-    await phone('POST', '/api/player/story-time', { intervals: [{ ms: 60_000, agoMs: 0 }] });
+    await phone('POST', '/api/player/story-time', {
+      intervals: [{ ms: 60_000, agoMs: 0, node: 'A1' }],
+    });
     const before = await team();
     expect(before.storyMs).toBeGreaterThan(0);
 
@@ -867,6 +884,7 @@ describe('server failures', () => {
       recordAdminFailure: fail,
       clearAdminFailures: fail,
       recentLog: fail,
+      listLog: fail,
       visitCounts: fail,
     };
     const failing = makeHandler(config, Layer.succeed(Store, broken), SAMPLE);

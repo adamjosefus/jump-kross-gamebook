@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 
-const QUEUE_KEY = 'story-time-queue';
+/** The queue of the version that knew no nodes is left behind; its times no longer fit. */
+const QUEUE_KEY = 'story-time-queue-v2';
 /** A glance while paging is not reading. */
 const MIN_STORY_MS = 1000;
 
 interface QueuedStoryTime {
   readonly id: string;
   readonly teamId: number;
+  /** The node whose text was shown. */
+  readonly node: string;
   readonly endedAt: number;
   readonly ms: number;
 }
@@ -16,6 +19,7 @@ const isQueued = (value: unknown): value is QueuedStoryTime =>
   value !== null &&
   'id' in value &&
   'teamId' in value &&
+  'node' in value &&
   'endedAt' in value &&
   'ms' in value;
 
@@ -57,7 +61,11 @@ const flush = (teamId: number) => {
     // one must not be credited to the new one (the server drops them).
     body: JSON.stringify({
       teamId,
-      intervals: queue.map(({ ms, endedAt }) => ({ ms, agoMs: Math.max(now - endedAt, 0) })),
+      intervals: queue.map(({ ms, node, endedAt }) => ({
+        ms,
+        node,
+        agoMs: Math.max(now - endedAt, 0),
+      })),
     }),
   })
     .then((response) => {
@@ -85,8 +93,8 @@ export const useStoryTimeReport = (teamId: number) => {
     };
   }, [teamId]);
   return useCallback(
-    (ms: number) => {
-      const entry = { id: crypto.randomUUID(), teamId, endedAt: Date.now(), ms };
+    (ms: number, node: string) => {
+      const entry = { id: crypto.randomUUID(), teamId, node, endedAt: Date.now(), ms };
       writeQueue([...readQueue(), entry]);
       flush(teamId);
     },
@@ -94,16 +102,22 @@ export const useStoryTimeReport = (teamId: number) => {
   );
 };
 
-/** Calls `onRead` with how long the mounted text was on a visible page, each time it stops being. */
-export const useStoryTime = (onRead: ((ms: number) => void) | undefined) => {
-  const report = useEffectEvent((ms: number) => onRead?.(ms));
+/**
+ * Calls `onRead` with how long the mounted text of `node` was on a visible page, each time it
+ * stops being. Another node ends the time of the previous one, which is reported for it.
+ */
+export const useStoryTime = (
+  onRead: ((ms: number, node: string) => void) | undefined,
+  node: string,
+) => {
+  const report = useEffectEvent((ms: number, readNode: string) => onRead?.(ms, readNode));
   const shownAt = useRef<number | undefined>(undefined);
   useEffect(() => {
     const stop = () => {
       if (shownAt.current === undefined) return;
       const ms = Date.now() - shownAt.current;
       shownAt.current = undefined;
-      if (ms >= MIN_STORY_MS) report(ms);
+      if (ms >= MIN_STORY_MS) report(ms, node);
     };
     const follow = () => {
       if (document.visibilityState === 'visible') shownAt.current ??= Date.now();
@@ -115,5 +129,5 @@ export const useStoryTime = (onRead: ((ms: number) => void) | undefined) => {
       document.removeEventListener('visibilitychange', follow);
       stop();
     };
-  }, []);
+  }, [node]);
 };
