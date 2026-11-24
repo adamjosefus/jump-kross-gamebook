@@ -116,6 +116,22 @@ describe('teamTimeline', () => {
     expect(walking.stations.size).toBe(0);
   });
 
+  it('ends the task when the admin moves the team on', () => {
+    // The reward card got lost, so the admin moved the team past the station.
+    const log = [...LOG.slice(0, 3), move(400, 'admin', 'D')];
+    const moved = teamTimeline(story, team(), log, [], T0 + 1_000_000);
+    expect(moved.phase).toEqual({ kind: 'travel', since: at(400) });
+    expect(seconds(moved.stations)).toEqual({ well: { travelMs: 300, taskMs: 100 } });
+  });
+
+  it('credits the moment between the first login and the start to the start node', () => {
+    // A first login records the start before the team is moved to the start node.
+    const log = [move(2, 'start', 'A'), move(100, 'scan:1', 'B')];
+    const timeline = teamTimeline(story, team(), log, [read(0, 1, '')], T0 + 200_000);
+    expect([...timeline.chapters.keys()]).toEqual(['one']);
+    expect(seconds(timeline.nodes)).toEqual({ A: 1 });
+  });
+
   it('has nothing for a team that has not logged in', () => {
     const timeline = teamTimeline(story, { ...team(), startedAt: undefined }, LOG, READING, T0);
     expect(timeline.chapters.size).toBe(0);

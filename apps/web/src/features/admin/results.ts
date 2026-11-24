@@ -40,7 +40,7 @@ export interface TeamResult {
   readonly playtimeDuration: number;
   /** Whole seconds spent reading the story. */
   readonly storyDuration: number;
-  /** Whole seconds of play time outside reading: walking and puzzles; zero before the first login. */
+  /** Whole seconds of play time outside reading: travel and tasks; zero before the first login. */
   readonly liveActionDuration: number;
   /** By chapter id, every chapter of the story; "" holds the nodes without a chapter. */
   readonly chapters: Readonly<Record<string, ChapterResult>>;
@@ -138,8 +138,10 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
   const stateKeys = [...new Set(results.flatMap((result) => Object.keys(result.state)))];
   const chapterIds = Object.keys(results[0]?.chapters ?? {});
   const stationIds = Object.keys(results[0]?.stations ?? {});
-  // Nodes without a chapter are the chapter "", which makes the columns `chapter_none_s` etc.
-  const chapterName = (id: string) => (id === '' ? 'none' : id);
+  // Nodes without a chapter are the chapter "", whose columns are `no_chapter_s` etc.: no chapter
+  // id can make a column starting with `no_`.
+  const chapterColumn = (id: string, suffix: string) =>
+    id === '' ? `no_chapter${suffix}` : `chapter_${id}${suffix}`;
   const header = [
     'id',
     'team',
@@ -154,10 +156,10 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     'story_s',
     'live_action_s',
     ...chapterIds.flatMap((id) => [
-      `chapter_${chapterName(id)}_s`,
-      `chapter_${chapterName(id)}_story_s`,
-      `chapter_${chapterName(id)}_travel_s`,
-      `chapter_${chapterName(id)}_task_s`,
+      chapterColumn(id, '_s'),
+      chapterColumn(id, '_story_s'),
+      chapterColumn(id, '_travel_s'),
+      chapterColumn(id, '_task_s'),
     ]),
     ...stationIds.flatMap((id) => [`station_${id}_travel_s`, `station_${id}_task_s`]),
     ...stateKeys.map((key) => `state_${key}`),

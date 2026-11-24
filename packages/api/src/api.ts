@@ -229,7 +229,12 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       payload: Schema.Struct({
         teamId: Schema.optionalKey(Schema.Number),
         intervals: Schema.Array(
-          Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number, node: Schema.String }),
+          Schema.Struct({
+            ms: Schema.Number,
+            agoMs: Schema.Number,
+            /** The node whose text was shown; phones of an older build do not send it. */
+            node: Schema.optionalKey(Schema.String),
+          }),
         ).check(Schema.isMaxLength(MAX_STORY_INTERVALS)),
       }),
     }).middleware(PlayerAuth),

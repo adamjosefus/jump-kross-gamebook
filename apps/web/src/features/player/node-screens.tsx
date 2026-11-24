@@ -156,6 +156,8 @@ export const NodeScreens = ({
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
+  // The game is over at the outro, so its text is not reading time and shows no strip.
+  const measure = node.type === 'end' ? undefined : onRead;
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
   const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex, visitScope));
@@ -191,7 +193,7 @@ export const NodeScreens = ({
         )
       }
       aside={aside}
-      reading={onRead !== undefined && screen !== undefined}
+      reading={measure !== undefined && screen !== undefined}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
@@ -209,7 +211,7 @@ export const NodeScreens = ({
               <VisitedStoryText
                 block={`${visitScope}/${node.id}/${index}`}
                 node={node.id}
-                onRead={onRead}
+                onRead={measure}
                 content={screen.content}
                 theme={theme}
                 instant={shown || !animated}

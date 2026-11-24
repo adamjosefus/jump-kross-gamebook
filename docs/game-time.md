@@ -7,7 +7,7 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, a č
 - **Začátek hry týmu** je první přihlášení týmu kódem klanu po tom, co organizátoři hru spustili. Další přihlášení, ze stejného i z jiného zařízení, začátek nemění.
 - **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, ať volbou, nebo naskenováním kódu.
 - **Kroky** týmu: každá volba a každý sken s okamžikem, kdy se stal, a uzlem, kam tým došel.
-- **Čtení** hlásí telefony: jak dlouho byl na viditelné stránce text kterého uzlu příběhu. Obrazovka se skenerem se nepočítá, s tou tým jde na další stanoviště. Jedna obrazovka se počítá nejvýš 5 minut a čte-li víc telefonů týmu najednou, počítá se to jednou. Bez signálu čas počká v telefonu a odešle se později.
+- **Čtení** hlásí telefony: jak dlouho byl na viditelné stránce text kterého uzlu příběhu. Obrazovka se skenerem se nepočítá, s tou tým jde na další stanoviště, a závěrečný uzel taky ne, hra už skončila. Čtení se ořízne na dobu hry; co přesahuje konec, se nepočítá. Telefon se starší verzí aplikace uzel neposílá; jeho čtení se připíše uzlu, kde tým podle kroků byl. Jedna obrazovka se počítá nejvýš 5 minut a čte-li víc telefonů týmu najednou, počítá se to jednou. Bez signálu čas počká v telefonu a odešle se později.
 
 Telefon neposílá svůj čas, ale „jak dlouho“ a „před jak dlouhou dobou“; okamžik určí server. Špatně nastavené hodiny v telefonu tak výsledek nezkreslí.
 
@@ -39,7 +39,7 @@ Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, 
 - **Úkol**: od skenu kódu příchodu do skenu kódu odměny, bez čtení. Patří stanovišti z kódu příchodu.
 - **Cesta**: všechno ostatní, včetně navigačních kódů. Cesta, která skončí příchodem na stanoviště, patří i tomu stanovišti.
 
-Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) případný úkol ukončí.
+Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) i přesun týmu organizátorem (třeba když se ztratila karta odměny) případný úkol ukončí. Okamžik mezi prvním přihlášením a přesunem na start patří startovnímu uzlu.
 
 ## Kde se to ukazuje
 
@@ -59,6 +59,6 @@ Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, a�
 
 ## Výsledky
 
-CSV i JSON mají anglické názvy. CSV: `id`, `team`, `node_id`, `finished`, `started_at`, `finished_at`, časy `playtime`, `story` a `live_action` jako `h:mm:ss`, tytéž v sekundách jako `playtime_s`, `story_s` a `live_action_s`. Za nimi pro každou kapitolu `chapter_<id>_s`, `chapter_<id>_story_s`, `chapter_<id>_travel_s` a `chapter_<id>_task_s` (uzly bez kapitoly jako `chapter_none_…`), pro každé stanoviště `station_<id>_travel_s` a `station_<id>_task_s`, a nakonec sloupec `state_<klíč>` pro každou hodnotu stavu. JSON: `id`, `name`, `nodeId`, `finished`, `startedAt`, `finishedAt`, `playtimeDuration`, `storyDuration`, `liveActionDuration`, `chapters` (podle id kapitoly `duration`, `storyDuration`, `travelDuration` a `taskDuration`; uzly bez kapitoly pod klíčem `""`), `stations` (podle id stanoviště `travelDuration` a `taskDuration`) a `state`. Každý tým má v JSON všechny klíče, všechny kapitoly i všechna stanoviště. Časy jsou vždy celé sekundy, u týmu, který se nepřihlásil, nula. Co ještě není známé (u týmu, který se nepřihlásil, uzel a začátek, u týmu na cestě konec), má hodnotu `null`; v CSV je taková buňka prázdná.
+CSV i JSON mají anglické názvy. CSV: `id`, `team`, `node_id`, `finished`, `started_at`, `finished_at`, časy `playtime`, `story` a `live_action` jako `h:mm:ss`, tytéž v sekundách jako `playtime_s`, `story_s` a `live_action_s`. Za nimi pro každou kapitolu `chapter_<id>_s`, `chapter_<id>_story_s`, `chapter_<id>_travel_s` a `chapter_<id>_task_s` (uzly bez kapitoly jako `no_chapter_s`, `no_chapter_story_s` atd.), pro každé stanoviště `station_<id>_travel_s` a `station_<id>_task_s`, a nakonec sloupec `state_<klíč>` pro každou hodnotu stavu. JSON: `id`, `name`, `nodeId`, `finished`, `startedAt`, `finishedAt`, `playtimeDuration`, `storyDuration`, `liveActionDuration`, `chapters` (podle id kapitoly `duration`, `storyDuration`, `travelDuration` a `taskDuration`; uzly bez kapitoly pod klíčem `""`), `stations` (podle id stanoviště `travelDuration` a `taskDuration`) a `state`. Každý tým má v JSON všechny klíče, všechny kapitoly i všechna stanoviště. Časy jsou vždy celé sekundy, u týmu, který se nepřihlásil, nula. Co ještě není známé (u týmu, který se nepřihlásil, uzel a začátek, u týmu na cestě konec), má hodnotu `null`; v CSV je taková buňka prázdná.
 
 Časy po kapitolách a stanovištích se načítají zvlášť, každých 15 sekund; u týmu na cestě proto mohou za celkovým časem o chvíli zaostávat.

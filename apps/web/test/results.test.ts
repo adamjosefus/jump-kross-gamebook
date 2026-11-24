@@ -155,7 +155,7 @@ describe('teamResults', () => {
     expect(split[1]!.stations).toEqual({ bakery: { travelDuration: 0, taskDuration: 0 } });
     const [header, first] = resultsCsv(split).split('\r\n');
     expect(header).toContain(
-      'live_action_s;chapter_shop_s;chapter_shop_story_s;chapter_shop_travel_s;chapter_shop_task_s;chapter_none_s;chapter_none_story_s;chapter_none_travel_s;chapter_none_task_s;station_bakery_travel_s;station_bakery_task_s;state_coins',
+      'live_action_s;chapter_shop_s;chapter_shop_story_s;chapter_shop_travel_s;chapter_shop_task_s;no_chapter_s;no_chapter_story_s;no_chapter_travel_s;no_chapter_task_s;station_bakery_travel_s;station_bakery_task_s;state_coins',
     );
     expect(first).toContain(';4781;480;60;120;300;0;0;0;0;120;300;30;');
   });

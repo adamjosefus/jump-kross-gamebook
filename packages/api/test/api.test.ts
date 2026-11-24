@@ -279,7 +279,8 @@ describe('api', () => {
     expect((await team()).playtimeMs).toBe(done.playtimeMs);
     // The times themselves are sent too, so the admin can count to the second.
     expect(Date.parse(done.finishedAt) - Date.parse(done.startedAt)).toBe(done.playtimeMs);
-    // Reading after the end is clipped to the end: with an end right at the start nothing is left.
+    // Reading after the end is clipped to the end, not moved before it: with an end right at the
+    // start nothing is left.
     const readBefore = (await team()).storyMs;
     const row = shared.teams.get(2)!;
     shared.teams.set(2, { ...row, finishedAt: row.startedAt });
@@ -304,7 +305,15 @@ describe('api', () => {
     const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
     const phone = device();
     await phone('POST', '/api/player/login', { code: lisky });
+    // A phone of an older build sends no node; its reading still counts.
+    const before = (await admin('GET', '/api/admin/overview')).body.teams[1].storyMs;
+    shared.teams.set(2, { ...shared.teams.get(2)!, startedAt: new Date(Date.now() - 60_000) });
+    const old = await phone('POST', '/api/player/story-time', {
+      intervals: [{ ms: 5_000, agoMs: 0 }],
+    });
+    expect(old.status).toBeLessThan(300);
     const overview = (await admin('GET', '/api/admin/overview')).body;
+    expect(overview.teams[1].storyMs).toBeGreaterThanOrEqual(before + 4_900);
     expect(overview.teams[1].phase).toMatchObject({ kind: 'travel' });
 
     const breakdown = (await admin('GET', '/api/admin/time-breakdown')).body;
@@ -313,6 +322,24 @@ describe('api', () => {
     expect(breakdown.chapters).toEqual([{ id: '', name: 'Bez kapitoly' }]);
     expect(breakdown.teams.map((team: { readonly id: number }) => team.id)).toEqual([1, 2]);
     expect(Object.keys(breakdown.teams[1].chapters)).toEqual(['']);
+
+    // The outro read for a minute after an end 30 s ago counts only up to the end, not a whole
+    // minute moved before it.
+    const row = shared.teams.get(2)!;
+    shared.teams.set(2, {
+      ...row,
+      startedAt: new Date(Date.now() - 600_000),
+      finishedAt: new Date(Date.now() - 30_000),
+    });
+    const read = async () => (await admin('GET', '/api/admin/overview')).body.teams[1].storyMs;
+    const untilEnd = await read();
+    await phone('POST', '/api/player/story-time', {
+      intervals: [{ ms: 60_000, agoMs: 0, node: 'OUTRO' }],
+    });
+    const added = (await read()) - untilEnd;
+    expect(added).toBeGreaterThanOrEqual(29_000);
+    expect(added).toBeLessThanOrEqual(31_000);
+    shared.teams.set(2, row);
   });
 
   it('keeps the first login as the start, whoever logs in later', async () => {

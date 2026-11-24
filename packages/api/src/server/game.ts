@@ -404,7 +404,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const storyTime = Effect.fn('Game.storyTime')(function* (
       teamId: number,
       readFor: number | undefined,
-      intervals: readonly { readonly ms: number; readonly agoMs: number; readonly node: string }[],
+      intervals: readonly {
+        readonly ms: number;
+        readonly agoMs: number;
+        readonly node?: string;
+      }[],
     ) {
       // Times read for another team (the device switched meanwhile) belong to nobody now.
       if (readFor !== undefined && readFor !== teamId) return;
@@ -417,11 +421,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const to = Math.min(team.finishedAt?.getTime() ?? now, now);
       // A device's numbers are not trusted: a non-finite one would make an invalid date and fail
       // the insert, so such an interval is dropped like one of no length.
-      // A node the story does not have is not credited; the reading still counts for the team.
-      const rows = intervals.flatMap(({ ms, agoMs, node }) => {
+      // An interval is clipped to the game, not moved into it: reading after the end (the outro's
+      // text) would otherwise take the place of the last task or way. A node the story does not
+      // have, or none from a phone of an older build, is not credited; the reading still counts
+      // for the team, where the log has it.
+      const rows = intervals.flatMap(({ ms, agoMs, node = '' }) => {
         if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
-        const ended = Math.min(now - Math.max(agoMs, 0), to);
-        const started = Math.max(ended - Math.min(ms, MAX_STORY_MS), from);
+        const shownUntil = now - Math.max(agoMs, 0);
+        const ended = Math.min(shownUntil, to);
+        const started = Math.max(shownUntil - Math.min(ms, MAX_STORY_MS), from);
         return ended > started
           ? [
               {
@@ -637,33 +645,37 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         { concurrency: 'unbounded' },
       );
       const now = Date.now();
-      const usesNoChapter = story.order.some(
-        (id) =>
-          id !== story.introNode &&
-          id !== story.outroNode &&
-          story.nodes[id]?.chapter === undefined,
-      );
+      const timelines = story.teams.map(({ id }) => ({
+        id,
+        timeline: teamTimeline(
+          story,
+          teams.find((row) => row.id === id) ?? notStarted(id),
+          log,
+          intervals,
+          now,
+        ),
+      }));
+      // „Bez kapitoly“ is listed whenever some time falls there, so the chapters always add up
+      // to the total time.
+      const usesNoChapter =
+        story.order.some(
+          (id) =>
+            id !== story.introNode &&
+            id !== story.outroNode &&
+            story.nodes[id]?.chapter === undefined,
+        ) || timelines.some(({ timeline }) => timeline.chapters.has(NO_CHAPTER));
       const result: TimeBreakdown = {
         chapters: [
           ...story.chapters,
           ...(usesNoChapter ? [{ id: NO_CHAPTER, name: 'Bez kapitoly' }] : []),
         ],
         stations: story.stations,
-        teams: story.teams.map(({ id }) => {
-          const timeline = teamTimeline(
-            story,
-            teams.find((row) => row.id === id) ?? notStarted(id),
-            log,
-            intervals,
-            now,
-          );
-          return {
-            id,
-            chapters: Object.fromEntries(timeline.chapters),
-            stations: Object.fromEntries(timeline.stations),
-            nodes: Object.fromEntries(timeline.nodes),
-          };
-        }),
+        teams: timelines.map(({ id, timeline }) => ({
+          id,
+          chapters: Object.fromEntries(timeline.chapters),
+          stations: Object.fromEntries(timeline.stations),
+          nodes: Object.fromEntries(timeline.nodes),
+        })),
       };
       return result;
     });

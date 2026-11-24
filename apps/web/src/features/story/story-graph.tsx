@@ -98,9 +98,11 @@ const structureOf = (graph: GameGraph) =>
     .map((id) => {
       const node = graph.nodes[id]!;
       const choices = node.choices.map((choice) => `${choice.target}:${choice.label}`).join(',');
-      return `${id}:${node.type}>${choices}`;
+      return `${id}:${node.type}@${node.chapter ?? ''}>${choices}`;
     })
-    .join(';');
+    .join(';')
+    // The chapters' frames change the layout too.
+    .concat(`|${graph.chapters.map((chapter) => chapter.id).join(',')}`);
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
 const INITIAL_ID = 'graph:initial';
@@ -873,7 +875,7 @@ export const StoryGraph = ({
           edgeTypes={edgeTypes}
           {...(onPaneClick === undefined ? {} : { onPaneClick })}
           onNodeClick={(_event, node) => {
-            // A chapter's frame or band is only a background.
+            // A chapter's frame is only a background.
             if (node.type === 'story') setOpened(node.id);
           }}
           colorMode={resolved}

@@ -60,7 +60,8 @@ const extremes = (
         .flatMap((times) => measure(times) ?? []);
       return [
         id,
-        values.length < 2
+        // With fewer than two times, or all the same, there is no fastest or slowest.
+        values.length < 2 || Math.min(...values) === Math.max(...values)
           ? undefined
           : { fastest: Math.min(...values), slowest: Math.max(...values) },
       ] as const;
@@ -177,16 +178,24 @@ export const TimesPage = () => {
                       {parts.map((part) => {
                         const value = measureOf(part.id)(times);
                         const mark = finished.has(times.id) ? marks.get(part.id) : undefined;
+                        // The color has a word too, for a screen reader and for whom colors look alike.
+                        const rank =
+                          mark === undefined
+                            ? undefined
+                            : value === mark.fastest
+                              ? 'Nejrychlejší tým v cíli'
+                              : value === mark.slowest
+                                ? 'Nejpomalejší tým v cíli'
+                                : undefined;
                         return (
                           <TableCell
                             key={part.id}
+                            title={rank}
                             className={cn(
                               'align-top',
-                              mark !== undefined &&
-                                value === mark.fastest &&
+                              rank === 'Nejrychlejší tým v cíli' &&
                                 'bg-emerald-500/10 dark:bg-emerald-400/15',
-                              mark !== undefined &&
-                                value === mark.slowest &&
+                              rank === 'Nejpomalejší tým v cíli' &&
                                 'bg-red-500/10 dark:bg-red-400/15',
                             )}
                           >
@@ -195,6 +204,7 @@ export const TimesPage = () => {
                             ) : (
                               <StationCell time={times.stations[part.id]} />
                             )}
+                            {rank !== undefined && <span className='sr-only'>{rank}</span>}
                           </TableCell>
                         );
                       })}

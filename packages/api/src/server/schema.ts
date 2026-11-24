@@ -55,7 +55,7 @@ create table if not exists story_interval (
   team_id int not null references team (id) on delete cascade,
   started_at timestamptz not null,
   ended_at timestamptz not null,
-  node text not null
+  node text not null default ''
 );
 create index if not exists story_interval_team on story_interval (team_id);
 -- Reading used to be known per team only; such rows count towards no node.

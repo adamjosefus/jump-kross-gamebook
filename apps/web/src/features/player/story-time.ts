@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 
-/** The queue of the version that knew no nodes is left behind; its times no longer fit. */
-const QUEUE_KEY = 'story-time-queue-v2';
+const QUEUE_KEY = 'story-time-queue';
 /** A glance while paging is not reading. */
 const MIN_STORY_MS = 1000;
 
 interface QueuedStoryTime {
   readonly id: string;
   readonly teamId: number;
-  /** The node whose text was shown. */
-  readonly node: string;
+  /**
+   * The node whose text was shown; missing in times queued by an older build, which the server
+   * credits where its log has the team.
+   */
+  readonly node?: string;
   readonly endedAt: number;
   readonly ms: number;
 }
@@ -19,7 +21,6 @@ const isQueued = (value: unknown): value is QueuedStoryTime =>
   value !== null &&
   'id' in value &&
   'teamId' in value &&
-  'node' in value &&
   'endedAt' in value &&
   'ms' in value;
 
@@ -63,7 +64,7 @@ const flush = (teamId: number) => {
       teamId,
       intervals: queue.map(({ ms, node, endedAt }) => ({
         ms,
-        node,
+        ...(typeof node === 'string' ? { node } : {}),
         agoMs: Math.max(now - endedAt, 0),
       })),
     }),

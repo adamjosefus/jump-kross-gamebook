@@ -88,7 +88,7 @@ const useNow = () => {
 };
 
 /**
- * The team's play time, reading time and the rest (walking, puzzles), all to the second, and
+ * The team's play time, reading time and the rest (travel and tasks), all to the second, and
  * whether it is on its way or at a station's task now, for how long. Reading is not shown live:
  * the phones report it only once a text is no longer on.
  */
@@ -156,7 +156,13 @@ const CopyResults = ({
           variant='ghost'
           size='sm'
           className='h-6 px-1.5 font-mono text-xs uppercase'
-          title={`Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`}
+          title={
+            breakdown.data === undefined
+              ? 'Načítají se časy po kapitolách a stanovištích…'
+              : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
+          }
+          // Without the breakdown the results would lack the chapters and stations unnoticed.
+          disabled={breakdown.data === undefined}
           onClick={() => void copy(format)}
         >
           {copied === format ? <IconCheck /> : <IconCopy />} {format}

@@ -78,8 +78,9 @@ const SCAN = /^scan:(\d+)$/;
 const step = (story: Story, position: Position, row: LogRow): Position => {
   const at = row.at.getTime();
   const node = row.toNode ?? position.node;
-  // A team sent back to the start is on its way again, whatever it was doing.
-  if (row.action === 'reset' || row.action === 'start')
+  // A team sent back to the start, or moved by the admin (say, past a station whose reward card
+  // got lost), is on its way again, whatever it was doing.
+  if (row.action === 'reset' || row.action === 'start' || row.action === 'admin')
     return { node, station: undefined, since: at };
   const scanned = SCAN.exec(row.action)?.[1];
   const code =
@@ -126,13 +127,19 @@ export const teamTimeline = (
     .toSorted((first, second) => first.at.getTime() - second.at.getTime());
   const reading = readingOf(intervals.filter((interval) => interval.teamId === team.id));
 
-  const atStart = rows
+  const replayed = rows
     .filter((row) => row.at.getTime() <= start)
     .reduce<Position>((position, row) => step(story, position, row), {
       node: undefined,
       station: undefined,
       since: start,
     });
+  // The first login records the start a moment before the team is moved to the start node, so
+  // that moment belongs to the node the team arrives at first.
+  const atStart: Position =
+    replayed.node !== undefined
+      ? replayed
+      : { ...replayed, node: rows.find((row) => row.toNode !== undefined)?.toNode };
   // The way to the next station, waiting for the arrival that tells which station it is.
   let way = 0;
 
