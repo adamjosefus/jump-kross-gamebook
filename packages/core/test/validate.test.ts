@@ -737,5 +737,7 @@ describe('validateStory', () => {
       codes: [{ id: 1, name: 'Studna', role: 'arrival', station: 'cave' }, ...story.codes.slice(1)],
     };
     expect(validateStory(unknown)).toContain('Kód 1 („Studna“) patří k neznámému stanovišti cave.');
+    const blank: Story = { ...story, chapters: [...story.chapters, { id: '', name: 'Bez id' }] };
+    expect(validateStory(blank)).toContain('Kapitola „Bez id“ má prázdné id.');
   });
 });

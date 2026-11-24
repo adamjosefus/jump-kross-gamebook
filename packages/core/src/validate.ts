@@ -193,6 +193,8 @@ const chapterProblems = (story: Story): readonly string[] => {
         : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
     }),
     ...story.chapters.flatMap(({ id, name }) => [
+      // The admin keeps the time of the nodes without a chapter under the id "".
+      ...problemIf(id === '', `Kapitola „${name}“ má prázdné id.`),
       ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
       ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
     ]),

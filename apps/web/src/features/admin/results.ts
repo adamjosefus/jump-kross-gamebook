@@ -90,16 +90,17 @@ export const teamResults = (
       chapters: Object.fromEntries(
         (breakdown?.chapters ?? []).map(({ id }) => {
           const split = times?.chapters[id];
-          const storyDuration = seconds(split?.storyMs ?? 0);
-          const travelDuration = seconds(split?.travelMs ?? 0);
-          const taskDuration = seconds(split?.taskMs ?? 0);
+          const storyMs = split?.storyMs ?? 0;
+          const travelMs = split?.travelMs ?? 0;
+          const taskMs = split?.taskMs ?? 0;
           return [
             id,
             {
-              duration: storyDuration + travelDuration + taskDuration,
-              storyDuration,
-              travelDuration,
-              taskDuration,
+              // Rounded as a whole, as the Times page shows it; the parts are rounded each.
+              duration: seconds(storyMs + travelMs + taskMs),
+              storyDuration: seconds(storyMs),
+              travelDuration: seconds(travelMs),
+              taskDuration: seconds(taskMs),
             },
           ];
         }),

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -25,8 +25,13 @@ type View = 'chapters' | 'stations';
 
 type TeamTimes = TimeBreakdown['teams'][number];
 
-/** The time a column measures, for one team; undefined when the team has none of it yet. */
+/**
+ * The time a column measures for one team, in whole seconds as the page shows it, so two times
+ * shown the same are never one fastest and one not; undefined when the team has none of it yet.
+ */
 type Measure = (times: TeamTimes) => number | undefined;
+
+const shownSeconds = (ms: number) => Math.floor(ms / 1000);
 
 const splitTotal = (split: TimeSplit) => split.storyMs + split.travelMs + split.taskMs;
 
@@ -34,13 +39,15 @@ const chapterMeasure =
   (id: string): Measure =>
   (times) => {
     const split = times.chapters[id];
-    return split === undefined ? undefined : splitTotal(split);
+    return split === undefined ? undefined : shownSeconds(splitTotal(split));
   };
 
 const stationMeasure =
   (id: string): Measure =>
-  (times) =>
-    times.stations[id]?.taskMs;
+  (times) => {
+    const time = times.stations[id];
+    return time === undefined ? undefined : shownSeconds(time.taskMs);
+  };
 
 /**
  * The fastest and the slowest of the teams in the finish: a team on its way may not have left the
@@ -123,8 +130,13 @@ export const TimesPage = () => {
   const marks = extremes(parts, measureOf, teams, finished);
   const started = teams.filter((times) => statuses.get(times.id)?.startedAt !== undefined);
 
+  // The switch is a set of tabs over the table, so the table is the content of the chosen one.
   return (
-    <div className='mx-auto flex max-w-6xl flex-col gap-4 p-4 md:gap-6 md:p-6'>
+    <Tabs
+      value={view}
+      onValueChange={(value) => setView(value === 'stations' ? 'stations' : 'chapters')}
+      className='mx-auto max-w-6xl gap-4 p-4 md:gap-6 md:p-6'
+    >
       <Card>
         <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
           <div className='flex flex-col gap-1.5'>
@@ -137,92 +149,90 @@ export const TimesPage = () => {
               počítá do teď.
             </CardDescription>
           </div>
-          <Tabs
-            value={view}
-            onValueChange={(value) => setView(value === 'stations' ? 'stations' : 'chapters')}
-          >
-            <TabsList>
-              <TabsTrigger value='chapters'>Kapitoly</TabsTrigger>
-              <TabsTrigger value='stations'>Stanoviště</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <TabsList>
+            <TabsTrigger value='chapters'>Kapitoly</TabsTrigger>
+            <TabsTrigger value='stations'>Stanoviště</TabsTrigger>
+          </TabsList>
         </CardHeader>
-        <CardContent>
-          {parts.length === 0 ? (
-            <p className='text-sm text-muted-foreground'>
-              {view === 'chapters'
-                ? 'Příběh nemá žádné kapitoly.'
-                : 'Příběh nemá žádná stanoviště.'}
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className='sticky left-0 z-10 bg-card'>Tým</TableHead>
-                  {parts.map((part) => (
-                    <TableHead key={part.id}>{part.name}</TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {started.map((times) => {
-                  const name = statuses.get(times.id)?.name ?? `#${times.id}`;
-                  return (
-                    <TableRow key={times.id}>
-                      <TableCell className='sticky left-0 z-10 bg-card'>
-                        <div className='flex items-center gap-2'>
-                          <TeamAvatar id={times.id} name={name} />
-                          <span className='whitespace-nowrap'>{name}</span>
-                        </div>
-                      </TableCell>
-                      {parts.map((part) => {
-                        const value = measureOf(part.id)(times);
-                        const mark = finished.has(times.id) ? marks.get(part.id) : undefined;
-                        // The color has a word too, for a screen reader and for whom colors look alike.
-                        const rank =
-                          mark === undefined
-                            ? undefined
-                            : value === mark.fastest
-                              ? 'Nejrychlejší tým v cíli'
-                              : value === mark.slowest
-                                ? 'Nejpomalejší tým v cíli'
-                                : undefined;
-                        return (
-                          <TableCell
-                            key={part.id}
-                            title={rank}
-                            className={cn(
-                              'align-top',
-                              rank === 'Nejrychlejší tým v cíli' &&
-                                'bg-emerald-500/10 dark:bg-emerald-400/15',
-                              rank === 'Nejpomalejší tým v cíli' &&
-                                'bg-red-500/10 dark:bg-red-400/15',
-                            )}
-                          >
-                            {view === 'chapters' ? (
-                              <ChapterCell split={times.chapters[part.id]} />
-                            ) : (
-                              <StationCell time={times.stations[part.id]} />
-                            )}
-                            {rank !== undefined && <span className='sr-only'>{rank}</span>}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  );
-                })}
-                {started.length === 0 && (
+        <TabsContent value={view} asChild>
+          <CardContent>
+            {parts.length === 0 ? (
+              <p className='text-sm text-muted-foreground'>
+                {view === 'chapters'
+                  ? 'Příběh nemá žádné kapitoly.'
+                  : 'Příběh nemá žádná stanoviště.'}
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={parts.length + 1} className='text-muted-foreground'>
-                      Zatím žádný tým nezačal.
-                    </TableCell>
+                    <TableHead className='sticky left-0 z-10 bg-card'>Tým</TableHead>
+                    {parts.map((part) => (
+                      <TableHead key={part.id}>{part.name}</TableHead>
+                    ))}
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {started.map((times) => {
+                    const name = statuses.get(times.id)?.name ?? `#${times.id}`;
+                    return (
+                      <TableRow key={times.id}>
+                        <TableCell className='sticky left-0 z-10 bg-card'>
+                          <div className='flex items-center gap-2'>
+                            <TeamAvatar id={times.id} name={name} />
+                            <span className='whitespace-nowrap'>{name}</span>
+                          </div>
+                        </TableCell>
+                        {parts.map((part) => {
+                          const value = measureOf(part.id)(times);
+                          const mark = finished.has(times.id) ? marks.get(part.id) : undefined;
+                          // The color has a word too, for a screen reader and for whom
+                          // colors look alike.
+                          const rank =
+                            mark === undefined
+                              ? undefined
+                              : value === mark.fastest
+                                ? 'Nejrychlejší tým v cíli'
+                                : value === mark.slowest
+                                  ? 'Nejpomalejší tým v cíli'
+                                  : undefined;
+                          return (
+                            <TableCell
+                              key={part.id}
+                              title={rank}
+                              className={cn(
+                                'align-top',
+                                rank === 'Nejrychlejší tým v cíli' &&
+                                  'bg-emerald-500/10 dark:bg-emerald-400/15',
+                                rank === 'Nejpomalejší tým v cíli' &&
+                                  'bg-red-500/10 dark:bg-red-400/15',
+                              )}
+                            >
+                              {view === 'chapters' ? (
+                                <ChapterCell split={times.chapters[part.id]} />
+                              ) : (
+                                <StationCell time={times.stations[part.id]} />
+                              )}
+                              {rank !== undefined && <span className='sr-only'>{rank}</span>}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    );
+                  })}
+                  {started.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={parts.length + 1} className='text-muted-foreground'>
+                        Zatím žádný tým nezačal.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </TabsContent>
       </Card>
-    </div>
+    </Tabs>
   );
 };

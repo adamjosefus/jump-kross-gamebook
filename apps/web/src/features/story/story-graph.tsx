@@ -428,8 +428,10 @@ const ChapterFrame = ({ data: { name, hue, width, height } }: NodeProps<ChapterF
     }}
   >
     <div
-      className='absolute top-3 right-full mr-2 rotate-180 text-sm font-semibold tracking-wide whitespace-nowrap uppercase [writing-mode:vertical-rl]'
+      // A name longer than the frame is cut short with an ellipsis; the whole one is in the title.
+      className='absolute top-3 right-full mr-2 max-h-[calc(100%-1.5rem)] rotate-180 truncate text-sm font-semibold tracking-wide uppercase [writing-mode:vertical-rl]'
       style={{ color: `oklch(0.55 0.15 ${hue})` }}
+      title={name}
     >
       {name}
     </div>

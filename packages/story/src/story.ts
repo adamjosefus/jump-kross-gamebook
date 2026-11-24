@@ -26,9 +26,10 @@ const coinsText = (count: number): string => {
  * their codes from here. Every shop is a station (`stations`): the team scans the code on its door
  * when it arrives, which starts the task, and the shopkeeper hands over the reward code when the
  * task is done, which ends it. The bus stop and the park only lead the way. `chapters` group the
- * nodes into the parts of the story whose times the admin compares in „Časy“. `introNode` is what anyone sees before scanning a team's code; then the
- * team continues where it is, or at START when it has not started yet. `outroNode` is where the
- * game ends.
+ * nodes into the parts of the story whose times the admin compares in „Časy“.
+ *
+ * `introNode` is what anyone sees before scanning a team's code; then the team continues where it
+ * is, or at START when it has not started yet. `outroNode` is where the game ends.
  */
 export const story = defineStory<State>()({
   teams: {

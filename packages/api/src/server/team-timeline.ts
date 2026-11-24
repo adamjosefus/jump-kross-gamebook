@@ -78,9 +78,11 @@ const SCAN = /^scan:(\d+)$/;
 const step = (story: Story, position: Position, row: LogRow): Position => {
   const at = row.at.getTime();
   const node = row.toNode ?? position.node;
-  // A team sent back to the start, or moved by the admin (say, past a station whose reward card
-  // got lost), is on its way again, whatever it was doing.
-  if (row.action === 'reset' || row.action === 'start' || row.action === 'admin')
+  // A team sent back to the start, or moved elsewhere by the admin (say, past a station whose
+  // reward card got lost), is on its way again, whatever it was doing. An admin's fix of the
+  // state alone leaves the team where it is, task included.
+  const moved = row.action === 'admin' && node !== position.node;
+  if (row.action === 'reset' || row.action === 'start' || moved)
     return { node, station: undefined, since: at };
   const scanned = SCAN.exec(row.action)?.[1];
   const code =
@@ -180,7 +182,6 @@ export const teamTimeline = (
       stations.set(next.station, { ...current, travelMs: current.travelMs + way });
       way = 0;
     }
-    if (next.station === undefined && position.station !== undefined) way = 0;
     position = next;
     cursor = at;
   }

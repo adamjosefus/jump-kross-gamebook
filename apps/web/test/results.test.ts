@@ -149,7 +149,7 @@ describe('teamResults', () => {
     };
     const split = teamResults([finished, waiting], NOW, breakdown);
     expect(split[0]!.chapters).toEqual({
-      shop: { duration: 480, storyDuration: 60, travelDuration: 120, taskDuration: 300 },
+      shop: { duration: 481, storyDuration: 60, travelDuration: 120, taskDuration: 300 },
       '': { duration: 0, storyDuration: 0, travelDuration: 0, taskDuration: 0 },
     });
     expect(split[1]!.stations).toEqual({ bakery: { travelDuration: 0, taskDuration: 0 } });
@@ -157,6 +157,6 @@ describe('teamResults', () => {
     expect(header).toContain(
       'live_action_s;chapter_shop_s;chapter_shop_story_s;chapter_shop_travel_s;chapter_shop_task_s;no_chapter_s;no_chapter_story_s;no_chapter_travel_s;no_chapter_task_s;station_bakery_travel_s;station_bakery_task_s;state_coins',
     );
-    expect(first).toContain(';4781;480;60;120;300;0;0;0;0;120;300;30;');
+    expect(first).toContain(';4781;481;60;120;300;0;0;0;0;120;300;30;');
   });
 });

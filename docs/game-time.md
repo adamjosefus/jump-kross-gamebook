@@ -26,7 +26,7 @@ Všechny tři jsou v administraci na stránce Živě v panelu „Klany“, kde s
 Příběh (`packages/story/src/story.ts`) může čas týmu dělit podrobněji:
 
 - **Stanoviště** (`stations`) jsou místa, kde tým plní úkol, třeba `bakery: 'Pekárna'`.
-- **Role kódu** říká, co sken znamená pro čas. Kód zapsaný jen názvem (`2: 'Zelinář'`) je **navigační**: jen ukazuje cestu. Kód `{ name, role: 'arrival', station }` je **příchod**: visí na stanovišti a jeho sken začíná úkol. Kód `{ name, role: 'reward', station }` je **odměna**: dá ho týmu organizátor stanoviště po splnění úkolu a jeho sken úkol končí. Každé stanoviště potřebuje kód příchodu i odměny.
+- **Role kódu** říká, co sken znamená pro čas. Kód zapsaný jen názvem (`4: 'Autobusová zastávka'`) je **navigační**: jen ukazuje cestu. Kód `{ name, role: 'arrival', station }` je **příchod**: visí na stanovišti a jeho sken začíná úkol. Kód `{ name, role: 'reward', station }` je **odměna**: dá ho týmu organizátor stanoviště po splnění úkolu a jeho sken úkol končí. Každé stanoviště potřebuje kód příchodu i odměny.
 - **Kapitoly** (`chapters`) jsou pojmenované části příběhu. Uzel do kapitoly patří vlastností `chapter`; uzly bez ní jsou v přehledech jako „Bez kapitoly“.
 
 Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, stanoviště bez příchodu nebo odměny, uzel neznámé kapitoly a kapitolu bez uzlů.
@@ -39,7 +39,7 @@ Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, 
 - **Úkol**: od skenu kódu příchodu do skenu kódu odměny, bez čtení. Patří stanovišti z kódu příchodu.
 - **Cesta**: všechno ostatní, včetně navigačních kódů. Cesta, která skončí příchodem na stanoviště, patří i tomu stanovišti.
 
-Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) i přesun týmu organizátorem (třeba když se ztratila karta odměny) případný úkol ukončí. Okamžik mezi prvním přihlášením a přesunem na start patří startovnímu uzlu.
+Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) i přesun týmu organizátorem do jiného uzlu (třeba když se ztratila karta odměny) případný úkol ukončí; pouhá oprava stavu, při které tým zůstane v uzlu, úkol nechá běžet. Okamžik mezi prvním přihlášením a přesunem na start patří startovnímu uzlu.
 
 ## Kde se to ukazuje
 

@@ -157,12 +157,15 @@ const CopyResults = ({
           size='sm'
           className='h-6 px-1.5 font-mono text-xs uppercase'
           title={
-            breakdown.data === undefined
+            breakdown.isPending
               ? 'Načítají se časy po kapitolách a stanovištích…'
-              : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
+              : breakdown.data === undefined
+                ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, bez časů po kapitolách a stanovištích (${errorMessage(breakdown.error)})`
+                : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
           }
-          // Without the breakdown the results would lack the chapters and stations unnoticed.
-          disabled={breakdown.data === undefined}
+          // Waits for the breakdown, so the results do not lack the chapters and stations
+          // unnoticed; when it fails, the rest is still worth copying and the title says why.
+          disabled={breakdown.isPending}
           onClick={() => void copy(format)}
         >
           {copied === format ? <IconCheck /> : <IconCopy />} {format}

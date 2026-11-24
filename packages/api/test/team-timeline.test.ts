@@ -124,6 +124,14 @@ describe('teamTimeline', () => {
     expect(seconds(moved.stations)).toEqual({ well: { travelMs: 300, taskMs: 100 } });
   });
 
+  it('keeps the task when the admin only fixes the state', () => {
+    // The admin's dialog keeps the team's node; only the coins change.
+    const log = [...LOG.slice(0, 3), move(400, 'admin', 'C'), move(600, 'scan:3', 'D')];
+    const fixed = teamTimeline(story, team(), log, [], T0 + 700_000);
+    expect(fixed.phase).toEqual({ kind: 'travel', since: at(600) });
+    expect(seconds(fixed.stations)).toEqual({ well: { travelMs: 300, taskMs: 300 } });
+  });
+
   it('credits the moment between the first login and the start to the start node', () => {
     // A first login records the start before the team is moved to the start node.
     const log = [move(2, 'start', 'A'), move(100, 'scan:1', 'B')];
