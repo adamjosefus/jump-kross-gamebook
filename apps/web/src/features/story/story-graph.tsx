@@ -1,6 +1,13 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
-import { IconFlag, IconDirectionSign, IconQrcode, IconWalk } from '@tabler/icons-react';
+import {
+  IconDirectionSign,
+  IconDoorEnter,
+  IconFlag,
+  IconGift,
+  IconQrcode,
+  IconWalk,
+} from '@tabler/icons-react';
 import {
   Background,
   BaseEdge,
@@ -63,7 +70,22 @@ interface EdgeRoute {
 interface Layout {
   readonly nodes: ReadonlyMap<string, XYPosition>;
   readonly edges: ReadonlyMap<string, EdgeRoute>;
+  /** Boxes of the chapters laid out as groups, by chapter id; empty without grouping. */
+  readonly chapters: ReadonlyMap<string, Box>;
 }
+
+/** Hues of the chapters, in definition order; they repeat after the last one. */
+const CHAPTER_HUES = [250, 150, 40, 320, 95, 200] as const;
+
+const chapterHue = (graph: GameGraph, chapter: string | undefined) => {
+  const index = graph.chapters.findIndex((known) => known.id === chapter);
+  return index < 0 ? undefined : CHAPTER_HUES[index % CHAPTER_HUES.length]!;
+};
+
+/** Room in a chapter's frame around its nodes; the title is outside, on the left. */
+const CHAPTER_PADDING = { top: 20, side: 20, bottom: 20 } as const;
+
+const chapterFrameId = (id: string) => `chapter:${id}`;
 
 /**
  * Layouts by graph structure, so choosing another start does not lay the graph out again. A
@@ -116,11 +138,24 @@ const labelSize = (text: string) => {
   };
 };
 
-/** Layered top-down layout; depends only on the nodes and edges, not on the previews. */
-const layout = async (graph: GameGraph): Promise<Layout> => {
+/** Every node of the result, nested ones included; coordinates are absolute (`ROOT`). */
+const flatten = (node: ElkNode): readonly ElkNode[] =>
+  (node.children ?? []).flatMap((child) => [child, ...flatten(child)]);
+
+/**
+ * Layered top-down layout; depends only on the nodes and edges, not on the previews. With
+ * `grouped`, the nodes of each chapter are laid out inside a box of their own.
+ */
+const layout = async (graph: GameGraph, grouped: boolean): Promise<Layout> => {
+  const nodeBox = (id: string) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT });
+  const inChapter = (id: string) =>
+    grouped && graph.chapters.some((chapter) => chapter.id === graph.nodes[id]!.chapter);
   const input: ElkNode = {
     id: 'root',
     layoutOptions: {
+      'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+      'elk.json.shapeCoords': 'ROOT',
+      'elk.json.edgeCoords': 'ROOT',
       'elk.algorithm': 'layered',
       'elk.direction': 'DOWN',
       'elk.edgeRouting': 'ORTHOGONAL',
@@ -133,7 +168,23 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
       'elk.edgeLabels.inline': 'true',
     },
     children: [
-      ...graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
+      ...graph.order.filter((id) => !inChapter(id)).map(nodeBox),
+      ...(grouped
+        ? graph.chapters.flatMap((chapter) => {
+            const members = graph.order.filter((id) => graph.nodes[id]!.chapter === chapter.id);
+            return members.length === 0
+              ? []
+              : [
+                  {
+                    id: chapterFrameId(chapter.id),
+                    layoutOptions: {
+                      'elk.padding': `[top=${CHAPTER_PADDING.top},left=${CHAPTER_PADDING.side},bottom=${CHAPTER_PADDING.bottom},right=${CHAPTER_PADDING.side}]`,
+                    },
+                    children: members.map(nodeBox),
+                  },
+                ];
+          })
+        : []),
       { id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE },
       ...(endsOf(graph).length > 0
         ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }]
@@ -169,34 +220,54 @@ const layout = async (graph: GameGraph): Promise<Layout> => {
     ],
   };
   const result = await elk.layout(input);
+  const all = flatten(result);
+  const frames = new Set(graph.chapters.map((chapter) => chapterFrameId(chapter.id)));
   return {
     nodes: new Map(
-      (result.children ?? []).map((child) => [child.id, { x: child.x ?? 0, y: child.y ?? 0 }]),
+      all
+        .filter((child) => !frames.has(child.id))
+        .map((child) => [child.id, { x: child.x ?? 0, y: child.y ?? 0 }]),
     ),
-    edges: new Map(
-      (result.edges ?? []).map((edge): readonly [string, EdgeRoute] => {
-        const section = edge.sections?.[0];
-        const label = edge.labels?.[0];
-        return [
-          edge.id,
+    chapters: new Map(
+      all
+        .filter((child) => frames.has(child.id))
+        .map((child) => [
+          child.id.slice(chapterFrameId('').length),
           {
-            points:
-              section === undefined
-                ? []
-                : [section.startPoint, ...(section.bendPoints ?? []), section.endPoint],
-            ...(label === undefined
-              ? {}
-              : {
-                  label: {
-                    x: label.x ?? 0,
-                    y: label.y ?? 0,
-                    width: label.width ?? 0,
-                    height: label.height ?? 0,
-                  },
-                }),
+            x: child.x ?? 0,
+            y: child.y ?? 0,
+            width: child.width ?? 0,
+            height: child.height ?? 0,
           },
-        ];
-      }),
+        ]),
+    ),
+    // With the edges of the nested nodes too: ELK may move an edge into the box it stays in.
+    edges: new Map(
+      [result, ...all]
+        .flatMap((node) => node.edges ?? [])
+        .map((edge): readonly [string, EdgeRoute] => {
+          const section = edge.sections?.[0];
+          const label = edge.labels?.[0];
+          return [
+            edge.id,
+            {
+              points:
+                section === undefined
+                  ? []
+                  : [section.startPoint, ...(section.bendPoints ?? []), section.endPoint],
+              ...(label === undefined
+                ? {}
+                : {
+                    label: {
+                      x: label.x ?? 0,
+                      y: label.y ?? 0,
+                      width: label.width ?? 0,
+                      height: label.height ?? 0,
+                    },
+                  }),
+            },
+          ];
+        }),
     ),
   };
 };
@@ -207,6 +278,8 @@ type RouteEdge = Edge<
     readonly text?: string;
     /** The edge is a QR choice. */
     readonly qr?: boolean;
+    /** The QR choice is a station's arrival or reward code. */
+    readonly role?: 'arrival' | 'reward';
     readonly label?: Box;
     /** Of the label; the theme's text color when missing. */
     readonly color?: string;
@@ -292,7 +365,11 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
               height: label.height,
             }}
           >
-            {data.qr === true ? (
+            {data.role === 'arrival' ? (
+              <IconDoorEnter className='mr-0.5 inline size-3 align-[-2px]' />
+            ) : data.role === 'reward' ? (
+              <IconGift className='mr-0.5 inline size-3 align-[-2px]' />
+            ) : data.qr === true ? (
               <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />
             ) : (
               <IconDirectionSign className='mr-0.5 inline size-3 align-[-2px]' />
@@ -323,6 +400,39 @@ type StoryFlowNode = Node<
   },
   'story'
 >;
+
+type ChapterFlowNode = Node<
+  {
+    readonly name: string;
+    readonly hue: number;
+    readonly width: number;
+    readonly height: number;
+  },
+  'chapter'
+>;
+
+/**
+ * A chapter around its nodes: an outline in the chapter's color on a faint fill, lighter in light
+ * mode and darker in dark mode, and its name outside along the left edge, read from the bottom up.
+ * ELK lays the nodes of a chapter out inside it, so frames never overlap.
+ */
+const ChapterFrame = ({ data: { name, hue, width, height } }: NodeProps<ChapterFlowNode>) => (
+  <div
+    className='relative rounded-2xl border-2 bg-white/10 dark:bg-black/10'
+    style={{
+      width,
+      height,
+      borderColor: `oklch(0.65 0.14 ${hue} / 0.55)`,
+    }}
+  >
+    <div
+      className='absolute top-3 right-full mr-2 rotate-180 text-sm font-semibold tracking-wide whitespace-nowrap uppercase [writing-mode:vertical-rl]'
+      style={{ color: `oklch(0.55 0.15 ${hue})` }}
+    >
+      {name}
+    </div>
+  </div>
+);
 /** All the blocks as one text, for a card to shorten as a whole. */
 const textOf = (blocks: readonly string[]) =>
   blocks.filter((block) => block.trim() !== '').join('\n\n');
@@ -493,7 +603,12 @@ const BlocksDialog = ({
   );
 };
 
-const nodeTypes = { story: StoryNodeCard, initial: InitialDot, final: FinalDot } as const;
+const nodeTypes = {
+  story: StoryNodeCard,
+  initial: InitialDot,
+  final: FinalDot,
+  chapter: ChapterFrame,
+} as const;
 
 /** Screen pixels covered by floating panels on the sides of the graph. */
 export interface GraphInset {
@@ -540,6 +655,8 @@ export interface StoryGraphProps {
   readonly focus?: string;
   /** Floating panels over the sides, so the focused node is not moved under them. */
   readonly inset?: GraphInset;
+  /** Off, the chapters are not framed and the graph is laid out without them. */
+  readonly chapters?: boolean;
   readonly className?: string;
 }
 
@@ -553,18 +670,22 @@ export const StoryGraph = ({
   onPaneClick,
   focus,
   inset = NO_INSET,
+  chapters: grouped = true,
   className,
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
   const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: Layout }>();
   const [opened, setOpened] = useState<string>();
 
-  const structure = useMemo(() => structureOf(graph), [graph]);
+  const structure = useMemo(
+    () => `${grouped ? 'grouped:' : ''}${structureOf(graph)}`,
+    [graph, grouped],
+  );
   useEffect(() => {
     // Flipped by the cleanup so a layout finishing after the graph changed is not applied.
     let current = true;
     const cached = layouts.get(structure);
-    const pending = cached ?? layout(graph);
+    const pending = cached ?? layout(graph, grouped);
     if (cached === undefined) layouts.set(structure, pending);
     void pending.then((result) => {
       if (current) setLaidOut({ key: structure, layout: result });
@@ -572,12 +693,39 @@ export const StoryGraph = ({
     return () => {
       current = false;
     };
-  }, [graph, structure]);
+  }, [graph, structure, grouped]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
-  const nodes = useMemo<(StoryFlowNode | InitialFlowNode | FinalFlowNode)[]>(() => {
+  const nodes = useMemo<
+    (StoryFlowNode | InitialFlowNode | FinalFlowNode | ChapterFlowNode)[]
+  >(() => {
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
+    // Empty without grouping: the layout has no chapter boxes then.
+    const frames = graph.chapters.flatMap((chapter): readonly ChapterFlowNode[] => {
+      const box = laidOut?.layout.chapters.get(chapter.id);
+      const hue = chapterHue(graph, chapter.id);
+      return box === undefined || hue === undefined
+        ? []
+        : [
+            {
+              id: chapterFrameId(chapter.id),
+              type: 'chapter',
+              position: { x: box.x, y: box.y },
+              data: {
+                name: chapter.name,
+                hue,
+                width: box.width,
+                height: box.height,
+              },
+              zIndex: -1,
+              draggable: false,
+              selectable: false,
+              focusable: false,
+            },
+          ];
+    });
     return [
+      ...frames,
       ...graph.order.map((id): StoryFlowNode => ({
         id,
         type: 'story',
@@ -639,6 +787,7 @@ export const StoryGraph = ({
                   points: route?.points ?? [],
                   text: choice.label,
                   qr: choice.code !== undefined,
+                  ...(choice.role === undefined ? {} : { role: choice.role }),
                   ...(route?.label === undefined ? {} : { label: route.label }),
                   // Paths the start never takes are dimmed.
                   dimmed: choice.available === false || !graph.nodes[id]!.reached,
@@ -724,6 +873,7 @@ export const StoryGraph = ({
           edgeTypes={edgeTypes}
           {...(onPaneClick === undefined ? {} : { onPaneClick })}
           onNodeClick={(_event, node) => {
+            // A chapter's frame or band is only a background.
             if (node.type === 'story') setOpened(node.id);
           }}
           colorMode={resolved}

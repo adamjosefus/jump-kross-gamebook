@@ -255,6 +255,7 @@ export const StoryGraph = Schema.Struct({
       type: NodeType,
       dynamic: Schema.Boolean,
       reached: Schema.Boolean,
+      chapter: Schema.optionalKey(Schema.String),
       preview: Schema.optionalKey(
         Schema.Struct({
           state: Schema.optionalKey(GameState),
@@ -266,6 +267,9 @@ export const StoryGraph = Schema.Struct({
           label: Schema.String,
           /** Set on QR choices. */
           code: Schema.optionalKey(Schema.Number),
+          /** Set on QR choices of a station's code. */
+          role: Schema.optionalKey(Schema.Literals(['arrival', 'reward'])),
+          station: Schema.optionalKey(Schema.String),
           target: Schema.String,
           conditional: Schema.Boolean,
           available: Schema.optionalKey(Schema.Boolean),
@@ -273,6 +277,8 @@ export const StoryGraph = Schema.Struct({
       ),
     }),
   ),
+  chapters: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
+  stations: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
 });
 
 export const QrCode = Schema.Struct({

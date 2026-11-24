@@ -263,6 +263,9 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@gamebook/story':
+        specifier: workspace:*
+        version: link:../../packages/story
       '@storybook/addon-themes':
         specifier: ^10.6.5
         version: 10.6.5(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react@19.3.1))

@@ -46,6 +46,7 @@ Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, 
 - **Telefon hráče**: když se počítá čas čtení, má horní okraj obrazovky barevný pruh. Neukazuje žádné číslo ani text, jen dává týmu najevo, že čte v klidu a herní čas mu stojí.
 - **Živě, panel „Klany“**: u týmu na cestě štítek „Cesta“, u týmu na stanovišti „Úkol: Pekárna“, vždy s tím, jak dlouho to trvá. Čtení se tu neukazuje, protože ho telefony hlásí až po dočtení obrazovky. Panel „Kroky“ u skenu ukazuje název a roli kódu, třeba „příchod: Pekárna (kód 1)“.
 - **Stránka Časy**: tabulka týmy × kapitoly (celkem a pod tím čtení · cesta · úkol), nebo týmy × stanoviště (úkol a cesta k němu). Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli; týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
+- **Graf příběhu** (stránky Příběh, Test a Živě): uzly jedné kapitoly jsou pohromadě v rámečku v barvě kapitoly a s jejím názvem. Šipky skenů kódů stanovišť mají ikonu dveří (příchod) nebo dárku (odměna).
 - **Tisk QR kódů**: karta kódu příchodu nebo odměny má pod názvem malým písmem „Příchod · Pekárna“ nebo „Odměna · Pekárna“, aby organizátoři karty nepopletli.
 
 ## Kdy se čas vynuluje
