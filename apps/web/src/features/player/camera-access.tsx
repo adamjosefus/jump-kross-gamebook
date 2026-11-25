@@ -53,7 +53,11 @@ const useCameraAccess = () => {
   const request = async () => {
     setState('requesting');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        // The back camera, which the scanner opens next; no selfie flashes up meanwhile.
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
       for (const track of stream.getTracks()) track.stop();
       // Some Android phones free the camera a moment after the track ends; the scanner opening
       // it right away would be told it is in use by another app.

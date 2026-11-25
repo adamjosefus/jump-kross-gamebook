@@ -1,4 +1,4 @@
-import { IconRotateClockwise } from '@tabler/icons-react';
+import { IconCameraRotate, IconRotateClockwise } from '@tabler/icons-react';
 import QrScanner from 'qr-scanner';
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
 
@@ -39,6 +39,12 @@ const ARM_MS = 1000;
  * view; the decoder runs in a worker, so the page stays smooth.
  */
 const SCANS_PER_SECOND = 15;
+
+/**
+ * The camera the player last picked, kept for the next scan screens while the page is open. The
+ * back one by default: codes are scanned on the spot, not held up to the player's face.
+ */
+let chosenCamera: QrScanner.FacingMode = 'environment';
 
 /** How long the check mark over an accepted code shows before the game moves on. */
 export const ACCEPTED_MS = 900;
@@ -152,6 +158,22 @@ const QrScannerView = ({
 }) => {
   const stage = useRef<HTMLDivElement>(null);
   const [cameraError, setCameraError] = useState<string>();
+  const scanner = useRef<QrScanner>(undefined);
+  const [camera, setCamera] = useState(chosenCamera);
+  // The switch shows only on a device with more than one camera, known once one runs.
+  const [canSwitch, setCanSwitch] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const switchCamera = async () => {
+    const next = camera === 'environment' ? 'user' : 'environment';
+    chosenCamera = next;
+    setCamera(next);
+    setSwitching(true);
+    try {
+      await scanner.current?.setCamera(next);
+    } finally {
+      setSwitching(false);
+    }
+  };
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
@@ -247,7 +269,7 @@ const QrScannerView = ({
     // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more, to
     // always use its own decoder, as the browser's `BarcodeDetector` may read them, and to ask the
     // camera for a square picture like the square it is shown in.
-    const scanner = new QrScanner(
+    const instance = new QrScanner(
       video,
       (result) =>
         emit(
@@ -256,24 +278,35 @@ const QrScannerView = ({
         ),
       {
         returnDetailedScanResult: true,
-        preferredCamera: 'environment',
+        preferredCamera: chosenCamera,
         maxScansPerSecond: SCANS_PER_SECOND,
       },
     );
+    scanner.current = instance;
     // A scanner torn down meanwhile (React runs effects twice in development) must not report;
     // `start()` cannot be aborted, so the cleanup flags it instead.
     let current = true;
-    scanner.start().catch(async (error: unknown) => {
-      const message = await cameraProblem(error);
-      if (current) setCameraError(message);
-    });
+    instance.start().then(
+      async () => {
+        // The full list is known only once the camera is allowed, i.e. now. A failed listing
+        // only hides the switch; the camera itself runs.
+        const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+        const cameras = devices.filter((device) => device.kind === 'videoinput');
+        if (current) setCanSwitch(cameras.length > 1);
+      },
+      async (error: unknown) => {
+        const message = await cameraProblem(error);
+        if (current) setCameraError(message);
+      },
+    );
     return () => {
       current = false;
       video.removeEventListener('emptied', hideUntilSteady);
       stopWaiting();
       video.removeEventListener('loadedmetadata', fit);
       video.removeEventListener('resize', fit);
-      scanner.destroy();
+      instance.destroy();
+      if (scanner.current === instance) scanner.current = undefined;
       container.replaceChildren();
     };
   }, [failed]);
@@ -303,6 +336,20 @@ const QrScannerView = ({
                 <IconRotateClockwise /> Zkusit znovu
               </Button>
             </div>
+          )}
+          {cameraError === undefined && canSwitch && (
+            <Button
+              variant='secondary'
+              size='icon-lg'
+              className='absolute right-3 bottom-3 rounded-full shadow-md'
+              aria-label={
+                camera === 'environment' ? 'Přepnout na přední kameru' : 'Přepnout na zadní kameru'
+              }
+              disabled={switching}
+              onClick={() => void switchCamera()}
+            >
+              <IconCameraRotate className='size-5' />
+            </Button>
           )}
           <span className='sr-only' role='status'>
             {answer === 'accepted'
