@@ -124,6 +124,28 @@ describe('teamTimeline', () => {
     expect(seconds(moved.stations)).toEqual({ well: { travelMs: 300, taskMs: 100 } });
   });
 
+  it('starts the task when the admin moves the team to the node of a task', () => {
+    // The arrival card could not be read, so the admin moved the team to the task's node.
+    const log = [LOG[0]!, move(100, 'admin', 'C'), move(400, 'scan:3', 'D')];
+    const moved = teamTimeline(story, team(), log, [], T0 + 500_000);
+    expect(seconds(moved.stations)).toEqual({ well: { travelMs: 100, taskMs: 300 } });
+    expect(moved.phase).toEqual({ kind: 'travel', since: at(400) });
+  });
+
+  it('drops the way a jump cut short and ignores a reward without its task', () => {
+    // On the way for 200 s, moved by the admin past the station, then to the station after all.
+    const log = [
+      LOG[0]!,
+      move(200, 'admin', 'D'),
+      move(250, 'scan:3', 'D'),
+      move(300, 'admin', 'B'),
+      move(350, 'scan:2', 'C'),
+    ];
+    const timeline = teamTimeline(story, team(), log, [], T0 + 400_000);
+    // The reward at 250 s ended nothing; the way to the station is the 50 s since the last move.
+    expect(seconds(timeline.stations)).toEqual({ well: { travelMs: 50, taskMs: 50 } });
+  });
+
   it('keeps the task when the admin only fixes the state', () => {
     // The admin's dialog keeps the team's node; only the coins change.
     const log = [...LOG.slice(0, 3), move(400, 'admin', 'C'), move(600, 'scan:3', 'D')];

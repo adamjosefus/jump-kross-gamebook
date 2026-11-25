@@ -737,7 +737,15 @@ describe('validateStory', () => {
       codes: [{ id: 1, name: 'Studna', role: 'arrival', station: 'cave' }, ...story.codes.slice(1)],
     };
     expect(validateStory(unknown)).toContain('Kód 1 („Studna“) patří k neznámému stanovišti cave.');
-    const blank: Story = { ...story, chapters: [...story.chapters, { id: '', name: 'Bez id' }] };
-    expect(validateStory(blank)).toContain('Kapitola „Bez id“ má prázdné id.');
+    const badIds: Story = {
+      ...story,
+      chapters: [...story.chapters, { id: '', name: 'Bez id' }, { id: 'one_story', name: 'Čtení' }],
+    };
+    expect(validateStory(badIds)).toEqual(
+      expect.arrayContaining([
+        'Kapitola „Bez id“ má neplatné id „“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
+        'Kapitola „Čtení“ má neplatné id „one_story“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
+      ]),
+    );
   });
 });

@@ -54,7 +54,7 @@ import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
 import { formatTime, timeAgo } from './format';
-import { adminKeys, useOverview, useStoryGraph, useTimeBreakdown } from './queries';
+import { invalidateGame, useOverview, useStoryGraph, useTimeBreakdown } from './queries';
 import { ResetDialog } from './reset-dialog';
 import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
 import { Subpage, useNarrow, useSubpageBack } from './subpage';
@@ -161,7 +161,9 @@ const CopyResults = ({
               ? 'Načítají se časy po kapitolách a stanovištích…'
               : breakdown.data === undefined
                 ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, bez časů po kapitolách a stanovištích (${errorMessage(breakdown.error)})`
-                : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
+                : breakdown.isError
+                  ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}; časy po kapitolách a stanovištích jsou z ${new Date(breakdown.dataUpdatedAt).toLocaleTimeString('cs-CZ')}, nepodařilo se je obnovit (${errorMessage(breakdown.error)})`
+                  : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
           }
           // Waits for the breakdown, so the results do not lack the chapters and stations
           // unnoticed; when it fails, the rest is still worth copying and the title says why.
@@ -609,7 +611,7 @@ const MoveDialog = ({
   const confirmed = parsedState !== undefined && typed === team.name;
 
   const done = () => {
-    void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+    void invalidateGame(queryClient);
     onClose();
   };
   const move = useMutation({

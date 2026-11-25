@@ -74,21 +74,40 @@ interface Position {
 
 const SCAN = /^scan:(\d+)$/;
 
+/**
+ * The station whose task a team at `node` is doing: the one whose reward code the node waits
+ * for. Undefined for a node that waits for no reward.
+ */
+const taskStationOf = (story: Story, node: string | undefined): string | undefined => {
+  const scans = node === undefined ? undefined : story.nodes[node]?.scans;
+  return scans
+    ?.map((scan) => story.codes.find((qrCode) => qrCode.id === scan.code))
+    .find((qrCode) => qrCode?.role === 'reward')?.station;
+};
+
+/**
+ * Whether the row takes the team somewhere else than its own steps would: back to the start, or
+ * to another node by the admin. An admin's fix of the state alone leaves the team where it is.
+ */
+const isJump = (position: Position, row: LogRow) =>
+  row.action === 'reset' ||
+  row.action === 'start' ||
+  (row.action === 'admin' && (row.toNode ?? position.node) !== position.node);
+
 /** The position after a step of the log. */
 const step = (story: Story, position: Position, row: LogRow): Position => {
   const at = row.at.getTime();
   const node = row.toNode ?? position.node;
-  // A team sent back to the start, or moved elsewhere by the admin (say, past a station whose
-  // reward card got lost), is on its way again, whatever it was doing. An admin's fix of the
-  // state alone leaves the team where it is, task included.
-  const moved = row.action === 'admin' && node !== position.node;
-  if (row.action === 'reset' || row.action === 'start' || moved)
-    return { node, station: undefined, since: at };
+  // A jump ends whatever the team was doing. Where it lands tells what it does next: at a node
+  // that waits for a station's reward (the admin moved it there, say, because the arrival card
+  // could not be read) the station's task runs, anywhere else the team is on its way.
+  if (isJump(position, row)) return { node, station: taskStationOf(story, node), since: at };
   const scanned = SCAN.exec(row.action)?.[1];
   const code =
     scanned === undefined ? undefined : story.codes.find((qrCode) => qrCode.id === Number(scanned));
   if (code?.role === 'arrival') return { node, station: code.station, since: at };
-  if (code?.role === 'reward' && position.station !== undefined)
+  // Only the reward of the station whose task runs ends it.
+  if (code?.role === 'reward' && code.station === position.station)
     return { node, station: undefined, since: at };
   return { ...position, node };
 };
@@ -177,6 +196,8 @@ export const teamTimeline = (
     if (at <= start || at > end) continue;
     credit(cursor, at, position);
     const next = step(story, position, row);
+    // A way cut short by a jump led to no station: the next one gets only the way from here.
+    if (isJump(position, row) && next.station === undefined) way = 0;
     if (next.station !== undefined && next.station !== position.station) {
       const current = stations.get(next.station) ?? { travelMs: 0, taskMs: 0 };
       stations.set(next.station, { ...current, travelMs: current.travelMs + way });

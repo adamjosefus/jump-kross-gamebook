@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
+import { MAX_STORY_MS } from '@gamebook/api';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 
 const QUEUE_KEY = 'story-time-queue';
 /** A glance while paging is not reading. */
@@ -131,4 +132,31 @@ export const useStoryTime = (
       stop();
     };
   }, [node]);
+};
+
+/**
+ * Whether the reading of the screen named by `screen` still counts: while it is on a visible
+ * page, for as long as the server counts one view of a text. Coming back to the page starts
+ * another view, as it does for the server. False when reading is not `measured` at all.
+ */
+export const useReadingCounts = (measured: boolean, screen: string) => {
+  // The screen whose time ran out; another screen counts again.
+  const [expired, setExpired] = useState<string>();
+  useEffect(() => {
+    if (!measured) return undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const follow = () => {
+      clearTimeout(timer);
+      if (document.visibilityState !== 'visible') return;
+      setExpired(undefined);
+      timer = setTimeout(() => setExpired(screen), MAX_STORY_MS);
+    };
+    follow();
+    document.addEventListener('visibilitychange', follow);
+    return () => {
+      document.removeEventListener('visibilitychange', follow);
+      clearTimeout(timer);
+    };
+  }, [measured, screen]);
+  return measured && expired !== screen;
 };

@@ -168,6 +168,19 @@ const codeProblems = (story: Story): readonly string[] => {
   ];
 };
 
+/**
+ * The ids of chapters and stations name the columns of the results (`chapter_<id>_story_s`), so
+ * they are plain words: an id with an underscore could make the same column as another one, and
+ * the admin keeps the time of the nodes without a chapter under the id "".
+ */
+const PART_ID = /^[A-Za-z][A-Za-z0-9]*$/;
+
+const idShapeProblem = (what: string, id: string, name: string) =>
+  problemIf(
+    !PART_ID.test(id),
+    `${what} „${name}“ má neplatné id „${id}“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.`,
+  );
+
 /** Every station needs a code to start its task and one to end it. */
 const stationProblems = (story: Story): readonly string[] =>
   story.stations.flatMap(({ id, name }) => {
@@ -175,6 +188,7 @@ const stationProblems = (story: Story): readonly string[] =>
       story.codes.filter((code) => code.station === id).map((code) => code.role),
     );
     return [
+      ...idShapeProblem('Stanoviště', id, name),
       ...problemIf(name.trim() === '', `Stanoviště ${id} nemá název.`),
       ...problemIf(!roles.has('arrival'), `Stanoviště ${id} („${name}“) nemá kód příchodu.`),
       ...problemIf(!roles.has('reward'), `Stanoviště ${id} („${name}“) nemá kód odměny.`),
@@ -193,8 +207,7 @@ const chapterProblems = (story: Story): readonly string[] => {
         : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
     }),
     ...story.chapters.flatMap(({ id, name }) => [
-      // The admin keeps the time of the nodes without a chapter under the id "".
-      ...problemIf(id === '', `Kapitola „${name}“ má prázdné id.`),
+      ...idShapeProblem('Kapitola', id, name),
       ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
       ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
     ]),

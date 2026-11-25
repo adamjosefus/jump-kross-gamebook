@@ -165,6 +165,12 @@ export type PlayerView = typeof PlayerView.Type;
 /** More than a device can have waiting: it reports after every text, or when the signal is back. */
 export const MAX_STORY_INTERVALS = 200;
 
+/**
+ * The most one continuous view of a text counts for. A phone left unlocked on a text while the
+ * team walks is not reading. The player's reading strip goes out after the same time.
+ */
+export const MAX_STORY_MS = 5 * 60 * 1000;
+
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
 /**
@@ -245,6 +251,10 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // ---------------------------------------------------------------------------------------------
 // Admin
 
+/** A station or a chapter of the story. */
+export const NamedPart = Schema.Struct({ id: Schema.String, name: Schema.String });
+export type NamedPart = typeof NamedPart.Type;
+
 export const StoryGraph = Schema.Struct({
   /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
   introNode: Schema.String,
@@ -282,8 +292,8 @@ export const StoryGraph = Schema.Struct({
       ),
     }),
   ),
-  chapters: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
-  stations: Schema.Array(Schema.Struct({ id: Schema.String, name: Schema.String })),
+  chapters: Schema.Array(NamedPart),
+  stations: Schema.Array(NamedPart),
 });
 
 export const QrCode = Schema.Struct({
@@ -310,10 +320,6 @@ export const TimeSplit = Schema.Struct({
   taskMs: Schema.Number,
 });
 export type TimeSplit = typeof TimeSplit.Type;
-
-/** A station or a chapter of the story. */
-export const NamedPart = Schema.Struct({ id: Schema.String, name: Schema.String });
-export type NamedPart = typeof NamedPart.Type;
 
 /** The times of every team split by chapter, station and node. */
 export const TimeBreakdown = Schema.Struct({

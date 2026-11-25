@@ -12,7 +12,7 @@ import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
-import { useStoryTime } from './story-time';
+import { useReadingCounts, useStoryTime } from './story-time';
 import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
@@ -177,6 +177,11 @@ export const NodeScreens = ({
   const scanScreen = (
     <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
   );
+  // The strip shows while the reading counts: on a text, until the server stops counting it.
+  const reading = useReadingCounts(
+    measure !== undefined && screen !== undefined,
+    `${node.id}-${step}-${index}`,
+  );
   const choices = node.choices.toSorted(
     (first, second) => (paging.ranks[first.index] ?? 0) - (paging.ranks[second.index] ?? 0),
   );
@@ -193,7 +198,7 @@ export const NodeScreens = ({
         )
       }
       aside={aside}
-      reading={measure !== undefined && screen !== undefined}
+      reading={reading}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article

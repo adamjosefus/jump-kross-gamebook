@@ -177,35 +177,37 @@ export const TimesPage = () => {
                     const name = statuses.get(times.id)?.name ?? `#${times.id}`;
                     return (
                       <TableRow key={times.id}>
-                        <TableCell className='sticky left-0 z-10 bg-card'>
+                        {/* The row's header, so a screen reader names the team with each time. */}
+                        <TableHead
+                          scope='row'
+                          className='sticky left-0 z-10 h-auto bg-card p-2 font-normal'
+                        >
                           <div className='flex items-center gap-2'>
                             <TeamAvatar id={times.id} name={name} />
                             <span className='whitespace-nowrap'>{name}</span>
                           </div>
-                        </TableCell>
+                        </TableHead>
                         {parts.map((part) => {
                           const value = measureOf(part.id)(times);
                           const mark = finished.has(times.id) ? marks.get(part.id) : undefined;
-                          // The color has a word too, for a screen reader and for whom
-                          // colors look alike.
+                          // The color has a word under the time too, for a screen reader and
+                          // for whom the colors look alike.
                           const rank =
                             mark === undefined
                               ? undefined
                               : value === mark.fastest
-                                ? 'Nejrychlejší tým v cíli'
+                                ? 'nejrychlejší'
                                 : value === mark.slowest
-                                  ? 'Nejpomalejší tým v cíli'
+                                  ? 'nejpomalejší'
                                   : undefined;
                           return (
                             <TableCell
                               key={part.id}
-                              title={rank}
                               className={cn(
                                 'align-top',
-                                rank === 'Nejrychlejší tým v cíli' &&
+                                rank === 'nejrychlejší' &&
                                   'bg-emerald-500/10 dark:bg-emerald-400/15',
-                                rank === 'Nejpomalejší tým v cíli' &&
-                                  'bg-red-500/10 dark:bg-red-400/15',
+                                rank === 'nejpomalejší' && 'bg-red-500/10 dark:bg-red-400/15',
                               )}
                             >
                               {view === 'chapters' ? (
@@ -213,7 +215,9 @@ export const TimesPage = () => {
                               ) : (
                                 <StationCell time={times.stations[part.id]} />
                               )}
-                              {rank !== undefined && <span className='sr-only'>{rank}</span>}
+                              {rank !== undefined && (
+                                <span className='text-xs text-muted-foreground'>{rank}</span>
+                              )}
                             </TableCell>
                           );
                         })}

@@ -29,6 +29,7 @@ import {
   InvalidCode,
   InvalidMove,
   InvalidState,
+  MAX_STORY_MS,
   NotFound,
   StepConflict,
   TeamFinished,
@@ -126,12 +127,6 @@ const gameInfo = (startedAt: Date | undefined, settings: GameSettingsRow): GameI
     ? {}
     : { closedChangedAt: settings.changedAt.toISOString() }),
 });
-
-/**
- * The most one continuous view of a text counts for. A phone left unlocked on a text while the
- * team walks is not reading.
- */
-const MAX_STORY_MS = 5 * 60 * 1000;
 
 /** The state the game cannot hold, named for the admin. */
 const invalidState = (state: State) =>

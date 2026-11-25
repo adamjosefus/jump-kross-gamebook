@@ -117,7 +117,7 @@ Vítejte v ukázce.
         {
           theme: 'intro',
           content: `
-Tohle je krátké demo toho, co hra umí: rozhodnutí na displeji, skenování QR kódů, stanoviště s úkoly a stav, který se podle toho mění.
+Tohle je krátké demo toho, co hra umí: rozhodnutí na displeji, skenování QR kódů, stanoviště s úkoly a stav, který se podle toho mění.
 
 Váš stav je jediné číslo: **mince**. Teď máte ${coinsText(state.coins)}.
       `,

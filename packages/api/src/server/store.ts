@@ -30,7 +30,7 @@ export interface LogRow {
 /** A time a device of the team showed a text. */
 export interface StoryIntervalRow {
   readonly teamId: number;
-  /** The node whose text was shown. */
+  /** The node whose text was shown; "" when unknown, which counts where the log has the team. */
   readonly node: string;
   readonly startedAt: Date;
   readonly endedAt: Date;

@@ -140,6 +140,23 @@ const labelSize = (text: string) => {
   };
 };
 
+/**
+ * How nodes and edges are spaced and routed. ELK does not pass these down, so a chapter's group
+ * gets them too; its nodes would otherwise sit closer together than those outside chapters.
+ */
+const LAYOUT_OPTIONS = {
+  'elk.algorithm': 'layered',
+  'elk.direction': 'DOWN',
+  'elk.edgeRouting': 'ORTHOGONAL',
+  'elk.spacing.nodeNode': '48',
+  'elk.spacing.edgeEdge': '16',
+  'elk.spacing.edgeLabel': '4',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '64',
+  'elk.layered.spacing.edgeNodeBetweenLayers': '24',
+  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+  'elk.edgeLabels.inline': 'true',
+} as const;
+
 /** Every node of the result, nested ones included; coordinates are absolute (`ROOT`). */
 const flatten = (node: ElkNode): readonly ElkNode[] =>
   (node.children ?? []).flatMap((child) => [child, ...flatten(child)]);
@@ -158,16 +175,7 @@ const layout = async (graph: GameGraph, grouped: boolean): Promise<Layout> => {
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       'elk.json.shapeCoords': 'ROOT',
       'elk.json.edgeCoords': 'ROOT',
-      'elk.algorithm': 'layered',
-      'elk.direction': 'DOWN',
-      'elk.edgeRouting': 'ORTHOGONAL',
-      'elk.spacing.nodeNode': '48',
-      'elk.spacing.edgeEdge': '16',
-      'elk.spacing.edgeLabel': '4',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '64',
-      'elk.layered.spacing.edgeNodeBetweenLayers': '24',
-      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-      'elk.edgeLabels.inline': 'true',
+      ...LAYOUT_OPTIONS,
     },
     children: [
       ...graph.order.filter((id) => !inChapter(id)).map(nodeBox),
@@ -180,6 +188,7 @@ const layout = async (graph: GameGraph, grouped: boolean): Promise<Layout> => {
                   {
                     id: chapterFrameId(chapter.id),
                     layoutOptions: {
+                      ...LAYOUT_OPTIONS,
                       'elk.padding': `[top=${CHAPTER_PADDING.top},left=${CHAPTER_PADDING.side},bottom=${CHAPTER_PADDING.bottom},right=${CHAPTER_PADDING.side}]`,
                     },
                     children: members.map(nodeBox),

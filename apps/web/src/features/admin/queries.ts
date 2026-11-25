@@ -1,5 +1,5 @@
 import type { GameGraph } from '@gamebook/core';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type QueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
 
@@ -11,6 +11,16 @@ export const adminKeys = {
   devices: ['admin', 'devices'] as const,
   timeBreakdown: ['admin', 'time-breakdown'] as const,
 } as const;
+
+/**
+ * Refetches what a change to the game makes stale: the overview and the times split from the
+ * same steps, so the two never show a team's new total next to its old chapters for long.
+ */
+export const invalidateGame = (queryClient: QueryClient) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: adminKeys.overview }),
+    queryClient.invalidateQueries({ queryKey: adminKeys.timeBreakdown }),
+  ]);
 
 /** Every team's time split by chapter, station and node. */
 export const useTimeBreakdown = (refetchInterval: number | false = false) =>

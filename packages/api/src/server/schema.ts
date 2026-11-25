@@ -58,7 +58,8 @@ create table if not exists story_interval (
   node text not null default ''
 );
 create index if not exists story_interval_team on story_interval (team_id);
--- Reading used to be known per team only; such rows count towards no node.
+-- Reading used to be known per team only; such rows have no node and count where the step log
+-- has the team.
 alter table story_interval add column if not exists node text not null default '';
 
 -- One row: when the organisers started the game; null until then and after a new game.

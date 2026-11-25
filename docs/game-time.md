@@ -29,7 +29,9 @@ Příběh (`packages/story/src/story.ts`) může čas týmu dělit podrobněji:
 - **Role kódu** říká, co sken znamená pro čas. Kód zapsaný jen názvem (`4: 'Autobusová zastávka'`) je **navigační**: jen ukazuje cestu. Kód `{ name, role: 'arrival', station }` je **příchod**: visí na stanovišti a jeho sken začíná úkol. Kód `{ name, role: 'reward', station }` je **odměna**: dá ho týmu organizátor stanoviště po splnění úkolu a jeho sken úkol končí. Každé stanoviště potřebuje kód příchodu i odměny.
 - **Kapitoly** (`chapters`) jsou pojmenované části příběhu. Uzel do kapitoly patří vlastností `chapter`; uzly bez ní jsou v přehledech jako „Bez kapitoly“.
 
-Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, stanoviště bez příchodu nebo odměny, uzel neznámé kapitoly a kapitolu bez uzlů.
+Id stanoviště i kapitoly smí mít jen písmena bez diakritiky a číslice a začíná písmenem (`wayHome`), protože pojmenovává sloupce ve výsledcích.
+
+Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, neplatné id stanoviště nebo kapitoly, stanoviště bez příchodu nebo odměny, uzel neznámé kapitoly a kapitolu bez uzlů.
 
 ## Čtení, cesta a úkol
 
@@ -39,13 +41,13 @@ Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, 
 - **Úkol**: od skenu kódu příchodu do skenu kódu odměny, bez čtení. Patří stanovišti z kódu příchodu.
 - **Cesta**: všechno ostatní, včetně navigačních kódů. Cesta, která skončí příchodem na stanoviště, patří i tomu stanovišti.
 
-Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) i přesun týmu organizátorem do jiného uzlu (třeba když se ztratila karta odměny) případný úkol ukončí; pouhá oprava stavu, při které tým zůstane v uzlu, úkol nechá běžet. Okamžik mezi prvním přihlášením a přesunem na start patří startovnímu uzlu.
+Úseky se sčítají po uzlech (jen čtení), po kapitolách (čtení, cesta a úkol podle uzlu, ve kterém tým byl) a po stanovištích (úkol a cesta k němu). Součet všech úseků je celkový čas a součet čtení je čas čtení. Návrat na start (restart týmu nebo nová hra) i přesun týmu organizátorem do jiného uzlu (třeba když se ztratila karta odměny) případný úkol ukončí; pouhá oprava stavu, při které tým zůstane v uzlu, úkol nechá běžet. Když organizátor přesune tým do uzlu, který čeká na kód odměny stanoviště (třeba když nejde přečíst karta příchodu), úkol toho stanoviště tím začne. Úkol ukončí jen odměna téhož stanoviště. Cesta, kterou přesun nebo návrat na start přerušil, se žádnému stanovišti nepřipíše. Okamžik mezi prvním přihlášením a přesunem na start patří startovnímu uzlu.
 
 ## Kde se to ukazuje
 
-- **Telefon hráče**: když se počítá čas čtení, má horní okraj obrazovky barevný pruh. Neukazuje žádné číslo ani text, jen dává týmu najevo, že čte v klidu a herní čas mu stojí.
+- **Telefon hráče**: když se počítá čas čtení, má horní okraj obrazovky barevný pruh. Po 5 minutách na jedné obrazovce pruh zhasne, protože déle se jedno čtení nepočítá; po návratu na stránku se rozsvítí znovu. Neukazuje žádné číslo ani text, jen dává týmu najevo, že čte v klidu a herní čas mu stojí.
 - **Živě, panel „Klany“**: u týmu na cestě štítek „Cesta“, u týmu na stanovišti „Úkol: Pekárna“, vždy s tím, jak dlouho to trvá. Čtení se tu neukazuje, protože ho telefony hlásí až po dočtení obrazovky. Panel „Kroky“ u skenu ukazuje název a roli kódu, třeba „příchod: Pekárna (kód 1)“.
-- **Stránka Časy**: tabulka týmy × kapitoly (celkem a pod tím čtení · cesta · úkol), nebo týmy × stanoviště (úkol a cesta k němu). Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli; týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
+- **Stránka Časy**: tabulka týmy × kapitoly (celkem a pod tím čtení · cesta · úkol), nebo týmy × stanoviště (úkol a cesta k němu). Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli, s tímtéž slovem pod časem; týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
 - **Graf příběhu** (stránky Příběh, Test a Živě): uzly jedné kapitoly jsou pohromadě v rámečku v barvě kapitoly a s jejím názvem. Šipky skenů kódů stanovišť mají ikonu dveří (příchod) nebo dárku (odměna).
 - **Tisk QR kódů**: karta kódu příchodu nebo odměny má pod názvem malým písmem „Příchod · Pekárna“ nebo „Odměna · Pekárna“, aby organizátoři karty nepopletli.
 
