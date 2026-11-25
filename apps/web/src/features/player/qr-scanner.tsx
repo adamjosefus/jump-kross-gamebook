@@ -341,7 +341,7 @@ const QrScannerView = ({
             <Button
               variant='secondary'
               size='icon-lg'
-              className='absolute right-3 bottom-3 rounded-full shadow-md'
+              className='absolute right-3 bottom-3 size-11 rounded-full shadow-md'
               aria-label={
                 camera === 'environment' ? 'Přepnout na přední kameru' : 'Přepnout na zadní kameru'
               }
