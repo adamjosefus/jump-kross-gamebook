@@ -911,7 +911,7 @@ describe('server failures', () => {
       recordAdminFailure: fail,
       clearAdminFailures: fail,
       recentLog: fail,
-      listLog: fail,
+      listSteps: fail,
       visitCounts: fail,
     };
     const failing = makeHandler(config, Layer.succeed(Store, broken), SAMPLE);

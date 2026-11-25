@@ -95,10 +95,13 @@ const useNow = () => {
 const TeamTimes = ({
   team,
   now,
+  fetchedAt,
   stations,
 }: {
   readonly team: TeamStatus;
   readonly now: number;
+  /** When the team's status arrived, by this browser's clock. */
+  readonly fetchedAt: number;
   readonly stations: ReadonlyMap<string, string>;
 }) => {
   const playtimeMs = playTime(team, now);
@@ -112,7 +115,9 @@ const TeamTimes = ({
             {phase.kind === 'task'
               ? `Úkol: ${stations.get(phase.station) ?? phase.station}`
               : 'Cesta'}{' '}
-            {formatDuration(now - Date.parse(phase.since))}
+            {/* The server's duration plus the time since it arrived: both ends of that are
+                read from this browser's clock, so a clock that is off does not show. */}
+            {formatDuration(phase.ms + Math.max(now - fetchedAt, 0))}
           </Badge>
         </div>
       )}
@@ -455,7 +460,12 @@ export const DashboardPage = () => {
                 {team.devices} zař. ·{' '}
                 {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
               </div>
-              <TeamTimes team={team} now={now} stations={stationNames} />
+              <TeamTimes
+                team={team}
+                now={now}
+                fetchedAt={overview.dataUpdatedAt}
+                stations={stationNames}
+              />
             </div>
             <Button
               variant='ghost'

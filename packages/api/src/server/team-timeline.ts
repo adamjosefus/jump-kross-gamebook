@@ -1,6 +1,6 @@
 import type { Story } from '@gamebook/core';
 
-import type { LogRow, StoryIntervalRow, TeamRow } from './store.ts';
+import type { StepRow, StoryIntervalRow, TeamRow } from './store.ts';
 
 /** How a stretch of the team's time is spent. */
 export interface TimeSplit {
@@ -89,13 +89,13 @@ const taskStationOf = (story: Story, node: string | undefined): string | undefin
  * Whether the row takes the team somewhere else than its own steps would: back to the start, or
  * to another node by the admin. An admin's fix of the state alone leaves the team where it is.
  */
-const isJump = (position: Position, row: LogRow) =>
+const isJump = (position: Position, row: StepRow) =>
   row.action === 'reset' ||
   row.action === 'start' ||
   (row.action === 'admin' && (row.toNode ?? position.node) !== position.node);
 
 /** The position after a step of the log. */
-const step = (story: Story, position: Position, row: LogRow): Position => {
+const step = (story: Story, position: Position, row: StepRow): Position => {
   const at = row.at.getTime();
   const node = row.toNode ?? position.node;
   // A jump ends whatever the team was doing. Where it lands tells what it does next: at a node
@@ -130,7 +130,7 @@ const add = <K>(map: Map<K, TimeSplit>, key: K, kind: keyof TimeSplit, ms: numbe
 export const teamTimeline = (
   story: Story,
   team: TeamRow,
-  log: readonly LogRow[],
+  log: readonly StepRow[],
   intervals: readonly StoryIntervalRow[],
   now: number,
 ): TeamTimeline => {

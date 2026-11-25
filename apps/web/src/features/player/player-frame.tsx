@@ -33,12 +33,9 @@ export const PlayerFrame = ({
   readonly className?: string | undefined;
   readonly children: ReactNode;
 }) => (
-  <div
-    className={cn(
-      '@container/player flex flex-1 flex-col transition-colors duration-700 ease-in-out select-none [-webkit-touch-callout:none] motion-reduce:transition-none',
-      className,
-    )}
-  >
+  <>
+    {/* Outside the container below: in older browsers a size container holds `fixed` children
+        in itself, and the strip would scroll away with a long text. */}
     <div
       aria-hidden
       data-reading={reading}
@@ -47,25 +44,32 @@ export const PlayerFrame = ({
         reading ? 'opacity-100' : 'opacity-0',
       )}
     />
-    <div className='safe-area-padding mx-auto flex w-full max-w-xl flex-1 flex-col gap-6'>
-      <nav className='flex h-8 shrink-0 items-center justify-between text-sm text-muted-foreground'>
-        {onBack === undefined ? (
-          <span>{lead}</span>
-        ) : (
-          <Button
-            variant='secondary'
-            size='icon'
-            aria-label='Zpět'
-            className='rounded-full'
-            onClick={onBack}
-          >
-            {/* The arrowhead weighs the glyph to the left; a pixel to the right centers it. */}
-            <IconArrowLeft className='size-4 translate-x-px' />
-          </Button>
-        )}
-        {aside}
-      </nav>
-      {children}
+    <div
+      className={cn(
+        '@container/player flex flex-1 flex-col transition-colors duration-700 ease-in-out select-none [-webkit-touch-callout:none] motion-reduce:transition-none',
+        className,
+      )}
+    >
+      <div className='safe-area-padding mx-auto flex w-full max-w-xl flex-1 flex-col gap-6'>
+        <nav className='flex h-8 shrink-0 items-center justify-between text-sm text-muted-foreground'>
+          {onBack === undefined ? (
+            <span>{lead}</span>
+          ) : (
+            <Button
+              variant='secondary'
+              size='icon'
+              aria-label='Zpět'
+              className='rounded-full'
+              onClick={onBack}
+            >
+              {/* The arrowhead weighs the glyph to the left; a pixel to the right centers it. */}
+              <IconArrowLeft className='size-4 translate-x-px' />
+            </Button>
+          )}
+          {aside}
+        </nav>
+        {children}
+      </div>
     </div>
-  </div>
+  </>
 );

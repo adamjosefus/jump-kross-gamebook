@@ -306,10 +306,19 @@ export const QrCode = Schema.Struct({
 });
 export type QrCode = typeof QrCode.Type;
 
-/** What a team is doing now, from its last scan; reading is not known until it is reported. */
+/**
+ * What a team is doing now, from its last scan; reading is not known until it is reported. `ms`
+ * is how long it has been doing it by the server's clock, so the admin's own clock, which may be
+ * off, only counts on from there.
+ */
 export const TeamPhase = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal('travel'), since: Schema.String }),
-  Schema.Struct({ kind: Schema.Literal('task'), station: Schema.String, since: Schema.String }),
+  Schema.Struct({ kind: Schema.Literal('travel'), since: Schema.String, ms: Schema.Number }),
+  Schema.Struct({
+    kind: Schema.Literal('task'),
+    station: Schema.String,
+    since: Schema.String,
+    ms: Schema.Number,
+  }),
 ]);
 export type TeamPhase = typeof TeamPhase.Type;
 

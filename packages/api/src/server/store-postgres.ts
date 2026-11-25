@@ -9,7 +9,9 @@ import {
   type AdminFailures,
   type BanRow,
   type GameSettingsRow,
+  START_ACTIONS,
   type LogRow,
+  type StepRow,
   type StoryIntervalRow,
   type SessionRow,
   type TeamRow,
@@ -97,6 +99,13 @@ const toLog = (row: Row): LogRow => ({
   fromNode: optionalText(row['from_node']),
   toNode: optionalText(row['to_node']),
   state: decodeState(row['state']),
+});
+
+const toStep = (row: Row): StepRow => ({
+  teamId: Number(row['team_id']),
+  at: timestamp(row['at']),
+  action: text(row['action']),
+  toNode: optionalText(row['to_node']),
 });
 
 const toFailures = (row: Row): AdminFailures => ({
@@ -391,8 +400,20 @@ export const makePostgresStore = (client: SqlClient) => {
           toLog,
         ),
       ),
-    listLog: () =>
-      query(async () => (await run(sql`select * from step_log order by at, id`)).map(toLog)),
+    listSteps: (teamId) =>
+      query(async () => {
+        // Rows are compared by id, which grows with time within a team, so a step written in
+        // the same instant as the move to the start is not lost.
+        const rows = await run(sql`
+          select step.team_id, step.at, step.action, step.to_node from step_log step
+          where (${teamId ?? null}::int is null or step.team_id = ${teamId ?? null}::int)
+            and step.id >= coalesce(
+              (select max(start.id) from step_log start
+               where start.team_id = step.team_id and start.action = any(${[...START_ACTIONS]}::text[])),
+              0)
+          order by step.at, step.id`);
+        return rows.map(toStep);
+      }),
     visitCounts: () =>
       query(async () => {
         const rows = await run(sql`

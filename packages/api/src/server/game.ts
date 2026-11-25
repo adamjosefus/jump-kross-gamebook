@@ -52,7 +52,7 @@ import {
   type GameSettingsRow,
   type SessionClient,
   type SessionRow,
-  type LogRow,
+  type StepRow,
   type StoryIntervalRow,
   type TeamMove,
   type TeamRow,
@@ -445,14 +445,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     /** The team's phase as the admin gets it; the log and reading are those of every team. */
     const phaseOf = (
       team: TeamRow,
-      log: readonly LogRow[],
+      log: readonly StepRow[],
       intervals: readonly StoryIntervalRow[],
     ): TeamPhase | undefined => {
-      const phase = teamTimeline(story, team, log, intervals, Date.now()).phase;
+      const now = Date.now();
+      const phase = teamTimeline(story, team, log, intervals, now).phase;
       if (phase === undefined) return undefined;
+      const since = phase.since.toISOString();
+      const ms = Math.max(now - phase.since.getTime(), 0);
       return phase.kind === 'task'
-        ? { kind: 'task', station: phase.station, since: phase.since.toISOString() }
-        : { kind: 'travel', since: phase.since.toISOString() };
+        ? { kind: 'task', station: phase.station, since, ms }
+        : { kind: 'travel', since, ms };
     };
 
     const teamStatus = (
@@ -495,7 +498,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const [devices, storyRows, fullLog] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
         store.listStoryIntervals(),
-        store.listLog(),
+        store.listSteps(team.id),
       ]);
       return teamStatus(
         team,
@@ -596,7 +599,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           [
             store.listTeams(),
             store.recentLog(50),
-            store.listLog(),
+            store.listSteps(),
             store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
             store.visitCounts(),
             store.listStoryIntervals(),
@@ -636,7 +639,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const timeBreakdown = Effect.fn('Game.timeBreakdown')(function* () {
       const [teams, log, intervals] = yield* Effect.all(
-        [store.listTeams(), store.listLog(), store.listStoryIntervals()],
+        [store.listTeams(), store.listSteps(), store.listStoryIntervals()],
         { concurrency: 'unbounded' },
       );
       const now = Date.now();

@@ -5,6 +5,7 @@ import {
   type AdminFailures,
   type BanRow,
   type GameSettingsRow,
+  START_ACTIONS,
   type LogRow,
   type StoryIntervalRow,
   type SessionRow,
@@ -222,7 +223,17 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     clearAdminFailures: (key) => Effect.sync(() => void adminFailures.delete(key)),
 
     recentLog: (limit) => Effect.sync(() => data.log.slice(-limit).toReversed()),
-    listLog: () => Effect.sync(() => data.log),
+    listSteps: (teamId) =>
+      Effect.sync(() => {
+        const lastStart = new Map<number, number>();
+        for (const [index, row] of data.log.entries())
+          if (START_ACTIONS.includes(row.action)) lastStart.set(row.teamId, index);
+        return data.log.filter(
+          (row, index) =>
+            (teamId === undefined || row.teamId === teamId) &&
+            index >= (lastStart.get(row.teamId) ?? 0),
+        );
+      }),
     visitCounts: () =>
       Effect.sync(() =>
         countBy(data.log.flatMap((row) => (row.toNode === undefined ? [] : [row.toNode]))),

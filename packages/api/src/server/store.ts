@@ -27,6 +27,12 @@ export interface LogRow {
   readonly state: State;
 }
 
+/** A step of the log as the teams' times need it, without the state. */
+export type StepRow = Pick<LogRow, 'teamId' | 'at' | 'action' | 'toNode'>;
+
+/** The steps that send a team to the start; what came before them no longer tells where it is. */
+export const START_ACTIONS: readonly string[] = ['start', 'reset'];
+
 /** A time a device of the team showed a text. */
 export interface StoryIntervalRow {
   readonly teamId: number;
@@ -176,8 +182,12 @@ export interface StoreShape {
   readonly clearAdminFailures: (key: string) => Effect.Effect<void, StoreError>;
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
-  /** The whole step log, the oldest first; the teams' times are worked out from it. */
-  readonly listLog: () => Effect.Effect<readonly LogRow[], StoreError>;
+  /**
+   * The steps the teams' times are worked out from, the oldest first: of one team or of all,
+   * each team's from its last move to the start on. Older steps change nothing about where a
+   * team is, and the log is never emptied, so they are left out.
+   */
+  readonly listSteps: (teamId?: number) => Effect.Effect<readonly StepRow[], StoreError>;
   /** Arrivals per node over the whole game, by choice, scan, start, reset or admin move. */
   readonly visitCounts: () => Effect.Effect<ReadonlyMap<string, number>, StoreError>;
 }

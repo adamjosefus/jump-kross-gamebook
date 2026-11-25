@@ -437,6 +437,25 @@ describe('postgres store', () => {
     expect((await run(store.recentLog(1)))[0]!.action).toBe('choice:0');
     expect(await run(store.resetTiming(99))).toBe(false);
   });
+
+  // The last test: it moves the teams the other tests count on.
+  it('lists the steps of each team from its last move to the start on', async () => {
+    const step = (id: number, node: string, action: string) =>
+      run(store.moveTeam(id, undefined, { node, state: {}, finished: false, action }));
+    await step(2, 'A1', 'reset');
+    await step(2, 'B1', 'choice:0');
+    await step(1, 'A1', 'start');
+    await step(1, 'B1', 'choice:0');
+    await step(1, 'A1', 'reset');
+    await step(1, 'A2', 'choice:1');
+    const names = (rows: readonly { readonly teamId: number; readonly action: string }[]) =>
+      rows.map(({ teamId, action }) => `${teamId}:${action}`);
+    // Team 1 was sent back to the start twice: what it did before the last time is left out.
+    const both = (await run(store.listSteps())).filter(({ teamId }) => teamId <= 2);
+    expect(names(both)).toEqual(['2:reset', '2:choice:0', '1:reset', '1:choice:1']);
+    expect(names(await run(store.listSteps(1)))).toEqual(['1:reset', '1:choice:1']);
+    expect((await run(store.listSteps(1)))[1]).toMatchObject({ toNode: 'A2' });
+  });
 });
 
 describe('the api on postgres', () => {

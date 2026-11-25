@@ -30,6 +30,8 @@ create table if not exists step_log (
   state jsonb not null
 );
 create index if not exists step_log_at on step_log (at desc);
+-- The teams' times read each team's steps from its last move to the start on.
+create index if not exists step_log_team on step_log (team_id, id);
 
 create table if not exists session (
   id text primary key,

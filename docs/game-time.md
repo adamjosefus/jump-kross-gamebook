@@ -6,7 +6,7 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, a č
 
 - **Začátek hry týmu** je první přihlášení týmu kódem klanu po tom, co organizátoři hru spustili. Další přihlášení, ze stejného i z jiného zařízení, začátek nemění.
 - **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, ať volbou, nebo naskenováním kódu.
-- **Kroky** týmu: každá volba a každý sken s okamžikem, kdy se stal, a uzlem, kam tým došel.
+- **Kroky** týmu: každá volba a každý sken s okamžikem, kdy se stal, a uzlem, kam tým došel. Časy se počítají z kroků od posledního návratu týmu na start; starší kroky zůstávají jen v záznamu.
 - **Čtení** hlásí telefony: jak dlouho byl na viditelné stránce text kterého uzlu příběhu. Obrazovka se skenerem se nepočítá, s tou tým jde na další stanoviště, a závěrečný uzel taky ne, hra už skončila. Čtení se ořízne na dobu hry; co přesahuje konec, se nepočítá. Telefon se starší verzí aplikace uzel neposílá; jeho čtení se připíše uzlu, kde tým podle kroků byl. Jedna obrazovka se počítá nejvýš 5 minut a čte-li víc telefonů týmu najednou, počítá se to jednou. Bez signálu čas počká v telefonu a odešle se později.
 
 Telefon neposílá svůj čas, ale „jak dlouho“ a „před jak dlouhou dobou“; okamžik určí server. Špatně nastavené hodiny v telefonu tak výsledek nezkreslí.
@@ -46,7 +46,7 @@ Kontrola příběhu (`pnpm test:story`) ohlásí kód neznámého stanoviště, 
 ## Kde se to ukazuje
 
 - **Telefon hráče**: když se počítá čas čtení, má horní okraj obrazovky barevný pruh. Po 5 minutách na jedné obrazovce pruh zhasne, protože déle se jedno čtení nepočítá; po návratu na stránku se rozsvítí znovu. Neukazuje žádné číslo ani text, jen dává týmu najevo, že čte v klidu a herní čas mu stojí.
-- **Živě, panel „Klany“**: u týmu na cestě štítek „Cesta“, u týmu na stanovišti „Úkol: Pekárna“, vždy s tím, jak dlouho to trvá. Čtení se tu neukazuje, protože ho telefony hlásí až po dočtení obrazovky. Panel „Kroky“ u skenu ukazuje název a roli kódu, třeba „příchod: Pekárna (kód 1)“.
+- **Živě, panel „Klany“**: u týmu na cestě štítek „Cesta“, u týmu na stanovišti „Úkol: Pekárna“, vždy s tím, jak dlouho to trvá. Tu dobu počítá server, takže nezáleží na tom, jak má organizátor nastavené hodiny. Čtení se tu neukazuje, protože ho telefony hlásí až po dočtení obrazovky. Panel „Kroky“ u skenu ukazuje název a roli kódu, třeba „příchod: Pekárna (kód 1)“.
 - **Stránka Časy**: tabulka týmy × kapitoly (celkem a pod tím čtení · cesta · úkol), nebo týmy × stanoviště (úkol a cesta k němu). Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli, s tímtéž slovem pod časem; týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
 - **Graf příběhu** (stránky Příběh, Test a Živě): uzly jedné kapitoly jsou pohromadě v rámečku v barvě kapitoly a s jejím názvem. Šipky skenů kódů stanovišť mají ikonu dveří (příchod) nebo dárku (odměna).
 - **Tisk QR kódů**: karta kódu příchodu nebo odměny má pod názvem malým písmem „Příchod · Pekárna“ nebo „Odměna · Pekárna“, aby organizátoři karty nepopletli.
