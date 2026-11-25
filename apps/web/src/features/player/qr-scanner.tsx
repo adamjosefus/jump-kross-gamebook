@@ -1,6 +1,6 @@
-import { IconCameraRotate, IconRotateClockwise } from '@tabler/icons-react';
+import { IconRotateClockwise } from '@tabler/icons-react';
 import QrScanner from 'qr-scanner';
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 
@@ -142,6 +142,35 @@ const inSquare = (video: HTMLVideoElement, point: QrScanner.Point): ScanPoint =>
 };
 
 /**
+ * A filled camera with the arrows of turning around cut out of it. Tabler has the camera with the
+ * arrows only as an outline; the paths are those of its `IconCameraRotate`.
+ */
+const CameraSwitchIcon = ({ className }: { readonly className?: string }) => {
+  // Without the characters React may put in an id, which would break `url(#…)`.
+  const mask = useId().replaceAll(/[^\w-]/g, '');
+  return (
+    <svg viewBox='0 0 24 24' className={className} aria-hidden='true'>
+      <mask id={mask}>
+        <rect width='24' height='24' fill='white' />
+        <g fill='none' stroke='black' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+          <path d='M11.245 15.904a3 3 0 0 0 3.755 -2.904m-2.25 -2.905a3 3 0 0 0 -3.75 2.905' />
+          <path d='M14 13h2v2' />
+          <path d='M10 13h-2v-2' />
+        </g>
+      </mask>
+      <path
+        mask={`url(#${mask})`}
+        fill='currentColor'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinejoin='round'
+        d='M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2'
+      />
+    </svg>
+  );
+};
+
+/**
  * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`). The camera
  * runs while the component is mounted, so a wrong code can be followed by another one.
  */
@@ -160,7 +189,7 @@ const QrScannerView = ({
   const [cameraError, setCameraError] = useState<string>();
   const scanner = useRef<QrScanner>(undefined);
   const [camera, setCamera] = useState(chosenCamera);
-  // The switch shows only on a device with more than one camera, known once one runs.
+  // The switch shows only on a phone or tablet with a back and a front camera, known once one runs.
   const [canSwitch, setCanSwitch] = useState(false);
   const [switching, setSwitching] = useState(false);
   const switchCamera = async () => {
@@ -288,11 +317,18 @@ const QrScannerView = ({
     let current = true;
     instance.start().then(
       async () => {
+        // Only a camera that tells which way it faces sits on a phone or tablet with a back and
+        // a front one. A laptop's webcam tells nothing; there the switch would only open the
+        // same camera again, mirrored, and a virtual camera (e.g. the iPhone's Continuity
+        // Camera or a video call app) would count as a second one.
+        const stream = video.srcObject instanceof MediaStream ? video.srcObject : undefined;
+        const facing = stream?.getVideoTracks()[0]?.getSettings().facingMode;
         // The full list is known only once the camera is allowed, i.e. now. A failed listing
         // only hides the switch; the camera itself runs.
         const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
         const cameras = devices.filter((device) => device.kind === 'videoinput');
-        if (current) setCanSwitch(cameras.length > 1);
+        if (current)
+          setCanSwitch((facing === 'environment' || facing === 'user') && cameras.length > 1);
       },
       async (error: unknown) => {
         const message = await cameraProblem(error);
@@ -348,7 +384,7 @@ const QrScannerView = ({
               disabled={switching}
               onClick={() => void switchCamera()}
             >
-              <IconCameraRotate className='size-5' />
+              <CameraSwitchIcon className='size-5' />
             </Button>
           )}
           <span className='sr-only' role='status'>
