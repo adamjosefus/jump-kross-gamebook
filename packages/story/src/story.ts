@@ -125,7 +125,7 @@ Váš stav je jediné číslo: **mince**. Teď máte ${coinsText(state.coins)}.
         {
           theme: 'intro',
           content: `
-Hra vám měří čas. Když čtete příběh, čas stojí: poznáte to podle barevného proužku nahoře na obrazovce. Čtěte tedy v klidu.
+Hra vám měří čas. Když čtete příběh, čas stojí a nahoře na obrazovce uvidíte knížku. Čtěte tedy v klidu.
 
 Na stanovištích plníte úkoly. Kód na dveřích úkol zahájí, kód, který vám dá obsluha za splněný úkol, ho ukončí.
       `,

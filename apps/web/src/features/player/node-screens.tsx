@@ -129,6 +129,7 @@ export const NodeScreens = ({
   aside,
   corner,
   onRead,
+  showReading = onRead !== undefined,
 }: {
   readonly node: PlayerNode;
   readonly step: number;
@@ -149,14 +150,20 @@ export const NodeScreens = ({
   readonly corner?: ReactNode;
   /**
    * How long a screen's text of the node was on; a test run or the anonymous intro measures
-   * nothing. While it is measured, the top edge of the screen shows the reading strip.
+   * nothing. With it, a capsule with a book shows while a text is on, so the team knows its game
+   * time stands still; see `showReading`.
    */
   readonly onRead?: (ms: number, node: string) => void;
+  /**
+   * Shows the reading capsule even where nothing is measured, so a test run looks as the team's
+   * screen does; by default it shows where the reading is measured.
+   */
+  readonly showReading?: boolean;
   /** A QR code read on the scan screen. */
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
-  // The game is over at the outro, so its text is not reading time and shows no strip.
+  // The game is over at the outro, so its text is not reading time and shows no capsule.
   const measure = node.type === 'end' ? undefined : onRead;
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
@@ -177,9 +184,10 @@ export const NodeScreens = ({
   const scanScreen = (
     <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
   );
-  // The strip shows while the reading counts: on a text, until the server stops counting it.
+  // The capsule shows while the reading counts: on a text, until the server stops counting it.
+  // The outro has none, the game is over; a test run shows it without measuring.
   const reading = useReadingCounts(
-    measure !== undefined && screen !== undefined,
+    showReading && node.type !== 'end' && screen !== undefined,
     `${node.id}-${step}-${index}`,
   );
   const choices = node.choices.toSorted(

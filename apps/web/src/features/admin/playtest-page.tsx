@@ -529,6 +529,8 @@ export const PlaytestPage = () => {
                 busy={play.isPending}
                 onCode={scan}
                 requireCamera={current.intro === true}
+                // The run shows what the team sees: the reading capsule after the login.
+                showReading={current.intro !== true}
                 animated={animated}
                 onPick={(choice) => take({ choice: choice.index })}
                 // The screen in the URL belongs to the path in it; after a move it starts over.
