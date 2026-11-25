@@ -130,7 +130,7 @@ export type ScanFrameState = 'aiming' | 'arming' | 'busy' | 'accepted' | 'reject
  */
 export const ScanFrame = ({
   state = 'aiming',
-  armMs = 3000,
+  armMs = 1000,
   corners,
 }: {
   readonly state?: ScanFrameState;

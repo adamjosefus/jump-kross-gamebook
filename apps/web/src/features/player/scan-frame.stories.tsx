@@ -40,7 +40,7 @@ const Camera = ({ children }: { readonly children: ReactNode }) => (
 const meta = {
   title: 'Player/ScanFrame',
   component: ScanFrame,
-  args: { state: 'aiming', armMs: 3000 },
+  args: { state: 'aiming', armMs: 1000 },
   argTypes: {
     state: {
       control: 'inline-radio',
@@ -79,15 +79,15 @@ type Step = {
 const START: Step = { state: 'aiming', ms: 2000, label: 'Míření' };
 const SEQUENCE: readonly Step[] = [
   START,
-  { state: 'arming', ms: 3000, label: 'Kód v záběru, odpočet' },
+  { state: 'arming', ms: 1000, label: 'Kód v záběru, odpočet' },
   { state: 'busy', ms: 500, label: 'Odesílání' },
   { state: 'accepted', ms: 2000, label: 'Kód přijat' },
   { state: 'aiming', ms: 2000, label: 'Míření' },
-  { state: 'arming', ms: 3000, label: 'Kód v záběru, odpočet' },
+  { state: 'arming', ms: 1000, label: 'Kód v záběru, odpočet' },
   { state: 'busy', ms: 500, label: 'Odesílání' },
   { state: 'rejected', ms: 1600, label: 'Kód tady nefunguje' },
   { state: 'aiming', ms: 2000, label: 'Míření' },
-  { state: 'arming', ms: 1600, label: 'Kód v záběru, odpočet' },
+  { state: 'arming', ms: 600, label: 'Kód v záběru, odpočet' },
   { state: 'aiming', ms: 2500, label: 'Hráč se odvrátil, odpočet zrušen' },
 ];
 
@@ -103,7 +103,7 @@ const Sequence = () => {
       <Camera>
         <ScanFrame
           state={step.state}
-          armMs={3000}
+          armMs={1000}
           corners={step.state === 'aiming' ? undefined : CODE}
         />
       </Camera>

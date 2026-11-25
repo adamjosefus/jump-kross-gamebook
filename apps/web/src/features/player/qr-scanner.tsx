@@ -28,8 +28,17 @@ const cameraProblem = async (error: unknown) => {
 /** The same code read again within this time is ignored, so one code is not sent twice. */
 const REPEAT_MS = 3000;
 
-/** A code is sent only after it stays in view this long, so the player can still change their mind. */
-const ARM_MS = 3000;
+/**
+ * A code is sent only after it stays in view this long, so the player can still change their
+ * mind. Short, so a scan feels quick; a glance past a wrong code is still not enough to send it.
+ */
+const ARM_MS = 1000;
+
+/**
+ * How many frames a second the scanner reads. More frames find a code sooner after it comes into
+ * view; the decoder runs in a worker, so the page stays smooth.
+ */
+const SCANS_PER_SECOND = 15;
 
 /** How long the check mark over an accepted code shows before the game moves on. */
 export const ACCEPTED_MS = 900;
@@ -46,7 +55,7 @@ export type ScanOutcome = 'accepted' | 'rejected' | undefined;
 
 /**
  * A code not read for this long has left the view and is not sent. The scanner reads up to
- * 8 times a second but misses some frames, e.g. when the camera moves.
+ * `SCANS_PER_SECOND` times a second but misses some frames, e.g. when the camera moves.
  */
 const LOST_MS = 800;
 
@@ -248,7 +257,7 @@ const QrScannerView = ({
       {
         returnDetailedScanResult: true,
         preferredCamera: 'environment',
-        maxScansPerSecond: 8,
+        maxScansPerSecond: SCANS_PER_SECOND,
       },
     );
     // A scanner torn down meanwhile (React runs effects twice in development) must not report;
