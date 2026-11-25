@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
+import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
 
 /**
@@ -9,7 +10,7 @@ import { ScanScreen, type ScanOutcome } from './qr-scanner';
 const meta = {
   title: 'Player/ScanScreen',
   component: ScanScreen,
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'fullscreen' },
   args: {
     busy: false,
     // Every code is accepted, so the whole scan can be watched.
@@ -18,10 +19,14 @@ const meta = {
       return 'accepted';
     },
   },
+  // The player's own frame across the whole screen, as in the game: the camera square's corners
+  // depend on the frame's width, so the padding of the preview (`p-8`) is taken back.
   decorators: [
     (Story) => (
-      <div className='@container/player mx-auto flex h-[90svh] max-w-md flex-col'>
-        <Story />
+      <div className='-m-8 flex min-h-svh flex-col'>
+        <PlayerFrame>
+          <Story />
+        </PlayerFrame>
       </div>
     ),
   ],
