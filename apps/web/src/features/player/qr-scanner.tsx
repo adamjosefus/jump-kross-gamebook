@@ -1,6 +1,6 @@
 import { IconRotateClockwise } from '@tabler/icons-react';
 import QrScanner from 'qr-scanner';
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 
@@ -28,8 +28,23 @@ const cameraProblem = async (error: unknown) => {
 /** The same code read again within this time is ignored, so one code is not sent twice. */
 const REPEAT_MS = 3000;
 
-/** A code is sent only after it stays in view this long, so the player can still change their mind. */
-const ARM_MS = 3000;
+/**
+ * A code is sent only after it stays in view this long, so the player can still change their
+ * mind. Short, so a scan feels quick; a glance past a wrong code is still not enough to send it.
+ */
+const ARM_MS = 1000;
+
+/**
+ * How many frames a second the scanner reads. More frames find a code sooner after it comes into
+ * view; the decoder runs in a worker, so the page stays smooth.
+ */
+const SCANS_PER_SECOND = 15;
+
+/**
+ * The camera the player last picked, kept for the next scan screens while the page is open. The
+ * back one by default: codes are scanned on the spot, not held up to the player's face.
+ */
+let chosenCamera: QrScanner.FacingMode = 'environment';
 
 /** How long the check mark over an accepted code shows before the game moves on. */
 export const ACCEPTED_MS = 900;
@@ -46,7 +61,7 @@ export type ScanOutcome = 'accepted' | 'rejected' | undefined;
 
 /**
  * A code not read for this long has left the view and is not sent. The scanner reads up to
- * 8 times a second but misses some frames, e.g. when the camera moves.
+ * `SCANS_PER_SECOND` times a second but misses some frames, e.g. when the camera moves.
  */
 const LOST_MS = 800;
 
@@ -127,6 +142,35 @@ const inSquare = (video: HTMLVideoElement, point: QrScanner.Point): ScanPoint =>
 };
 
 /**
+ * A filled camera with the arrows of turning around cut out of it. Tabler has the camera with the
+ * arrows only as an outline; the paths are those of its `IconCameraRotate`.
+ */
+const CameraSwitchIcon = ({ className }: { readonly className?: string }) => {
+  // Without the characters React may put in an id, which would break `url(#…)`.
+  const mask = useId().replaceAll(/[^\w-]/g, '');
+  return (
+    <svg viewBox='0 0 24 24' className={className} aria-hidden='true'>
+      <mask id={mask}>
+        <rect width='24' height='24' fill='white' />
+        <g fill='none' stroke='black' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+          <path d='M11.245 15.904a3 3 0 0 0 3.755 -2.904m-2.25 -2.905a3 3 0 0 0 -3.75 2.905' />
+          <path d='M14 13h2v2' />
+          <path d='M10 13h-2v-2' />
+        </g>
+      </mask>
+      <path
+        mask={`url(#${mask})`}
+        fill='currentColor'
+        stroke='currentColor'
+        strokeWidth='2'
+        strokeLinejoin='round'
+        d='M5 7h1a2 2 0 0 0 2 -2a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1a2 2 0 0 0 2 2h1a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2'
+      />
+    </svg>
+  );
+};
+
+/**
  * Camera scanner (`qr-scanner`, works on iOS Safari which has no `BarcodeDetector`). The camera
  * runs while the component is mounted, so a wrong code can be followed by another one.
  */
@@ -143,6 +187,22 @@ const QrScannerView = ({
 }) => {
   const stage = useRef<HTMLDivElement>(null);
   const [cameraError, setCameraError] = useState<string>();
+  const scanner = useRef<QrScanner>(undefined);
+  const [camera, setCamera] = useState(chosenCamera);
+  // The switch shows only on a phone or tablet with a back and a front camera, known once one runs.
+  const [canSwitch, setCanSwitch] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const switchCamera = async () => {
+    const next = camera === 'environment' ? 'user' : 'environment';
+    chosenCamera = next;
+    setCamera(next);
+    setSwitching(true);
+    try {
+      await scanner.current?.setCamera(next);
+    } finally {
+      setSwitching(false);
+    }
+  };
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
@@ -238,7 +298,7 @@ const QrScannerView = ({
     // The library is patched (patches/qr-scanner@1.4.2.patch) to read mirrored codes no more, to
     // always use its own decoder, as the browser's `BarcodeDetector` may read them, and to ask the
     // camera for a square picture like the square it is shown in.
-    const scanner = new QrScanner(
+    const instance = new QrScanner(
       video,
       (result) =>
         emit(
@@ -247,24 +307,42 @@ const QrScannerView = ({
         ),
       {
         returnDetailedScanResult: true,
-        preferredCamera: 'environment',
-        maxScansPerSecond: 8,
+        preferredCamera: chosenCamera,
+        maxScansPerSecond: SCANS_PER_SECOND,
       },
     );
+    scanner.current = instance;
     // A scanner torn down meanwhile (React runs effects twice in development) must not report;
     // `start()` cannot be aborted, so the cleanup flags it instead.
     let current = true;
-    scanner.start().catch(async (error: unknown) => {
-      const message = await cameraProblem(error);
-      if (current) setCameraError(message);
-    });
+    instance.start().then(
+      async () => {
+        // Only a camera that tells which way it faces sits on a phone or tablet with a back and
+        // a front one. A laptop's webcam tells nothing; there the switch would only open the
+        // same camera again, mirrored, and a virtual camera (e.g. the iPhone's Continuity
+        // Camera or a video call app) would count as a second one.
+        const stream = video.srcObject instanceof MediaStream ? video.srcObject : undefined;
+        const facing = stream?.getVideoTracks()[0]?.getSettings().facingMode;
+        // The full list is known only once the camera is allowed, i.e. now. A failed listing
+        // only hides the switch; the camera itself runs.
+        const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+        const cameras = devices.filter((device) => device.kind === 'videoinput');
+        if (current)
+          setCanSwitch((facing === 'environment' || facing === 'user') && cameras.length > 1);
+      },
+      async (error: unknown) => {
+        const message = await cameraProblem(error);
+        if (current) setCameraError(message);
+      },
+    );
     return () => {
       current = false;
       video.removeEventListener('emptied', hideUntilSteady);
       stopWaiting();
       video.removeEventListener('loadedmetadata', fit);
       video.removeEventListener('resize', fit);
-      scanner.destroy();
+      instance.destroy();
+      if (scanner.current === instance) scanner.current = undefined;
       container.replaceChildren();
     };
   }, [failed]);
@@ -294,6 +372,20 @@ const QrScannerView = ({
                 <IconRotateClockwise /> Zkusit znovu
               </Button>
             </div>
+          )}
+          {cameraError === undefined && canSwitch && (
+            <Button
+              variant='secondary'
+              size='icon-lg'
+              className='absolute right-3 bottom-3 size-11 rounded-full shadow-md'
+              aria-label={
+                camera === 'environment' ? 'Přepnout na přední kameru' : 'Přepnout na zadní kameru'
+              }
+              disabled={switching}
+              onClick={() => void switchCamera()}
+            >
+              <CameraSwitchIcon className='size-5' />
+            </Button>
           )}
           <span className='sr-only' role='status'>
             {answer === 'accepted'
