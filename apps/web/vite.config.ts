@@ -37,7 +37,8 @@ const apiDevServer = (): Plugin => {
       handlerFromEnv: loaded['handlerFromEnv'],
       emptyMemoryData: loaded['emptyMemoryData'],
     };
-    memory ??= emptyMemoryData();
+    // The kept data goes on; a collection the new code added since starts empty.
+    memory = { ...emptyMemoryData(), ...memory };
     const { handler, dispose } = handlerFromEnv(env, memory);
     return { handle: toNodeHandler(handler), dispose };
   };
