@@ -12,7 +12,7 @@ Za jeden tým může hrát víc telefonů najednou; všechny vidí totéž. Kdy�
 
 ## Hraní
 
-- **Text příběhu** se objevuje slovo po slovu a nedá se přeskočit. Tlačítka se ukážou, až je text celý. Šipkou se jde na další obrazovku, „Zpět“ vlevo nahoře vrací o obrazovku zpět.
+- **Text příběhu** se objevuje slovo po slovu a nedá se přeskočit. Tlačítka se ukážou, až je text celý. Šipkou se jde na další část textu, „Zpět“ vlevo nahoře vrací o část zpět.
 - **Volba** se potvrzuje posunutím tlačítka, aby se nestala omylem. Volí celý tým: kdo zvolí první, rozhodl za všechny, ostatní telefony se přesunou s ním.
 - **Sken QR kódu:** když příběh pošle tým k nějakému místu, poslední obrazovka uzlu je skener. Naskenovaný kód rozhodne, kam příběh pokračuje; když na místě visí víc kódů, je i sken volbou.
 - **Konec hry:** po dojití do cíle ukáže telefon závěrečný text a „Konec hry“.

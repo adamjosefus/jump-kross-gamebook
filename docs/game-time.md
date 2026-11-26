@@ -6,7 +6,7 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, kdy 
 
 - **Začátek hry týmu** je první přihlášení týmu kódem klanu po tom, co organizátoři hru spustili. Další přihlášení, ze stejného i z jiného zařízení, začátek nemění.
 - **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, ať volbou, nebo naskenováním kódu.
-- **Kroky** týmu: každá volba, každý sken a každý zásah organizátora, s okamžikem, kdy se stal, a uzlem, kam tým došel. Časy se počítají z kroků od posledního návratu týmu na start; starší kroky zůstávají jen v záznamu.
+- **Akce** týmu: každá volba, každý sken a každý zásah organizátora, s okamžikem, kdy se stal, a uzlem, kam tým došel. Časy se počítají z akcí od posledního návratu týmu na start; starší akce zůstávají jen v záznamu.
 
 ## Kapitoly
 
@@ -36,7 +36,7 @@ Kapitoly a mezery dohromady dávají přesně celkový čas. Když se tým do ka
 
 - **Nová hra** („Smazat postup“ na stránce Hra) vynuluje čas i postup všem týmům.
 - **Restartovat hru** v dialogu týmu vynuluje čas i postup jednomu týmu.
-- **Vynulovat čas** v dialogu týmu vynuluje jednomu týmu jen čas; postup mu zůstane. U týmu v cíli to nejde. Vynulování se zapíše do panelu „Kroky“.
+- **Vynulovat čas** v dialogu týmu vynuluje jednomu týmu jen čas; postup mu zůstane. U týmu v cíli to nejde. Vynulování se zapíše do panelu „Akce“.
 
 Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, až tým znovu naskenuje svůj kód. Po nové hře to jde až poté, co organizátoři hru znovu spustí.
 

@@ -14,7 +14,7 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { THEME_PAGE } from './block-look';
+import { THEME_PAGE } from './segment-look';
 
 const Row = ({ label, children }: { readonly label: string; readonly children: ReactNode }) => (
   <div className='flex flex-col gap-2'>

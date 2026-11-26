@@ -1,6 +1,6 @@
 # Text příběhu na obrazovce hráče
 
-Jak aplikace hráčům ukazuje text příběhu: jak se objevuje, jak se sází a kdy smí hráč pokračovat. Kód je v `apps/web/src/features/player/story-text/` a v `apps/web/src/features/player/node-screens.tsx`.
+Jak aplikace hráčům ukazuje text příběhu: jak se objevuje, jak se sází a kdy smí hráč pokračovat. Kód je v `apps/web/src/features/player/story-text/` a v `apps/web/src/features/player/node-segments.tsx`.
 
 ## Postupné zobrazení
 
@@ -10,7 +10,7 @@ Text se objevuje slovo po slovu, každé slovo se plynule rozsvítí. Rychlost s
 | ---------------------------------- | ------------------------ | ---------------- | -------------------------- |
 | Běžně                              | 500 ms                   | 1 100 ms         | 6,5 s                      |
 | Text, který hráč viděl před chvílí | 0 ms                     | 100 ms           | 150 ms                     |
-| Obrazovka, kterou už tým viděl     | celý text hned           | —                | —                          |
+| Segment, který už tým viděl        | celý text hned           | —                | —                          |
 | Systémové nastavení „omezit pohyb“ | celý text hned           | —                | —                          |
 
 Dlouhý text se zrychlí tak, aby se celý objevil do 6,5 sekundy.
@@ -19,15 +19,15 @@ Dlouhý text se zrychlí tak, aby se celý objevil do 6,5 sekundy.
 
 Tlačítka pod textem (šipka dál, volby, „Konec hry“) jsou skrytá, dokud se neobjeví poslední slovo textu. Hráč tak nepokračuje, dřív než text dočte. Místo pro ně je vyhrazené od začátku, takže se text při jejich zobrazení neposune.
 
-Jakmile je text celý, tlačítka se plynule objeví (0,3 s) a ještě 0,5 s zůstanou neaktivní a poloprůhledná. Teprve potom se dají stisknout. Klepnutí určené textu nebo tlačítku předchozí obrazovky tak nepadne omylem na nové tlačítko.
+Jakmile je text celý, tlačítka se plynule objeví (0,3 s) a ještě 0,5 s zůstanou neaktivní a poloprůhledná. Teprve potom se dají stisknout. Klepnutí určené textu nebo tlačítku předchozího segmentu tak nepadne omylem na nové tlačítko.
 
-Platí to na každé obrazovce, i na té, kterou už tým viděl a jejíž text se ukáže hned.
+Platí to v každém segmentu, i v tom, který už tým viděl a jehož text se ukáže hned.
 
 ## Žádné přeskakování a žádné nápovědy
 
 Klepnutí na text nic nedělá: text se nedá zobrazit celý najednou a hráč počká, až se objeví sám. Text na obrazovce hráče ani v potvrzovacím dialogu nejde označit a dlouhé podržení neotevře žádnou nabídku. Pod textem ani jinde na obrazovce se nezobrazuje žádná nápověda typu „Klepnutím zobrazíte celý text“.
 
-Do obrazovky s textem příběhu nepřidávej žádné pomocné ani vysvětlující texty, které nejsou v příběhu, ani nové interakce. Když se zdá, že by něco takového pomohlo, nejdřív se zeptej.
+Do segmentu s textem příběhu nepřidávej žádné pomocné ani vysvětlující texty, které nejsou v příběhu, ani nové interakce. Když se zdá, že by něco takového pomohlo, nejdřív se zeptej.
 
 ## Sazba
 

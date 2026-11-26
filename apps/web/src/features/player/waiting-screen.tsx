@@ -3,8 +3,8 @@ import { type ReactNode, useEffect, useRef } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import { OPTICAL_CENTER } from './block-look';
 import { PlayerFrame } from './player-frame';
+import { OPTICAL_CENTER } from './segment-look';
 import { StoryText } from './story-text/story-text';
 
 /** The waiting screen before the start; it also says the phone needs nothing more from the team. */

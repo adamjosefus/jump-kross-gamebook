@@ -68,14 +68,14 @@ describe('api', () => {
     const graph = (await admin('GET', '/api/admin/story')).body;
     expect(graph.order).toEqual(['INTRO', 'A1', 'A2', 'B1', 'OUTRO']);
     expect(graph).toMatchObject({ start: 'A1', nodes: { A1: { type: 'start', reached: true } } });
-    expect(graph.nodes.B1.preview.blocks[0]).toContain('chudou pokrývku hlavy');
+    expect(graph.nodes.B1.preview.segments[0]).toContain('chudou pokrývku hlavy');
   });
 
   it('shows the intro to anyone', async () => {
     expect((await device()('GET', '/api/player/intro')).body).toEqual({
       started: false,
       closed: false,
-      screens: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
+      segments: [{ theme: 'intro', content: '# Hra\n\nNaskenujte kód svého týmu.' }],
     });
   });
 
@@ -96,7 +96,7 @@ describe('api', () => {
     const b1Path = (await play({ position: at(start), team: 2, move: { choice: 0 } })).body;
     expect(b1Path.team.name).toBe('Lišky');
     const c1 = await play({ position: at(b1Path), team: 2, move: { choice: 0 } });
-    expect(c1.body.view.screens[0].content).toBe('Prohráli jste, týme Lišky.');
+    expect(c1.body.view.segments[0].content).toBe('Prohráli jste, týme Lišky.');
     const qrCode = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
     expect((await play({ move: { code: qrCode } })).body._tag).toBe('InvalidCode');
 
@@ -133,8 +133,8 @@ describe('api', () => {
     // Teams come from the story; one that never logged in has not started.
     const before = (await admin('GET', '/api/admin/overview')).body.teams;
     expect(before).toMatchObject([
-      { id: 1, name: 'Vlci', step: 0 },
-      { id: 2, name: 'Lišky', step: 0 },
+      { id: 1, name: 'Vlci', revision: 0 },
+      { id: 2, name: 'Lišky', revision: 0 },
     ]);
     expect(before[0].node).toBeUndefined();
 
@@ -163,18 +163,21 @@ describe('api', () => {
     expect(start.body).toMatchObject({
       team: { name: 'Vlci' },
       status: 'playing',
-      node: { id: 'A1', screens: [{ theme: 'intro' }] },
+      node: { id: 'A1', segments: [{ theme: 'intro' }] },
     });
     await tablet('POST', '/api/player/login', { code: login });
 
-    // Both devices see the same step; the tablet decides first, the phone gets a conflict.
-    const step = start.body.step;
-    const moved = await tablet('POST', '/api/player/choose', { index: 1, expectedStep: step });
+    // Both devices see the same revision; the tablet decides first, the phone gets a conflict.
+    const revision = start.body.revision;
+    const moved = await tablet('POST', '/api/player/choose', {
+      index: 1,
+      expectedRevision: revision,
+    });
     // Which codes lead where stays on the server; the client only learns it has to scan.
     expect(moved.body.node).toEqual({
       id: 'A2',
       type: 'passage',
-      screens: [
+      segments: [
         { theme: 'default', content: 'Jděte ke studni na nádvoří, nebo k bráně.' },
         { theme: 'description', content: 'Setmělo se.' },
       ],
@@ -182,34 +185,49 @@ describe('api', () => {
       scan: true,
       timeStops: false,
     });
-    const late = await phone('POST', '/api/player/choose', { index: 0, expectedStep: step });
-    expect(late).toMatchObject({ status: 409, body: { _tag: 'StepConflict' } });
+    const late = await phone('POST', '/api/player/choose', {
+      index: 0,
+      expectedRevision: revision,
+    });
+    expect(late).toMatchObject({ status: 409, body: { _tag: 'RevisionConflict' } });
 
     const view = (await phone('GET', '/api/player/state')).body;
     expect(view.node.id).toBe('A2');
     expect(
-      (await phone('POST', '/api/player/choose', { index: 0, expectedStep: view.step })).body
-        .reason,
+      (await phone('POST', '/api/player/choose', { index: 0, expectedRevision: view.revision }))
+        .body.reason,
     ).toBe('scan-required');
     expect(
-      (await phone('POST', '/api/player/scan', { code: login, expectedStep: view.step })).status,
+      (await phone('POST', '/api/player/scan', { code: login, expectedRevision: view.revision }))
+        .status,
     ).toBe(400);
     expect(
-      (await phone('POST', '/api/player/scan', { code: sklep, expectedStep: view.step })).body,
+      (await phone('POST', '/api/player/scan', { code: sklep, expectedRevision: view.revision }))
+        .body,
     ).toMatchObject({ _tag: 'InvalidCode', message: 'Tento QR kód už neplatí.' });
 
-    const b1 = await phone('POST', '/api/player/scan', { code: studna, expectedStep: view.step });
+    const b1 = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedRevision: view.revision,
+    });
     expect(b1.body).toMatchObject({ status: 'playing', node: { id: 'B1', scan: false } });
     expect(
-      (await phone('POST', '/api/player/scan', { code: studna, expectedStep: b1.body.step })).body
-        .reason,
+      (
+        await phone('POST', '/api/player/scan', {
+          code: studna,
+          expectedRevision: b1.body.revision,
+        })
+      ).body.reason,
     ).toBe('no-scan');
-    expect(b1.body.node.screens[0].content).toContain('chudou pokrývku hlavy');
+    expect(b1.body.node.segments[0].content).toContain('chudou pokrývku hlavy');
     expect(b1.body.node.choices).toEqual([{ index: 0, label: 'Bojovat' }]);
 
-    const end = await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
+    const end = await phone('POST', '/api/player/choose', {
+      index: 0,
+      expectedRevision: b1.body.revision,
+    });
     expect(end.body).toMatchObject({ status: 'finished', node: { id: 'OUTRO', type: 'end' } });
-    expect(end.body.node.screens[0].content).toBe('Prohráli jste, týme Vlci.');
+    expect(end.body.node.segments[0].content).toBe('Prohráli jste, týme Vlci.');
 
     const overview = (await admin('GET', '/api/admin/overview')).body;
     expect(overview.teams[0]).toMatchObject({
@@ -242,13 +260,16 @@ describe('api', () => {
     expect((await phone('POST', '/api/player/story-time', { intervals: [] })).status).toBe(404);
 
     // The clock stops at the end.
-    const a2 = await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step });
+    const a2 = await phone('POST', '/api/player/choose', {
+      index: 1,
+      expectedRevision: start.revision,
+    });
     const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
     const b1 = await phone('POST', '/api/player/scan', {
       code: studna,
-      expectedStep: a2.body.step,
+      expectedRevision: a2.body.revision,
     });
-    await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
+    await phone('POST', '/api/player/choose', { index: 0, expectedRevision: b1.body.revision });
     const done = await team();
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect((await team()).playtimeMs).toBe(done.playtimeMs);
@@ -264,7 +285,8 @@ describe('api', () => {
     expect(reset.playtimeMs).toBeUndefined();
     expect(reset.startedAt).toBeUndefined();
     expect(
-      (await phone('POST', '/api/player/scan', { code: studna, expectedStep: reset.step })).status,
+      (await phone('POST', '/api/player/scan', { code: studna, expectedRevision: reset.revision }))
+        .status,
     ).toBe(401);
     expect((await team()).playtimeMs).toBeUndefined();
     await phone('POST', '/api/player/login', { code: lisky });
@@ -312,19 +334,20 @@ describe('api', () => {
     await admin('POST', '/api/admin/teams/1/reset');
     const phone = device();
     const start = (await phone('POST', '/api/player/login', { code: vlci })).body;
-    const a2 = (await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step }))
-      .body;
+    const a2 = (
+      await phone('POST', '/api/player/choose', { index: 1, expectedRevision: start.revision })
+    ).body;
     shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: new Date(Date.now() - 600_000) });
     const before = await team();
     expect(before.playtimeMs).toBeGreaterThanOrEqual(600_000);
 
-    // The times are gone and the phones logged out; the node, the state and the step stay.
+    // The times are gone and the phones logged out; the node, the state and the revision stay.
     const reset = await admin('POST', '/api/admin/teams/1/reset-time');
     expect(reset.status).toBe(200);
     expect(reset.body).toMatchObject({
       node: before.node,
       state: before.state,
-      step: before.step,
+      revision: before.revision,
       devices: 0,
     });
     expect(reset.body.startedAt).toBeUndefined();
@@ -342,13 +365,16 @@ describe('api', () => {
 
     // The next login starts the clock and the team goes on where it was.
     const back = (await phone('POST', '/api/player/login', { code: vlci })).body;
-    expect(back).toMatchObject({ step: a2.step, node: { id: a2.node.id } });
+    expect(back).toMatchObject({ revision: a2.revision, node: { id: a2.node.id } });
     expect((await team()).playtimeMs).toBeLessThan(60_000);
 
     // A team at the end keeps its time: only a restart of its game clears it.
     const studna = await encodeQr(config.qrSecret, { kind: 'L', id: 32 });
-    const b1 = await phone('POST', '/api/player/scan', { code: studna, expectedStep: back.step });
-    await phone('POST', '/api/player/choose', { index: 0, expectedStep: b1.body.step });
+    const b1 = await phone('POST', '/api/player/scan', {
+      code: studna,
+      expectedRevision: back.revision,
+    });
+    await phone('POST', '/api/player/choose', { index: 0, expectedRevision: b1.body.revision });
     expect((await team()).finished).toBe(true);
     const refused = await admin('POST', '/api/admin/teams/1/reset-time');
     expect(refused).toMatchObject({ status: 409, body: { _tag: 'TeamFinished' } });
@@ -424,7 +450,7 @@ describe('admin against the players', () => {
       ensureTeam: (id) =>
         Effect.gen(function* () {
           const team = yield* inner.ensureTeam(id);
-          yield* inner.moveTeam(id, team.step, {
+          yield* inner.moveTeam(id, team.revision, {
             node: 'B1',
             state: { gold: 0 },
             finished: false,
@@ -441,13 +467,13 @@ describe('admin against the players', () => {
     expect(reset.status).toBe(200);
     expect(reset.body).toMatchObject({ node: 'A1', state: { gold: 100 } });
     const afterReset = await Effect.runPromise(inner.getTeam(1));
-    expect(afterReset).toMatchObject({ node: 'A1', state: { gold: 100 }, step: 2 });
+    expect(afterReset).toMatchObject({ node: 'A1', state: { gold: 100 }, revision: 2 });
 
     const moved = await call('POST', '/api/admin/teams/1/move', { node: 'A2', state: { gold: 5 } });
     expect(moved.status).toBe(200);
     expect(moved.body).toMatchObject({ node: 'A2', state: { gold: 5 } });
     const afterMove = await Effect.runPromise(inner.getTeam(1));
-    expect(afterMove).toMatchObject({ node: 'A2', state: { gold: 5 }, step: 4 });
+    expect(afterMove).toMatchObject({ node: 'A2', state: { gold: 5 }, revision: 4 });
 
     const log = await Effect.runPromise(inner.recentLog(10));
     expect(log.map((entry) => entry.action)).toEqual(['admin', 'choice:0', 'reset', 'choice:0']);
@@ -487,11 +513,11 @@ describe('a state the game cannot hold', () => {
     data.teams.set(1, broken);
     const chosen = await phone('POST', '/api/player/choose', {
       index: 1,
-      expectedStep: broken.step,
+      expectedRevision: broken.revision,
     });
     expect(chosen.status).toBe(422);
     expect(chosen.body).toMatchObject({ _tag: 'InvalidMove', reason: 'broken-state' });
-    expect((await run(makeMemoryStore(data).getTeam(1)))?.step).toBe(broken.step);
+    expect((await run(makeMemoryStore(data).getTeam(1)))?.revision).toBe(broken.revision);
     expect((await admin('GET', '/api/admin/overview')).status).toBe(200);
     await fresh.dispose();
   });
@@ -541,16 +567,20 @@ describe('closed game', () => {
 
     // A logged-in device stays logged in but sees no node and cannot move.
     const state = (await phone('GET', '/api/player/state')).body;
-    expect(state).toMatchObject({ status: 'closed', step: started.body.step });
+    expect(state).toMatchObject({ status: 'closed', revision: started.body.revision });
     expect(state.node).toBeUndefined();
     const scan = await phone('POST', '/api/player/scan', {
       code: studna,
-      expectedStep: started.body.step,
+      expectedRevision: started.body.revision,
     });
     expect(scan).toMatchObject({ status: 423, body: { _tag: 'GameClosed' } });
     expect(
-      (await phone('POST', '/api/player/choose', { index: 0, expectedStep: started.body.step }))
-        .status,
+      (
+        await phone('POST', '/api/player/choose', {
+          index: 0,
+          expectedRevision: started.body.revision,
+        })
+      ).status,
     ).toBe(423);
     // A new device cannot log in, but a wrong code is still named as such.
     const tablet = device(fresh.handler);
@@ -742,7 +772,7 @@ describe('memory data', () => {
       new Request('http://localhost/api/player/choose', {
         method: 'POST',
         headers: { 'content-type': 'application/json', cookie },
-        body: JSON.stringify({ index: 1, expectedStep: 1 }),
+        body: JSON.stringify({ index: 1, expectedRevision: 1 }),
       }),
     );
     await before.dispose();
@@ -852,7 +882,7 @@ describe('server failures', () => {
       recordAdminFailure: fail,
       clearAdminFailures: fail,
       recentLog: fail,
-      listSteps: fail,
+      listMoves: fail,
       visitCounts: fail,
     };
     const failing = makeHandler(config, Layer.succeed(Store, broken), SAMPLE);

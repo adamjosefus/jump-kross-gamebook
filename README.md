@@ -4,7 +4,7 @@
 
 A web app for a branching gamebook played by several teams at once in the real world.
 
-Each team plays on their phones. They read the story screen by screen, make choices and walk to QR codes placed around, which they scan to continue; scanning one of several codes hung side by side is a choice too. Where a team goes and what it finds depends on its earlier decisions, so every team can take a different path through the story.
+Each team plays on their phones. They read the story segment by segment, make choices and walk to QR codes placed around, which they scan to continue; scanning one of several codes hung side by side is a choice too. Where a team goes and what it finds depends on its earlier decisions, so every team can take a different path through the story.
 
 Organizers get an admin area with a graph of the whole story, a live view of where each team is, a playtest mode and printable QR codes: a login code for every team and the codes that move teams on.
 
@@ -15,7 +15,7 @@ Organizers get an admin area with a graph of the whole story, a live view of whe
 - `packages/api` – the HTTP API (Effect `HttpApi`) and its stores: Postgres over Neon's HTTP driver, or memory for local development.
 - `apps/web` – the player app and the admin area (React, TanStack Query and Router, Tailwind).
 - `scripts/build-vercel.ts` – builds the SPA and one Node function for Vercel.
-- `docs` – how things behave, in Czech: for [organizers](docs/organizers.md), [story authors](docs/story-authoring.md), [players](docs/players.md) and [developers](docs/developers.md), and in detail [the story text on the player's screen](docs/story-text.md) and [how the game time is measured](docs/game-time.md).
+- `docs` – how things behave, in Czech: [the words the story is described with](docs/story-glossary.md), for [organizers](docs/organizers.md), [story authors](docs/story-authoring.md), [players](docs/players.md) and [developers](docs/developers.md), and in detail [the story text on the player's screen](docs/story-text.md) and [how the game time is measured](docs/game-time.md).
 
 ## Development
 

@@ -26,7 +26,7 @@ export interface ApiError {
 const DECLARED: ReadonlySet<string> = new Set([
   'Unauthorized',
   'InvalidCode',
-  'StepConflict',
+  'RevisionConflict',
   'InvalidMove',
   'NotFound',
   'GameNotStarted',
@@ -87,7 +87,7 @@ const understandable = async (error: unknown): Promise<unknown> => {
 
 /**
  * Runs a typed API call as a Promise for TanStack Query. Failures reject with the tagged error
- * itself (`{ _tag: 'StepConflict', message }`), so callers can branch on `_tag`; anything else
+ * itself (`{ _tag: 'RevisionConflict', message }`), so callers can branch on `_tag`; anything else
  * rejects as an `ApiError` with an understandable message.
  */
 export const api = <A, E>(

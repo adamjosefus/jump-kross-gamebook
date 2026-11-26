@@ -14,7 +14,7 @@ export const adminKeys = {
 
 /**
  * Refetches what a change to the game makes stale: the overview and the times split from the
- * same steps, so the two never show a team's new total next to its old chapters for long.
+ * same moves, so the two never show a team's new total next to its old chapters for long.
  */
 export const invalidateGame = (queryClient: QueryClient) =>
   Promise.all([

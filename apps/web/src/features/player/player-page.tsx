@@ -10,7 +10,7 @@ import { api, errorMessage, isApiError } from '@/lib/api';
 import { APP_VERSION } from '@/lib/version';
 
 import { ConfirmDialog } from './confirm-dialog';
-import { NodeScreens } from './node-screens';
+import { NodeSegments } from './node-segments';
 import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { jittered, pollSeed } from './poll';
@@ -71,7 +71,7 @@ const introPoll = (state: PollState<{ readonly started: boolean; readonly closed
 const PAGE_CHECK_MS = 3_000;
 
 const isView = (value: unknown): value is PlayerView =>
-  typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
+  typeof value === 'object' && value !== null && 'revision' in value && 'team' in value;
 
 /**
  * Phones of an earlier build kept reading times to send in the browser's storage; they are
@@ -102,10 +102,10 @@ export const PlayerPage = () => {
         throw error;
       }),
     refetchInterval: (query) => statePoll(query.state),
-    // A poll that left before a move and arrives after it carries the team's old step; it must
-    // not take the screen back. Being logged out (null) or in is not a step and always applies.
+    // A poll that left before a move and arrives after it carries the team's old revision; it must
+    // not take the screen back. Being logged out (null) or in is not a move and always applies.
     structuralSharing: (old: unknown, next: unknown) =>
-      isView(old) && isView(next) && next.team.id === old.team.id && next.step < old.step
+      isView(old) && isView(next) && next.team.id === old.team.id && next.revision < old.revision
         ? old
         : next,
   });
@@ -125,7 +125,7 @@ export const PlayerPage = () => {
   const onError = (error: unknown) => {
     playerToast.error(errorMessage(error));
     if (
-      isApiError(error, 'StepConflict') ||
+      isApiError(error, 'RevisionConflict') ||
       isApiError(error, 'InvalidMove') ||
       isApiError(error, 'GameClosed')
     ) {
@@ -145,14 +145,14 @@ export const PlayerPage = () => {
     onError,
   });
   const choose = useMutation({
-    mutationFn: ({ index, step }: { readonly index: number; readonly step: number }) =>
-      api((client) => client.player.choose({ payload: { index, expectedStep: step } })),
+    mutationFn: ({ index, revision }: { readonly index: number; readonly revision: number }) =>
+      api((client) => client.player.choose({ payload: { index, expectedRevision: revision } })),
     onSuccess: (next) => void onResult(next),
     onError,
   });
   const scan = useMutation({
-    mutationFn: ({ code, step }: { readonly code: string; readonly step: number }) =>
-      api((client) => client.player.scan({ payload: { code, expectedStep: step } })),
+    mutationFn: ({ code, revision }: { readonly code: string; readonly revision: number }) =>
+      api((client) => client.player.scan({ payload: { code, expectedRevision: revision } })),
     onError,
   });
 
@@ -177,7 +177,10 @@ export const PlayerPage = () => {
     if (view == null) return answer(login.mutateAsync(code), onLogin);
     const parsed = parseQr(code);
     if (parsed?.kind !== 'T')
-      return answer(scan.mutateAsync({ code, step: view.step }), (next) => void onResult(next));
+      return answer(
+        scan.mutateAsync({ code, revision: view.revision }),
+        (next) => void onResult(next),
+      );
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {
@@ -191,7 +194,7 @@ export const PlayerPage = () => {
 
   // The slide button is the confirmation, so a choice is sent right away.
   const pick = (choice: { readonly index: number }) => {
-    if (view != null) choose.mutate({ index: choice.index, step: view.step });
+    if (view != null) choose.mutate({ index: choice.index, revision: view.revision });
   };
 
   const busy = login.isPending || choose.isPending || scan.isPending;
@@ -239,8 +242,10 @@ export const PlayerPage = () => {
         <Intro
           onCode={onCode}
           busy={busy}
-          initialIndex={search.step === undefined ? (search.screen ?? 0) : 0}
-          onIndexChange={(screen) => void navigate({ to: '/', search: { screen }, replace: true })}
+          initialIndex={search.revision === undefined ? (search.segment ?? 0) : 0}
+          onIndexChange={(segment) =>
+            void navigate({ to: '/', search: { segment }, replace: true })
+          }
         />
       ) : view.status === 'closed' ? (
         // The node is gone from the screen: a paused game is not read on. The page polls and
@@ -257,19 +262,19 @@ export const PlayerPage = () => {
           nextCheck={nextCheck(state, statePoll(state))}
         />
       ) : (
-        <NodeScreens
+        <NodeSegments
           node={view.node}
-          step={view.step}
+          revision={view.revision}
           visitScope={`team-${view.team.id}`}
           aside={aside}
           busy={busy}
           onCode={onCode}
           onPick={pick}
-          // The screen in the URL belongs to one step; after a move the node opens at its start.
-          initialIndex={search.step === view.step ? (search.screen ?? 0) : 0}
-          onIndexChange={(screen) => {
+          // The segment in the URL belongs to one revision; after a move the node opens at its start.
+          initialIndex={search.revision === view.revision ? (search.segment ?? 0) : 0}
+          onIndexChange={(segment) => {
             checkOnPage();
-            void navigate({ to: '/', search: { step: view.step, screen }, replace: true });
+            void navigate({ to: '/', search: { revision: view.revision, segment }, replace: true });
           }}
         />
       )}
@@ -362,7 +367,7 @@ const Intro = ({
       />
     );
   return (
-    <NodeScreens
+    <NodeSegments
       node={{
         ...content,
         id: 'intro',
@@ -371,7 +376,7 @@ const Intro = ({
         scan: true,
         timeStops: false,
       }}
-      step={0}
+      revision={0}
       visitScope='intro'
       busy={busy}
       onCode={onCode}

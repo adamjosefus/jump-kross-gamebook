@@ -1,18 +1,18 @@
 import type { Theme } from '@gamebook/core';
 
 /**
- * Places the block at the optical center, a little above the middle: of the free space, 2/5 are
- * above it and 3/5 under it. A block too long for the screen has no free space and starts at the
+ * Places the segment at the optical center, a little above the middle: of the free space, 2/5 are
+ * above it and 3/5 under it. A segment too long for the screen has no free space and starts at the
  * top.
  */
 export const OPTICAL_CENTER =
   "flex flex-col before:flex-[2] before:content-[''] after:flex-[3] after:content-['']";
 
-/** The picture above a block's text: as wide as the block, but never taking the whole screen. */
-export const BLOCK_SVG =
-  'mb-6 [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-h-[35svh] [&>svg]:max-w-full';
+/** The picture above a segment's text: as wide as the segment, but never taking the whole screen. */
+export const SEGMENT_SVG =
+  'mb-6 [&>svg]:mx-auto [&>svg]:segment [&>svg]:h-auto [&>svg]:max-h-[35svh] [&>svg]:max-w-full';
 
-/** Look of the block around the text; its typography comes from `StoryText`. */
+/** Look of the segment around the text; its typography comes from `StoryText`. */
 export const THEME_BOX: Readonly<Record<Theme, string>> = {
   default: '',
   intro: '',
@@ -23,7 +23,7 @@ export const THEME_BOX: Readonly<Record<Theme, string>> = {
 };
 
 /**
- * Colors of the whole screen around the block. The colored screens are dark in the light mode too,
+ * Colors of the whole screen around the segment. The colored ones are dark in the light mode too,
  * and `dark:` applies only when the whole page is.
  */
 export const THEME_PAGE: Readonly<Record<Theme, string>> = {

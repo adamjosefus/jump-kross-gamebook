@@ -1,4 +1,4 @@
-import type { PlayerScreen, PlayerView } from '@gamebook/api';
+import type { PlayerSegment, PlayerView } from '@gamebook/api';
 import { IconArrowRight, IconFlag } from '@tabler/icons-react';
 import { useEffect, useState, type ComponentProps, type ReactNode } from 'react';
 
@@ -7,31 +7,31 @@ import { SlideButton } from '@/components/slide-button';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { BLOCK_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
 import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
+import { SEGMENT_SVG, OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './segment-look';
 import { StoryText } from './story-text/story-text';
 import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
 
-/** A screen's text, shown very quickly when the screen was visited a moment ago. */
+/** A segment's text, shown very quickly when the segment was visited a moment ago. */
 const VisitedStoryText = ({
-  block,
+  visit,
   ...props
-}: ComponentProps<typeof StoryText> & { readonly block: string }) => (
-  <StoryText {...props} fast={useRecentVisit(block)} />
+}: ComponentProps<typeof StoryText> & { readonly visit: string }) => (
+  <StoryText {...props} fast={useRecentVisit(visit)} />
 );
 
 /** How long the buttons stay disabled after they appear, so a tap meant for the text or the
- * previous screen's button does not land on them. */
+ * previous segment's button does not land on them. */
 const BUTTONS_ENABLE_MS = 500;
 
 /**
- * The screen's buttons: hidden until the whole text is shown, then they fade in and are disabled
+ * The segment's buttons: hidden until the whole text is shown, then they fade in and are disabled
  * for a moment. Hidden, they keep their space, so the text does not move when they appear. Lives
- * inside the screen's keyed element, so every screen starts hidden again.
+ * inside the segment's keyed element, so every segment starts hidden again.
  */
 const ScreenButtons = ({
   shown,
@@ -61,7 +61,7 @@ const ScreenButtons = ({
 
 interface Paging {
   readonly node: PlayerNode['id'];
-  readonly step: number;
+  readonly revision: number;
   readonly index: number;
   /** Screens whose text has been shown in full; going back to one shows it at once. */
   readonly seen: readonly number[];
@@ -80,36 +80,36 @@ const hash = (text: string) => {
 };
 
 /**
- * Paging starts on the first screen; the choices get an order that looks random but is the same on
- * every device of the team at this step, so teammates can talk about „the second button“, and
+ * Paging starts on the first segment; the choices get an order that looks random but is the same on
+ * every device of the team at this revision, so teammates can talk about „the second button“, and
  * polling does not reshuffle it.
  */
 const freshPaging = (
   node: PlayerNode,
-  step: number,
+  revision: number,
   index: number,
   visitScope: string,
 ): Paging => ({
   node: node.id,
-  step,
+  revision,
   index,
   seen: [],
   ranks: Object.fromEntries(
     node.choices.map((choice) => [
       choice.index,
-      hash(`${visitScope}/${node.id}/${step}/${choice.index}`),
+      hash(`${visitScope}/${node.id}/${revision}/${choice.index}`),
     ]),
   ),
 });
 
 /**
- * One screen at a time, paged locally with „Další“; every move starts from the first screen
+ * One segment at a time, paged locally with „Další“; every move starts from the first segment
  * (or `initialIndex`, for a reload). The
- * last screen offers the choices, or is the scanner when the node waits for a QR code.
+ * last segment offers the choices, or is the scanner when the node waits for a QR code.
  */
-export const NodeScreens = ({
+export const NodeSegments = ({
   node,
-  step,
+  revision,
   visitScope,
   busy,
   onCode,
@@ -122,13 +122,13 @@ export const NodeScreens = ({
   corner,
 }: {
   readonly node: PlayerNode;
-  readonly step: number;
+  readonly revision: number;
   /** Whose visits count for the fast text, so they do not carry over to another team. */
   readonly visitScope: string;
   readonly busy: boolean;
-  /** Screen to open the node on, e.g. kept in the URL across a reload. */
+  /** The segment to open the node on, e.g. kept in the URL across a reload. */
   readonly initialIndex?: number;
-  /** Called when the player pages, to keep the screen in the URL. */
+  /** Called when the player pages, to keep the segment in the URL. */
   readonly onIndexChange?: (index: number) => void;
   /** The scan screen waits for camera access and offers no way around it (the login scan). */
   readonly requireCamera?: boolean;
@@ -136,28 +136,28 @@ export const NodeScreens = ({
   readonly animated?: boolean;
   /** Shown at the right end of the navigation bar. */
   readonly aside?: ReactNode;
-  /** Shown small in the top left corner of the first screen, where the others have „Zpět“. */
+  /** Shown small in the top left corner of the first segment, where the others have „Zpět“. */
   readonly corner?: ReactNode;
   /** A QR code read on the scan screen. */
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
-  // A node left by scanning has one more screen after its blocks: the scanner.
-  const count = node.screens.length + (node.scan ? 1 : 0);
-  const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex, visitScope));
-  if (paging.node !== node.id || paging.step !== step)
-    setPaging(freshPaging(node, step, initialIndex, visitScope));
+  // A node left by scanning has one more page after its segments: the scanner.
+  const count = node.segments.length + (node.scan ? 1 : 0);
+  const [paging, setPaging] = useState(() => freshPaging(node, revision, initialIndex, visitScope));
+  if (paging.node !== node.id || paging.revision !== revision)
+    setPaging(freshPaging(node, revision, initialIndex, visitScope));
   const index = Math.max(Math.min(paging.index, count - 1), 0);
   const go = (to: number) => {
     setPaging({ ...paging, index: to });
     onIndexChange?.(to);
   };
-  const screen: PlayerScreen | undefined = node.screens[index];
-  const theme = screen?.theme ?? 'default';
+  const segment: PlayerSegment | undefined = node.segments[index];
+  const theme = segment?.theme ?? 'default';
   const last = index >= count - 1;
-  const nextText = screen?.next?.trim() ?? '';
-  const scanning = node.scan && index === node.screens.length;
-  const shown = screen === undefined || paging.seen.includes(index);
+  const nextText = segment?.next?.trim() ?? '';
+  const scanning = node.scan && index === node.segments.length;
+  const shown = segment === undefined || paging.seen.includes(index);
   const scanScreen = (
     <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
   );
@@ -178,23 +178,23 @@ export const NodeScreens = ({
       }
       aside={aside}
       timeStops={node.timeStops}
-      className={screen === undefined ? undefined : THEME_PAGE[theme]}
+      className={segment === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
-        key={`${node.id}-${step}-${index}`}
+        key={`${node.id}-${revision}-${index}`}
         className='screen-fade-in flex flex-1 flex-col gap-6'
       >
         {scanning && (requireCamera ? <CameraGate>{scanScreen}</CameraGate> : scanScreen)}
-        {/* The block sits at the optical center of the space between the top and the buttons. */}
-        {screen !== undefined && (
+        {/* The segment sits at the optical center of the space between the top and the buttons. */}
+        {segment !== undefined && (
           <div className={cn('flex-1', OPTICAL_CENTER)}>
             <div className={THEME_BOX[theme]}>
-              {screen.svg !== undefined && (
-                <div className={BLOCK_SVG} dangerouslySetInnerHTML={{ __html: screen.svg }} />
+              {segment.svg !== undefined && (
+                <div className={SEGMENT_SVG} dangerouslySetInnerHTML={{ __html: segment.svg }} />
               )}
               <VisitedStoryText
-                block={`${visitScope}/${node.id}/${index}`}
-                content={screen.content}
+                visit={`${visitScope}/${node.id}/${index}`}
+                content={segment.content}
                 theme={theme}
                 instant={shown || !animated}
                 onRevealed={() => {

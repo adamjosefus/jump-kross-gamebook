@@ -16,7 +16,7 @@ const team = (id: number, name: string, rest: Partial<TeamStatus> = {}): TeamSta
   name,
   nodeExists: true,
   state: {},
-  step: 0,
+  revision: 0,
   finished: false,
   devices: 0,
   ...rest,

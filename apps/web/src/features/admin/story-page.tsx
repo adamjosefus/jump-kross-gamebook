@@ -8,7 +8,7 @@ import { errorMessage } from '@/lib/api';
 import { useStoryGraph } from './queries';
 
 /**
- * The story as a graph: nodes show their first screen in the state a team would have on arrival
+ * The story as a graph: nodes show their first segment in the state a team would have on arrival
  * from the start. The text lives in `packages/story` and changes with a deploy.
  */
 export const StoryPage = () => {

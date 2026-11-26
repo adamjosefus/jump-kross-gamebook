@@ -47,20 +47,20 @@ describe('postgres store', () => {
 
   it('creates a team once and keeps its progress', async () => {
     const created = await run(store.ensureTeam(1));
-    expect(created).toMatchObject({ id: 1, node: undefined, state: {}, step: 0 });
+    expect(created).toMatchObject({ id: 1, node: undefined, state: {}, revision: 0 });
     expect(created.startedAt).toBeUndefined();
     expect(created.updatedAt).toBeInstanceOf(Date);
 
     const moved = await run(
       store.moveTeam(1, 0, { node: 'A1', state: { gold: 100 }, finished: false, action: 'start' }),
     );
-    expect(moved).toMatchObject({ node: 'A1', state: { gold: 100 }, step: 1 });
-    expect(await run(store.ensureTeam(1))).toMatchObject({ node: 'A1', step: 1 });
-    expect(await run(store.getTeam(1))).toMatchObject({ node: 'A1', step: 1 });
+    expect(moved).toMatchObject({ node: 'A1', state: { gold: 100 }, revision: 1 });
+    expect(await run(store.ensureTeam(1))).toMatchObject({ node: 'A1', revision: 1 });
+    expect(await run(store.getTeam(1))).toMatchObject({ node: 'A1', revision: 1 });
     expect(await run(store.getTeam(9))).toBeUndefined();
   });
 
-  it('moves a team only from the expected step, or from any step without one', async () => {
+  it('moves a team only from the expected revision, or from any revision without one', async () => {
     const stale = await run(
       store.moveTeam(1, 0, { node: 'B1', state: {}, finished: false, action: 'choice:0' }),
     );
@@ -73,7 +73,11 @@ describe('postgres store', () => {
         action: 'choice:0',
       }),
     );
-    expect(fresh).toMatchObject({ node: 'B1', step: 2, state: { gold: 100, hatColor: 'blue' } });
+    expect(fresh).toMatchObject({
+      node: 'B1',
+      revision: 2,
+      state: { gold: 100, hatColor: 'blue' },
+    });
     const forced = await run(
       store.moveTeam(1, undefined, {
         node: 'OUTRO',
@@ -82,7 +86,7 @@ describe('postgres store', () => {
         action: 'admin',
       }),
     );
-    expect(forced).toMatchObject({ node: 'OUTRO', step: 3, state: { gold: 150 } });
+    expect(forced).toMatchObject({ node: 'OUTRO', revision: 3, state: { gold: 150 } });
     expect(forced?.finishedAt).toBeInstanceOf(Date);
     // A team without a row cannot be moved.
     expect(
@@ -336,7 +340,7 @@ describe('postgres store', () => {
       [2, 'A1', { gold: 100 }, undefined, undefined],
       [3, 'A1', { gold: 100 }, undefined, undefined],
     ]);
-    expect(rows.map(({ step }) => step)).toEqual([rows[0]!.step, 1, 1]);
+    expect(rows.map(({ revision }) => revision)).toEqual([rows[0]!.revision, 1, 1]);
     // The devices are logged out and the game waits for the organisers to start it again.
     expect(await run(store.touchSession('again', new Date(Date.now() - 60_000)))).toBeUndefined();
     expect(await run(store.gameStartedAt())).toBeUndefined();
@@ -362,7 +366,7 @@ describe('postgres store', () => {
   it('resets the timing of a team on its way only', async () => {
     const team = await run(store.ensureTeam(2));
     const moved = await run(
-      store.moveTeam(2, team.step, {
+      store.moveTeam(2, team.revision, {
         node: 'A2',
         state: { gold: 80 },
         finished: false,
@@ -384,7 +388,7 @@ describe('postgres store', () => {
     expect(await run(store.getTeam(2))).toMatchObject({
       node: 'A2',
       state: { gold: 80 },
-      step: moved!.step,
+      revision: moved!.revision,
       startedAt: undefined,
     });
     expect(await run(store.touchSession('reset-phone', new Date(now - 60_000)))).toBeUndefined();
@@ -425,10 +429,10 @@ describe('postgres store', () => {
     const names = (rows: readonly { readonly teamId: number; readonly action: string }[]) =>
       rows.map(({ teamId, action }) => `${teamId}:${action}`);
     // Team 1 was sent back to the start twice: what it did before the last time is left out.
-    const both = (await run(store.listSteps())).filter(({ teamId }) => teamId <= 2);
+    const both = (await run(store.listMoves())).filter(({ teamId }) => teamId <= 2);
     expect(names(both)).toEqual(['2:reset', '2:choice:0', '1:reset', '1:choice:1']);
-    expect(names(await run(store.listSteps(1)))).toEqual(['1:reset', '1:choice:1']);
-    expect((await run(store.listSteps(1)))[1]).toMatchObject({ toNode: 'A2' });
+    expect(names(await run(store.listMoves(1)))).toEqual(['1:reset', '1:choice:1']);
+    expect((await run(store.listMoves(1)))[1]).toMatchObject({ toNode: 'A2' });
   });
 });
 
@@ -476,21 +480,25 @@ describe('the api on postgres', () => {
       code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
     });
     expect(login.status).toBe(200);
-    expect(login.body).toMatchObject({ team: { id: 1, name: 'Vlci' }, step: 1, status: 'playing' });
+    expect(login.body).toMatchObject({
+      team: { id: 1, name: 'Vlci' },
+      revision: 1,
+      status: 'playing',
+    });
     expect(login.body.node).toMatchObject({ id: 'A1' });
 
-    const chosen = await call('POST', '/api/player/choose', { index: 0, expectedStep: 1 });
+    const chosen = await call('POST', '/api/player/choose', { index: 0, expectedRevision: 1 });
     expect(chosen.status).toBe(200);
-    expect(chosen.body).toMatchObject({ step: 2, node: { id: 'B1' } });
-    const late = await call('POST', '/api/player/choose', { index: 0, expectedStep: 1 });
+    expect(chosen.body).toMatchObject({ revision: 2, node: { id: 'B1' } });
+    const late = await call('POST', '/api/player/choose', { index: 0, expectedRevision: 1 });
     expect(late.status).toBe(409);
 
     expect((await call('POST', '/api/admin/login', { password: 'heslo' })).status).toBe(204);
     const overview = await call('GET', '/api/admin/overview');
     expect(overview.status).toBe(200);
     expect(overview.body.teams).toMatchObject([
-      { id: 1, node: 'B1', step: 2, devices: 1, state: { gold: 100, hatColor: 'blue' } },
-      { id: 2, step: 0, devices: 0 },
+      { id: 1, node: 'B1', revision: 2, devices: 1, state: { gold: 100, hatColor: 'blue' } },
+      { id: 2, revision: 0, devices: 0 },
     ]);
     expect(overview.body.log.map((entry: { action: string }) => entry.action)).toEqual([
       'choice:0',
@@ -502,7 +510,7 @@ describe('the api on postgres', () => {
     expect(reset.status).toBe(200);
     expect(reset.body).toMatchObject({
       node: 'A1',
-      step: 3,
+      revision: 3,
       state: { gold: 100, hatColor: 'red' },
     });
     // The reset logged the device out; it logs in again and finds the team on the start.
@@ -510,9 +518,76 @@ describe('the api on postgres', () => {
     const again = await call('POST', '/api/player/login', {
       code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
     });
-    expect(again.body).toMatchObject({ step: 3, node: { id: 'A1' } });
+    expect(again.body).toMatchObject({ revision: 3, node: { id: 'A1' } });
 
     await api.dispose();
+    await db.close();
+  });
+});
+
+describe('postgres schema', () => {
+  it('moves a database of the old schema to the new names and keeps its rows', async () => {
+    const db = new PGlite();
+    await db.waitReady;
+    // The tables as an older deploy left them: the move count was `step`, the log `step_log`.
+    await db.exec(`
+      create table team (
+        id int primary key,
+        node text,
+        state jsonb not null default '{}',
+        step int not null default 0,
+        finished_at timestamptz,
+        updated_at timestamptz not null default now(),
+        started_at timestamptz
+      );
+      create table step_log (
+        id bigserial primary key,
+        team_id int not null references team (id) on delete cascade,
+        at timestamptz not null default now(),
+        action text not null,
+        from_node text,
+        to_node text,
+        state jsonb not null
+      );
+      create index step_log_at on step_log (at desc);
+      create index step_log_team on step_log (team_id, id);
+      create table story_interval (
+        id bigserial primary key,
+        team_id int not null references team (id) on delete cascade,
+        started_at timestamptz not null,
+        ended_at timestamptz not null
+      );
+      insert into team (id, node, state, step) values (1, 'A2', '{"gold": 5}', 7);
+      insert into step_log (team_id, action, from_node, to_node, state)
+        values (1, 'choice:1', 'A1', 'A2', '{"gold": 5}');
+    `);
+    const migrated = makePostgresStore(pgliteClient(db));
+    expect(await run(migrated.getTeam(1))).toMatchObject({ node: 'A2', revision: 7 });
+    expect(await run(migrated.recentLog(5))).toMatchObject([
+      { teamId: 1, action: 'choice:1', fromNode: 'A1', toNode: 'A2' },
+    ]);
+    // New rows go on in the renamed log, and a second instance applies the schema without harm.
+    const team = await run(migrated.getTeam(1));
+    await run(
+      migrated.moveTeam(1, team!.revision, {
+        node: 'B1',
+        state: { gold: 5 },
+        finished: false,
+        action: 'choice:0',
+      }),
+    );
+    const again = makePostgresStore(pgliteClient(db));
+    expect((await run(again.recentLog(5))).map(({ action }) => action)).toEqual([
+      'choice:0',
+      'choice:1',
+    ]);
+    const tables = await db.query<{ table_name: string }>(
+      `select table_name from information_schema.tables where table_schema = current_schema()`,
+    );
+    const names = tables.rows.map(({ table_name }) => table_name);
+    expect(names).toContain('action_log');
+    expect(names).not.toContain('step_log');
+    expect(names).not.toContain('story_interval');
     await db.close();
   });
 });

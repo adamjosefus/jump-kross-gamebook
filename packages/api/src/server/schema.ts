@@ -9,10 +9,14 @@ create table if not exists team (
   id int primary key,
   node text,
   state jsonb not null default '{}',
-  step int not null default 0,
+  revision int not null default 0,
   finished_at timestamptz,
   updated_at timestamptz not null default now()
 );
+
+-- The count of a team's moves used to be its "step", which said nothing of what it counts. Each
+-- statement stays on one line, as the schema is split at a semicolon ending a line.
+do $$ begin if exists (select from information_schema.columns where table_schema = current_schema() and table_name = 'team' and column_name = 'step') then alter table team rename column step to revision; end if; end $$;
 
 -- Teams used to be created in the admin with a name and a start; now both come from the story.
 alter table team drop column if exists name;
@@ -20,7 +24,15 @@ alter table team drop column if exists start_node;
 alter table team alter column id drop default;
 alter table team add column if not exists started_at timestamptz;
 
-create table if not exists step_log (
+-- The log of the teams' actions used to be the "step_log"; it keeps its rows under the new name.
+alter table if exists step_log rename to action_log;
+alter sequence if exists step_log_id_seq rename to action_log_id_seq;
+alter index if exists step_log_pkey rename to action_log_pkey;
+alter index if exists step_log_at rename to action_log_at;
+alter index if exists step_log_team rename to action_log_team;
+do $$ begin if exists (select from pg_constraint where conname = 'step_log_team_id_fkey') then alter table action_log rename constraint step_log_team_id_fkey to action_log_team_id_fkey; end if; end $$;
+
+create table if not exists action_log (
   id bigserial primary key,
   team_id int not null references team (id) on delete cascade,
   at timestamptz not null default now(),
@@ -29,9 +41,9 @@ create table if not exists step_log (
   to_node text,
   state jsonb not null
 );
-create index if not exists step_log_at on step_log (at desc);
--- The teams' times read each team's steps from its last move to the start on.
-create index if not exists step_log_team on step_log (team_id, id);
+create index if not exists action_log_at on action_log (at desc);
+-- The teams' times read each team's moves from its last move to the start on.
+create index if not exists action_log_team on action_log (team_id, id);
 
 create table if not exists session (
   id text primary key,
@@ -46,7 +58,7 @@ alter table session add column if not exists device_id text;
 create index if not exists session_device on session (device_id);
 
 -- Phones used to report how long a text was on ("reading", later "story_interval"); the times are
--- measured by chapters now, from the step log alone.
+-- measured by chapters now, from the action log alone.
 drop table if exists story_interval;
 drop table if exists reading;
 

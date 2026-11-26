@@ -12,10 +12,10 @@ export const story = defineStory<State>()({
   introNode: 'INTRO',
   outroNode: 'OUTRO',
   nodes: {
-    INTRO: { blocks: ['…'] },
-    START: { chapter: 'home', initialState: { coins: 0 }, blocks: ['…'], choices: [/* … */] },
+    INTRO: { segments: ['…'] },
+    START: { chapter: 'home', initialState: { coins: 0 }, segments: ['…'], choices: [/* … */] },
     // …
-    OUTRO: { blocks: (state, team) => [`Konec, ${team.name}.`] },
+    OUTRO: { segments: (state, team) => [`Konec, ${team.name}.`] },
   },
 });
 ```
@@ -29,10 +29,10 @@ export const story = defineStory<State>()({
 
 ## Uzly
 
-Každý uzel je jeden krok příběhu.
+Každý uzel je ucelená část příběhu; pojmy popisuje [slovníček](story-glossary.md).
 
-- **`blocks`:** obrazovky textu v Markdownu, jedna obrazovka za blok. Může to být i funkce stavu a týmu, `(state, team) => [...]`, a blok `false` se vynechá, takže jde psát `podmínka && blok`.
-- Blok jako objekt `{ theme, content, svg, next }` určí **motiv** obrazovky (`default`, `intro`, `green`, `red`, `letter`, `description`), obrázek nad textem (jeden prvek `<svg>`, `currentColor` přebírá barvu textu) a text tlačítka na další obrazovku.
+- **`segments`:** segmenty textu v Markdownu, mezi kterými hráči listují. Může to být i funkce stavu a týmu, `(state, team) => [...]`, a segment `false` se vynechá, takže jde psát `podmínka && segment`.
+- Segment jako objekt `{ theme, content, svg, next }` určí **motiv** segmentu (`default`, `intro`, `green`, `red`, `letter`, `description`), obrázek nad textem (jeden prvek `<svg>`, `currentColor` přebírá barvu textu) a text tlačítka na další segment.
 - **`initialState`** má právě jeden uzel: start, kde každý tým začíná.
 - **`chapter`:** id kapitoly, do které uzel patří.
 
@@ -72,7 +72,7 @@ Kontrola projde příběh za každý tým ze všech dosažitelných stavů a ohl
 - uzel, kam nic nevede, a volbu, která vede do neexistujícího uzlu,
 - slepou uličku (uzel bez dostupné volby) a tým, který nemůže dojít do cíle,
 - kód, který nikde nepoužíváte, a sken neznámého kódu,
-- prázdnou obrazovku, chybu ve funkci bloku nebo volby a neplatnou hodnotu ve stavu,
+- prázdný segment, chybu ve funkci segmentů nebo voleb a neplatnou hodnotu ve stavu,
 - neznámou kapitolu, kapitolu bez uzlů a neplatné id kapitoly.
 
 Hlášky jsou česky a říkají, který uzel a stav se to týká. Překlepy v typech (volba do neexistujícího uzlu, sken neznámého kódu) najde už editor.

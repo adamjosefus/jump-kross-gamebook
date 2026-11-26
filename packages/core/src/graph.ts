@@ -3,7 +3,7 @@ import {
   mergeState,
   nodeType,
   sampleTeam,
-  screensOf,
+  segmentsOf,
   startNode,
   stateKey,
 } from './engine.ts';
@@ -25,20 +25,20 @@ export interface GraphChoice {
 export interface NodePreview {
   /** State the team has on arrival, along the first path from the start. */
   readonly state?: State;
-  /** Text of every block, markdown; empty for a block with only a picture. */
-  readonly blocks: readonly string[];
+  /** Text of every segment, markdown; empty for a segment with only a picture. */
+  readonly segments: readonly string[];
 }
 
 export interface GraphNode {
   readonly id: string;
   readonly type: NodeType;
-  /** `blocks` is a function of the state. */
+  /** `segments` is a function of the state. */
   readonly dynamic: boolean;
   /** Reachable from the start. */
   readonly reached: boolean;
   /** The chapter the node belongs to, by id. */
   readonly chapter?: string;
-  /** Missing for dynamic nodes the start never reaches, or when the blocks throw. */
+  /** Missing for dynamic nodes the start never reaches, or when the segments throw. */
   readonly preview?: NodePreview;
   readonly choices: readonly GraphChoice[];
 }
@@ -149,12 +149,12 @@ const previewOf = (
   state: State | undefined,
   team: Team,
 ): NodePreview | undefined => {
-  if (typeof node.blocks === 'function' && state === undefined) return undefined;
+  if (typeof node.segments === 'function' && state === undefined) return undefined;
   try {
-    const screens = screensOf(node, state ?? {}, team);
+    const segments = segmentsOf(node, state ?? {}, team);
     return {
       ...(state === undefined ? {} : { state }),
-      blocks: screens.map((screen) => screen.content),
+      segments: segments.map((segment) => segment.content),
     };
   } catch {
     return undefined;
@@ -184,7 +184,7 @@ export const toGraph = (story: Story): GameGraph => {
         const graphNode: GraphNode = {
           id,
           type: nodeType(story, id),
-          dynamic: typeof node.blocks === 'function',
+          dynamic: typeof node.segments === 'function',
           // Everyone sees the intro, without a state.
           reached: id === story.introNode || state !== undefined,
           ...(node.chapter === undefined ? {} : { chapter: node.chapter }),

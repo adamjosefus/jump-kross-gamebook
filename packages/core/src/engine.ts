@@ -1,7 +1,7 @@
 import {
   dedent,
   type AnyNode,
-  type Block,
+  type SegmentEntry,
   type Choice,
   type ScanChoice,
   type Story,
@@ -22,18 +22,18 @@ export interface RenderedChoice {
   readonly label: string;
 }
 
-export interface RenderedScreen {
+export interface RenderedSegment {
   readonly theme: Theme;
   readonly svg?: string;
   readonly content: string;
   readonly next?: string;
 }
 
-/** A node resolved for one team: blocks evaluated, hidden choices removed. */
+/** A node resolved for one team: segments evaluated, hidden choices removed. */
 export interface RenderedNode {
   readonly id: string;
   readonly type: NodeType;
-  readonly screens: readonly RenderedScreen[];
+  readonly segments: readonly RenderedSegment[];
   /** Buttons; empty for `end` nodes and nodes that wait for a scan. */
   readonly choices: readonly RenderedChoice[];
   /** The team moves on by scanning a QR code; where the codes lead stays hidden. */
@@ -82,9 +82,14 @@ export const nodeType = (story: Story, id: string): NodeType =>
         ? 'passage'
         : 'start';
 
-export const blocksOf = (node: AnyNode, state: State, team: Team): readonly Block[] =>
-  (typeof node.blocks === 'function' ? node.blocks(state, team) : node.blocks).filter(
-    (block): block is Block => block !== false && block !== null && block !== undefined,
+export const segmentEntriesOf = (
+  node: AnyNode,
+  state: State,
+  team: Team,
+): readonly SegmentEntry[] =>
+  (typeof node.segments === 'function' ? node.segments(state, team) : node.segments).filter(
+    (segment): segment is SegmentEntry =>
+      segment !== false && segment !== null && segment !== undefined,
   );
 
 /** The node's buttons for `team` in `state`, before their `when`. */
@@ -113,27 +118,27 @@ export const mergeState = (state: State, changes: Partial<State> | undefined): S
   ),
 });
 
-const screenOf = (block: Block): RenderedScreen =>
-  typeof block === 'string'
-    ? { theme: 'default', content: dedent(block) }
+const renderSegment = (segment: SegmentEntry): RenderedSegment =>
+  typeof segment === 'string'
+    ? { theme: 'default', content: dedent(segment) }
     : {
-        theme: block.theme ?? 'default',
-        ...(block.svg === undefined ? {} : { svg: block.svg }),
-        content: dedent(block.content),
-        ...(block.next === undefined ? {} : { next: block.next }),
+        theme: segment.theme ?? 'default',
+        ...(segment.svg === undefined ? {} : { svg: segment.svg }),
+        content: dedent(segment.content),
+        ...(segment.next === undefined ? {} : { next: segment.next }),
       };
 
-/** Every screen of the node with its content dedented. */
-export const screensOf = (node: AnyNode, state: State, team: Team): readonly RenderedScreen[] =>
-  blocksOf(node, state, team).map(screenOf);
+/** Every segment of the node with its content dedented. */
+export const segmentsOf = (node: AnyNode, state: State, team: Team): readonly RenderedSegment[] =>
+  segmentEntriesOf(node, state, team).map(renderSegment);
 
 /** The team to show content with where no real one plays, as in previews and test runs. */
 export const sampleTeam = (story: Story): Team => story.teams[0] ?? { id: 0, name: 'Tým' };
 
 /** Screens shown before login: the intro node, which has no team and no state. */
-export const introScreens = (story: Story): readonly RenderedScreen[] => {
+export const introSegments = (story: Story): readonly RenderedSegment[] => {
   const intro = story.nodes[story.introNode];
-  return intro === undefined ? [] : screensOf(intro, {}, sampleTeam(story));
+  return intro === undefined ? [] : segmentsOf(intro, {}, sampleTeam(story));
 };
 
 /** The node every team starts at: the first one with `initialState`. */
@@ -187,7 +192,7 @@ export const renderNode = (
   return {
     id: position.node,
     type: nodeType(story, position.node),
-    screens: screensOf(node, position.state, team),
+    segments: segmentsOf(node, position.state, team),
     choices: availableChoices(node, position.state, team).map(({ choice, index }) => ({
       index,
       label: choice.label,

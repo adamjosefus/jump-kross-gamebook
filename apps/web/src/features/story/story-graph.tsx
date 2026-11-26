@@ -442,9 +442,9 @@ const ChapterFrame = ({
     </div>
   </div>
 );
-/** All the blocks as one text, for a card to shorten as a whole. */
-const textOf = (blocks: readonly string[]) =>
-  blocks.filter((block) => block.trim() !== '').join('\n\n');
+/** All the segments as one text, for a card to shorten as a whole. */
+const textOf = (segments: readonly string[]) =>
+  segments.filter((block) => block.trim() !== '').join('\n\n');
 
 const NO_PREVIEW = 'Obsah závisí na stavu a tento start sem nevede.';
 
@@ -492,7 +492,7 @@ const FOCUS_LINE_GAP = 9;
 const FOCUSED_EDGE_Z_INDEX = 1001;
 
 /**
- * Node card: id tag, kind and the text of all its blocks, shortened as a whole. The text lines up
+ * Node card: id tag, kind and the text of all its segments, shortened as a whole. The text lines up
  * with the tags' labels rather than their outlines.
  */
 const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
@@ -537,7 +537,7 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
               {preview === undefined ? (
                 <em>{NO_PREVIEW}</em>
               ) : (
-                <Markdown>{textOf(preview.blocks)}</Markdown>
+                <Markdown>{textOf(preview.segments)}</Markdown>
               )}
             </div>
           </div>
@@ -579,24 +579,24 @@ const BlocksDialog = ({
   readonly onClose: () => void;
 }) => {
   const node = id === undefined ? undefined : graph.nodes[id];
-  const blocks = node?.preview?.blocks;
+  const segments = node?.preview?.segments;
   return (
     <Dialog open={id !== undefined} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className='flex max-h-[85dvh] flex-col gap-0 sm:max-w-2xl'>
         <DialogHeader className='-mx-4 border-b px-4 pb-4'>
           <DialogTitle className='font-mono'>{node?.id}</DialogTitle>
           <DialogDescription>
-            {node?.dynamic === true && blocks !== undefined
+            {node?.dynamic === true && segments !== undefined
               ? 'Text závisí na stavu a týmu. Tohle je ukázka pro první příchod a první tým.'
               : 'Všechny bloky v pořadí, v jakém je uvidí hráči.'}
           </DialogDescription>
         </DialogHeader>
-        {/* Only the blocks scroll, so the title and the close button stay in view. */}
+        {/* Only the segments scroll, so the title and the close button stay in view. */}
         <div className='-mx-4 -mb-4 flex min-h-0 flex-col gap-4 overflow-y-auto p-4'>
-          {blocks === undefined ? (
+          {segments === undefined ? (
             <em className='text-muted-foreground'>{NO_PREVIEW}</em>
           ) : (
-            blocks.map((block, index) => (
+            segments.map((block, index) => (
               <div key={index} className='graph-preview rounded-lg border p-3 leading-relaxed'>
                 {block.trim() === '' ? (
                   <em className='text-muted-foreground'>Blok bez textu.</em>

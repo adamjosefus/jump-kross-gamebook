@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { NodeScreens } from './node-screens';
+import { NodeSegments } from './node-segments';
 
 const MILL = `<svg viewBox="0 0 120 80" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M40 72V34h40v38M34 34l26-16 26 16M60 34V6M60 34 38 12M60 34l22-22M52 72V54h16v18"/></svg>`;
 
 const meta = {
-  title: 'Player/NodeScreens',
-  component: NodeScreens,
+  title: 'Player/NodeSegments',
+  component: NodeSegments,
   parameters: { layout: 'fullscreen' },
   args: {
-    step: 0,
+    revision: 0,
     visitScope: 'storybook',
     busy: false,
     onCode: () => undefined,
@@ -20,7 +20,7 @@ const meta = {
       scan: false,
       timeStops: false,
       choices: [{ index: 0, label: 'Vejít dovnitř' }],
-      screens: [
+      segments: [
         {
           theme: 'default',
           svg: MILL,
@@ -29,7 +29,7 @@ const meta = {
       ],
     },
   },
-} satisfies Meta<typeof NodeScreens>;
+} satisfies Meta<typeof NodeSegments>;
 
 export default meta;
 
@@ -44,7 +44,7 @@ export const ArrowOnlyNextButton: StoryObj<typeof meta> = {
       scan: false,
       timeStops: false,
       choices: [{ index: 0, label: 'Vyrazit na cestu' }],
-      screens: [
+      segments: [
         { theme: 'default', content: 'Na stole leží zapečetěný dopis.' },
         { theme: 'letter', content: '*Milí hledači,* poklad je blízko.' },
       ],
@@ -61,7 +61,7 @@ export const CustomNextButton: StoryObj<typeof meta> = {
       scan: false,
       timeStops: false,
       choices: [{ index: 0, label: 'Vyrazit na cestu' }],
-      screens: [
+      segments: [
         { theme: 'default', content: 'Na stole leží zapečetěný dopis.', next: 'Otevřít dopis' },
         { theme: 'letter', content: '*Milí hledači,* poklad je blízko.' },
       ],

@@ -2,7 +2,7 @@ import { defineStory } from '../src/index.ts';
 
 type State = { readonly gold: number; readonly hatColor: 'red' | 'blue' | 'green' };
 
-/** Small story covering QR choices, conditional blocks and choices, and an outro that depends on the state. */
+/** Small story covering QR choices, conditional segments and choices, and an outro that depends on the state. */
 export const SAMPLE = defineStory<State>()({
   teams: { 1: 'Vlci', 2: 'Lišky' },
   codes: { 32: 'Místo 32', 33: 'Místo 33' },
@@ -10,7 +10,7 @@ export const SAMPLE = defineStory<State>()({
   outroNode: 'OUTRO',
   nodes: {
     INTRO: {
-      blocks: [
+      segments: [
         {
           theme: 'intro',
           content: `
@@ -23,7 +23,7 @@ export const SAMPLE = defineStory<State>()({
     },
     A1: {
       initialState: { gold: 100, hatColor: 'red' },
-      blocks: [
+      segments: [
         {
           theme: 'intro',
           content: `
@@ -43,7 +43,7 @@ export const SAMPLE = defineStory<State>()({
       ],
     },
     A2: {
-      blocks: [
+      segments: [
         'Jděte ke studni na nádvoří, nebo k bráně.',
         { theme: 'description', content: 'Setmělo se.' },
       ],
@@ -53,7 +53,7 @@ export const SAMPLE = defineStory<State>()({
       ],
     },
     B1: {
-      blocks: (state) => {
+      segments: (state) => {
         const rich = state.hatColor === 'red' && state.gold >= 34;
         return [
           `Pohodlně si nosil svoji ${rich ? 'červenou čepici' : 'chudou pokrývku hlavy'}.`,
@@ -72,7 +72,7 @@ export const SAMPLE = defineStory<State>()({
     },
     // Whoever bought the sword has less than 50 left and won; fighting keeps the gold and loses.
     OUTRO: {
-      blocks: (state, team) =>
+      segments: (state, team) =>
         state.gold < 50 ? ['Vyhráli jste.'] : [`Prohráli jste, týme ${team.name}.`],
     },
   },

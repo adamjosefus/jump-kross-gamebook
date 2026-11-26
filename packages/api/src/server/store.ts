@@ -11,7 +11,8 @@ export interface TeamRow {
   /** Undefined until the team starts (or after a reset). */
   readonly node: string | undefined;
   readonly state: State;
-  readonly step: number;
+  /** Increments with every move; a move from an old revision is refused. */
+  readonly revision: number;
   /** The team's first login after the game started; undefined before it and after a reset. */
   readonly startedAt: Date | undefined;
   readonly finishedAt: Date | undefined;
@@ -27,10 +28,10 @@ export interface LogRow {
   readonly state: State;
 }
 
-/** A step of the log as the teams' times need it, without the state. */
-export type StepRow = Pick<LogRow, 'teamId' | 'at' | 'action' | 'toNode'>;
+/** A row of the action log as the teams' times need it, without the state. */
+export type MoveRow = Pick<LogRow, 'teamId' | 'at' | 'action' | 'toNode'>;
 
-/** The steps that send a team to the start; what came before them no longer tells where it is. */
+/** The actions that send a team to the start; what came before them no longer tells where it is. */
 export const START_ACTIONS: readonly string[] = ['start', 'reset'];
 
 /** A device logged in to a team, as the admin sees it. */
@@ -85,8 +86,8 @@ export interface TeamMove {
 
 /**
  * Persistence. `moveTeam` is the only write on the hot path and must be atomic: it applies only
- * when the team is still at `expectedStep`, which is how concurrent devices of a team are resolved.
- * Without an expected step (the admin resets or moves a team) it applies whatever the team does
+ * when the team is still at `expectedRevision`, which is how concurrent devices of a team are resolved.
+ * Without an expected revision (the admin resets or moves a team) it applies whatever the team does
  * meanwhile, so the admin's word is the last one.
  */
 export interface StoreShape {
@@ -95,18 +96,18 @@ export interface StoreShape {
   /** The team's row, created (not started) the first time the team is needed. */
   readonly ensureTeam: (id: number) => Effect.Effect<TeamRow, StoreError>;
   /**
-   * Returns the updated team, or undefined when the step did not match or the team has no row.
-   * With `expectedStep` undefined the move applies at any step.
+   * Returns the updated team, or undefined when the revision did not match or the team has no row.
+   * With `expectedRevision` undefined the move applies at any revision.
    */
   readonly moveTeam: (
     id: number,
-    expectedStep: number | undefined,
+    expectedRevision: number | undefined,
     move: TeamMove,
   ) => Effect.Effect<TeamRow | undefined, StoreError>;
 
   /**
    * A new game for these teams in one go: rows created where missing, every team moved to `start`
-   * whatever its step, the first login and the devices' sessions forgotten, and the
+   * wherever it is, the first login and the devices' sessions forgotten, and the
    * game itself no longer started. Returns the rows as they are then.
    */
   readonly resetTeams: (
@@ -128,7 +129,7 @@ export interface StoreShape {
   readonly clearTiming: (id: number) => Effect.Effect<void, StoreError>;
   /**
    * The same for a team on its way, which keeps where it is: in one write, so a team that reaches
-   * the end at the same moment keeps its times. The step log gets a `reset-time` row with no
+   * the end at the same moment keeps its times. The action log gets a `reset-time` row with no
    * target node, which is not a visit. False when the team is at the end or does not exist, and
    * nothing changed.
    */
@@ -170,11 +171,11 @@ export interface StoreShape {
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
   /**
-   * The steps the teams' times are worked out from, the oldest first: of one team or of all,
-   * each team's from its last move to the start on. Older steps change nothing about where a
+   * The moves the teams' times are worked out from, the oldest first: of one team or of all,
+   * each team's from its last move to the start on. Older moves change nothing about where a
    * team is, and the log is never emptied, so they are left out.
    */
-  readonly listSteps: (teamId?: number) => Effect.Effect<readonly StepRow[], StoreError>;
+  readonly listMoves: (teamId?: number) => Effect.Effect<readonly MoveRow[], StoreError>;
   /** Arrivals per node over the whole game, by choice, scan, start, reset or admin move. */
   readonly visitCounts: () => Effect.Effect<ReadonlyMap<string, number>, StoreError>;
 }

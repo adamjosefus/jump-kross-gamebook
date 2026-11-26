@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
-import { THEME_BOX } from '../block-look';
+import { THEME_BOX } from '../segment-look';
 import { StoryText } from './story-text';
 
 const meta = {

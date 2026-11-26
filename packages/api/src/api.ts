@@ -32,8 +32,8 @@ export class InvalidCode extends Schema.TaggedError<InvalidCode>()(
 ) {}
 
 /** Another device of the same team moved first; the client should refetch. */
-export class StepConflict extends Schema.TaggedError<StepConflict>()(
-  'StepConflict',
+export class RevisionConflict extends Schema.TaggedError<RevisionConflict>()(
+  'RevisionConflict',
   { message: Schema.String },
   { httpApiStatus: 409 },
 ) {}
@@ -121,19 +121,19 @@ export class GameNotStarted extends Schema.TaggedError<GameNotStarted>()(
 
 export const PlayerChoice = Schema.Struct({ index: Schema.Number, label: Schema.String });
 
-export const PlayerScreen = Schema.Struct({
+export const PlayerSegment = Schema.Struct({
   theme: Theme,
   svg: Schema.optionalKey(Schema.String),
   content: Schema.String,
-  /** Text of the button to the next screen, when the story sets one. */
+  /** Text of the button to the next segment, when the story sets one. */
   next: Schema.optionalKey(Schema.String),
 });
-export type PlayerScreen = typeof PlayerScreen.Type;
+export type PlayerSegment = typeof PlayerSegment.Type;
 
 export const PlayerView = Schema.Struct({
   team: Schema.Struct({ id: Schema.Number, name: Schema.String }),
-  /** Increments with every move; sent back as `expectedStep`. */
-  step: Schema.Number,
+  /** Increments with every move; sent back as `expectedRevision`. */
+  revision: Schema.Number,
   /** `closed`: the admin closed the game; the view then has no node until it opens again. */
   status: Schema.Literals(['playing', 'finished', 'not-ready', 'closed']),
   /** The story's login texts, written for this team. */
@@ -149,7 +149,7 @@ export const PlayerView = Schema.Struct({
     Schema.Struct({
       id: Schema.String,
       type: NodeType,
-      screens: Schema.Array(PlayerScreen),
+      segments: Schema.Array(PlayerSegment),
       choices: Schema.Array(PlayerChoice),
       /** The team moves on by scanning a QR code instead of choosing. */
       scan: Schema.Boolean,
@@ -188,7 +188,7 @@ export const PlayerIntro = Schema.Struct({
   started: Schema.Boolean,
   /** The admin closed the game; the login does not work until it opens again. */
   closed: Schema.Boolean,
-  screens: Schema.Array(PlayerScreen),
+  segments: Schema.Array(PlayerSegment),
   /** The heading of the login scan screen, when the story sets one. */
   scanTitle: Schema.optionalKey(Schema.String),
   /** The text under that heading, when the story sets one. */
@@ -210,14 +210,14 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       PlayerAuth,
     ),
     HttpApiEndpoint.post('choose', '/choose', {
-      payload: Schema.Struct({ index: Schema.Number, expectedStep: Schema.Number }),
+      payload: Schema.Struct({ index: Schema.Number, expectedRevision: Schema.Number }),
       success: PlayerView,
-      error: [StepConflict, InvalidMove, NotFound, GameClosed],
+      error: [RevisionConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
     HttpApiEndpoint.post('scan', '/scan', {
-      payload: Schema.Struct({ code: Schema.String, expectedStep: Schema.Number }),
+      payload: Schema.Struct({ code: Schema.String, expectedRevision: Schema.Number }),
       success: PlayerView,
-      error: [InvalidCode, StepConflict, InvalidMove, NotFound, GameClosed],
+      error: [InvalidCode, RevisionConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
   )
@@ -253,7 +253,7 @@ export const StoryGraph = Schema.Struct({
       preview: Schema.optionalKey(
         Schema.Struct({
           state: Schema.optionalKey(GameState),
-          blocks: Schema.Array(Schema.String),
+          segments: Schema.Array(Schema.String),
         }),
       ),
       choices: Schema.Array(
@@ -328,7 +328,8 @@ export const TeamStatus = Schema.Struct({
   /** False when the team's node no longer exists in the story. */
   nodeExists: Schema.Boolean,
   state: GameState,
-  step: Schema.Number,
+  /** Increments with every move of the team. */
+  revision: Schema.Number,
   finished: Schema.Boolean,
   /** The team's last move; missing for a team that never logged in. */
   updatedAt: Schema.optionalKey(Schema.String),
@@ -465,7 +466,7 @@ export const PlaytestView = Schema.Struct({
   view: Schema.Struct({
     id: Schema.String,
     type: NodeType,
-    screens: Schema.Array(PlayerScreen),
+    segments: Schema.Array(PlayerSegment),
     choices: Schema.Array(PlayerChoice),
     scan: Schema.Boolean,
     scanTitle: Schema.optionalKey(Schema.String),

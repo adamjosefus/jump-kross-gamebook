@@ -18,7 +18,7 @@ describe('validateStory', () => {
           introNode: 'INTRO',
           outroNode: 'A',
           codes: {},
-          nodes: { INTRO: { blocks: ['Úvod'] }, A: { blocks: ['A'] } },
+          nodes: { INTRO: { segments: ['Úvod'] }, A: { segments: ['A'] } },
         }),
       ),
     ).toEqual(['Příběh nemá start (uzel s initialState).']);
@@ -31,15 +31,15 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: ['Vítejte', '  '] },
-        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
-        B: { initialState: { n: 1 }, blocks: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
-        C: { blocks: ['C'] },
+        INTRO: { segments: ['Vítejte', '  '] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
+        B: { initialState: { n: 1 }, segments: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([
       'Příběh má víc startů (A, B), smí mít jen jeden.',
-      'Úvod má prázdnou obrazovku č. 2.',
+      'Úvod má prázdný segment č. 2.',
       'Tým „ “ má neplatné číslo 0: musí být celé, od 1 do 999999.',
       'Tým 0 nemá název.',
       'Uzel B je nedosažitelný ze startu.',
@@ -60,28 +60,28 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: [{ content: 'Úvod', next: ' ' }] },
+        INTRO: { segments: [{ content: 'Úvod', next: ' ' }] },
         A: {
           initialState: { n: 0 },
-          blocks: [
+          segments: [
             { content: 'A', next: 'Dál' },
             { content: 'A2', next: 'Ke kódu' },
           ],
           scans: [{ code: 1, goto: 'B' }],
         },
         B: {
-          blocks: [
+          segments: [
             { content: 'B', next: ' ' },
             { content: 'B2', next: 'Nikam' },
           ],
           choices: [{ label: 'Konec', goto: 'C' }],
         },
-        C: { blocks: [{ content: 'C', next: 'Taky nikam' }] },
+        C: { segments: [{ content: 'C', next: 'Taky nikam' }] },
       },
     });
     expect(validateStory(story)).toEqual([
-      'Uzel B má next „Nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
-      'Uzel C má next „Taky nikam“ na poslední obrazovce, kde žádné takové tlačítko není.',
+      'Uzel B má next „Nikam“ v posledním segmentu, kde žádné takové tlačítko není.',
+      'Uzel C má next „Taky nikam“ v posledním segmentu, kde žádné takové tlačítko není.',
     ]);
   });
 
@@ -92,13 +92,13 @@ describe('validateStory', () => {
       outroNode: 'B',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: (_state, team) => [team.id === 1 && 'Jen pro Vlky'],
+          segments: (_state, team) => [team.id === 1 && 'Jen pro Vlky'],
           choices: [{ label: 'Dál', goto: 'B' }],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -113,18 +113,18 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 1 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Dál', goto: 'B' },
             { label: 'Nikdy', goto: 'C', when: (state) => state.n > 5 },
           ],
         },
-        B: { blocks: ['B'] },
-        C: { blocks: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
-        D: { blocks: ['D'], choices: [{ label: 'Konec', goto: 'B' }] },
+        B: { segments: ['B'] },
+        C: { segments: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
+        D: { segments: ['D'], choices: [{ label: 'Konec', goto: 'B' }] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -141,23 +141,23 @@ describe('validateStory', () => {
       outroNode: 'C',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Plus', goto: 'B', nextState: (state) => ({ n: state.n + 1 }) },
             { label: 'Rovně', goto: 'B' },
           ],
         },
         B: {
-          blocks: (state) => [`n = ${state.n}`],
+          segments: (state) => [`n = ${state.n}`],
           choices: [
             { label: 'Odměna', goto: 'C', when: (state) => state.n > 0 },
             { label: 'Konec', goto: 'C' },
           ],
         },
-        C: { blocks: ['C'] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([]);
@@ -170,16 +170,16 @@ describe('validateStory', () => {
       outroNode: 'B',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Jen s jedničkou', goto: 'B', when: (state) => state.n === 1 },
             { label: 'Jindy', goto: 'B', when: (state) => state.n === 2 },
           ],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -197,25 +197,25 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A', { theme: 'letter', content: '   ' }, ''],
+          segments: ['A', { theme: 'letter', content: '   ' }, ''],
           choices: [
             { label: ' ', goto: 'B' },
             { label: 'Dál', goto: 'B' },
             { label: 'Dál', goto: 'C' },
           ],
         },
-        B: { blocks: (state) => [state.n > 0 && 'nikdy'] },
-        C: { blocks: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
+        B: { segments: (state) => [state.n > 0 && 'nikdy'] },
+        C: { segments: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
       },
     });
     expect(validateStory(story)).toEqual([
       'Uzel A má volbu bez popisku.',
       'Uzel A má dvě volby „Dál“.',
-      'Uzel A má prázdnou obrazovku č. 2.',
-      'Uzel A má prázdnou obrazovku č. 3.',
+      'Uzel A má prázdný segment č. 2.',
+      'Uzel A má prázdný segment č. 3.',
       'Uzel B nemá ve stavu {"n":0} žádný obsah.',
     ]);
   });
@@ -227,10 +227,10 @@ describe('validateStory', () => {
       outroNode: 'C',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Vlci', goto: 'B', when: (_state, team) => team.id === 1 },
             { label: 'Lišky', goto: 'C', when: (_state, team) => team.id === 2 },
@@ -238,10 +238,10 @@ describe('validateStory', () => {
         },
         // Only the wolves get here, so the foxes' lack of a choice is no dead end.
         B: {
-          blocks: ['B'],
+          segments: ['B'],
           choices: [{ label: 'Dál', goto: 'C', when: (_state, team) => team.id === 1 }],
         },
-        C: { blocks: ['C'] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([]);
@@ -254,13 +254,13 @@ describe('validateStory', () => {
       outroNode: 'B',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [{ label: 'Jen Vlci', goto: 'B', when: (_state, team) => team.id === 1 }],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -276,10 +276,10 @@ describe('validateStory', () => {
       outroNode: 'B',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: (_state, team) =>
             team.id === 1
               ? [
@@ -288,7 +288,7 @@ describe('validateStory', () => {
                 ]
               : [],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -305,15 +305,15 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: () => {
             throw new Error('chyba');
           },
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -322,7 +322,7 @@ describe('validateStory', () => {
     ]);
   });
 
-  it('accepts a screen with a picture and no text', () => {
+  it('accepts a segment with a picture and no text', () => {
     const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
     const story = define({
       teams: { 1: 'Tým' },
@@ -330,9 +330,9 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
-        INTRO: { blocks: [{ svg, content: '' }] },
-        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Konec', goto: 'B' }] },
-        B: { blocks: [{ svg, content: ' ' }] },
+        INTRO: { segments: [{ svg, content: '' }] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ label: 'Konec', goto: 'B' }] },
+        B: { segments: [{ svg, content: ' ' }] },
       },
     });
     expect(validateStory(story)).toEqual([]);
@@ -346,36 +346,36 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'B',
       nodes: {
-        INTRO: { blocks: [{ svg: 'obrázek.svg', content: 'Úvod' }] },
+        INTRO: { segments: [{ svg: 'obrázek.svg', content: 'Úvod' }] },
         A: {
           initialState: { n: 0 },
-          blocks: [
+          segments: [
             { svg, content: 'A' },
             { svg: `\n  ${svg}\n`, content: 'B' },
             { svg: '<svg>', content: 'C' },
           ],
           choices: [{ label: 'Konec', goto: 'B' }],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
-      'Úvod má neplatné svg na obrazovce č. 1.',
-      'Uzel A má neplatné svg na obrazovce č. 3.',
+      'Úvod má neplatné svg v segmentu č. 1.',
+      'Uzel A má neplatné svg v segmentu č. 3.',
     ]);
   });
 
-  it('reports bad codes, two QR choices for one code and blocks that throw', () => {
+  it('reports bad codes, two QR choices for one code and segments that throw', () => {
     const story = define({
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
       outroNode: 'C',
       codes: { 0: 'Místo 0', 3: 'Místo 3' },
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['Sken'],
+          segments: ['Sken'],
           scans: [
             { code: 0, goto: 'B' },
             { code: 3, goto: 'B' },
@@ -383,12 +383,12 @@ describe('validateStory', () => {
           ],
         },
         B: {
-          blocks: () => {
+          segments: () => {
             throw new Error('chyba');
           },
           choices: [{ label: 'Dál', goto: 'C' }],
         },
-        C: { blocks: ['C'] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -407,10 +407,10 @@ describe('validateStory', () => {
       outroNode: 'O',
       order: ['A'],
       nodes: {
-        I: { blocks: ['Úvod'] },
-        O: { blocks: ['O'] },
-        A: { initialState: {}, blocks: ['A'], scans: [{ code: 2, goto: 'A' }] },
-        B: { initialState: {}, blocks: ['B'], choices: [{ label: 'Pryč', goto: 'X' }] },
+        I: { segments: ['Úvod'] },
+        O: { segments: ['O'] },
+        A: { initialState: {}, segments: ['A'], scans: [{ code: 2, goto: 'A' }] },
+        B: { initialState: {}, segments: ['B'], choices: [{ label: 'Pryč', goto: 'X' }] },
       },
     };
     expect(validateStory(story)).toEqual([
@@ -429,16 +429,16 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           scans: [
             { code: 1, goto: 'C' },
             { code: 1000000, goto: 'C' },
           ],
         },
-        C: { blocks: ['C'] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -471,9 +471,9 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
-        A: { initialState: { n: 0 }, blocks: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
-        C: { blocks: ['C'] },
+        INTRO: { segments: ['Úvod'] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory({ ...story, order: ['INTRO', 'A', 'A', 'X'] })).toEqual([
@@ -491,16 +491,16 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: Number.NaN },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Dál', goto: 'B', nextState: () => ({ n: 1, bag: parsed('{"gold":1}') }) },
           ],
         },
-        B: { blocks: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
-        C: { blocks: ['C'] },
+        B: { segments: ['B'], choices: [{ label: 'Dál', goto: 'C' }] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -518,17 +518,17 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         START: {
           initialState: { n: 0 },
-          blocks: ['Start'],
+          segments: ['Start'],
           choices: [
             { label: 'Konec', goto: 'OUTRO', when: (_state, team) => team.id === 1 },
             { label: 'Dokola', goto: 'B', when: (_state, team) => team.id === 2 },
           ],
         },
-        B: { blocks: ['B'], choices: [{ label: 'Zpět', goto: 'START' }] },
-        OUTRO: { blocks: ['Konec'] },
+        B: { segments: ['B'], choices: [{ label: 'Zpět', goto: 'START' }] },
+        OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -543,10 +543,10 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         START: {
           initialState: { n: 0 },
-          blocks: ['Start'],
+          segments: ['Start'],
           choices: [
             {
               label: 'Dál',
@@ -558,8 +558,8 @@ describe('validateStory', () => {
             { label: 'Nikam', goto: 'C', when: (state) => state.n >= 2 },
           ],
         },
-        C: { blocks: ['C'], choices: [{ label: 'Nic', goto: 'OUTRO', when: () => false }] },
-        OUTRO: { blocks: ['Konec'] },
+        C: { segments: ['C'], choices: [{ label: 'Nic', goto: 'OUTRO', when: () => false }] },
+        OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -575,13 +575,13 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'OUTRO',
       nodes: {
-        INTRO: { blocks: [{ svg: '<svg viewBox="0 0 1 1"/>', content: 'Úvod' }] },
+        INTRO: { segments: [{ svg: '<svg viewBox="0 0 1 1"/>', content: 'Úvod' }] },
         START: {
           initialState: { n: 0 },
-          blocks: ['Start'],
+          segments: ['Start'],
           choices: [{ label: 'Dál', goto: 'OUTRO' }],
         },
-        OUTRO: { blocks: [{ svg: '<svg/>', content: 'Konec' }] },
+        OUTRO: { segments: [{ svg: '<svg/>', content: 'Konec' }] },
       },
     });
     expect(validateStory(story)).toEqual([]);
@@ -589,7 +589,7 @@ describe('validateStory', () => {
       validateStory({
         ...story,
         order: ['INTRO', 'START', 'OUTRO', '10'],
-        nodes: { ...story.nodes, 10: { blocks: ['x'] } },
+        nodes: { ...story.nodes, 10: { segments: ['x'] } },
       }),
     ).toEqual(['Uzel 10 má číselný název; pojmenujte ho slovem.']);
   });
@@ -601,10 +601,10 @@ describe('validateStory', () => {
       outroNode: 'OUTRO',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         START: {
           initialState: { n: 0 },
-          blocks: ['Start'],
+          segments: ['Start'],
           choices: [
             { label: 'Rovnou', goto: 'A' },
             { label: 'Oklikou', goto: 'A', nextState: () => ({ n: 1 }) },
@@ -612,14 +612,14 @@ describe('validateStory', () => {
         },
         // With n = 1 the team walks between A and B forever: both always offer a way on.
         A: {
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
             { label: 'Do B', goto: 'B' },
           ],
         },
-        B: { blocks: ['B'], choices: [{ label: 'Do A', goto: 'A' }] },
-        OUTRO: { blocks: ['Konec'] },
+        B: { segments: ['B'], choices: [{ label: 'Do A', goto: 'A' }] },
+        OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story)).toEqual([
@@ -635,17 +635,17 @@ describe('validateStory', () => {
       outroNode: 'OUTRO',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Do B', goto: 'B', nextState: (state) => ({ n: Math.min(state.n + 1, 2) }) },
             { label: 'Konec', goto: 'OUTRO', when: (state) => state.n >= 2 },
           ],
         },
-        B: { blocks: ['B'], choices: [{ label: 'Zpět', goto: 'A' }] },
-        OUTRO: { blocks: ['Konec'] },
+        B: { segments: ['B'], choices: [{ label: 'Zpět', goto: 'A' }] },
+        OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story)).toEqual([]);
@@ -659,16 +659,16 @@ describe('validateStory', () => {
       outroNode: 'OUTRO',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Dál', goto: 'A', nextState: (state) => ({ n: state.n + 1 }) },
             { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
           ],
         },
-        OUTRO: { blocks: ['Konec'] },
+        OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story, { maxStates: 50 })).toEqual([
@@ -683,16 +683,16 @@ describe('validateStory', () => {
       outroNode: 'B',
       codes: {},
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [
             { label: 'Znovu', goto: 'A', nextState: (state) => ({ n: state.n + 1 }) },
             { label: 'Konec', goto: 'B' },
           ],
         },
-        B: { blocks: ['B'] },
+        B: { segments: ['B'] },
       },
     });
     expect(validateStory(story, { maxStates: 50 })).toEqual([
@@ -707,15 +707,15 @@ describe('validateStory', () => {
       introNode: 'INTRO',
       outroNode: 'C',
       nodes: {
-        INTRO: { blocks: ['Úvod'] },
+        INTRO: { segments: ['Úvod'] },
         A: {
           chapter: 'one',
           initialState: { n: 0 },
-          blocks: ['A'],
+          segments: ['A'],
           choices: [{ label: 'B', goto: 'B' }],
         },
-        B: { chapter: 'nowhere', blocks: ['B'], choices: [{ label: 'C', goto: 'C' }] },
-        C: { blocks: ['C'] },
+        B: { chapter: 'nowhere', segments: ['B'], choices: [{ label: 'C', goto: 'C' }] },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([

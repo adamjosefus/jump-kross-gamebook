@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { ThemeContext } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-import { OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './block-look';
+import { OPTICAL_CENTER, THEME_BOX, THEME_PAGE } from './segment-look';
 import { StoryText } from './story-text/story-text';
 
 interface Look {
@@ -105,7 +105,7 @@ const Mode = ({
   </ThemeContext>
 );
 
-const Blocks = ({ sample }: { readonly sample?: string }) => (
+const Segments = ({ sample }: { readonly sample?: string }) => (
   <div className='-m-8 flex flex-col'>
     <Mode mode='light' sample={sample} />
     <Mode mode='dark' sample={sample} />
@@ -113,9 +113,9 @@ const Blocks = ({ sample }: { readonly sample?: string }) => (
 );
 
 const meta = {
-  title: 'Player/Bloky',
-  component: Blocks,
-} satisfies Meta<typeof Blocks>;
+  title: 'Player/Segmenty',
+  component: Segments,
+} satisfies Meta<typeof Segments>;
 
 export default meta;
 

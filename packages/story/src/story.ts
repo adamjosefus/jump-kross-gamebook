@@ -16,11 +16,11 @@ const coinsText = (count: number): string => {
  * on the screen, QR scans that are choices too, one number in the state, `coins`, which both
  * choices and scans change, and chapters whose time is measured on its own.
  *
- * Every node is one step of the story: `blocks` are its screens (markdown, one screen each,
- * optionally with a `theme`). A node leads on either by `choices` (buttons) or by `scans`: the team
- * scans one of the QR codes and goes where that code leads. Several codes can hang side by side, so
- * the team decides by which one it scans. The team does not see which codes a node accepts, so the
- * screens have to say where to go and which code to scan.
+ * Every node is one whole part of the story: `segments` are its parts the players page through
+ * (markdown, one segment each, optionally with a `theme`). A node leads on by an action, either by
+ * `choices` (buttons) or by `scans`: the team scans one of the QR codes and goes where that code
+ * leads. Several codes can hang side by side, so the team decides by which one it scans. The team does not see which codes a node accepts, so the
+ * segments have to say where to go and which code to scan.
  *
  * `teams` are the teams of the game and `codes` the QR codes that move teams on; the admin prints
  * their codes from here. In every shop the team scans the code on its door and earns the
@@ -89,7 +89,7 @@ export const story = defineStory<State>()({
         switchConfirm: 'Přepnout tým',
         switchCancel: (team) => `Zůstat v týmu ${team.name}`,
       },
-      blocks: [
+      segments: [
         {
           theme: 'intro',
           svg: `<svg width="230" height="70" viewBox="0 0 230 70">
@@ -102,7 +102,7 @@ export const story = defineStory<State>()({
     START: {
       chapter: 'home',
       initialState: { coins: 0 },
-      blocks: (state, team) => [
+      segments: (state, team) => [
         {
           theme: 'description',
           content: `
@@ -150,7 +150,7 @@ Na stole leží obálka s výplatou. Kolik si vezmete s sebou na nákup?
       chapter: 'shopping',
       scanTitle: 'Kam na nákup?',
       scanText: 'Naskenujte kód obchodu, do kterého jdete.',
-      blocks: (state) => [
+      segments: (state) => [
         `
 V peněžence máte ${coinsText(state.coins)}.
 
@@ -172,7 +172,7 @@ Dohodněte se, kam půjdete, a u vchodu naskenujte kód toho obchodu.
       chapter: 'shopping',
       scanTitle: 'Uhodli jste?',
       scanText: 'Naskenujte kód, který vám dala pekařka.',
-      blocks: [
+      segments: [
         `
 Voní to tu čerstvým chlebem. Pekařka se usměje: „Prodám vám, až uhodnete, kolik druhů pečiva mám ve vitríně.“
 
@@ -183,7 +183,7 @@ Spočítejte to a řekněte jí výsledek. Za správnou odpověď vám dá kó
     },
     PEKARNA_NAKUP: {
       chapter: 'shopping',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Uhodli jste. Za pultem čeká pekařka a vy máte ${coinsText(state.coins)}.
 
@@ -206,7 +206,7 @@ Co si koupíte?
     PEKARNA_CESTA: {
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
-      blocks: (state) => [
+      segments: (state) => [
         `
 S chlebem v tašce stojíte před pekárnou. Zbývá vám ${coinsText(state.coins)}.
 
@@ -226,7 +226,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
     },
     PEKARNA_VARENI: {
       chapter: 'dinner',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Jste doma s nákupem z pekárny a ${coinsText(state.coins)} v peněžence.
 
@@ -249,7 +249,7 @@ Co bude k večeři?
       chapter: 'shopping',
       scanTitle: 'Máte to?',
       scanText: 'Naskenujte kód, který vám dal zelinář.',
-      blocks: [
+      segments: [
         `
 Bedýnky s bramborami, cibulí a mrkví. Zelinář má plné ruce práce: „Prodám vám, až mi pomůžete. Vyjmenujte pět druhů zeleniny, které tu nemám.“
 
@@ -260,7 +260,7 @@ Domluvte se a řekněte mu je. Za správnou odpověď vám dá kód.
     },
     ZELINAR_NAKUP: {
       chapter: 'shopping',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Zelinář je spokojený a vy máte ${coinsText(state.coins)}.
 
@@ -283,7 +283,7 @@ Co si koupíte?
     ZELINAR_CESTA: {
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Taška je těžká a v peněžence zbývá ${coinsText(state.coins)}.
 
@@ -302,7 +302,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
     },
     ZELINAR_VARENI: {
       chapter: 'dinner',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Jste doma, zelenina leží na lince a v peněžence máte ${coinsText(state.coins)}.
 
@@ -331,7 +331,7 @@ Co bude k večeři?
       chapter: 'shopping',
       scanTitle: 'Uhodli jste?',
       scanText: 'Naskenujte kód, který vám dal řezník.',
-      blocks: [
+      segments: [
         `
 Za sklem leží maso a řezník si brousí nůž. „Nejdřív hádanka,“ řekne. „Kolik nohou mají dohromady dvě slepice a jedno prase?“
 
@@ -342,7 +342,7 @@ Spočítejte to a řekněte mu výsledek. Za správnou odpověď vám dá kód
     },
     REZNICTVI_NAKUP: {
       chapter: 'shopping',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Uhodli jste. Řezník odloží nůž a vy máte v peněžence ${coinsText(state.coins)}.
 
@@ -365,7 +365,7 @@ Co si koupíte?
     REZNICTVI_CESTA: {
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Maso je zabalené a v peněžence zbývá ${coinsText(state.coins)}.
 
@@ -384,7 +384,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
     },
     REZNICTVI_VARENI: {
       chapter: 'dinner',
-      blocks: (state) => [
+      segments: (state) => [
         `
 Jste doma, maso je v lednici a v peněžence máte ${coinsText(state.coins)}.
 
@@ -403,7 +403,7 @@ Co bude k večeři?
     },
 
     OUTRO: {
-      blocks: (state, team) => [
+      segments: (state, team) => [
         `
 ## Dobrou chuť, ${team.name}!
 

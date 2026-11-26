@@ -131,11 +131,11 @@ const PlayerHandlers = HttpApiBuilder.group(
       }),
       choose: Effect.fn(function* ({ payload }) {
         const { teamId } = yield* CurrentTeam;
-        return yield* orDie(game.choose(teamId, payload.index, payload.expectedStep));
+        return yield* orDie(game.choose(teamId, payload.index, payload.expectedRevision));
       }),
       scan: Effect.fn(function* ({ payload }) {
         const { teamId } = yield* CurrentTeam;
-        return yield* orDie(game.scan(teamId, payload.code, payload.expectedStep));
+        return yield* orDie(game.scan(teamId, payload.code, payload.expectedRevision));
       }),
       logout: Effect.fn(function* () {
         const { sessionId } = yield* CurrentTeam;

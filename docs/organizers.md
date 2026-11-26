@@ -9,7 +9,7 @@ Jak připravit a řídit hru v administraci. Administrace je na adrese `/admin` 
 | **Příběh**   | Graf celého příběhu: uzly, volby a skeny, kapitoly v rámečcích. Klik na uzel ukáže jeho text. |
 | **Test**     | Projití příběhu tak, jak ho vidí tým, bez ukládání a bez vlivu na hru.                        |
 | **Hra**      | Spuštění, pozastavení a smazání hry, seznam týmů a kódů v příběhu.                            |
-| **Živě**     | Graf s týmy na jejich uzlech, panel „Klany“, panel „Poslední kroky“, zásahy do hry.           |
+| **Živě**     | Graf s týmy na jejich uzlech, panel „Klany“, panel „Poslední akce“, zásahy do hry.            |
 | **Časy**     | Tabulka časů týmů po kapitolách a mezi nimi.                                                  |
 | **Zařízení** | Telefony přihlášené k týmům; odhlášení a blokování zařízení.                                  |
 | **QR kódy**  | Kódy k tisku: vstupní kód každého týmu a herní kódy příběhu.                                  |
@@ -27,7 +27,7 @@ Vytištěné kódy jsou podepsané tajným klíčem aplikace. Dokud se klíč ne
 ## Během hry
 
 - **Panel „Klany“** na stránce Živě ukazuje u každého klanu, kde v příběhu je, jeho stav, počet aktivních zařízení a kdy naposledy hrál. Štítek říká, v jaké kapitole tým je (nebo „Mezi kapitolami“) a jak dlouho; pod ním je celkový čas a výsledek. Klany jde řadit podle pořadí, názvu, výsledného a celkového času nebo hodnoty stavu.
-- **Panel „Poslední kroky“** ukazuje posledních 50 kroků všech týmů: volby, skeny (s názvem kódu), restarty a zásahy organizátorů.
+- **Panel „Poslední akce“** ukazuje posledních 50 akcí všech týmů: volby, skeny (s názvem kódu), restarty a zásahy organizátorů.
 - **Graf** ukazuje týmy jako barevná kolečka na uzlech, kde stojí, a kolikrát klany do uzlu dorazily.
 - **Pozastavení:** „Pozastavit“ na stránce Hra zastaví hru všem týmům najednou; telefony ukážou čekací obrazovku. Po pokračování týmy navážou tam, kde skončily. Čas jim během pauzy běží dál.
 

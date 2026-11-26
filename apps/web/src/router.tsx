@@ -17,10 +17,10 @@ const index = (value: unknown) => {
   return Number.isInteger(number) && number >= 0 ? number : undefined;
 };
 
-/** Where the player is within the team's step, so a reload opens the same screen. */
+/** Where the player is within the team's revision, so a reload opens the same segment. */
 export interface PlayerSearch {
-  readonly step?: number;
-  readonly screen?: number;
+  readonly revision?: number;
+  readonly segment?: number;
 }
 
 const player = createRoute({
@@ -28,11 +28,11 @@ const player = createRoute({
   path: '/',
   component: PlayerPage,
   validateSearch: (search): PlayerSearch => {
-    const step = index(search['step']);
-    const screen = index(search['screen']);
+    const revision = index(search['revision']);
+    const segment = index(search['segment']);
     return {
-      ...(step === undefined ? {} : { step }),
-      ...(screen === undefined ? {} : { screen }),
+      ...(revision === undefined ? {} : { revision }),
+      ...(segment === undefined ? {} : { segment }),
     };
   },
 });
@@ -54,10 +54,10 @@ const story = createRoute({
   path: '/story',
   component: lazyRouteComponent(() => import('@/features/admin/story-page'), 'StoryPage'),
 });
-/** The test run's moves and screen, so a reload replays the same path. */
+/** The test run's moves and segment, so a reload replays the same path. */
 export interface PlaytestSearch {
   readonly path?: string;
-  readonly screen?: number;
+  readonly segment?: number;
   /** The log opened as a subpage on a phone. */
   readonly panel?: 'log';
 }
@@ -67,10 +67,10 @@ const playtest = createRoute({
   path: '/playtest',
   validateSearch: (search): PlaytestSearch => {
     const path = typeof search['path'] === 'string' ? search['path'] : undefined;
-    const screen = index(search['screen']);
+    const segment = index(search['segment']);
     return {
       ...(path === undefined || path === '' ? {} : { path }),
-      ...(screen === undefined ? {} : { screen }),
+      ...(segment === undefined ? {} : { segment }),
       ...(search['panel'] === 'log' ? { panel: 'log' } : {}),
     };
   },

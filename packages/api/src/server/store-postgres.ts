@@ -11,7 +11,7 @@ import {
   type GameSettingsRow,
   START_ACTIONS,
   type LogRow,
-  type StepRow,
+  type MoveRow,
   type SessionRow,
   type TeamRow,
 } from './store.ts';
@@ -85,7 +85,7 @@ const toTeam = (row: Row): TeamRow => ({
   id: Number(row['id']),
   node: optionalText(row['node']),
   state: decodeState(row['state']),
-  step: Number(row['step']),
+  revision: Number(row['revision']),
   startedAt: row['started_at'] === null ? undefined : timestamp(row['started_at']),
   finishedAt: row['finished_at'] === null ? undefined : timestamp(row['finished_at']),
   updatedAt: timestamp(row['updated_at']),
@@ -100,7 +100,7 @@ const toLog = (row: Row): LogRow => ({
   state: decodeState(row['state']),
 });
 
-const toStep = (row: Row): StepRow => ({
+const toMove = (row: Row): MoveRow => ({
   teamId: Number(row['team_id']),
   at: timestamp(row['at']),
   action: text(row['action']),
@@ -177,24 +177,24 @@ export const makePostgresStore = (client: SqlClient) => {
           returning *`);
         return toTeam(row!);
       }),
-    moveTeam: (id, expectedStep, move) =>
+    moveTeam: (id, expectedRevision, move) =>
       query(async () => {
         // CTEs see the table as it was before the update, so `previous` holds the old node. A
-        // null expected step matches any step.
+        // null expected revision matches any revision.
         const [row] = await run(sql`
           with previous as (select node from team where id = ${id}),
           updated as (
             update team set
               node = ${move.node ?? null},
               state = ${JSON.stringify(move.state)}::jsonb,
-              step = step + 1,
+              revision = revision + 1,
               finished_at = case when ${move.finished} then coalesce(finished_at, now()) else null end,
               updated_at = now()
-            where id = ${id} and (${expectedStep ?? null}::int is null or step = ${expectedStep ?? null}::int)
+            where id = ${id} and (${expectedRevision ?? null}::int is null or revision = ${expectedRevision ?? null}::int)
             returning *
           ),
           logged as (
-            insert into step_log (team_id, action, from_node, to_node, state)
+            insert into action_log (team_id, action, from_node, to_node, state)
             select updated.id, ${move.action}, (select node from previous), updated.node, updated.state from updated
           )
           select * from updated`);
@@ -208,14 +208,14 @@ export const makePostgresStore = (client: SqlClient) => {
         await transaction([
           sql`insert into team (id) select unnest(${list}::int[]) on conflict (id) do nothing`,
           sql`
-            insert into step_log (team_id, action, from_node, to_node, state)
+            insert into action_log (team_id, action, from_node, to_node, state)
             select id, ${start.action}, node, ${start.node ?? null}, ${state}::jsonb
             from team where id = any(${list}::int[]) order by id`,
           sql`
             update team set
               node = ${start.node ?? null},
               state = ${state}::jsonb,
-              step = step + 1,
+              revision = revision + 1,
               finished_at = case when ${start.finished} then coalesce(finished_at, now()) else null end,
               started_at = null,
               updated_at = now()
@@ -268,7 +268,7 @@ export const makePostgresStore = (client: SqlClient) => {
             returning id, node, state
           ),
           logged as (
-            insert into step_log (team_id, action, from_node, to_node, state)
+            insert into action_log (team_id, action, from_node, to_node, state)
             select cleared.id, 'reset-time', cleared.node, null, cleared.state from cleared
           ),
           logged_out as (delete from session where team_id in (select id from cleared))
@@ -371,28 +371,28 @@ export const makePostgresStore = (client: SqlClient) => {
 
     recentLog: (limit) =>
       query(async () =>
-        (await run(sql`select * from step_log order by at desc, id desc limit ${limit}`)).map(
+        (await run(sql`select * from action_log order by at desc, id desc limit ${limit}`)).map(
           toLog,
         ),
       ),
-    listSteps: (teamId) =>
+    listMoves: (teamId) =>
       query(async () => {
-        // Rows are compared by id, which grows with time within a team, so a step written in
+        // Rows are compared by id, which grows with time within a team, so a move written in
         // the same instant as the move to the start is not lost.
         const rows = await run(sql`
-          select step.team_id, step.at, step.action, step.to_node from step_log step
-          where (${teamId ?? null}::int is null or step.team_id = ${teamId ?? null}::int)
-            and step.id >= coalesce(
-              (select max(start.id) from step_log start
-               where start.team_id = step.team_id and start.action = any(${[...START_ACTIONS]}::text[])),
+          select move.team_id, move.at, move.action, move.to_node from action_log move
+          where (${teamId ?? null}::int is null or move.team_id = ${teamId ?? null}::int)
+            and move.id >= coalesce(
+              (select max(start.id) from action_log start
+               where start.team_id = move.team_id and start.action = any(${[...START_ACTIONS]}::text[])),
               0)
-          order by step.at, step.id`);
-        return rows.map(toStep);
+          order by move.at, move.id`);
+        return rows.map(toMove);
       }),
     visitCounts: () =>
       query(async () => {
         const rows = await run(sql`
-          select to_node, count(*)::int as visits from step_log
+          select to_node, count(*)::int as visits from action_log
           where to_node is not null group by to_node`);
         return new Map(rows.map((row) => [text(row['to_node']), Number(row['visits'])]));
       }),

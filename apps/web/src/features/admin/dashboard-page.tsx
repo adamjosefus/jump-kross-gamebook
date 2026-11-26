@@ -204,7 +204,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   'reset-time': 'vynulování času',
   admin: 'zásah organizátora',
 } as const;
-/** A step of the log in words; a scan names its code. */
+/** An action of the log in words; a scan names its code. */
 const actionLabel = (action: string, codes: readonly QrCode[]) => {
   const label = ACTION_LABELS[action];
   if (label !== undefined) return label;
@@ -380,10 +380,10 @@ const FloatingPanel = ({
     </div>
   );
 
-const PANEL_TITLES = { teams: 'Klany', log: 'Poslední kroky' } as const;
+const PANEL_TITLES = { teams: 'Klany', log: 'Poslední akce' } as const;
 
 /**
- * Live view: the story graph with every clan on its node, teams and steps in floating panels. On a
+ * Live view: the story graph with every clan on its node, teams and actions in floating panels. On a
  * phone a panel opens as a subpage instead, kept in the URL so the back gesture closes it.
  */
 export const DashboardPage = () => {
@@ -544,9 +544,9 @@ export const DashboardPage = () => {
           {teamsContent}
         </FloatingPanel>
         <FloatingPanel
-          title='Poslední kroky'
+          title='Poslední akce'
           icon={<IconHistory />}
-          label='Kroky'
+          label='Akce'
           {...panelProps('log')}
         >
           {logContent}
@@ -606,14 +606,14 @@ const MoveDialog = ({
   const [clearingTime, setClearingTime] = useState(false);
   const [typed, setTyped] = useState('');
   const [stateText, setStateText] = useState(JSON.stringify(team.state, null, 2));
-  // The step the form was filled from; the team may have moved on since.
-  const [filledFrom, setFilledFrom] = useState(team.step);
-  const movedSince = current !== undefined && current.step !== filledFrom;
+  // The revision the form was filled from; the team may have moved on since.
+  const [filledFrom, setFilledFrom] = useState(team.revision);
+  const movedSince = current !== undefined && current.revision !== filledFrom;
   const refill = () => {
     if (current === undefined) return;
     setNode(current.node ?? graph.start ?? graph.order[0] ?? '');
     setStateText(JSON.stringify(current.state, null, 2));
-    setFilledFrom(current.step);
+    setFilledFrom(current.revision);
   };
 
   const parsedState = (() => {
@@ -692,8 +692,8 @@ const MoveDialog = ({
               >
                 <IconAlertTriangle className='size-4 shrink-0 text-destructive' />
                 <span className='flex-1'>
-                  Tým se mezitím posunul (krok {filledFrom} → {current.step}); zásah by přepsal jeho
-                  nový stav.
+                  Tým se mezitím posunul (tah {filledFrom} → {current.revision}); zásah by přepsal
+                  jeho nový stav.
                 </span>
                 <Button type='button' variant='outline' size='sm' onClick={refill}>
                   Načíst aktuální

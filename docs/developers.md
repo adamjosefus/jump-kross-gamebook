@@ -18,7 +18,7 @@ Server nedrží žádný stav mimo databázi a neběží v něm časovač: každ
 ## Core
 
 - **`story.ts`:** typy příběhu a `defineStory`. Typy hlídají, že volby vedou do existujících uzlů a skeny používají známé kódy; kapitoly jsou `{ id, name, counts }`.
-- **`engine.ts`:** pozice týmu je `{ node, state }`. `renderNode` vrátí obrazovky, dostupné volby, jestli uzel čeká na sken a `timeStops` (uzel patří do nepočítané kapitoly). `applyChoice` a `applyScan` vrátí novou pozici nebo chybu.
+- **`engine.ts`:** pozice týmu je `{ node, state }`. `renderNode` vrátí segmenty, dostupné volby, jestli uzel čeká na sken a `timeStops` (uzel patří do nepočítané kapitoly). `applyChoice` a `applyScan` vrátí novou pozici nebo chybu.
 - **`graph.ts`:** `toGraph` projde příběh od startu a připraví graf pro administraci s náhledy textu a kapitolami.
 - **`validate.ts`:** `validateStory` vrátí seznam problémů česky (dosažitelnost, slepé uličky, kódy, kapitoly, stav). Spouští ji `pnpm test:story`.
 - **`qr.ts`:** kód má tvar `DRUH-ID-KONTROLA` (`T` přihlášení týmu, `L` herní kód) s HMAC podpisem klíčem `QR_SECRET`.
@@ -27,16 +27,16 @@ Server nedrží žádný stav mimo databázi a neběží v něm časovač: každ
 
 Endpointy jsou definované v `packages/api/src/api.ts` a typově sdílené s klientem.
 
-- **`/api/player`:** `intro`, `login`, `state`, `choose`, `scan`, `logout`. Hráč se drží cookie `gb_session`. Souběh telefonů jednoho týmu řeší `expectedStep`: tah se provede, jen když tým je pořád na očekávaném kroku, jinak `StepConflict`.
+- **`/api/player`:** `intro`, `login`, `state`, `choose`, `scan`, `logout`. Hráč se drží cookie `gb_session`. Souběh telefonů jednoho týmu řeší `expectedRevision`: tah se provede, jen když tým je pořád na očekávané revizi, jinak `RevisionConflict`.
 - **`/api/admin`:** přihlášení heslem (cookie `gb_admin`), graf příběhu, test, přehled (`overview`), časy po kapitolách (`time-breakdown`), spuštění a pozastavení hry, zařízení a blokování, reset a přesun týmů, kódy k tisku.
 
 Logika je v `server/game.ts`, obsluha požadavků v `server/handlers.ts`. `server/vercel.ts` a `server/node.ts` jsou vstupní body pro Vercel a pro dev server.
 
 ### Úložiště
 
-`server/store.ts` popisuje rozhraní, `store-postgres.ts` a `store-memory.ts` ho implementují. Jediný zápis na horké cestě je `moveTeam`; je atomický a zapisuje i řádek do `step_log`.
+`server/store.ts` popisuje rozhraní, `store-postgres.ts` a `store-memory.ts` ho implementují. Jediný zápis na horké cestě je `moveTeam`; je atomický a zapisuje i řádek do `action_log`. Každý tah zvýší počítadlo týmu `revision`; tah ze starší revize se odmítne.
 
-Schéma (`server/schema.ts`) je idempotentní SQL, které se pustí při prvním požadavku každé instance; migrace se nepíší zvlášť. Tabulky: `team`, `step_log`, `session`, `game`, `admin_login`, `device_ban`.
+Schéma (`server/schema.ts`) je idempotentní SQL, které se pustí při prvním požadavku každé instance; migrace se nepíší zvlášť. Tabulky: `team`, `action_log`, `session`, `game`, `admin_login`, `device_ban`.
 
 ### Čas
 

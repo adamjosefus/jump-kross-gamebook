@@ -1,6 +1,6 @@
 import type { Story } from '@gamebook/core';
 
-import type { StepRow, TeamRow } from './store.ts';
+import type { MoveRow, TeamRow } from './store.ts';
 
 /** A gap between two chapters: the chapter the team left and the one it came to ("" for none). */
 export interface Gap {
@@ -33,7 +33,7 @@ export interface TeamTimeline {
 export const gapKey = ({ from, to }: Gap) => `${from}>${to}`;
 
 /** A stretch of the team's time in one chapter, or between chapters (`chapter` ""). */
-interface Segment {
+interface Stretch {
   readonly chapter: string;
   readonly from: number;
   readonly to: number;
@@ -51,12 +51,12 @@ const EMPTY: TeamTimeline = {
  * Splits the team's time from its first login until its end (or `now`) by the chapters of the
  * nodes it was at. The time on nodes of no chapter is a gap between the chapter before and the one
  * after. The chapters and gaps together make the team's total time; the result leaves out the
- * chapters that do not count. `steps` may hold other teams' steps too.
+ * chapters that do not count. `log` may hold other teams' moves too.
  */
 export const teamTimeline = (
   story: Story,
   team: TeamRow,
-  steps: readonly StepRow[],
+  log: readonly MoveRow[],
   now: number,
 ): TeamTimeline => {
   if (team.startedAt === undefined) return EMPTY;
@@ -67,7 +67,7 @@ export const teamTimeline = (
   const countsOf = (chapter: string) =>
     story.chapters.find((known) => known.id === chapter)?.counts ?? true;
 
-  const rows = steps
+  const rows = log
     .filter((row) => row.teamId === team.id)
     .toSorted((first, second) => first.at.getTime() - second.at.getTime());
   // Where the team was at its start: the last node before it, or, as the first login records the
@@ -83,8 +83,8 @@ export const teamTimeline = (
     { node: startNode, at: start },
     ...moves.map((row) => ({ node: row.toNode, at: row.at.getTime() })),
   ];
-  // Consecutive pieces in the same chapter make one segment, however many steps it took.
-  const segments = pieces.reduce<readonly Segment[]>((done, piece, index) => {
+  // Consecutive pieces in the same chapter make one stretch, however many moves it took.
+  const stretches = pieces.reduce<readonly Stretch[]>((done, piece, index) => {
     const to = pieces[index + 1]?.at ?? end;
     const chapter = chapterOf(piece.node);
     const last = done.at(-1);
@@ -96,17 +96,17 @@ export const teamTimeline = (
   const chapters = new Map<string, number>();
   const gaps = new Map<string, number>();
   const gapsSeen: Gap[] = [];
-  for (const [index, segment] of segments.entries()) {
-    const ms = segment.to - segment.from;
-    if (segment.chapter !== '') {
-      chapters.set(segment.chapter, (chapters.get(segment.chapter) ?? 0) + ms);
+  for (const [index, stretch] of stretches.entries()) {
+    const ms = stretch.to - stretch.from;
+    if (stretch.chapter !== '') {
+      chapters.set(stretch.chapter, (chapters.get(stretch.chapter) ?? 0) + ms);
       continue;
     }
     // A moment on the outro, where the game ends, is no gap.
     if (ms <= 0) continue;
     const gap = {
-      from: segments[index - 1]?.chapter ?? '',
-      to: segments[index + 1]?.chapter ?? '',
+      from: stretches[index - 1]?.chapter ?? '',
+      to: stretches[index + 1]?.chapter ?? '',
     };
     const key = gapKey(gap);
     if (!gaps.has(key)) gapsSeen.push(gap);
@@ -117,7 +117,7 @@ export const teamTimeline = (
     (sum, [chapter, ms]) => (countsOf(chapter) ? sum : sum + ms),
     0,
   );
-  const current = segments.at(-1);
+  const current = stretches.at(-1);
   const phase: Phase | undefined =
     team.finishedAt !== undefined || current === undefined
       ? undefined

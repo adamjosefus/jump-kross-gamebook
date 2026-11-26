@@ -2,13 +2,13 @@ import {
   availableChoices,
   availableScans,
   choicesOf,
-  introScreens,
+  introSegments,
   mergeState,
   sampleTeam,
-  screensOf,
+  segmentsOf,
   stateKey,
   unsoundStateKeys,
-  type RenderedScreen,
+  type RenderedSegment,
 } from './engine.ts';
 import { isQrId, MAX_QR_ID } from './qr.ts';
 import { loginMessages, type AnyNode, type Choice, type Story, type Team } from './story.ts';
@@ -61,9 +61,9 @@ const problemIf = (condition: boolean, problem: string): readonly string[] =>
  */
 const SVG_ELEMENT = /^\s*<svg(?:[\s>][\s\S]*<\/svg>|(?:\s[^>]*)?\/>)\s*$/;
 
-const hasBadSvg = ({ svg }: RenderedScreen) => svg !== undefined && !SVG_ELEMENT.test(svg);
-/** A picture is enough for a screen, it does not need text too. */
-const isEmptyScreen = ({ content, svg }: RenderedScreen) =>
+const hasBadSvg = ({ svg }: RenderedSegment) => svg !== undefined && !SVG_ELEMENT.test(svg);
+/** A picture is enough for a segment, it does not need text too. */
+const isEmptySegment = ({ content, svg }: RenderedSegment) =>
   content.trim() === '' && svg === undefined;
 
 /** The intro has no team and no state and leads on by the login, not by choices. */
@@ -75,8 +75,8 @@ const introProblems = (story: Story): readonly string[] => {
     ...problemIf(id === story.outroNode, `Úvod a konec je tentýž uzel ${id}.`),
     ...problemIf(intro.initialState !== undefined, `Úvod ${id} nesmí být start.`),
     ...problemIf(
-      typeof intro.blocks === 'function',
-      `Úvod ${id} nemá tým ani stav, jeho blocks nesmí být funkce.`,
+      typeof intro.segments === 'function',
+      `Úvod ${id} nemá tým ani stav, jeho segmenty nesmí být funkce.`,
     ),
     ...problemIf(
       intro.choices !== undefined || intro.scans !== undefined,
@@ -87,9 +87,9 @@ const introProblems = (story: Story): readonly string[] => {
     ...Object.entries(loginMessages(story, sampleTeam(story))).flatMap(([key, text]) =>
       problemIf(text.trim() === '', `Úvod má prázdný text přihlášení ${key}.`),
     ),
-    ...introScreens(story).flatMap((screen, index) => [
-      ...problemIf(isEmptyScreen(screen), `Úvod má prázdnou obrazovku č. ${index + 1}.`),
-      ...problemIf(hasBadSvg(screen), `Úvod má neplatné svg na obrazovce č. ${index + 1}.`),
+    ...introSegments(story).flatMap((segment, index) => [
+      ...problemIf(isEmptySegment(segment), `Úvod má prázdný segment č. ${index + 1}.`),
+      ...problemIf(hasBadSvg(segment), `Úvod má neplatné svg v segmentu č. ${index + 1}.`),
     ]),
   ];
 };
@@ -269,29 +269,29 @@ const contentProblemsOf = (
   state: State,
   team: Team,
 ): readonly string[] => {
-  const screens = attempt(() => screensOf(node, state, team));
-  return screens.ok
+  const segments = attempt(() => segmentsOf(node, state, team));
+  return segments.ok
     ? [
         ...problemIf(
-          screens.value.length === 0,
+          segments.value.length === 0,
           `Uzel ${id} nemá ve stavu ${show(state)} žádný obsah.`,
         ),
-        ...screens.value.flatMap((screen, index) => [
-          ...problemIf(isEmptyScreen(screen), `Uzel ${id} má prázdnou obrazovku č. ${index + 1}.`),
+        ...segments.value.flatMap((segment, index) => [
+          ...problemIf(isEmptySegment(segment), `Uzel ${id} má prázdný segment č. ${index + 1}.`),
           ...problemIf(
-            hasBadSvg(screen),
-            `Uzel ${id} má neplatné svg na obrazovce č. ${index + 1}.`,
+            hasBadSvg(segment),
+            `Uzel ${id} má neplatné svg v segmentu č. ${index + 1}.`,
           ),
-          // After the last screen only a scan follows; buttons and the end have no „Další“.
+          // After the last segment only a scan follows; buttons and the end have no „Další“.
           ...problemIf(
-            screen.next !== undefined &&
-              index === screens.value.length - 1 &&
+            segment.next !== undefined &&
+              index === segments.value.length - 1 &&
               node.scans === undefined,
-            `Uzel ${id} má next „${screen.next}“ na poslední obrazovce, kde žádné takové tlačítko není.`,
+            `Uzel ${id} má next „${segment.next}“ v posledním segmentu, kde žádné takové tlačítko není.`,
           ),
         ]),
       ]
-    : [`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(screens.error)}`];
+    : [`Obsah uzlu ${id} ve stavu ${show(state)} spadl: ${message(segments.error)}`];
 };
 
 /** Checks one (node, state) pair and lists the pairs it leads to. */
@@ -512,7 +512,7 @@ const mergeTeamProblems = (
 /**
  * Mistakes the type checker cannot see. Plays every (node, state) pair each team can reach from the
  * start and reports nodes nobody reaches, choices nobody can take, dead ends, traps (pairs from
- * which the end cannot be reached any more), empty screens and labels, blocks that throw, bad team
+ * which the end cannot be reached any more), empty segments and labels, segments that throw, bad team
  * and code numbers and two QR choices for one code.
  */
 export const validateStory = (

@@ -3,7 +3,7 @@ import {
   applyScan,
   availableScans,
   encodeQr,
-  introScreens,
+  introSegments,
   loginMessages,
   renderNode,
   sampleTeam,
@@ -30,7 +30,7 @@ import {
   InvalidMove,
   InvalidState,
   NotFound,
-  StepConflict,
+  RevisionConflict,
   TeamFinished,
   type BannedDevice,
   type Device,
@@ -51,7 +51,7 @@ import {
   type GameSettingsRow,
   type SessionClient,
   type SessionRow,
-  type StepRow,
+  type MoveRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
@@ -150,7 +150,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const graph = () => (cachedGraph ??= toGraph(story));
     const introNode = story.nodes[story.introNode];
     const introContent = {
-      screens: introScreens(story),
+      segments: introSegments(story),
       ...(introNode?.scanTitle === undefined ? {} : { scanTitle: introNode.scanTitle }),
       ...(introNode?.scanText === undefined ? {} : { scanText: introNode.scanText }),
     };
@@ -188,7 +188,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         loginMessages(story, identity);
       const base = {
         team: identity,
-        step: team.step,
+        revision: team.revision,
         loginMessages: { loggedIn, sameTeam, switchTitle, switchText, switchConfirm, switchCancel },
       };
       const node =
@@ -202,7 +202,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         node: {
           id: node.id,
           type: node.type,
-          screens: node.screens,
+          segments: node.segments,
           choices: node.choices,
           scan: node.scan,
           ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
@@ -217,7 +217,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       if (team.node !== undefined) return team;
       const start = startPosition(story);
       if (start === undefined) return team;
-      const moved = yield* store.moveTeam(team.id, team.step, {
+      const moved = yield* store.moveTeam(team.id, team.revision, {
         ...start,
         finished: false,
         action: 'start',
@@ -287,21 +287,21 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           message: MOVE_MESSAGES['broken-state'],
         });
       }
-      const moved = yield* store.moveTeam(team.id, team.step, moveOf(result, action));
+      const moved = yield* store.moveTeam(team.id, team.revision, moveOf(result, action));
       if (moved === undefined)
-        return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
+        return yield* new RevisionConflict({ message: 'Váš tým už mezitím rozhodl.' });
       return view(moved);
     });
 
     const prepareMove = Effect.fn('Game.prepareMove')(function* (
       teamId: number,
-      expectedStep: number,
+      expectedRevision: number,
     ) {
       const [team] = yield* Effect.all([loadTeam(teamId), requireOpen()], {
         concurrency: 'unbounded',
       });
-      if (team.step !== expectedStep)
-        return yield* new StepConflict({ message: 'Váš tým už mezitím rozhodl.' });
+      if (team.revision !== expectedRevision)
+        return yield* new RevisionConflict({ message: 'Váš tým už mezitím rozhodl.' });
       if (team.node === undefined) {
         return yield* new InvalidMove({
           reason: 'not-started',
@@ -315,9 +315,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const choose = Effect.fn('Game.choose')(function* (
       teamId: number,
       index: number,
-      expectedStep: number,
+      expectedRevision: number,
     ) {
-      const { team, position } = yield* prepareMove(teamId, expectedStep);
+      const { team, position } = yield* prepareMove(teamId, expectedRevision);
       return yield* commit(
         team,
         applyChoice(story, position, identityOf(team), index),
@@ -357,10 +357,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const scan = Effect.fn('Game.scan')(function* (
       teamId: number,
       code: string,
-      expectedStep: number,
+      expectedRevision: number,
     ) {
       const qrCode = yield* qrCodeOf(code);
-      const { team, position } = yield* prepareMove(teamId, expectedStep);
+      const { team, position } = yield* prepareMove(teamId, expectedRevision);
       return yield* commit(
         team,
         applyScan(story, position, identityOf(team), qrCode.id),
@@ -398,12 +398,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     // Admin
 
     /**
-     * The team's status with its times worked out from the steps (of every team, or its own). The
+     * The team's status with its times worked out from the moves (of every team, or its own). The
      * phase is where it is now, with how long by the server's clock.
      */
-    const teamStatus = (team: TeamRow, devices: number, steps: readonly StepRow[]): TeamStatus => {
+    const teamStatus = (team: TeamRow, devices: number, moves: readonly MoveRow[]): TeamStatus => {
       const now = Date.now();
-      const timeline = teamTimeline(story, team, steps, now);
+      const timeline = teamTimeline(story, team, moves, now);
       const phase: TeamPhase | undefined =
         timeline.phase === undefined
           ? undefined
@@ -419,10 +419,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         ...(team.node === undefined ? {} : { node: team.node }),
         nodeExists: team.node === undefined || Object.hasOwn(story.nodes, team.node),
         state: team.state,
-        step: team.step,
+        revision: team.revision,
         finished: team.finishedAt !== undefined,
         // A team without a row never logged in and has no last move.
-        ...(team.node === undefined && team.step === 0
+        ...(team.node === undefined && team.revision === 0
           ? {}
           : { updatedAt: team.updatedAt.toISOString() }),
         devices,
@@ -446,11 +446,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const [devices, steps] = yield* Effect.all([
+      const [devices, moves] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
-        store.listSteps(team.id),
+        store.listMoves(team.id),
       ]);
-      return teamStatus(team, devices.get(team.id) ?? 0, steps);
+      return teamStatus(team, devices.get(team.id) ?? 0, moves);
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
@@ -539,11 +539,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, steps, devices, visits, gameStartedAt, settings] = yield* Effect.all(
+      const [teams, log, moves, devices, visits, gameStartedAt, settings] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
-          store.listSteps(),
+          store.listMoves(),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
           store.gameStartedAt(),
@@ -557,7 +557,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) => {
           const team = teams.find((row) => row.id === id) ?? notStarted(id);
-          return teamStatus(team, devices.get(id) ?? 0, steps);
+          return teamStatus(team, devices.get(id) ?? 0, moves);
         }),
         codes: story.codes,
         chapters: story.chapters,
@@ -575,7 +575,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const timeBreakdown = Effect.fn('Game.timeBreakdown')(function* () {
-      const [teams, steps] = yield* Effect.all([store.listTeams(), store.listSteps()], {
+      const [teams, moves] = yield* Effect.all([store.listTeams(), store.listMoves()], {
         concurrency: 'unbounded',
       });
       const now = Date.now();
@@ -584,7 +584,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         timeline: teamTimeline(
           story,
           teams.find((row) => row.id === id) ?? notStarted(id),
-          steps,
+          moves,
           now,
         ),
       }));
@@ -621,7 +621,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       id,
       node: undefined,
       state: {},
-      step: 0,
+      revision: 0,
       startedAt: undefined,
       finishedAt: undefined,
       updatedAt: new Date(0),
@@ -669,7 +669,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         return yield* new TeamFinished({
           message: 'Tým už je v cíli. Jeho čas jde vynulovat jen restartem hry týmu.',
         });
-      // The row read before the write may be a step behind the team.
+      // The row read before the write may be a move behind the team.
       return yield* singleTeamStatus({
         ...((yield* store.getTeam(id)) ?? team),
         startedAt: undefined,
@@ -753,7 +753,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const rendered = renderNode(story, position, team);
       if (node === undefined || rendered === undefined)
         return yield* notFound(`Uzel ${position.node}`);
-      const step: PlaytestView = {
+      const visit: PlaytestView = {
         team,
         node: position.node,
         state: position.state,
@@ -764,7 +764,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ),
         },
       };
-      return step;
+      return visit;
     });
 
     /** Opens or closes the game for every team at once; the admin's own test runs go on. */

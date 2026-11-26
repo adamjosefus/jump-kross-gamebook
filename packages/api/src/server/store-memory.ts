@@ -54,7 +54,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       id,
       node: undefined,
       state: {},
-      step: 0,
+      revision: 0,
       startedAt: undefined,
       finishedAt: undefined,
       updatedAt: new Date(),
@@ -68,7 +68,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       ...team,
       node: next.node,
       state: next.state,
-      step: team.step + 1,
+      revision: team.revision + 1,
       finishedAt: next.finished ? (team.finishedAt ?? now) : undefined,
       updatedAt: now,
     };
@@ -92,11 +92,11 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       Effect.sync(() => [...teams.values()].toSorted((first, second) => first.id - second.id)),
     getTeam: (id) => Effect.sync(() => teams.get(id)),
     ensureTeam: (id) => Effect.sync(() => ensure(id)),
-    moveTeam: (id, expectedStep, next) =>
+    moveTeam: (id, expectedRevision, next) =>
       Effect.sync(() => {
         const team = teams.get(id);
         if (team === undefined) return undefined;
-        if (expectedStep !== undefined && team.step !== expectedStep) return undefined;
+        if (expectedRevision !== undefined && team.revision !== expectedRevision) return undefined;
         return move(team, next, new Date());
       }),
     resetTeams: (ids, start) =>
@@ -212,7 +212,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     clearAdminFailures: (key) => Effect.sync(() => void adminFailures.delete(key)),
 
     recentLog: (limit) => Effect.sync(() => data.log.slice(-limit).toReversed()),
-    listSteps: (teamId) =>
+    listMoves: (teamId) =>
       Effect.sync(() => {
         const lastStart = new Map<number, number>();
         for (const [index, row] of data.log.entries())

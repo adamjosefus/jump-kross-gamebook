@@ -30,7 +30,7 @@ import { Popover, PopoverArrow, PopoverContent, PopoverTrigger } from '@/compone
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { NodeScreens } from '@/features/player/node-screens';
+import { NodeSegments } from '@/features/player/node-segments';
 import { ACCEPTED_MS, type ScanOutcome } from '@/features/player/qr-scanner';
 import { StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
@@ -124,8 +124,8 @@ const usePreviewScale = () => {
 
 type Move = { readonly choice: number } | { readonly scan: number } | { readonly code: string };
 
-/** One visited node and how the run got there; the first step has no `via`. */
-interface Step extends PlaytestView {
+/** One visited node and how the run got there; the first visit has no `via`. */
+interface PlaytestVisit extends PlaytestView {
   readonly via?: string;
   /** The move that led here, as written in the URL. */
   readonly token?: string;
@@ -157,7 +157,7 @@ const decodeMove = (token: string): Move | undefined | 'invalid' => {
 };
 
 /** How the path shows the move from `from`. */
-const viaOf = (from: Step, move: Move | undefined) => {
+const viaOf = (from: PlaytestVisit, move: Move | undefined) => {
   if (move === undefined) return 'Přihlášení přeskočeno';
   if ('choice' in move)
     return (
@@ -170,7 +170,7 @@ const viaOf = (from: Step, move: Move | undefined) => {
   return from.intro === true ? `Kód týmu ${move.code}` : `QR ${name ?? move.code}`;
 };
 
-const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
+const playFrom = async (from: PlaytestVisit, move: Move | undefined): Promise<PlaytestVisit> => {
   const next = await api((client) =>
     client.admin.playtest({
       payload: {
@@ -188,24 +188,27 @@ const playFrom = async (from: Step, move: Move | undefined): Promise<Step> => {
  * Replays the moves one after another from `from`. The story may have changed since the path was
  * written; the path stops where it no longer goes on.
  */
-const replaySteps = async (from: Step, tokens: readonly string[]): Promise<readonly Step[]> => {
+const replayVisits = async (
+  from: PlaytestVisit,
+  tokens: readonly string[],
+): Promise<readonly PlaytestVisit[]> => {
   const [token, ...rest] = tokens;
   if (token === undefined) return [];
   const move = decodeMove(token);
   // A mistyped token, or a skipped login after the intro, would otherwise replay as a skipped
   // login and the rest of the path would go on from a wrong place.
   if (move === 'invalid' || (move === undefined && from.intro !== true)) {
-    toast.error(`Cestu z adresy nešlo celou přehrát: krok „${token}“ není tah.`);
+    toast.error(`Cestu z adresy nešlo celou přehrát: část „${token}“ není tah.`);
     return [];
   }
   const next = await playFrom(from, move).catch((error: unknown) => {
     toast.error(`Cestu z adresy nešlo celou přehrát: ${errorMessage(error)}`);
     return undefined;
   });
-  return next === undefined ? [] : [next, ...(await replaySteps(next, rest))];
+  return next === undefined ? [] : [next, ...(await replayVisits(next, rest))];
 };
 
-const introStep = (intro: PlayerIntro): Step => ({
+const introVisit = (intro: PlayerIntro): PlaytestVisit => ({
   intro: true,
   team: { id: 0, name: '' },
   node: 'Úvod',
@@ -329,7 +332,7 @@ const CodeEntry = ({
 /**
  * Plays the story as a team would, without a team: nothing is stored, the page keeps the path and
  * sends the position with every move. It begins with the intro and the login scan; QR codes are
- * scanned like in the game, or typed in or skipped from the toolbar. The moves and the screen are
+ * scanned like in the game, or typed in or skipped from the toolbar. The moves and the segment are
  * in the URL, so a reload replays the same path.
  */
 export const PlaytestPage = () => {
@@ -352,38 +355,38 @@ export const PlaytestPage = () => {
     // The story changes only with a deploy.
     staleTime: Infinity,
   });
-  const start = intro.data === undefined ? undefined : introStep(intro.data);
+  const start = intro.data === undefined ? undefined : introVisit(intro.data);
 
   // The path the page opened with is replayed once; from then on the page keeps it.
   const [opened] = useState(() => search.path ?? '');
   const replay = useQuery({
     queryKey: ['admin', 'playtest', 'replay', opened],
-    queryFn: () => replaySteps(start!, opened.split('.')),
+    queryFn: () => replayVisits(start!, opened.split('.')),
     enabled: start !== undefined && opened !== '',
     staleTime: Infinity,
     gcTime: 0,
   });
   // Steps after the intro; undefined until the first move, while the replayed path stands.
   // The URL follows the moves (see the effect below).
-  const [moves, setMoves] = useState<readonly Step[]>();
-  const steps = moves ?? (opened === '' ? [] : (replay.data ?? []));
-  const path: readonly Step[] = start === undefined ? [] : [start, ...steps];
+  const [moves, setMoves] = useState<readonly PlaytestVisit[]>();
+  const visits = moves ?? (opened === '' ? [] : (replay.data ?? []));
+  const path: readonly PlaytestVisit[] = start === undefined ? [] : [start, ...visits];
   const current = path.at(-1);
   const scans = current?.view.scans ?? [];
-  const pathParam = steps.map((step) => step.token).join('.');
+  const pathParam = visits.map((visit) => visit.token).join('.');
   // The log's subpage goes along with the moves only on a phone; a wider page has no subpage.
   const urlPanel = narrow ? search.panel : undefined;
   const panelParam = urlPanel === undefined ? {} : { panel: urlPanel };
 
   const play = useMutation({
-    mutationFn: ({ from, move }: { readonly from: Step; readonly move?: Move }) =>
+    mutationFn: ({ from, move }: { readonly from: PlaytestVisit; readonly move?: Move }) =>
       playFrom(from, move),
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const advance = (next: Step) => setMoves([...steps, next]);
+  const advance = (next: PlaytestVisit) => setMoves([...visits, next]);
 
-  /** Keeps the path up to and including the step with this index. */
-  const backTo = (index: number) => setMoves(steps.slice(0, index));
+  /** Keeps the path up to and including the visit with this index. */
+  const backTo = (index: number) => setMoves(visits.slice(0, index));
 
   const take = (move: Move | undefined) => {
     if (current !== undefined)
@@ -439,7 +442,7 @@ export const PlaytestPage = () => {
       <section className='flex flex-col gap-2'>
         <h2 className='font-medium'>Cesta:</h2>
         <ol className='flex flex-col gap-1'>
-          {path.map((step, index) => (
+          {path.map((visit, index) => (
             <li key={index}>
               <button
                 type='button'
@@ -454,9 +457,9 @@ export const PlaytestPage = () => {
                 <span className='w-6 shrink-0 text-right text-muted-foreground tabular-nums'>
                   {index + 1}.
                 </span>
-                <span className='rounded bg-muted px-1.5 font-mono text-xs'>{step.node}</span>
-                {step.via !== undefined && (
-                  <span className='truncate text-muted-foreground'>← {step.via}</span>
+                <span className='rounded bg-muted px-1.5 font-mono text-xs'>{visit.node}</span>
+                {visit.via !== undefined && (
+                  <span className='truncate text-muted-foreground'>← {visit.via}</span>
                 )}
               </button>
             </li>
@@ -530,23 +533,23 @@ export const PlaytestPage = () => {
         >
           <div className='flex size-full flex-col overflow-auto font-story'>
             {current !== undefined && (
-              <NodeScreens
+              <NodeSegments
                 node={current.view}
-                step={path.length}
+                revision={path.length}
                 visitScope='playtest'
                 busy={play.isPending}
                 onCode={scan}
                 requireCamera={current.intro === true}
                 animated={animated}
                 onPick={(choice) => take({ choice: choice.index })}
-                // The screen in the URL belongs to the path in it; after a move it starts over.
-                initialIndex={(search.path ?? '') === pathParam ? (search.screen ?? 0) : 0}
-                onIndexChange={(screen) =>
+                // The segment in the URL belongs to the path in it; after a move it starts over.
+                initialIndex={(search.path ?? '') === pathParam ? (search.segment ?? 0) : 0}
+                onIndexChange={(segment) =>
                   void navigate({
                     to: '/admin/playtest',
                     search: {
                       ...(pathParam === '' ? {} : { path: pathParam }),
-                      screen,
+                      segment,
                       ...panelParam,
                     },
                     replace: true,
@@ -575,7 +578,7 @@ export const PlaytestPage = () => {
               variant='ghost'
               size='icon-sm'
               aria-label='Znovu od začátku'
-              disabled={steps.length === 0 || play.isPending}
+              disabled={visits.length === 0 || play.isPending}
               onClick={() => setMoves([])}
             >
               <IconRotate />

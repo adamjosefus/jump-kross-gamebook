@@ -25,7 +25,7 @@ import {
 interface RevealPace {
   /** The pause before the first word, while the screen's colors settle. */
   readonly firstWordDelayMs: number;
-  /** Average time per word; long screens go faster so the whole reveal never takes too long. */
+  /** Average time per word; long segments go faster so the whole reveal never takes too long. */
   readonly wordStepMs: number;
   readonly maxRevealMs: number;
   /** How long one word takes to fade in; the CSS animation gets it from here. */
@@ -123,7 +123,7 @@ const after = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /**
  * Whether the fonts can be measured: Pretext needs the web font loaded, or it measures the
- * fallback and keeps that measure. Fonts loaded once stay loaded, so later screens render at once.
+ * fallback and keeps that measure. Fonts loaded once stay loaded, so later segments render at once.
  */
 const useFontsLoaded = (fonts: readonly string[], sample: string) => {
   // One string for the list and the text, so the effect reruns only when they change.

@@ -1,7 +1,7 @@
 import { defineStory } from '@gamebook/core';
 import { describe, expect, it } from 'vitest';
 
-import type { StepRow, TeamRow } from '../src/server/store.ts';
+import type { MoveRow, TeamRow } from '../src/server/store.ts';
 import { gapKey, teamTimeline } from '../src/server/team-timeline.ts';
 
 // The introduction does not count; the way between the two chapters belongs to none.
@@ -12,18 +12,18 @@ const story = defineStory<{ readonly n: number }>()({
   introNode: 'INTRO',
   outroNode: 'OUTRO',
   nodes: {
-    INTRO: { blocks: ['Úvod'] },
+    INTRO: { segments: ['Úvod'] },
     A: {
       chapter: 'intro',
       initialState: { n: 0 },
-      blocks: ['A'],
+      segments: ['A'],
       choices: [{ label: 'Dál', goto: 'B' }],
     },
-    B: { chapter: 'one', blocks: ['B'], scans: [{ code: 1, goto: 'C' }] },
-    C: { chapter: 'one', blocks: ['C'], scans: [{ code: 2, goto: 'WAY' }] },
-    WAY: { blocks: ['Cesta'], choices: [{ label: 'Dál', goto: 'D' }] },
-    D: { chapter: 'two', blocks: ['D'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
-    OUTRO: { blocks: ['Konec'] },
+    B: { chapter: 'one', segments: ['B'], scans: [{ code: 1, goto: 'C' }] },
+    C: { chapter: 'one', segments: ['C'], scans: [{ code: 2, goto: 'WAY' }] },
+    WAY: { segments: ['Cesta'], choices: [{ label: 'Dál', goto: 'D' }] },
+    D: { chapter: 'two', segments: ['D'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
+    OUTRO: { segments: ['Konec'] },
   },
 });
 
@@ -34,13 +34,13 @@ const team = (finishedAt?: number): TeamRow => ({
   id: 1,
   node: 'D',
   state: { n: 0 },
-  step: 5,
+  revision: 5,
   startedAt: at(0),
   finishedAt: finishedAt === undefined ? undefined : at(finishedAt),
   updatedAt: at(0),
 });
 
-const move = (seconds: number, action: string, toNode: string | undefined): StepRow => ({
+const move = (seconds: number, action: string, toNode: string | undefined): MoveRow => ({
   teamId: 1,
   at: at(seconds),
   action,
@@ -49,7 +49,7 @@ const move = (seconds: number, action: string, toNode: string | undefined): Step
 
 // Sent to the start before the login, then through the introduction, the first chapter, the way
 // and the second chapter to the end.
-const LOG: readonly StepRow[] = [
+const LOG: readonly MoveRow[] = [
   move(-1000, 'start', 'A'),
   move(60, 'choice:0', 'B'),
   move(200, 'scan:1', 'C'),

@@ -1,31 +1,31 @@
 import type { State } from './types.ts';
 
-/** Looks of one screen; the player maps each theme to its own styles. */
+/** Looks of one segment; the player maps each theme to its own styles. */
 export const THEMES = ['default', 'intro', 'green', 'red', 'letter', 'description'] as const;
 export type Theme = (typeof THEMES)[number];
 
-/** One screen of markdown. */
-export interface Screen {
+/** One segment of markdown. */
+export interface Segment {
   readonly theme?: Theme;
   /**
    * A picture above the text, as the source of one `<svg>` element. `currentColor` takes the color
-   * of the screen's text. Inserted into the page as it is, so it must come from the story's author.
+   * of the segment's text. Inserted into the page as it is, so it must come from the story's author.
    */
   readonly svg?: string;
   readonly content: string;
   /**
-   * Text of the button leading from this screen to the next one; when missing or empty, it is a
-   * round button with only an arrow. The last screen of a node has such a button only when a scan
+   * Text of the button leading from this segment to the next one; when missing or empty, it is a
+   * round button with only an arrow. The last segment of a node has such a button only when a scan
    * follows.
    */
   readonly next?: string;
 }
 
-/** A plain string is a markdown screen in the default theme. */
-export type Block = string | Screen;
+/** A plain string is a markdown segment in the default theme. */
+export type SegmentEntry = string | Segment;
 
-/** Falsy entries are skipped, so blocks can be written as `condition && block`. */
-export type MaybeBlock = Block | false | null | undefined;
+/** Falsy entries are skipped, so segments can be written as `condition && segment`. */
+export type MaybeSegment = SegmentEntry | false | null | undefined;
 
 /**
  * A function of the state, checked bivariantly like a method, so a story written for a specific
@@ -36,7 +36,7 @@ type StateFn<S, R> = { fn(state: S): R }['fn'];
 /** Like `StateFn`, written for the team's state and the team itself, e.g. to use its name. */
 type TeamFn<S, R> = { fn(state: S, team: Team): R }['fn'];
 
-interface Transition<S, K extends string> {
+interface Action<S, K extends string> {
   readonly goto: K;
   /** Offered only when this returns true for the team's state and the team. */
   readonly when?: TeamFn<S, boolean>;
@@ -45,7 +45,7 @@ interface Transition<S, K extends string> {
 }
 
 /** A button the team taps. */
-export interface Choice<S, K extends string> extends Transition<S, K> {
+export interface Choice<S, K extends string> extends Action<S, K> {
   readonly label: string;
 }
 
@@ -54,10 +54,7 @@ export interface Choice<S, K extends string> extends Transition<S, K> {
  * codes the node accepts or where they lead. Several codes can hang side by side, so the team
  * decides by which one it scans.
  */
-export interface ScanChoice<S, K extends string, C extends number = number> extends Transition<
-  S,
-  K
-> {
+export interface ScanChoice<S, K extends string, C extends number = number> extends Action<S, K> {
   readonly code: C;
 }
 
@@ -70,7 +67,7 @@ interface NodeBase<S> {
   /** The chapter from `chapters` the node belongs to; the time spent here counts towards it. */
   readonly chapter?: string;
   /** Evaluated once per render; the state does not change while a node is shown. */
-  readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
+  readonly segments: readonly MaybeSegment[] | TeamFn<S, readonly MaybeSegment[]>;
   readonly loginMessages?: never;
 }
 
@@ -78,7 +75,7 @@ interface NodeBase<S> {
 export type StoryNode<S, K extends string, C extends number = number> =
   | (NodeBase<S> & {
       /**
-       * Evaluated once per render, like `blocks`, so a function has to give the same list for the
+       * Evaluated once per render, like `segments`, so a function has to give the same list for the
        * same state and team: a chosen button is found by its position in the list.
        */
       readonly choices:
@@ -99,12 +96,12 @@ export type StoryNode<S, K extends string, C extends number = number> =
 
 /**
  * The intro: anyone sees it before scanning a team's login code, so there is no team and no state
- * and the blocks are a plain list. The login leads on, to the start or to where the team is.
+ * and the segments are a plain list. The login leads on, to the start or to where the team is.
  */
 export interface IntroNode {
   readonly initialState?: never;
   readonly chapter?: never;
-  readonly blocks: readonly MaybeBlock[];
+  readonly segments: readonly MaybeSegment[];
   /** The heading of the login scan screen; the player's default one without it. */
   readonly scanTitle?: string;
   /** The text under that heading; the player's default one without it. */
@@ -174,11 +171,11 @@ export const loginMessages = (story: Story, team: Team) => {
   } as const satisfies Readonly<Record<keyof LoginMessages, string>>;
 };
 
-/** The outro: the game ends when a team arrives; the blocks may use the state and the team. */
+/** The outro: the game ends when a team arrives; the segments may use the state and the team. */
 export interface OutroNode<S> {
   readonly initialState?: never;
   readonly chapter?: never;
-  readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
+  readonly segments: readonly MaybeSegment[] | TeamFn<S, readonly MaybeSegment[]>;
   readonly choices?: never;
   readonly scans?: never;
   readonly scanTitle?: never;
@@ -308,9 +305,9 @@ type NodeShapes<S, K extends string, I extends string, O extends string, C exten
  *   introNode: 'INTRO',
  *   outroNode: 'OUTRO',
  *   nodes: {
- *     INTRO: { blocks: ['# Hra\n\nNaskenujte kód svého týmu.'] },
- *     A: { initialState: { gold: 0 }, blocks: ['Jděte ke studni.'], scans: [{ code: 1, goto: 'OUTRO' }] },
- *     OUTRO: { blocks: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
+ *     INTRO: { segments: ['# Hra\n\nNaskenujte kód svého týmu.'] },
+ *     A: { initialState: { gold: 0 }, segments: ['Jděte ke studni.'], scans: [{ code: 1, goto: 'OUTRO' }] },
+ *     OUTRO: { segments: (state, team) => [`Konec, týme ${team.name}. Máte ${state.gold} zlaťáků.`] },
  *   },
  * })
  * ```

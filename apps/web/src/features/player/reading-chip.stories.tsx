@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect, useState } from 'react';
 
-import { NodeScreens } from './node-screens';
+import { NodeSegments } from './node-segments';
 import { ReadingChip } from './reading-chip';
 
 /** The capsule coming and going every two seconds, on a light and a dark background. */
@@ -30,10 +30,10 @@ const Switching = () => {
  */
 const meta = {
   title: 'Player/Čas stojí',
-  component: NodeScreens,
+  component: NodeSegments,
   parameters: { layout: 'fullscreen' },
   args: {
-    step: 0,
+    revision: 0,
     visitScope: 'storybook',
     busy: false,
     animated: false,
@@ -47,7 +47,7 @@ const meta = {
       scanTitle: 'Kam na nákup?',
       scanText: 'Naskenujte kód obchodu, do kterého jdete.',
       choices: [],
-      screens: [
+      segments: [
         {
           theme: 'intro',
           content:
@@ -56,7 +56,7 @@ const meta = {
       ],
     },
   },
-} satisfies Meta<typeof NodeScreens>;
+} satisfies Meta<typeof NodeSegments>;
 
 export default meta;
 
