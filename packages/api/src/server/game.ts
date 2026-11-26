@@ -52,9 +52,11 @@ import {
   type SessionClient,
   type SessionRow,
   type MoveRow,
+  type PauseRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
+import { runningMs } from './team-time.ts';
 import { gapKey, teamTimeline, type Gap } from './team-timeline.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
@@ -401,9 +403,14 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
      * The team's status with its times worked out from the moves (of every team, or its own). The
      * phase is where it is now, with how long by the server's clock.
      */
-    const teamStatus = (team: TeamRow, devices: number, moves: readonly MoveRow[]): TeamStatus => {
+    const teamStatus = (
+      team: TeamRow,
+      devices: number,
+      moves: readonly MoveRow[],
+      pauses: readonly PauseRow[],
+    ): TeamStatus => {
       const now = Date.now();
-      const timeline = teamTimeline(story, team, moves, now);
+      const timeline = teamTimeline(story, team, moves, pauses, now);
       const phase: TeamPhase | undefined =
         timeline.phase === undefined
           ? undefined
@@ -411,7 +418,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
               ...(timeline.phase.chapter === undefined ? {} : { chapter: timeline.phase.chapter }),
               counts: timeline.phase.counts,
               since: timeline.phase.since.toISOString(),
-              ms: Math.max(now - timeline.phase.since.getTime(), 0),
+              // Without the pauses, like every time of the team.
+              ms: runningMs(timeline.phase.since.getTime(), now, pauses, now),
             };
       return {
         id: team.id,
@@ -430,7 +438,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ? {}
           : {
               startedAt: team.startedAt.toISOString(),
-              playtimeMs: (team.finishedAt?.getTime() ?? now) - team.startedAt.getTime(),
+              playtimeMs: timeline.totalMs,
               resultMs: timeline.resultMs,
             }),
         ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
@@ -446,11 +454,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const [devices, moves] = yield* Effect.all([
+      const [devices, moves, pauses] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
         store.listMoves(team.id),
+        store.listPauses(),
       ]);
-      return teamStatus(team, devices.get(team.id) ?? 0, moves);
+      return teamStatus(team, devices.get(team.id) ?? 0, moves, pauses);
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
@@ -539,25 +548,27 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, moves, devices, visits, gameStartedAt, settings] = yield* Effect.all(
-        [
-          store.listTeams(),
-          store.recentLog(50),
-          store.listMoves(),
-          store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
-          store.visitCounts(),
-          store.gameStartedAt(),
-          // The admin sees the stored setting, not this instance's cached copy.
-          store.gameSettings(),
-        ],
-        { concurrency: 'unbounded' },
-      );
+      const [teams, log, moves, devices, visits, gameStartedAt, settings, pauses] =
+        yield* Effect.all(
+          [
+            store.listTeams(),
+            store.recentLog(50),
+            store.listMoves(),
+            store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
+            store.visitCounts(),
+            store.gameStartedAt(),
+            // The admin sees the stored setting, not this instance's cached copy.
+            store.gameSettings(),
+            store.listPauses(),
+          ],
+          { concurrency: 'unbounded' },
+        );
       const result: Overview = {
         game: gameInfo(gameStartedAt, settings),
         // Every team of the story; one that never logged in has no row yet.
         teams: story.teams.map(({ id }) => {
           const team = teams.find((row) => row.id === id) ?? notStarted(id);
-          return teamStatus(team, devices.get(id) ?? 0, moves);
+          return teamStatus(team, devices.get(id) ?? 0, moves, pauses);
         }),
         codes: story.codes,
         chapters: story.chapters,
@@ -575,9 +586,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const timeBreakdown = Effect.fn('Game.timeBreakdown')(function* () {
-      const [teams, moves] = yield* Effect.all([store.listTeams(), store.listMoves()], {
-        concurrency: 'unbounded',
-      });
+      const [teams, moves, pauses] = yield* Effect.all(
+        [store.listTeams(), store.listMoves(), store.listPauses()],
+        { concurrency: 'unbounded' },
+      );
       const now = Date.now();
       const timelines = story.teams.map(({ id }) => ({
         id,
@@ -585,6 +597,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           story,
           teams.find((row) => row.id === id) ?? notStarted(id),
           moves,
+          pauses,
           now,
         ),
       }));
@@ -688,7 +701,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         { node: start?.node, state: start?.state ?? {}, finished: false, action: 'reset' },
       );
       // The first logins and the devices of every team were just cleared.
-      return rows.map((row) => teamStatus(row, 0, []));
+      return rows.map((row) => teamStatus(row, 0, [], []));
     });
 
     const moveTeam = Effect.fn('Game.moveTeam')(function* (id: number, node: string, given: State) {

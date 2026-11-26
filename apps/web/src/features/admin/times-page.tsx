@@ -15,7 +15,7 @@ import { errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { useOverview, useTimeBreakdown } from './queries';
-import { formatDuration, playTime, resultTime } from './results';
+import { formatDuration, playTime, resultTime, type Clock } from './results';
 
 const POLL_MS = 15_000;
 
@@ -31,7 +31,7 @@ interface Column {
   readonly ms: (
     times: TeamTimes | undefined,
     status: TeamStatus,
-    now: number,
+    clock: Clock,
   ) => number | undefined;
 }
 
@@ -57,9 +57,9 @@ const columnsOf = ({ chapters, gaps }: TimeBreakdown): readonly Column[] => {
       key: 'result',
       label: 'Výsledek',
       note: 'bez nepočítaných kapitol',
-      ms: (_times, status, now) => resultTime(status, now),
+      ms: (_times, status, clock) => resultTime(status, clock),
     },
-    { key: 'total', label: 'Celkem', ms: (_times, status, now) => playTime(status, now) },
+    { key: 'total', label: 'Celkem', ms: (_times, status, clock) => playTime(status, clock) },
     ...gaps.filter((gap) => gap.from === '').map(gapColumn),
     ...chapters.flatMap((chapter): readonly Column[] => [
       {
@@ -99,7 +99,12 @@ export const TimesPage = () => {
       <p className='p-8 text-destructive'>{errorMessage(breakdown.error ?? overview.error)}</p>
     );
 
-  const now = overview.dataUpdatedAt;
+  // The times as the server measured them; the parts of the breakdown cannot move on anyway.
+  const clock: Clock = {
+    now: overview.dataUpdatedAt,
+    measuredAt: overview.dataUpdatedAt,
+    paused: true,
+  };
   const columns = columnsOf(breakdown.data);
   const times: ReadonlyMap<number, TeamTimes> = new Map(
     breakdown.data.teams.map((entry) => [entry.id, entry]),
@@ -112,7 +117,7 @@ export const TimesPage = () => {
         started
           .filter((team) => team.finished)
           .flatMap((team) => {
-            const ms = column.ms(times.get(team.id), team, now);
+            const ms = column.ms(times.get(team.id), team, clock);
             return ms === undefined ? [] : [shownSeconds(ms)];
           }),
       ),
@@ -163,7 +168,7 @@ export const TimesPage = () => {
                     </div>
                   </TableHead>
                   {columns.map((column) => {
-                    const ms = column.ms(times.get(team.id), team, now);
+                    const ms = column.ms(times.get(team.id), team, clock);
                     const mark = team.finished ? marks.get(column.key) : undefined;
                     const shown = ms === undefined ? undefined : shownSeconds(ms);
                     const rank =

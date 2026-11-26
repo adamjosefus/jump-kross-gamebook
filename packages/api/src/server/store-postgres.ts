@@ -12,6 +12,7 @@ import {
   START_ACTIONS,
   type LogRow,
   type MoveRow,
+  type PauseRow,
   type SessionRow,
   type TeamRow,
 } from './store.ts';
@@ -138,6 +139,11 @@ const toSettings = (row: Row | undefined): GameSettingsRow => ({
       : timestamp(row['closed_changed_at']),
 });
 
+const toPause = (row: Row): PauseRow => ({
+  startedAt: timestamp(row['started_at']),
+  endedAt: row['ended_at'] === null ? undefined : timestamp(row['ended_at']),
+});
+
 /** The store on a Postgres database reached through `client`; the schema is applied on the first query. */
 export const makePostgresStore = (client: SqlClient) => {
   const { query: run, transaction } = client;
@@ -222,6 +228,7 @@ export const makePostgresStore = (client: SqlClient) => {
             where id = any(${list}::int[])`,
           sql`delete from session where team_id = any(${list}::int[])`,
           sql`update game set started_at = null`,
+          sql`delete from game_pause where ended_at is not null`,
         ]);
         return (await run(sql`select * from team where id = any(${list}::int[]) order by id`)).map(
           toTeam,
@@ -346,13 +353,31 @@ export const makePostgresStore = (client: SqlClient) => {
       }),
     setGameClosed: (closed) =>
       query(async () => {
+        // One statement: the setting and its pause change together or not at all.
         const [row] = await run(sql`
-          insert into game (id, closed, closed_changed_at) values (1, ${closed}, now())
-          on conflict (id) do update
-            set closed = excluded.closed, closed_changed_at = excluded.closed_changed_at
-          returning closed, closed_changed_at`);
+          with settings as (
+            insert into game (id, closed, closed_changed_at) values (1, ${closed}, now())
+            on conflict (id) do update
+              set closed = excluded.closed, closed_changed_at = excluded.closed_changed_at
+            returning closed, closed_changed_at
+          ),
+          paused as (
+            insert into game_pause (started_at)
+            select now() where ${closed}::boolean
+              and not exists (select from game_pause where ended_at is null)
+          ),
+          resumed as (
+            update game_pause set ended_at = now() where not ${closed}::boolean and ended_at is null
+          )
+          select * from settings`);
         return toSettings(row);
       }),
+    listPauses: () =>
+      query(async () =>
+        (await run(sql`select started_at, ended_at from game_pause order by started_at`)).map(
+          toPause,
+        ),
+      ),
 
     adminFailures: (key) =>
       query(async () => {

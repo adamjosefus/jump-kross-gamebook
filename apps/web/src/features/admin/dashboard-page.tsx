@@ -62,6 +62,8 @@ import {
   resultsCsv,
   resultsJson,
   resultTime,
+  sinceMeasured,
+  type Clock,
   teamResults,
 } from './results';
 import { Subpage, useNarrow, useSubpageBack } from './subpage';
@@ -101,17 +103,14 @@ const useNow = () => {
  */
 const TeamTimes = ({
   team,
-  now,
-  fetchedAt,
+  clock,
   chapters,
 }: {
   readonly team: TeamStatus;
-  readonly now: number;
-  /** When the team's status arrived, by this browser's clock. */
-  readonly fetchedAt: number;
+  readonly clock: Clock;
   readonly chapters: ReadonlyMap<string, string>;
 }) => {
-  const playtimeMs = playTime(team, now);
+  const playtimeMs = playTime(team, clock);
   if (playtimeMs === undefined) return null;
   const phase = team.phase;
   return (
@@ -127,14 +126,13 @@ const TeamTimes = ({
               ? 'Mezi kapitolami'
               : (chapters.get(phase.chapter) ?? phase.chapter)}
             {phase.counts ? '' : ' (nepočítá se)'}{' '}
-            {/* The server's duration plus the time since it arrived: both ends of that are
-                read from this browser's clock, so a clock that is off does not show. */}
-            {formatDuration(phase.ms + Math.max(now - fetchedAt, 0))}
+            {/* The server's duration plus the time since it arrived, unless the game is closed. */}
+            {formatDuration(phase.ms + sinceMeasured(team, clock))}
           </Badge>
         </div>
       )}
       <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-        Hra {formatDuration(playtimeMs)} · výsledek {formatDuration(resultTime(team, now) ?? 0)}
+        Hra {formatDuration(playtimeMs)} · výsledek {formatDuration(resultTime(team, clock) ?? 0)}
       </div>
     </>
   );
@@ -143,16 +141,16 @@ const TeamTimes = ({
 /** Copies the teams' results to the clipboard as a CSV table or as JSON, with the state. */
 const CopyResults = ({
   teams,
-  now,
+  clock,
 }: {
   readonly teams: readonly TeamStatus[];
-  readonly now: number;
+  readonly clock: Clock;
 }) => {
   const [copied, setCopied] = useState<'csv' | 'json'>();
   // Fetched ahead: a clipboard write after a request would no longer count as the user's click.
   const breakdown = useTimeBreakdown(BREAKDOWN_POLL_MS);
   const copy = async (format: 'csv' | 'json') => {
-    const results = teamResults(teams, now, breakdown.data);
+    const results = teamResults(teams, clock, breakdown.data);
     try {
       await navigator.clipboard.writeText(
         format === 'csv' ? resultsCsv(results) : resultsJson(results),
@@ -422,6 +420,8 @@ export const DashboardPage = () => {
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { game, teams, log, codes } = overview.data;
+  // The times come from the last poll; a closed game stops every clock.
+  const clock: Clock = { now, measuredAt: overview.dataUpdatedAt, paused: game.closed };
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
   const chapterNames: ReadonlyMap<string, string> = new Map(
     overview.data.chapters.map((chapter) => [chapter.id, chapter.name]),
@@ -435,11 +435,11 @@ export const DashboardPage = () => {
             ? 'Hra není spuštěná, týmy se nemohou přihlásit.'
             : `Hra běží od ${formatTime(game.startedAt)}.`}
         </p>
-        <CopyResults teams={teams} now={now} />
+        <CopyResults teams={teams} clock={clock} />
       </div>
       <TeamSortControl teams={teams} sort={sort} onChange={setSort} />
       <ul className='flex flex-col'>
-        {sortTeams(teams, sort, now).map((team) => (
+        {sortTeams(teams, sort, clock).map((team) => (
           <li
             key={team.id}
             className='flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60'
@@ -467,12 +467,7 @@ export const DashboardPage = () => {
                 {team.devices} zař. ·{' '}
                 {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
               </div>
-              <TeamTimes
-                team={team}
-                now={now}
-                fetchedAt={overview.dataUpdatedAt}
-                chapters={chapterNames}
-              />
+              <TeamTimes team={team} clock={clock} chapters={chapterNames} />
             </div>
             <Button
               variant='ghost'

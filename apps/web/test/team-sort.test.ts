@@ -10,6 +10,7 @@ import {
 } from '@/features/admin/team-sort';
 
 const NOW = Date.parse('2027-05-15T10:00:00.000Z');
+const CLOCK = { now: NOW, measuredAt: NOW, paused: false } as const;
 
 const team = (id: number, name: string, rest: Partial<TeamStatus> = {}): TeamStatus => ({
   id,
@@ -47,7 +48,7 @@ const teams = [
   played(4, 'Zubři', 2_500_000, 100_000, { coins: 5, note: 'b' }),
 ];
 
-const ids = (sort: TeamSort) => sortTeams(teams, sort, NOW).map(({ id }) => id);
+const ids = (sort: TeamSort) => sortTeams(teams, sort, CLOCK).map(({ id }) => id);
 
 describe('sortTeams', () => {
   it('keeps the order of the story by default', () => {
@@ -73,16 +74,16 @@ describe('sortTeams', () => {
     // A minute and two minutes on the way: both shorter than any finished team's time.
     const late = team(5, 'Běžci', {
       startedAt: '2027-05-15T09:59:00.000Z',
-      playtimeMs: 0,
-      resultMs: 0,
+      playtimeMs: 60_000,
+      resultMs: 60_000,
     });
     const early = team(6, 'Chodci', {
       startedAt: '2027-05-15T09:58:00.000Z',
-      playtimeMs: 0,
-      resultMs: 0,
+      playtimeMs: 120_000,
+      resultMs: 120_000,
     });
     const order = (sort: TeamSort) =>
-      sortTeams([...teams, late, early], sort, NOW).map(({ id }) => id);
+      sortTeams([...teams, late, early], sort, CLOCK).map(({ id }) => id);
     expect(order({ key: 'playtime', direction: 'asc' })).toEqual([2, 4, 1, 5, 6, 3]);
     expect(order({ key: 'playtime', direction: 'desc' })).toEqual([1, 4, 2, 6, 5, 3]);
     // Other orders do not group them.

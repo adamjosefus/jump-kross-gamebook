@@ -306,6 +306,20 @@ describe('postgres store', () => {
     expect((await run(store.gameSettings())).closed).toBe(false);
   });
 
+  it('records a pause from closing the game to opening it, one at a time', async () => {
+    const before = (await run(store.listPauses())).length;
+    await run(store.setGameClosed(true));
+    await run(store.setGameClosed(true));
+    const running = (await run(store.listPauses())).slice(before);
+    expect(running).toHaveLength(1);
+    expect(running[0]!.endedAt).toBeUndefined();
+    await run(store.setGameClosed(false));
+    await run(store.setGameClosed(false));
+    const [ended] = (await run(store.listPauses())).slice(before);
+    expect(ended!.endedAt!.getTime()).toBeGreaterThanOrEqual(ended!.startedAt.getTime());
+    expect(await run(store.listPauses())).toHaveLength(before + 1);
+  });
+
   it('reads a state with a value it cannot hold leniently', async () => {
     await db.query(
       `update team set state = '{"gold": null, "bag": {"a": 1}, "ok": 3}'::jsonb where id = 2`,
@@ -557,12 +571,20 @@ describe('postgres schema', () => {
         started_at timestamptz not null,
         ended_at timestamptz not null
       );
+      create table game (id int primary key check (id = 1), started_at timestamptz);
+      alter table game add column closed boolean not null default false;
+      alter table game add column closed_changed_at timestamptz;
+      insert into game (id, closed, closed_changed_at) values (1, true, '2027-05-15T09:00:00Z');
       insert into team (id, node, state, step) values (1, 'A2', '{"gold": 5}', 7);
       insert into step_log (team_id, action, from_node, to_node, state)
         values (1, 'choice:1', 'A1', 'A2', '{"gold": 5}');
     `);
     const migrated = makePostgresStore(pgliteClient(db));
     expect(await run(migrated.getTeam(1))).toMatchObject({ node: 'A2', revision: 7 });
+    // The game closed before pauses were recorded has its pause from when it closed.
+    expect(await run(migrated.listPauses())).toEqual([
+      { startedAt: new Date('2027-05-15T09:00:00Z'), endedAt: undefined },
+    ]);
     expect(await run(migrated.recentLog(5))).toMatchObject([
       { teamId: 1, action: 'choice:1', fromNode: 'A1', toNode: 'A2' },
     ]);

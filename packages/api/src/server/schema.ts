@@ -71,6 +71,15 @@ create table if not exists game (
 alter table game add column if not exists closed boolean not null default false;
 alter table game add column if not exists closed_changed_at timestamptz;
 
+-- The times the game was closed, so the teams' clocks can leave them out; an open one has no end.
+create table if not exists game_pause (
+  id bigserial primary key,
+  started_at timestamptz not null,
+  ended_at timestamptz
+);
+-- A game closed before the pauses were recorded gets its running pause, from when it closed.
+insert into game_pause (started_at) select coalesce(closed_changed_at, now()) from game where closed and not exists (select from game_pause where ended_at is null);
+
 create table if not exists admin_login (
   key text primary key,
   failures int not null default 0,

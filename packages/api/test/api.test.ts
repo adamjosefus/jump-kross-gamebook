@@ -612,6 +612,45 @@ describe('closed game', () => {
   });
 });
 
+describe('game time and pauses', () => {
+  it('leaves the times the game was closed out of the play time', async () => {
+    const data = emptyMemoryData();
+    const fresh = makeHandler(config, MemoryStoreLayer(data), SAMPLE);
+    const admin = device(fresh.handler);
+    await admin('POST', '/api/admin/login', { password: config.adminPassword });
+    await admin('POST', '/api/admin/game/start');
+    const phone = device(fresh.handler);
+    await phone('POST', '/api/player/login', {
+      code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
+    });
+    const playtime = async (): Promise<number> =>
+      (await admin('GET', '/api/admin/overview')).body.teams[0].playtimeMs;
+
+    // Ten minutes on the way, of which the game was closed for three.
+    const now = Date.now();
+    data.teams.set(1, { ...data.teams.get(1)!, startedAt: new Date(now - 600_000) });
+    data.pauses = [{ startedAt: new Date(now - 400_000), endedAt: new Date(now - 220_000) }];
+    expect(await playtime()).toBeGreaterThanOrEqual(420_000);
+    expect(await playtime()).toBeLessThan(421_000);
+
+    // A pause that runs now stops the clock; one before the first login counts for nothing.
+    data.pauses = [{ startedAt: new Date(now - 900_000), endedAt: new Date(now - 700_000) }];
+    await admin('POST', '/api/admin/game/closed', { closed: true });
+    const stopped = await playtime();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await playtime()).toBe(stopped);
+    expect(data.pauses).toHaveLength(2);
+    // Closing again keeps the one pause; opening ends it and the clock runs on.
+    await admin('POST', '/api/admin/game/closed', { closed: true });
+    expect(data.pauses).toHaveLength(2);
+    await admin('POST', '/api/admin/game/closed', { closed: false });
+    expect(data.pauses.every(({ endedAt }) => endedAt !== undefined)).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await playtime()).toBeGreaterThan(stopped);
+    await fresh.dispose();
+  });
+});
+
 describe('devices from the admin', () => {
   it('logs a device out, bans one and unbans it', async () => {
     const fresh = makeHandler(config, MemoryStoreLayer(), SAMPLE);
@@ -874,6 +913,7 @@ describe('server failures', () => {
       listSessions: fail,
       gameSettings: fail,
       setGameClosed: fail,
+      listPauses: fail,
       banDevice: fail,
       unbanDevice: fail,
       isBanned: fail,

@@ -72,6 +72,13 @@ export interface GameSettingsRow {
   readonly changedAt: Date | undefined;
 }
 
+/** A time the game was closed; the teams' clocks stand still meanwhile. */
+export interface PauseRow {
+  readonly startedAt: Date;
+  /** Undefined while the game is still closed. */
+  readonly endedAt: Date | undefined;
+}
+
 export interface AdminFailures {
   readonly failures: number;
   readonly lastAt: Date;
@@ -107,8 +114,8 @@ export interface StoreShape {
 
   /**
    * A new game for these teams in one go: rows created where missing, every team moved to `start`
-   * wherever it is, the first login and the devices' sessions forgotten, and the
-   * game itself no longer started. Returns the rows as they are then.
+   * wherever it is, the first login and the devices' sessions forgotten, the game itself no
+   * longer started and its finished pauses forgotten. Returns the rows as they are then.
    */
   readonly resetTeams: (
     ids: readonly number[],
@@ -162,7 +169,13 @@ export interface StoreShape {
   readonly listBans: () => Effect.Effect<readonly BanRow[], StoreError>;
 
   readonly gameSettings: () => Effect.Effect<GameSettingsRow, StoreError>;
+  /**
+   * Closes or opens the game. Closing starts a pause unless one runs already, opening ends it, in
+   * the same write, so the pauses always match the setting.
+   */
   readonly setGameClosed: (closed: boolean) => Effect.Effect<GameSettingsRow, StoreError>;
+  /** Every pause of the game, the earliest first. */
+  readonly listPauses: () => Effect.Effect<readonly PauseRow[], StoreError>;
 
   /** Failed admin logins from `key` (the client's address) since the last success. */
   readonly adminFailures: (key: string) => Effect.Effect<AdminFailures | undefined, StoreError>;

@@ -7,6 +7,7 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, kdy 
 - **Začátek hry týmu** je první přihlášení týmu kódem klanu po tom, co organizátoři hru spustili. Další přihlášení, ze stejného i z jiného zařízení, začátek nemění.
 - **Konec hry týmu** je okamžik, kdy tým dojde do závěrečného uzlu příběhu, ať volbou, nebo naskenováním kódu.
 - **Akce** týmu: každá volba, každý sken a každý zásah organizátora, s okamžikem, kdy se stal, a uzlem, kam tým došel. Časy se počítají z akcí od posledního návratu týmu na start; starší akce zůstávají jen v záznamu.
+- **Pauzy** jsou doby, kdy organizátoři hru pozastavili (na stránce Hra). Pozastavení pauzu začne, pokračování ji ukončí. Během pauzy týmům čas stojí a nepočítá se do žádného času, ani do kapitoly, ve které tým právě je.
 
 ## Kapitoly
 
@@ -16,12 +17,12 @@ Uzly bez kapitoly leží **mezi kapitolami**. Čas strávený v nich je mezera m
 
 ## Časy
 
-| Čas                     | Jak vzniká                                                    |
-| ----------------------- | ------------------------------------------------------------- |
-| Celkový čas             | konec − začátek; u týmu na cestě teď − začátek                |
-| Čas kapitoly            | součet doby, kterou tým strávil v uzlech kapitoly             |
-| Čas mezi kapitolami     | doba v uzlech bez kapitoly, zvlášť pro každou dvojici kapitol |
-| Výsledný čas (výsledek) | celkový čas − čas kapitol, které se nepočítají                |
+| Čas                     | Jak vzniká                                                       |
+| ----------------------- | ---------------------------------------------------------------- |
+| Celkový čas             | konec − začátek bez pauz; u týmu na cestě teď − začátek bez pauz |
+| Čas kapitoly            | součet doby, kterou tým strávil v uzlech kapitoly                |
+| Čas mezi kapitolami     | doba v uzlech bez kapitoly, zvlášť pro každou dvojici kapitol    |
+| Výsledný čas (výsledek) | celkový čas − čas kapitol, které se nepočítají                   |
 
 Kapitoly a mezery dohromady dávají přesně celkový čas. Když se tým do kapitoly vrátí (třeba ho tam přesune organizátor), časy se sečtou. Podle výsledného času se týmy řadí.
 

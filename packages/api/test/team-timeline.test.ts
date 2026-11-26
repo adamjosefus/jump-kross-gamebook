@@ -65,7 +65,7 @@ const seconds = (map: ReadonlyMap<string, number>) =>
 
 describe('teamTimeline', () => {
   it('measures each chapter and the gaps between them, and leaves out what does not count', () => {
-    const timeline = teamTimeline(story, team(700), LOG, T0 + 10_000_000);
+    const timeline = teamTimeline(story, team(700), LOG, [], T0 + 10_000_000);
     // Two steps within the first chapter make one stretch of it.
     expect(seconds(timeline.chapters)).toEqual({ intro: 60, one: 340, two: 150 });
     expect(seconds(timeline.gaps)).toEqual({ [gapKey({ from: 'one', to: 'two' })]: 150 });
@@ -76,12 +76,12 @@ describe('teamTimeline', () => {
   });
 
   it('counts up to now for a team on its way and tells where it is', () => {
-    const introduced = teamTimeline(story, team(), LOG.slice(0, 1), T0 + 30_000);
+    const introduced = teamTimeline(story, team(), LOG.slice(0, 1), [], T0 + 30_000);
     expect(introduced.phase).toEqual({ chapter: 'intro', counts: false, since: at(0) });
     // Nothing counts yet: the team is in the introduction.
     expect(introduced.resultMs).toBe(0);
 
-    const walking = teamTimeline(story, team(), LOG.slice(0, 4), T0 + 450_000);
+    const walking = teamTimeline(story, team(), LOG.slice(0, 4), [], T0 + 450_000);
     expect(walking.phase).toEqual({ chapter: undefined, counts: true, since: at(400) });
     // The way leads to no chapter yet.
     expect(seconds(walking.gaps)).toEqual({ [gapKey({ from: 'one', to: '' })]: 50 });
@@ -91,7 +91,7 @@ describe('teamTimeline', () => {
   it('credits the moment between the first login and the start to the start node', () => {
     // A first login records the start before the team is moved to the start node.
     const log = [move(2, 'start', 'A'), move(100, 'choice:0', 'B')];
-    const timeline = teamTimeline(story, team(), log, T0 + 200_000);
+    const timeline = teamTimeline(story, team(), log, [], T0 + 200_000);
     expect(seconds(timeline.chapters)).toEqual({ intro: 100, one: 100 });
     expect(timeline.gaps.size).toBe(0);
   });
@@ -99,7 +99,7 @@ describe('teamTimeline', () => {
   it('sums a chapter the team came back to and keeps the gaps apart', () => {
     // The admin moved the team back from the way to the first chapter.
     const log = [...LOG.slice(0, 4), move(450, 'admin', 'C'), move(500, 'scan:2', 'WAY')];
-    const timeline = teamTimeline(story, team(), log, T0 + 600_000);
+    const timeline = teamTimeline(story, team(), log, [], T0 + 600_000);
     expect(seconds(timeline.chapters)).toEqual({ intro: 60, one: 390 });
     expect(seconds(timeline.gaps)).toEqual({
       [gapKey({ from: 'one', to: 'one' })]: 50,
@@ -107,8 +107,21 @@ describe('teamTimeline', () => {
     });
   });
 
+  it('leaves the pauses of the game out of the chapters, the gaps and the total', () => {
+    // Closed for 30 s in the first chapter and for 20 s on the way between the chapters.
+    const pauses = [
+      { startedAt: at(200), endedAt: at(230) },
+      { startedAt: at(500), endedAt: at(520) },
+    ];
+    const timeline = teamTimeline(story, team(700), LOG, pauses, T0 + 10_000_000);
+    expect(seconds(timeline.chapters)).toEqual({ intro: 60, one: 310, two: 150 });
+    expect(seconds(timeline.gaps)).toEqual({ [gapKey({ from: 'one', to: 'two' })]: 130 });
+    expect(timeline.totalMs).toBe(650_000);
+    expect(timeline.resultMs).toBe(590_000);
+  });
+
   it('has nothing for a team that has not logged in', () => {
-    const timeline = teamTimeline(story, { ...team(), startedAt: undefined }, LOG, T0);
+    const timeline = teamTimeline(story, { ...team(), startedAt: undefined }, LOG, [], T0);
     expect(timeline.chapters.size).toBe(0);
     expect(timeline.resultMs).toBe(0);
     expect(timeline.phase).toBeUndefined();

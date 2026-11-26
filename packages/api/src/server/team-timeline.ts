@@ -1,6 +1,7 @@
 import type { Story } from '@gamebook/core';
 
-import type { MoveRow, TeamRow } from './store.ts';
+import type { MoveRow, PauseRow, TeamRow } from './store.ts';
+import { runningMs } from './team-time.ts';
 
 /** A gap between two chapters: the chapter the team left and the one it came to ("" for none). */
 export interface Gap {
@@ -23,6 +24,8 @@ export interface TeamTimeline {
   readonly gaps: ReadonlyMap<string, number>;
   /** The gaps the team went through, in the order it did. */
   readonly gapsSeen: readonly Gap[];
+  /** From the first login to the end, or to now; the chapters and gaps add up to it. */
+  readonly totalMs: number;
   /** The total time without the chapters that do not count. */
   readonly resultMs: number;
   /** Missing before the first login and after the end. */
@@ -43,6 +46,7 @@ const EMPTY: TeamTimeline = {
   chapters: new Map(),
   gaps: new Map(),
   gapsSeen: [],
+  totalMs: 0,
   resultMs: 0,
   phase: undefined,
 };
@@ -51,12 +55,14 @@ const EMPTY: TeamTimeline = {
  * Splits the team's time from its first login until its end (or `now`) by the chapters of the
  * nodes it was at. The time on nodes of no chapter is a gap between the chapter before and the one
  * after. The chapters and gaps together make the team's total time; the result leaves out the
- * chapters that do not count. `log` may hold other teams' moves too.
+ * chapters that do not count. The game's pauses count nowhere. `log` may hold other teams' moves
+ * too.
  */
 export const teamTimeline = (
   story: Story,
   team: TeamRow,
   log: readonly MoveRow[],
+  pauses: readonly PauseRow[],
   now: number,
 ): TeamTimeline => {
   if (team.startedAt === undefined) return EMPTY;
@@ -97,7 +103,7 @@ export const teamTimeline = (
   const gaps = new Map<string, number>();
   const gapsSeen: Gap[] = [];
   for (const [index, stretch] of stretches.entries()) {
-    const ms = stretch.to - stretch.from;
+    const ms = runningMs(stretch.from, stretch.to, pauses, now);
     if (stretch.chapter !== '') {
       chapters.set(stretch.chapter, (chapters.get(stretch.chapter) ?? 0) + ms);
       continue;
@@ -126,5 +132,6 @@ export const teamTimeline = (
           counts: current.chapter === '' || countsOf(current.chapter),
           since: new Date(current.from),
         };
-  return { chapters, gaps, gapsSeen, resultMs: end - start - leftOut, phase };
+  const totalMs = runningMs(start, end, pauses, now);
+  return { chapters, gaps, gapsSeen, totalMs, resultMs: totalMs - leftOut, phase };
 };

@@ -11,6 +11,8 @@ import {
 } from '@/features/admin/results';
 
 const NOW = Date.parse('2027-05-15T10:00:00.000Z');
+/** The server measured the times five seconds ago and the game runs. */
+const CLOCK = { now: NOW, measuredAt: NOW - 5_000, paused: false } as const;
 
 const finished: TeamStatus = {
   id: 1,
@@ -68,26 +70,34 @@ describe('formatDuration', () => {
 });
 
 describe('playTime', () => {
-  it('is the server time for a finished team, the clock since the login for a running one', () => {
-    expect(playTime(finished, NOW)).toBe(6_012_500);
-    expect(playTime(running, NOW)).toBe(1_800_000);
-    expect(playTime(waiting, NOW)).toBeUndefined();
+  it('is the server time for a finished team, moved on since the poll for a running one', () => {
+    expect(playTime(finished, CLOCK)).toBe(6_012_500);
+    expect(playTime(running, CLOCK)).toBe(1_800_000);
+    expect(playTime(waiting, CLOCK)).toBeUndefined();
+  });
+});
+
+describe('a closed game', () => {
+  it('stops the times of the teams on their way', () => {
+    const paused = { ...CLOCK, paused: true };
+    expect(playTime(running, paused)).toBe(1_795_000);
+    expect(resultTime(running, paused)).toBe(1_735_000);
   });
 });
 
 describe('resultTime', () => {
   it('ticks with the play time, except in a chapter that does not count', () => {
-    expect(resultTime(finished, NOW)).toBe(4_781_500);
+    expect(resultTime(finished, CLOCK)).toBe(4_781_500);
     // The 5 s the client's clock has moved on since the poll count too.
-    expect(resultTime(running, NOW)).toBe(1_740_000);
+    expect(resultTime(running, CLOCK)).toBe(1_740_000);
     const standing = { ...running, phase: { ...running.phase!, counts: false } };
-    expect(resultTime(standing, NOW)).toBe(1_735_000);
-    expect(resultTime(waiting, NOW)).toBeUndefined();
+    expect(resultTime(standing, CLOCK)).toBe(1_735_000);
+    expect(resultTime(waiting, CLOCK)).toBeUndefined();
   });
 });
 
 describe('teamResults', () => {
-  const results = teamResults([finished, running, waiting], NOW);
+  const results = teamResults([finished, running, waiting], CLOCK);
 
   it('rounds the times down to whole seconds and keeps the state', () => {
     expect(results[0]).toEqual({
@@ -156,7 +166,7 @@ describe('teamResults', () => {
         },
       ],
     };
-    const split = teamResults([finished, waiting], NOW, breakdown);
+    const split = teamResults([finished, waiting], CLOCK, breakdown);
     expect(split[0]!.chapters).toEqual({ home: 1_231, shop: 4_000 });
     expect(split[0]!.gaps).toEqual({ 'home>shop': 780, 'shop>end': 0 });
     expect(split[1]!.gaps).toEqual({ 'home>shop': 0, 'shop>end': 0 });

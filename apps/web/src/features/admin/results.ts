@@ -13,26 +13,39 @@ export const formatDuration = (ms: number) => {
 };
 
 /**
- * The team's play time as of `now`: the server's for a finished team (exact), counted here for a
- * running one, so it ticks every second rather than every poll. Undefined before the first login.
+ * When the times are read: `now` and when the server measured them (`measuredAt`), both by this
+ * browser's clock, and whether the game is closed, which stops every team's clock.
  */
-export const playTime = (team: TeamStatus, now: number) => {
-  if (team.startedAt === undefined) return undefined;
-  if (team.finishedAt !== undefined) return team.playtimeMs ?? 0;
-  return Math.max(team.playtimeMs ?? 0, now - Date.parse(team.startedAt));
-};
+export interface Clock {
+  readonly now: number;
+  readonly measuredAt: number;
+  readonly paused: boolean;
+}
 
 /**
- * The team's result as of `now`: its total time without the chapters that do not count. The
- * server's for a finished team; for a running one it ticks with the play time, unless the team is
- * in a chapter that does not count, where it stands. Undefined before the first login.
+ * How much a running team's times have grown since the server measured them: nothing for a team
+ * at the end or while the game is closed. Both ends are read from this browser's clock, so a clock
+ * that is off does not show.
  */
-export const resultTime = (team: TeamStatus, now: number) => {
-  const playtimeMs = playTime(team, now);
-  if (playtimeMs === undefined || team.resultMs === undefined) return undefined;
-  if (team.finishedAt !== undefined || team.phase?.counts === false) return team.resultMs;
-  return team.resultMs + Math.max(playtimeMs - (team.playtimeMs ?? 0), 0);
-};
+export const sinceMeasured = (team: TeamStatus, clock: Clock) =>
+  team.finishedAt !== undefined || clock.paused ? 0 : Math.max(clock.now - clock.measuredAt, 0);
+
+/**
+ * The team's play time as of `clock.now`: the server's, moved on for a running team, so it ticks
+ * every second rather than every poll. Undefined before the first login.
+ */
+export const playTime = (team: TeamStatus, clock: Clock) =>
+  team.startedAt === undefined ? undefined : (team.playtimeMs ?? 0) + sinceMeasured(team, clock);
+
+/**
+ * The team's result as of `clock.now`: its total time without the chapters that do not count. It
+ * ticks with the play time, unless the team is in a chapter that does not count, where it stands.
+ * Undefined before the first login.
+ */
+export const resultTime = (team: TeamStatus, clock: Clock) =>
+  team.startedAt === undefined || team.resultMs === undefined
+    ? undefined
+    : team.resultMs + (team.phase?.counts === false ? 0 : sinceMeasured(team, clock));
 
 /** The name of a gap in the results: `home>shopping`, with `start` and `end` for none. */
 export const gapName = ({ from, to }: ChapterGap) => `${from || 'start'}>${to || 'end'}`;
@@ -70,7 +83,7 @@ const seconds = (ms: number) => Math.max(0, Math.floor(ms / 1000));
  */
 export const teamResults = (
   teams: readonly TeamStatus[],
-  now: number,
+  clock: Clock,
   breakdown?: TimeBreakdown,
 ): readonly TeamResult[] =>
   teams.map((team) => {
@@ -82,8 +95,8 @@ export const teamResults = (
       finished: team.finished,
       startedAt: team.startedAt ?? null,
       finishedAt: team.finishedAt ?? null,
-      playtimeDuration: seconds(playTime(team, now) ?? 0),
-      resultDuration: seconds(resultTime(team, now) ?? 0),
+      playtimeDuration: seconds(playTime(team, clock) ?? 0),
+      resultDuration: seconds(resultTime(team, clock) ?? 0),
       chapters: Object.fromEntries(
         (breakdown?.chapters ?? []).map(({ id }) => [id, seconds(times?.chapters[id] ?? 0)]),
       ),

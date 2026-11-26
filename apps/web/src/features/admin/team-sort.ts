@@ -1,7 +1,7 @@
 import type { TeamStatus } from '@gamebook/api';
 import type { Value } from '@gamebook/core';
 
-import { playTime, resultTime } from './results';
+import { playTime, resultTime, type Clock } from './results';
 
 /**
  * What the live list of teams is ordered by: the story's own order, the name, the total time or the
@@ -56,12 +56,12 @@ const compareValues = (first: Value, second: Value) => {
 };
 
 /** What the team is ordered by; undefined when it has no such value (yet). */
-const sortValue = (team: TeamStatus, key: TeamSortKey, now: number): Value | undefined => {
+const sortValue = (team: TeamStatus, key: TeamSortKey, clock: Clock): Value | undefined => {
   if (key === 'order') return team.id;
   if (key === 'name') return team.name;
   if (key.startsWith('state:')) return team.state[key.slice('state:'.length)];
   // A team that has not logged in has no time; zero would put it first among the fastest.
-  return key === 'playtime' ? playTime(team, now) : resultTime(team, now);
+  return key === 'playtime' ? playTime(team, clock) : resultTime(team, clock);
 };
 
 const TIME_KEYS: ReadonlySet<TeamSortKey> = new Set(['playtime', 'result']);
@@ -75,10 +75,10 @@ const TIME_KEYS: ReadonlySet<TeamSortKey> = new Set(['playtime', 'result']);
 export const sortTeams = (
   teams: readonly TeamStatus[],
   { key, direction }: TeamSort,
-  now: number,
+  clock: Clock,
 ): readonly TeamStatus[] =>
   teams
-    .map((team) => ({ team, value: sortValue(team, key, now) }))
+    .map((team) => ({ team, value: sortValue(team, key, clock) }))
     .toSorted((first, second) => {
       if (first.value === undefined || second.value === undefined) {
         if (first.value !== undefined) return -1;

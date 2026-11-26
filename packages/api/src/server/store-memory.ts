@@ -7,6 +7,7 @@ import {
   type GameSettingsRow,
   START_ACTIONS,
   type LogRow,
+  type PauseRow,
   type SessionRow,
   type TeamMove,
   type TeamRow,
@@ -31,6 +32,7 @@ export interface MemoryData {
   log: readonly LogRow[];
   gameStartedAt: Date | undefined;
   settings: GameSettingsRow;
+  pauses: readonly PauseRow[];
 }
 
 export const emptyMemoryData = (): MemoryData => ({
@@ -41,6 +43,7 @@ export const emptyMemoryData = (): MemoryData => ({
   log: [],
   gameStartedAt: undefined,
   settings: { closed: false, changedAt: undefined },
+  pauses: [],
 });
 
 /** In-process store for local development without a database and for tests. */
@@ -111,6 +114,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         for (const [sessionId, session] of sessions)
           if (ids.includes(session.teamId)) sessions.delete(sessionId);
         data.gameStartedAt = undefined;
+        data.pauses = data.pauses.filter(({ endedAt }) => endedAt === undefined);
         return reset;
       }),
 
@@ -199,9 +203,19 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     gameSettings: () => Effect.sync(() => data.settings),
     setGameClosed: (closed) =>
       Effect.sync(() => {
-        data.settings = { closed, changedAt: new Date() };
+        const now = new Date();
+        const running = data.pauses.some(({ endedAt }) => endedAt === undefined);
+        data.pauses = closed
+          ? running
+            ? data.pauses
+            : [...data.pauses, { startedAt: now, endedAt: undefined }]
+          : data.pauses.map((pause) =>
+              pause.endedAt === undefined ? { ...pause, endedAt: now } : pause,
+            );
+        data.settings = { closed, changedAt: now };
         return data.settings;
       }),
+    listPauses: () => Effect.sync(() => data.pauses),
 
     adminFailures: (key) => Effect.sync(() => adminFailures.get(key)),
     recordAdminFailure: (key) =>
