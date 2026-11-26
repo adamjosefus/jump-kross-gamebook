@@ -159,11 +159,11 @@ const decodeMove = (token: string): Move | undefined | 'invalid' => {
 /** How the path shows the move from `from`. */
 const viaOf = (from: PlaytestVisit, move: Move | undefined) => {
   if (move === undefined) return 'Přihlášení přeskočeno';
-  if ('choice' in move)
-    return (
-      from.view.choices.find((choice) => choice.index === move.choice)?.label ??
-      `Volba ${move.choice}`
-    );
+  if ('choice' in move) {
+    const label = from.view.choices.find((choice) => choice.index === move.choice)?.label;
+    // An empty text is the plain arrow „Další“.
+    return label === undefined ? `Volba ${move.choice}` : label === '' ? 'Další' : label;
+  }
   const scanned = 'scan' in move ? move.scan : parseQr(move.code)?.id;
   const name = from.view.scans.find((qrCode) => qrCode.id === scanned)?.name;
   if ('scan' in move) return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;

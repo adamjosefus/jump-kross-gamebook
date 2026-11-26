@@ -11,7 +11,14 @@ import {
   type RenderedSegment,
 } from './engine.ts';
 import { isQrId, MAX_QR_ID } from './qr.ts';
-import { loginMessages, type AnyNode, type Choice, type Story, type Team } from './story.ts';
+import {
+  choiceName,
+  loginMessages,
+  type AnyNode,
+  type Choice,
+  type Story,
+  type Team,
+} from './story.ts';
 import type { State } from './types.ts';
 
 export interface ValidateOptions {
@@ -204,19 +211,28 @@ const choiceProblems = (
   id: string,
   choices: readonly Choice<State, string>[],
 ): readonly string[] =>
-  choices.flatMap(({ label, goto }, index) => [
-    ...(label.trim() === ''
-      ? [`Uzel ${id} má volbu bez popisku.`]
-      : problemIf(
-          choices.slice(0, index).some((earlier) => earlier.label === label),
-          `Uzel ${id} má dvě volby „${label}“.`,
-        )),
-    ...problemIf(
-      !Object.hasOwn(story.nodes, goto),
-      `Volba „${label}“ v uzlu ${id} vede na neexistující uzel ${goto}.`,
-    ),
-    ...problemIf(goto === story.introNode, `Volba „${label}“ v uzlu ${id} vede na úvod.`),
-  ]);
+  choices.flatMap((choice, index) => {
+    const { label, goto } = choice;
+    const name = choiceName(choice);
+    return [
+      ...(label === undefined
+        ? problemIf(
+            choices.length > 1,
+            `Uzel ${id} má tlačítko „Další“ bez textu vedle dalších voleb; to může být jen jediná volba.`,
+          )
+        : label.trim() === ''
+          ? [`Uzel ${id} má volbu s prázdným popiskem; pro tlačítko „Další“ popisek vynech.`]
+          : problemIf(
+              choices.slice(0, index).some((earlier) => earlier.label === label),
+              `Uzel ${id} má dvě volby „${label}“.`,
+            )),
+      ...problemIf(
+        !Object.hasOwn(story.nodes, goto),
+        `Volba „${name}“ v uzlu ${id} vede na neexistující uzel ${goto}.`,
+      ),
+      ...problemIf(goto === story.introNode, `Volba „${name}“ v uzlu ${id} vede na úvod.`),
+    ];
+  });
 
 /**
  * Problems of one node visible without playing: scan texts, labels and targets. Choices from a
@@ -246,7 +262,7 @@ const offeredAt = (node: AnyNode, id: string, state: State, team: Team) => [
   ...availableChoices(node, state, team).map(({ choice, index }) => ({
     transition: choice,
     key: `${id}#${index}`,
-    name: `volby „${choice.label}“`,
+    name: `volby „${choiceName(choice)}“`,
   })),
   ...availableScans(node, state, team).map(({ scan, index }) => ({
     transition: scan,
@@ -485,7 +501,7 @@ const unusedProblems = (
   ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).flatMap((choice, index) =>
     problemIf(
       !used.has(`${id}#${index}`),
-      `Volba „${choice.label}“ v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,
+      `Volba „${choiceName(choice)}“ v uzlu ${id} není dostupná v žádném dosažitelném stavu.`,
     ),
   ),
   ...(node.scans ?? []).flatMap((scan, index) =>

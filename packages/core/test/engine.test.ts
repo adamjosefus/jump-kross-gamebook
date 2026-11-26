@@ -216,6 +216,27 @@ describe('engine', () => {
     });
   });
 
+  it('renders a choice without a text as an empty label and names it „Další“ in the graph', () => {
+    const plain = defineStory<{ n: number }>()({
+      teams: { 1: 'Vlci' },
+      codes: {},
+      introNode: 'INTRO',
+      outroNode: 'B',
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ goto: 'B' }] },
+        B: { segments: ['B'] },
+      },
+    });
+    const position = startPosition(plain)!;
+    expect(renderNode(plain, position, VLCI)!.choices).toEqual([{ index: 0, label: '' }]);
+    expect(applyChoice(plain, position, VLCI, 0)).toEqual({
+      ok: true,
+      position: { node: 'B', state: { n: 0 } },
+    });
+    expect(toGraph(plain).nodes['A']!.choices).toMatchObject([{ label: 'Další', target: 'B' }]);
+  });
+
   it('evaluates segments from the state and hides unavailable choices', () => {
     const red = renderNode(
       story,

@@ -5,6 +5,7 @@ Slova, kterými se popisuje stavba příběhu. Platí v příběhu, v administra
 - **Uzel** (`node`): ucelená část příběhu. Může mít víc segmentů, které ale slouží jen k lepšímu členění a postupné gradaci pro čtenáře. Hra začíná ve startovním uzlu (ten s `initialState`) a končí v koncovém (`outroNode`). Před přihlášením vidí každý úvodní uzel (`introNode`).
 - **Segment** (`segment`): menší část uzlu, která rozpracuje konkrétní událost nebo situaci. Každý segment může mít jiný vzhled (`theme`) a vlastní obrázek (`svg`). Mezi segmenty jednoho uzlu hráč listuje tlačítkem „Další“; to není akce, tým zůstává ve stejném uzlu.
 - **Akce** (`action`): událost, která tým přenese z jednoho uzlu do dalšího. Každá akce může upravit stav týmu (`nextState`). Akce je:
+  - tlačítko „Další“ bez textu: jediná volba uzlu bez `label`, vypadá jako šipka mezi segmenty,
   - tlačítko s textem: volba s `label`,
   - volba v příběhu: víc tlačítek, ze kterých tým jedno vybere (`choices`),
   - naskenování QR kódu (`scans`).

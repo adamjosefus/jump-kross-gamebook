@@ -19,6 +19,7 @@ export interface Position {
 export interface RenderedChoice {
   /** Index into the node's choices for this state and team; sent back when choosing. */
   readonly index: number;
+  /** Empty for the plain arrow „Další“ of a choice without a text. */
   readonly label: string;
 }
 
@@ -195,7 +196,7 @@ export const renderNode = (
     segments: segmentsOf(node, position.state, team),
     choices: availableChoices(node, position.state, team).map(({ choice, index }) => ({
       index,
-      label: choice.label,
+      label: choice.label ?? '',
     })),
     scan: node.scans !== undefined,
     ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),

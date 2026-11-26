@@ -212,11 +212,29 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Uzel A má volbu bez popisku.',
+      'Uzel A má volbu s prázdným popiskem; pro tlačítko „Další“ popisek vynech.',
       'Uzel A má dvě volby „Dál“.',
       'Uzel A má prázdný segment č. 2.',
       'Uzel A má prázdný segment č. 3.',
       'Uzel B nemá ve stavu {"n":0} žádný obsah.',
+    ]);
+  });
+
+  it('accepts a choice without a text only as the single one', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      codes: {},
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ goto: 'B' }] },
+        B: { segments: ['B'], choices: [{ goto: 'C' }, { label: 'Konec', goto: 'C' }] },
+        C: { segments: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel B má tlačítko „Další“ bez textu vedle dalších voleb; to může být jen jediná volba.',
     ]);
   });
 

@@ -7,7 +7,14 @@ import {
   startNode,
   stateKey,
 } from './engine.ts';
-import type { AnyNode, Chapter, Choice, Story, Team } from './story.ts';
+import {
+  choiceName,
+  type AnyNode,
+  type Chapter,
+  type Choice,
+  type Story,
+  type Team,
+} from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -191,7 +198,7 @@ export const toGraph = (story: Story): GameGraph => {
           ...(preview === undefined ? {} : { preview }),
           choices: [
             ...transitionsOf(story, node).map((choice) => ({
-              label: choice.label,
+              label: choice.label ?? 'Další',
               ...(choice.code === undefined ? {} : { code: choice.code }),
               target: choice.goto,
               conditional: choice.when !== undefined,
@@ -200,7 +207,7 @@ export const toGraph = (story: Story): GameGraph => {
                 : { available: isAvailable(choice.when, state, teams) }),
             })),
             ...[...(explored.choices.get(id)?.values() ?? [])].map((choice) => ({
-              label: choice.label,
+              label: choiceName(choice),
               target: choice.goto,
               conditional: true,
             })),

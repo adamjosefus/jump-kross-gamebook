@@ -52,7 +52,21 @@ export const ArrowOnlyNextButton: StoryObj<typeof meta> = {
   },
 };
 
-/** The first screen's button has the story's own text. */
+/** A choice without a text: the team moves on by the same round arrow as between segments. */
+export const PlainNextAction: StoryObj<typeof meta> = {
+  args: {
+    node: {
+      id: 'CESTA',
+      type: 'passage',
+      scan: false,
+      timeStops: false,
+      choices: [{ index: 0, label: '' }],
+      segments: [{ theme: 'default', content: 'Cesta vede dál lesem k mlýnu.' }],
+    },
+  },
+};
+
+/** The first segment's button has the story's own text. */
 export const CustomNextButton: StoryObj<typeof meta> = {
   args: {
     node: {
@@ -69,7 +83,7 @@ export const CustomNextButton: StoryObj<typeof meta> = {
   },
 };
 
-/** A later screen: „Zpět“ is a small circle with an arrow in the top left corner. */
+/** A later segment: „Zpět“ is a small circle with an arrow in the top left corner. */
 export const BackButton: StoryObj<typeof meta> = {
   args: { ...ArrowOnlyNextButton.args, initialIndex: 1 },
 };

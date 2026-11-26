@@ -234,6 +234,17 @@ export const NodeSegments = ({
                 <p className='flex items-center justify-center gap-2'>
                   <IconFlag className='size-4' /> Konec hry
                 </p>
+              ) : choices.length === 1 && choices[0]!.label === '' ? (
+                // A choice without a text moves on like the arrow between segments.
+                <Button
+                  size='icon'
+                  aria-label='Další'
+                  className={cn(PLAYER_ICON_BUTTON_SIZE, 'self-center rounded-full')}
+                  disabled={busy || !enabled}
+                  onClick={() => onPick(choices[0]!)}
+                >
+                  <IconArrowRight className='size-5' />
+                </Button>
               ) : (
                 choices.map((choice) => (
                   <SlideButton

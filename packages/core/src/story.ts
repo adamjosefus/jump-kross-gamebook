@@ -46,8 +46,15 @@ interface Action<S, K extends string> {
 
 /** A button the team taps. */
 export interface Choice<S, K extends string> extends Action<S, K> {
-  readonly label: string;
+  /**
+   * The button's text. Without one the button is the plain round arrow „Další“, as between the
+   * segments, so the team moves on without a decision; a node then has no other choice.
+   */
+  readonly label?: string;
 }
+
+/** How a choice is named to the organisers: its text, or „Další“ for the plain arrow. */
+export const choiceName = (choice: { readonly label?: string }): string => choice.label ?? 'Další';
 
 /**
  * Taken by scanning the QR code numbered `code`. The team sees only a scan button, not which
