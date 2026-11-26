@@ -160,6 +160,44 @@ const codeProblems = (story: Story): readonly string[] => {
   ];
 };
 
+/**
+ * The ids of chapters name the columns of the results (`chapter_<id>_s`, `gap_<from>_<to>_s`), so
+ * they are plain words: an id with an underscore could make the same column as another one.
+ * `start` and `end` stand for the start and the end of the game in the columns of the gaps.
+ */
+const CHAPTER_ID = /^[A-Za-z][A-Za-z0-9]*$/;
+const RESERVED_CHAPTER_IDS: readonly string[] = ['start', 'end'];
+
+const chapterIdProblem = (id: string, name: string) => [
+  ...problemIf(
+    !CHAPTER_ID.test(id),
+    `Kapitola „${name}“ má neplatné id „${id}“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.`,
+  ),
+  ...problemIf(
+    RESERVED_CHAPTER_IDS.includes(id),
+    `Kapitola „${name}“ nesmí mít id „${id}“, to označuje začátek nebo konec hry.`,
+  ),
+];
+
+/** A node names a known chapter and every chapter has a node. */
+const chapterProblems = (story: Story): readonly string[] => {
+  const known = new Set(story.chapters.map((chapter) => chapter.id));
+  const used = new Set(story.order.map((id) => story.nodes[id]!.chapter));
+  return [
+    ...story.order.flatMap((id) => {
+      const chapter = story.nodes[id]!.chapter;
+      return chapter === undefined
+        ? []
+        : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
+    }),
+    ...story.chapters.flatMap(({ id, name }) => [
+      ...chapterIdProblem(id, name),
+      ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
+      ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
+    ]),
+  ];
+};
+
 /** Labels and targets of a node's buttons. */
 const choiceProblems = (
   story: Story,
@@ -526,6 +564,7 @@ export const validateStory = (
     ...outroProblems(story),
     ...teamProblems(story),
     ...codeProblems(story),
+    ...chapterProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),
     ...endProblems,

@@ -12,7 +12,6 @@ import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
-import { useStoryTime } from './story-time';
 import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
@@ -20,15 +19,10 @@ type PlayerNode = NonNullable<PlayerView['node']>;
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
 const VisitedStoryText = ({
   block,
-  onRead,
   ...props
-}: ComponentProps<typeof StoryText> & {
-  readonly block: string;
-  readonly onRead: ((ms: number) => void) | undefined;
-}) => {
-  useStoryTime(onRead);
-  return <StoryText {...props} fast={useRecentVisit(block)} />;
-};
+}: ComponentProps<typeof StoryText> & { readonly block: string }) => (
+  <StoryText {...props} fast={useRecentVisit(block)} />
+);
 
 /** How long the buttons stay disabled after they appear, so a tap meant for the text or the
  * previous screen's button does not land on them. */
@@ -126,7 +120,6 @@ export const NodeScreens = ({
   animated = true,
   aside,
   corner,
-  onRead,
 }: {
   readonly node: PlayerNode;
   readonly step: number;
@@ -145,8 +138,6 @@ export const NodeScreens = ({
   readonly aside?: ReactNode;
   /** Shown small in the top left corner of the first screen, where the others have „Zpět“. */
   readonly corner?: ReactNode;
-  /** How long a screen's text was on; a test run or the anonymous intro measures nothing. */
-  readonly onRead?: (ms: number) => void;
   /** A QR code read on the scan screen. */
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
@@ -186,6 +177,7 @@ export const NodeScreens = ({
         )
       }
       aside={aside}
+      timeStops={node.timeStops}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
@@ -202,7 +194,6 @@ export const NodeScreens = ({
               )}
               <VisitedStoryText
                 block={`${visitScope}/${node.id}/${index}`}
-                onRead={onRead}
                 content={screen.content}
                 theme={theme}
                 instant={shown || !animated}

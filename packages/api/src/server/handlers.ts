@@ -137,10 +137,6 @@ const PlayerHandlers = HttpApiBuilder.group(
         const { teamId } = yield* CurrentTeam;
         return yield* orDie(game.scan(teamId, payload.code, payload.expectedStep));
       }),
-      storyTime: Effect.fn(function* ({ payload }) {
-        const { teamId } = yield* CurrentTeam;
-        yield* orDie(game.storyTime(teamId, payload.teamId, payload.intervals));
-      }),
       logout: Effect.fn(function* () {
         const { sessionId } = yield* CurrentTeam;
         yield* orDie(store.deleteSession(sessionId));
@@ -191,6 +187,7 @@ const AdminHandlers = HttpApiBuilder.group(
       story: () => Effect.succeed(game.graph()),
       playtest: ({ payload }) => game.playtest(payload),
       overview: () => orDie(game.overview()),
+      timeBreakdown: () => orDie(game.timeBreakdown()),
       startGame: () => orDie(game.startGame()),
       setClosed: ({ payload }) => orDie(game.setClosed(payload.closed)),
       devices: () => orDie(game.devices()),

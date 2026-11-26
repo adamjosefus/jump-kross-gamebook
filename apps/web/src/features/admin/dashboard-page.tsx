@@ -1,4 +1,4 @@
-import type { TeamStatus } from '@gamebook/api';
+import type { QrCode, TeamStatus } from '@gamebook/api';
 import type { GameGraph, Value } from '@gamebook/core';
 import {
   IconAlertTriangle,
@@ -54,9 +54,16 @@ import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
 import { formatTime, timeAgo } from './format';
-import { adminKeys, useOverview, useStoryGraph } from './queries';
+import { invalidateGame, useOverview, useStoryGraph, useTimeBreakdown } from './queries';
 import { ResetDialog } from './reset-dialog';
-import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
+import {
+  formatDuration,
+  playTime,
+  resultsCsv,
+  resultsJson,
+  resultTime,
+  teamResults,
+} from './results';
 import { Subpage, useNarrow, useSubpageBack } from './subpage';
 import {
   DEFAULT_TEAM_SORT,
@@ -74,6 +81,8 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
+/** The times by chapter are only for the copied results, so they are fetched less often. */
+const BREAKDOWN_POLL_MS = 15_000;
 
 /** The current time, refreshed every second, so a running clock ticks between two polls. */
 const useNow = () => {
@@ -85,15 +94,49 @@ const useNow = () => {
   return now;
 };
 
-/** The team's play time, reading time and the rest (walking, puzzles), all to the second. */
-const TeamTimes = ({ team, now }: { readonly team: TeamStatus; readonly now: number }) => {
+/**
+ * The team's total time and its result (without the chapters that do not count), to the second,
+ * and the chapter it is in now, or that it is between chapters, for how long. A chapter that does
+ * not count is marked, its time stands still in the result.
+ */
+const TeamTimes = ({
+  team,
+  now,
+  fetchedAt,
+  chapters,
+}: {
+  readonly team: TeamStatus;
+  readonly now: number;
+  /** When the team's status arrived, by this browser's clock. */
+  readonly fetchedAt: number;
+  readonly chapters: ReadonlyMap<string, string>;
+}) => {
   const playtimeMs = playTime(team, now);
   if (playtimeMs === undefined) return null;
+  const phase = team.phase;
   return (
-    <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-      Hra {formatDuration(playtimeMs)} · čtení {formatDuration(team.storyMs)} · bez čtení{' '}
-      {formatDuration(playtimeMs - team.storyMs)}
-    </div>
+    <>
+      {phase !== undefined && (
+        <div className='text-xs'>
+          <Badge
+            variant={phase.chapter === undefined ? 'outline' : 'default'}
+            className='tabular-nums'
+            title={phase.counts ? undefined : 'Čas této kapitoly se do výsledku nepočítá.'}
+          >
+            {phase.chapter === undefined
+              ? 'Mezi kapitolami'
+              : (chapters.get(phase.chapter) ?? phase.chapter)}
+            {phase.counts ? '' : ' (nepočítá se)'}{' '}
+            {/* The server's duration plus the time since it arrived: both ends of that are
+                read from this browser's clock, so a clock that is off does not show. */}
+            {formatDuration(phase.ms + Math.max(now - fetchedAt, 0))}
+          </Badge>
+        </div>
+      )}
+      <div className='font-mono text-xs text-muted-foreground tabular-nums'>
+        Hra {formatDuration(playtimeMs)} · výsledek {formatDuration(resultTime(team, now) ?? 0)}
+      </div>
+    </>
   );
 };
 
@@ -106,8 +149,10 @@ const CopyResults = ({
   readonly now: number;
 }) => {
   const [copied, setCopied] = useState<'csv' | 'json'>();
+  // Fetched ahead: a clipboard write after a request would no longer count as the user's click.
+  const breakdown = useTimeBreakdown(BREAKDOWN_POLL_MS);
   const copy = async (format: 'csv' | 'json') => {
-    const results = teamResults(teams, now);
+    const results = teamResults(teams, now, breakdown.data);
     try {
       await navigator.clipboard.writeText(
         format === 'csv' ? resultsCsv(results) : resultsJson(results),
@@ -127,7 +172,18 @@ const CopyResults = ({
           variant='ghost'
           size='sm'
           className='h-6 px-1.5 font-mono text-xs uppercase'
-          title={`Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`}
+          title={
+            breakdown.isPending
+              ? 'Načítají se časy po kapitolách…'
+              : breakdown.data === undefined
+                ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, bez časů po kapitolách (${errorMessage(breakdown.error)})`
+                : breakdown.isError
+                  ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, časy po kapitolách jsou z ${new Date(breakdown.dataUpdatedAt).toLocaleTimeString('cs-CZ')}, nepodařilo se je obnovit (${errorMessage(breakdown.error)})`
+                  : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
+          }
+          // Waits for the breakdown, so the results do not lack the chapters and gaps
+          // unnoticed; when it fails, the rest is still worth copying and the title says why.
+          disabled={breakdown.isPending}
           onClick={() => void copy(format)}
         >
           {copied === format ? <IconCheck /> : <IconCopy />} {format}
@@ -148,13 +204,16 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   'reset-time': 'vynulování času',
   admin: 'zásah organizátora',
 } as const;
-const actionLabel = (action: string) =>
-  ACTION_LABELS[action] ??
-  (action.startsWith('scan:')
-    ? `sken kódu ${action.slice(5)}`
-    : action.startsWith('choice:')
-      ? 'volba'
-      : action);
+/** A step of the log in words; a scan names its code. */
+const actionLabel = (action: string, codes: readonly QrCode[]) => {
+  const label = ACTION_LABELS[action];
+  if (label !== undefined) return label;
+  if (action.startsWith('choice:')) return 'volba';
+  if (!action.startsWith('scan:')) return action;
+  const id = action.slice(5);
+  const code = codes.find((qrCode) => String(qrCode.id) === id);
+  return code === undefined ? `sken kódu ${id}` : `sken: ${code.name} (kód ${id})`;
+};
 
 type Panel = 'teams' | 'log';
 
@@ -362,8 +421,11 @@ export const DashboardPage = () => {
   // Without anything to show the error is the page; with the last data it is a bar above them.
   if (overview.data === undefined)
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
-  const { game, teams, log } = overview.data;
+  const { game, teams, log, codes } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
+  const chapterNames: ReadonlyMap<string, string> = new Map(
+    overview.data.chapters.map((chapter) => [chapter.id, chapter.name]),
+  );
 
   const teamsContent = (
     <>
@@ -405,7 +467,12 @@ export const DashboardPage = () => {
                 {team.devices} zař. ·{' '}
                 {team.updatedAt === undefined ? 'ještě nehrál' : timeAgo(team.updatedAt)}
               </div>
-              <TeamTimes team={team} now={now} />
+              <TeamTimes
+                team={team}
+                now={now}
+                fetchedAt={overview.dataUpdatedAt}
+                chapters={chapterNames}
+              />
             </div>
             <Button
               variant='ghost'
@@ -434,7 +501,7 @@ export const DashboardPage = () => {
               {entry.fromNode ?? '·'} → {entry.toNode ?? '·'}
             </div>
             <div className='text-xs text-muted-foreground'>
-              {actionLabel(entry.action)} · {timeAgo(entry.at)}
+              {actionLabel(entry.action, codes)} · {timeAgo(entry.at)}
             </div>
           </div>
         </li>
@@ -561,7 +628,7 @@ const MoveDialog = ({
   const confirmed = parsedState !== undefined && typed === team.name;
 
   const done = () => {
-    void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+    void invalidateGame(queryClient);
     onClose();
   };
   const move = useMutation({
@@ -710,8 +777,8 @@ const MoveDialog = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Vynulovat čas týmu {team.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Čas hry i čas čtení se vynulují a telefony týmu se odhlásí. Postup a stav týmu
-                zůstanou. Čas se rozběhne znovu, až tým naskenuje svůj kód. Nejde to vrátit.
+                Čas hry se vynuluje a telefony týmu se odhlásí. Postup a stav týmu zůstanou. Čas se
+                rozběhne znovu, až tým naskenuje svůj kód. Nejde to vrátit.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

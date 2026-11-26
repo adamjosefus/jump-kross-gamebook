@@ -180,6 +180,7 @@ describe('api', () => {
       ],
       choices: [],
       scan: true,
+      timeStops: false,
     });
     const late = await phone('POST', '/api/player/choose', { index: 0, expectedStep: step });
     expect(late).toMatchObject({ status: 409, body: { _tag: 'StepConflict' } });
@@ -226,45 +227,19 @@ describe('api', () => {
     ]);
   });
 
-  it('measures the game and the reading', async () => {
+  it('measures the game from the first login to the end', async () => {
     const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
     const team = async () => (await admin('GET', '/api/admin/overview')).body.teams[1];
-    expect(await team()).toMatchObject({ storyMs: 0 });
     expect((await team()).playtimeMs).toBeUndefined();
-
-    const phone = device();
-    const tablet = device();
-    const anonymous = { intervals: [{ ms: 1000, agoMs: 0 }] };
-    expect((await phone('POST', '/api/player/story-time', anonymous)).status).toBe(401);
+    expect((await team()).resultMs).toBeUndefined();
 
     // The clock runs from the first login.
+    const phone = device();
     const start = (await phone('POST', '/api/player/login', { code: lisky })).body;
-    await tablet('POST', '/api/player/login', { code: lisky });
+    expect(start.node.timeStops).toBe(false);
     expect((await team()).playtimeMs).toBeGreaterThanOrEqual(0);
-    // Reading counts from the first login on, so for the test the login was ten minutes ago.
-    shared.teams.set(2, { ...shared.teams.get(2)!, startedAt: new Date(Date.now() - 600_000) });
-
-    // Two phones reading at the same time are one team reading.
-    const read = (who: typeof phone, ms: number, agoMs: number) =>
-      who('POST', '/api/player/story-time', { intervals: [{ ms, agoMs }] });
-    await read(phone, 60_000, 100_000);
-    await read(tablet, 60_000, 70_000);
-    // 100–40 s ago and 70–10 s ago make 90 s, give or take the milliseconds of the test.
-    expect((await team()).storyMs).toBeGreaterThanOrEqual(89_000);
-    expect((await team()).storyMs).toBeLessThanOrEqual(91_000);
-
-    // A phone left on a text counts for 5 minutes at most; nonsense counts for nothing, and
-    // neither does reading before the first scan or reading reported for another team.
-    await read(phone, 3_600_000, 200_000);
-    await read(phone, -5, 0);
-    await read(phone, 60_000, 1_000_000);
-    await phone('POST', '/api/player/story-time', {
-      teamId: 1,
-      intervals: [{ ms: 60_000, agoMs: 0 }],
-    });
-    const capped = (await team()).storyMs;
-    expect(capped).toBeGreaterThanOrEqual(389_000);
-    expect(capped).toBeLessThanOrEqual(391_000);
+    // Phones no longer report reading.
+    expect((await phone('POST', '/api/player/story-time', { intervals: [] })).status).toBe(404);
 
     // The clock stops at the end.
     const a2 = await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step });
@@ -279,17 +254,13 @@ describe('api', () => {
     expect((await team()).playtimeMs).toBe(done.playtimeMs);
     // The times themselves are sent too, so the admin can count to the second.
     expect(Date.parse(done.finishedAt) - Date.parse(done.startedAt)).toBe(done.playtimeMs);
-    // Reading after the end is clipped to the end: with an end right at the start nothing is left.
-    const readBefore = (await team()).storyMs;
-    const row = shared.teams.get(2)!;
-    shared.teams.set(2, { ...row, finishedAt: row.startedAt });
-    await read(phone, 60_000, 0);
-    expect((await team()).storyMs).toBe(readBefore);
-    shared.teams.set(2, row);
+    // The sample story has no chapters, so all of the time counts.
+    expect(done.resultMs).toBe(done.playtimeMs);
+    expect(done.phase).toBeUndefined();
 
     // A reset starts over and logs the phones out, so the next login starts the clock.
     const reset = (await admin('POST', '/api/admin/teams/2/reset')).body;
-    expect(reset).toMatchObject({ storyMs: 0, devices: 0 });
+    expect(reset).toMatchObject({ devices: 0 });
     expect(reset.playtimeMs).toBeUndefined();
     expect(reset.startedAt).toBeUndefined();
     expect(
@@ -298,6 +269,24 @@ describe('api', () => {
     expect((await team()).playtimeMs).toBeUndefined();
     await phone('POST', '/api/player/login', { code: lisky });
     expect((await team()).playtimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('splits the times between the chapters and tells where a team is', async () => {
+    const lisky = await encodeQr(config.qrSecret, { kind: 'T', id: 2 });
+    await device()('POST', '/api/player/login', { code: lisky });
+    const overview = (await admin('GET', '/api/admin/overview')).body;
+    // The sample story has no chapters: the team is between them, and that counts.
+    expect(overview.chapters).toEqual([]);
+    expect(overview.teams[1].phase).toMatchObject({ counts: true });
+    expect(overview.teams[1].phase.chapter).toBeUndefined();
+    expect(overview.teams[1].phase.ms).toBeGreaterThanOrEqual(0);
+
+    const breakdown = (await admin('GET', '/api/admin/time-breakdown')).body;
+    expect(breakdown.chapters).toEqual([]);
+    // The whole game so far lies between the start and the end.
+    expect(breakdown.gaps).toEqual([{ from: '', to: '' }]);
+    expect(breakdown.teams.map((team: { readonly id: number }) => team.id)).toEqual([1, 2]);
+    expect(Object.keys(breakdown.teams[1].gaps)).toEqual(['>']);
   });
 
   it('keeps the first login as the start, whoever logs in later', async () => {
@@ -326,9 +315,8 @@ describe('api', () => {
     const a2 = (await phone('POST', '/api/player/choose', { index: 1, expectedStep: start.step }))
       .body;
     shared.teams.set(1, { ...shared.teams.get(1)!, startedAt: new Date(Date.now() - 600_000) });
-    await phone('POST', '/api/player/story-time', { intervals: [{ ms: 60_000, agoMs: 0 }] });
     const before = await team();
-    expect(before.storyMs).toBeGreaterThan(0);
+    expect(before.playtimeMs).toBeGreaterThanOrEqual(600_000);
 
     // The times are gone and the phones logged out; the node, the state and the step stay.
     const reset = await admin('POST', '/api/admin/teams/1/reset-time');
@@ -337,7 +325,6 @@ describe('api', () => {
       node: before.node,
       state: before.state,
       step: before.step,
-      storyMs: 0,
       devices: 0,
     });
     expect(reset.body.startedAt).toBeUndefined();
@@ -850,8 +837,6 @@ describe('server failures', () => {
       resetTiming: fail,
       gameStartedAt: fail,
       startGame: fail,
-      addStoryIntervals: fail,
-      listStoryIntervals: fail,
       createSession: fail,
       touchSession: fail,
       deleteSession: fail,
@@ -867,6 +852,7 @@ describe('server failures', () => {
       recordAdminFailure: fail,
       clearAdminFailures: fail,
       recentLog: fail,
+      listSteps: fail,
       visitCounts: fail,
     };
     const failing = makeHandler(config, Layer.succeed(Store, broken), SAMPLE);

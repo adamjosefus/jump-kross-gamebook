@@ -129,7 +129,7 @@ describe('postgres store', () => {
     expect(await run(store.gameStartedAt())).toEqual(started);
   });
 
-  it('records the first login once and clears it with the reading and the sessions', async () => {
+  it('records the first login once and clears it with the sessions', async () => {
     await run(
       store.createSession('forgotten', 1, {
         ip: undefined,
@@ -143,27 +143,9 @@ describe('postgres store', () => {
     await run(store.markStarted(1));
     expect((await run(store.getTeam(1)))!.startedAt).toEqual(started);
 
-    const now = Date.now();
-    await run(
-      store.addStoryIntervals([
-        { teamId: 1, startedAt: new Date(now - 5000), endedAt: new Date(now - 1000) },
-        { teamId: 1, startedAt: new Date(now - 3000), endedAt: new Date(now) },
-      ]),
-    );
     await run(store.ensureTeam(2));
-    await run(
-      store.addStoryIntervals([
-        { teamId: 2, startedAt: new Date(now - 500), endedAt: new Date(now) },
-      ]),
-    );
-    const reading = await run(store.listStoryIntervals());
-    expect(reading.map(({ teamId }) => teamId)).toEqual([1, 1, 2]);
-    expect(reading[0]!.startedAt.getTime()).toBe(now - 5000);
-    expect(reading[0]!.endedAt.getTime()).toBe(now - 1000);
-
     await run(store.clearTiming(1));
     expect((await run(store.getTeam(1)))!.startedAt).toBeUndefined();
-    expect((await run(store.listStoryIntervals())).map(({ teamId }) => teamId)).toEqual([2]);
     const old = new Date(Date.now() - 60_000);
     expect(await run(store.touchSession('forgotten', old))).toBeUndefined();
   });
@@ -355,7 +337,6 @@ describe('postgres store', () => {
       [3, 'A1', { gold: 100 }, undefined, undefined],
     ]);
     expect(rows.map(({ step }) => step)).toEqual([rows[0]!.step, 1, 1]);
-    expect(await run(store.listStoryIntervals())).toEqual([]);
     // The devices are logged out and the game waits for the organisers to start it again.
     expect(await run(store.touchSession('again', new Date(Date.now() - 60_000)))).toBeUndefined();
     expect(await run(store.gameStartedAt())).toBeUndefined();
@@ -391,11 +372,6 @@ describe('postgres store', () => {
     await run(store.markStarted(2));
     const now = Date.now();
     await run(
-      store.addStoryIntervals([
-        { teamId: 2, startedAt: new Date(now - 2000), endedAt: new Date(now) },
-      ]),
-    );
-    await run(
       store.createSession('reset-phone', 2, {
         ip: undefined,
         userAgent: undefined,
@@ -411,7 +387,6 @@ describe('postgres store', () => {
       step: moved!.step,
       startedAt: undefined,
     });
-    expect((await run(store.listStoryIntervals())).filter((row) => row.teamId === 2)).toEqual([]);
     expect(await run(store.touchSession('reset-phone', new Date(now - 60_000)))).toBeUndefined();
     expect((await run(store.recentLog(1)))[0]).toMatchObject({
       teamId: 2,
@@ -435,6 +410,25 @@ describe('postgres store', () => {
     expect((await run(store.getTeam(2)))!.startedAt).toBeInstanceOf(Date);
     expect((await run(store.recentLog(1)))[0]!.action).toBe('choice:0');
     expect(await run(store.resetTiming(99))).toBe(false);
+  });
+
+  // The last test: it moves the teams the other tests count on.
+  it('lists the steps of each team from its last move to the start on', async () => {
+    const step = (id: number, node: string, action: string) =>
+      run(store.moveTeam(id, undefined, { node, state: {}, finished: false, action }));
+    await step(2, 'A1', 'reset');
+    await step(2, 'B1', 'choice:0');
+    await step(1, 'A1', 'start');
+    await step(1, 'B1', 'choice:0');
+    await step(1, 'A1', 'reset');
+    await step(1, 'A2', 'choice:1');
+    const names = (rows: readonly { readonly teamId: number; readonly action: string }[]) =>
+      rows.map(({ teamId, action }) => `${teamId}:${action}`);
+    // Team 1 was sent back to the start twice: what it did before the last time is left out.
+    const both = (await run(store.listSteps())).filter(({ teamId }) => teamId <= 2);
+    expect(names(both)).toEqual(['2:reset', '2:choice:0', '1:reset', '1:choice:1']);
+    expect(names(await run(store.listSteps(1)))).toEqual(['1:reset', '1:choice:1']);
+    expect((await run(store.listSteps(1)))[1]).toMatchObject({ toNode: 'A2' });
   });
 });
 

@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { api, errorMessage } from '@/lib/api';
 
-import { adminKeys } from './queries';
+import { invalidateGame } from './queries';
 
 const RESET_ALL = 'SMAZAT POSTUP';
 
@@ -47,7 +47,7 @@ export const ResetDialog = ({
         : api((client) => client.admin.resetTeam({ params: { id: team.id } })));
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+      void invalidateGame(queryClient);
       toast.success(
         team === undefined ? 'Všechny týmy jsou na startu.' : `Tým ${team.name} je na startu.`,
       );

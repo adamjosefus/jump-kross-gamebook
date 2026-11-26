@@ -40,7 +40,9 @@ import {
   type PlaytestView,
   type PlayerView,
   type PrintableCode,
+  type TeamPhase,
   type TeamStatus,
+  type TimeBreakdown,
 } from '../api.ts';
 import { ServerConfig } from './config.ts';
 import {
@@ -49,10 +51,11 @@ import {
   type GameSettingsRow,
   type SessionClient,
   type SessionRow,
+  type StepRow,
   type TeamMove,
   type TeamRow,
 } from './store.ts';
-import { storyTotals } from './story-time.ts';
+import { gapKey, teamTimeline, type Gap } from './team-timeline.ts';
 
 const MOVE_MESSAGES: Readonly<Record<MoveError | 'not-started' | 'broken-state', string>> = {
   'wrong-code': 'Tento kód vás teď nikam nevede.',
@@ -121,12 +124,6 @@ const gameInfo = (startedAt: Date | undefined, settings: GameSettingsRow): GameI
     ? {}
     : { closedChangedAt: settings.changedAt.toISOString() }),
 });
-
-/**
- * The most one continuous view of a text counts for. A phone left unlocked on a text while the
- * team walks is not reading.
- */
-const MAX_STORY_MS = 5 * 60 * 1000;
 
 /** The state the game cannot hold, named for the admin. */
 const invalidState = (state: State) =>
@@ -210,6 +207,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           scan: node.scan,
           ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
           ...(node.scanText === undefined ? {} : { scanText: node.scanText }),
+          timeStops: node.timeStops,
         },
       };
     };
@@ -396,58 +394,49 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       return { sessionId, view: yield* playerView(team.id) };
     });
 
-    const storyTime = Effect.fn('Game.storyTime')(function* (
-      teamId: number,
-      readFor: number | undefined,
-      intervals: readonly { readonly ms: number; readonly agoMs: number }[],
-    ) {
-      // Times read for another team (the device switched meanwhile) belong to nobody now.
-      if (readFor !== undefined && readFor !== teamId) return;
-      const team = yield* store.getTeam(teamId);
-      // Reading counts within the game only: from the team's first login to its end, so a device's
-      // wrong clock or a request after the game cannot inflate it.
-      if (team?.startedAt === undefined) return;
-      const now = Date.now();
-      const from = team.startedAt.getTime();
-      const to = Math.min(team.finishedAt?.getTime() ?? now, now);
-      // A device's numbers are not trusted: a non-finite one would make an invalid date and fail
-      // the insert, so such an interval is dropped like one of no length.
-      const rows = intervals.flatMap(({ ms, agoMs }) => {
-        if (!Number.isFinite(ms) || !Number.isFinite(agoMs)) return [];
-        const ended = Math.min(now - Math.max(agoMs, 0), to);
-        const started = Math.max(ended - Math.min(ms, MAX_STORY_MS), from);
-        return ended > started
-          ? [{ teamId, startedAt: new Date(started), endedAt: new Date(ended) }]
-          : [];
-      });
-      if (rows.length > 0) yield* store.addStoryIntervals(rows);
-    });
-
     // -------------------------------------------------------------------------------------------
     // Admin
 
-    const teamStatus = (team: TeamRow, devices: number, storyMs: number): TeamStatus => ({
-      id: team.id,
-      name: teamName(team.id),
-      ...(team.node === undefined ? {} : { node: team.node }),
-      nodeExists: team.node === undefined || Object.hasOwn(story.nodes, team.node),
-      state: team.state,
-      step: team.step,
-      finished: team.finishedAt !== undefined,
-      // A team without a row never logged in and has no last move.
-      ...(team.node === undefined && team.step === 0
-        ? {}
-        : { updatedAt: team.updatedAt.toISOString() }),
-      devices,
-      ...(team.startedAt === undefined
-        ? {}
-        : {
-            startedAt: team.startedAt.toISOString(),
-            playtimeMs: (team.finishedAt?.getTime() ?? Date.now()) - team.startedAt.getTime(),
-          }),
-      ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
-      storyMs,
-    });
+    /**
+     * The team's status with its times worked out from the steps (of every team, or its own). The
+     * phase is where it is now, with how long by the server's clock.
+     */
+    const teamStatus = (team: TeamRow, devices: number, steps: readonly StepRow[]): TeamStatus => {
+      const now = Date.now();
+      const timeline = teamTimeline(story, team, steps, now);
+      const phase: TeamPhase | undefined =
+        timeline.phase === undefined
+          ? undefined
+          : {
+              ...(timeline.phase.chapter === undefined ? {} : { chapter: timeline.phase.chapter }),
+              counts: timeline.phase.counts,
+              since: timeline.phase.since.toISOString(),
+              ms: Math.max(now - timeline.phase.since.getTime(), 0),
+            };
+      return {
+        id: team.id,
+        name: teamName(team.id),
+        ...(team.node === undefined ? {} : { node: team.node }),
+        nodeExists: team.node === undefined || Object.hasOwn(story.nodes, team.node),
+        state: team.state,
+        step: team.step,
+        finished: team.finishedAt !== undefined,
+        // A team without a row never logged in and has no last move.
+        ...(team.node === undefined && team.step === 0
+          ? {}
+          : { updatedAt: team.updatedAt.toISOString() }),
+        devices,
+        ...(team.startedAt === undefined
+          ? {}
+          : {
+              startedAt: team.startedAt.toISOString(),
+              playtimeMs: (team.finishedAt?.getTime() ?? now) - team.startedAt.getTime(),
+              resultMs: timeline.resultMs,
+            }),
+        ...(team.finishedAt === undefined ? {} : { finishedAt: team.finishedAt.toISOString() }),
+        ...(phase === undefined ? {} : { phase }),
+      };
+    };
 
     const startGame = Effect.fn('Game.startGame')(function* () {
       const [startedAt, settings] = yield* Effect.all([store.startGame(), store.gameSettings()], {
@@ -457,11 +446,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const singleTeamStatus = Effect.fn('Game.singleTeamStatus')(function* (team: TeamRow) {
-      const [devices, storyRows] = yield* Effect.all([
+      const [devices, steps] = yield* Effect.all([
         store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
-        store.listStoryIntervals(),
+        store.listSteps(team.id),
       ]);
-      return teamStatus(team, devices.get(team.id) ?? 0, storyTotals(storyRows).get(team.id) ?? 0);
+      return teamStatus(team, devices.get(team.id) ?? 0, steps);
     });
 
     const deviceOf = async (session: SessionRow, activeSince: number): Promise<Device> => ({
@@ -550,31 +539,28 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const overview = Effect.fn('Game.overview')(function* () {
-      const [teams, log, devices, visits, storyRows, gameStartedAt, settings] = yield* Effect.all(
+      const [teams, log, steps, devices, visits, gameStartedAt, settings] = yield* Effect.all(
         [
           store.listTeams(),
           store.recentLog(50),
+          store.listSteps(),
           store.activeDevices(new Date(Date.now() - DEVICE_WINDOW_MS)),
           store.visitCounts(),
-          store.listStoryIntervals(),
           store.gameStartedAt(),
           // The admin sees the stored setting, not this instance's cached copy.
           store.gameSettings(),
         ],
         { concurrency: 'unbounded' },
       );
-      const storyMs = storyTotals(storyRows);
       const result: Overview = {
         game: gameInfo(gameStartedAt, settings),
         // Every team of the story; one that never logged in has no row yet.
-        teams: story.teams.map(({ id }) =>
-          teamStatus(
-            teams.find((team) => team.id === id) ?? notStarted(id),
-            devices.get(id) ?? 0,
-            storyMs.get(id) ?? 0,
-          ),
-        ),
+        teams: story.teams.map(({ id }) => {
+          const team = teams.find((row) => row.id === id) ?? notStarted(id);
+          return teamStatus(team, devices.get(id) ?? 0, steps);
+        }),
         codes: story.codes,
+        chapters: story.chapters,
         log: log.map((entry) => ({
           teamId: entry.teamId,
           at: entry.at.toISOString(),
@@ -584,6 +570,49 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
           ...(entry.toNode === undefined ? {} : { toNode: entry.toNode }),
         })),
         visits: Object.fromEntries(visits),
+      };
+      return result;
+    });
+
+    const timeBreakdown = Effect.fn('Game.timeBreakdown')(function* () {
+      const [teams, steps] = yield* Effect.all([store.listTeams(), store.listSteps()], {
+        concurrency: 'unbounded',
+      });
+      const now = Date.now();
+      const timelines = story.teams.map(({ id }) => ({
+        id,
+        timeline: teamTimeline(
+          story,
+          teams.find((row) => row.id === id) ?? notStarted(id),
+          steps,
+          now,
+        ),
+      }));
+      // The gaps any team went through, each once, between the chapters in the story's order: the
+      // start before every chapter, the end after.
+      const position = (chapter: string, missing: number) => {
+        const index = story.chapters.findIndex((known) => known.id === chapter);
+        return index < 0 ? missing : index;
+      };
+      const gaps = [
+        ...new Map(
+          timelines.flatMap(({ timeline }) =>
+            timeline.gapsSeen.map((gap): readonly [string, Gap] => [gapKey(gap), gap]),
+          ),
+        ).values(),
+      ].toSorted(
+        (first, second) =>
+          position(first.from, -1) - position(second.from, -1) ||
+          position(first.to, Infinity) - position(second.to, Infinity),
+      );
+      const result: TimeBreakdown = {
+        chapters: story.chapters,
+        gaps,
+        teams: timelines.map(({ id, timeline }) => ({
+          id,
+          chapters: Object.fromEntries(timeline.chapters),
+          gaps: Object.fromEntries(timeline.gaps),
+        })),
       };
       return result;
     });
@@ -658,8 +687,8 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         story.teams.map(({ id }) => id),
         { node: start?.node, state: start?.state ?? {}, finished: false, action: 'reset' },
       );
-      // The reading and the devices of every team were just cleared.
-      return rows.map((row) => teamStatus(row, 0, 0));
+      // The first logins and the devices of every team were just cleared.
+      return rows.map((row) => teamStatus(row, 0, []));
     });
 
     const moveTeam = Effect.fn('Game.moveTeam')(function* (id: number, node: string, given: State) {
@@ -779,7 +808,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         Promise.all(
           entries.map(async (entry) => ({
             ...entry,
-            code: await encodeQr(config.qrSecret, entry),
+            code: await encodeQr(config.qrSecret, { kind: entry.kind, id: entry.id }),
             scanTexts: scanTextsOf(entry.kind, entry.id),
           })),
         ),
@@ -791,10 +820,10 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       playerView,
       choose,
       scan,
-      storyTime,
       graph,
       intro,
       overview,
+      timeBreakdown,
       startGame,
       singleTeamStatus,
       requireTeam,

@@ -30,6 +30,8 @@ create table if not exists step_log (
   state jsonb not null
 );
 create index if not exists step_log_at on step_log (at desc);
+-- The teams' times read each team's steps from its last move to the start on.
+create index if not exists step_log_team on step_log (team_id, id);
 
 create table if not exists session (
   id text primary key,
@@ -43,20 +45,10 @@ alter table session add column if not exists user_agent text;
 alter table session add column if not exists device_id text;
 create index if not exists session_device on session (device_id);
 
--- Story time used to be stored as "reading"; the table keeps its rows under the new name. Once
--- renamed, the old names are gone and these statements do nothing.
-alter table if exists reading rename to story_interval;
-alter sequence if exists reading_id_seq rename to story_interval_id_seq;
-alter index if exists reading_pkey rename to story_interval_pkey;
-alter index if exists reading_team rename to story_interval_team;
-
-create table if not exists story_interval (
-  id bigserial primary key,
-  team_id int not null references team (id) on delete cascade,
-  started_at timestamptz not null,
-  ended_at timestamptz not null
-);
-create index if not exists story_interval_team on story_interval (team_id);
+-- Phones used to report how long a text was on ("reading", later "story_interval"); the times are
+-- measured by chapters now, from the step log alone.
+drop table if exists story_interval;
+drop table if exists reading;
 
 -- One row: when the organisers started the game; null until then and after a new game.
 create table if not exists game (

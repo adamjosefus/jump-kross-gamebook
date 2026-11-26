@@ -9,8 +9,9 @@ import {
   type AdminFailures,
   type BanRow,
   type GameSettingsRow,
+  START_ACTIONS,
   type LogRow,
-  type StoryIntervalRow,
+  type StepRow,
   type SessionRow,
   type TeamRow,
 } from './store.ts';
@@ -99,6 +100,13 @@ const toLog = (row: Row): LogRow => ({
   state: decodeState(row['state']),
 });
 
+const toStep = (row: Row): StepRow => ({
+  teamId: Number(row['team_id']),
+  at: timestamp(row['at']),
+  action: text(row['action']),
+  toNode: optionalText(row['to_node']),
+});
+
 const toFailures = (row: Row): AdminFailures => ({
   failures: Number(row['failures']),
   lastAt: timestamp(row['last_at']),
@@ -128,12 +136,6 @@ const toSettings = (row: Row | undefined): GameSettingsRow => ({
     row === undefined || row['closed_changed_at'] === null
       ? undefined
       : timestamp(row['closed_changed_at']),
-});
-
-const toStoryInterval = (row: Row): StoryIntervalRow => ({
-  teamId: Number(row['team_id']),
-  startedAt: timestamp(row['started_at']),
-  endedAt: timestamp(row['ended_at']),
 });
 
 /** The store on a Postgres database reached through `client`; the schema is applied on the first query. */
@@ -218,7 +220,6 @@ export const makePostgresStore = (client: SqlClient) => {
               started_at = null,
               updated_at = now()
             where id = any(${list}::int[])`,
-          sql`delete from story_interval where team_id = any(${list}::int[])`,
           sql`delete from session where team_id = any(${list}::int[])`,
           sql`update game set started_at = null`,
         ]);
@@ -254,7 +255,6 @@ export const makePostgresStore = (client: SqlClient) => {
       query(() =>
         transaction([
           sql`update team set started_at = null where id = ${id}`,
-          sql`delete from story_interval where team_id = ${id}`,
           sql`delete from session where team_id = ${id}`,
         ]),
       ),
@@ -271,25 +271,10 @@ export const makePostgresStore = (client: SqlClient) => {
             insert into step_log (team_id, action, from_node, to_node, state)
             select cleared.id, 'reset-time', cleared.node, null, cleared.state from cleared
           ),
-          unread as (delete from story_interval where team_id in (select id from cleared)),
           logged_out as (delete from session where team_id in (select id from cleared))
           select id from cleared`);
         return rows.length > 0;
       }),
-    addStoryIntervals: (rows) =>
-      query(() =>
-        transaction(
-          rows.map(
-            ({ teamId, startedAt, endedAt }) => sql`
-              insert into story_interval (team_id, started_at, ended_at)
-              values (${teamId}, ${startedAt.toISOString()}::timestamptz, ${endedAt.toISOString()}::timestamptz)`,
-          ),
-        ),
-      ),
-    listStoryIntervals: () =>
-      query(async () =>
-        (await run(sql`select * from story_interval order by id`)).map(toStoryInterval),
-      ),
 
     createSession: (id, teamId, { ip, userAgent, deviceId }) =>
       query(
@@ -390,6 +375,20 @@ export const makePostgresStore = (client: SqlClient) => {
           toLog,
         ),
       ),
+    listSteps: (teamId) =>
+      query(async () => {
+        // Rows are compared by id, which grows with time within a team, so a step written in
+        // the same instant as the move to the start is not lost.
+        const rows = await run(sql`
+          select step.team_id, step.at, step.action, step.to_node from step_log step
+          where (${teamId ?? null}::int is null or step.team_id = ${teamId ?? null}::int)
+            and step.id >= coalesce(
+              (select max(start.id) from step_log start
+               where start.team_id = step.team_id and start.action = any(${[...START_ACTIONS]}::text[])),
+              0)
+          order by step.at, step.id`);
+        return rows.map(toStep);
+      }),
     visitCounts: () =>
       query(async () => {
         const rows = await run(sql`

@@ -7,7 +7,7 @@ import {
   startNode,
   stateKey,
 } from './engine.ts';
-import type { AnyNode, Choice, Story, Team } from './story.ts';
+import type { AnyNode, Chapter, Choice, Story, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -36,6 +36,8 @@ export interface GraphNode {
   readonly dynamic: boolean;
   /** Reachable from the start. */
   readonly reached: boolean;
+  /** The chapter the node belongs to, by id. */
+  readonly chapter?: string;
   /** Missing for dynamic nodes the start never reaches, or when the blocks throw. */
   readonly preview?: NodePreview;
   readonly choices: readonly GraphChoice[];
@@ -52,6 +54,8 @@ export interface GameGraph {
   /** The node every team starts at; the previews are computed from it. */
   readonly start?: string;
   readonly nodes: Readonly<Record<string, GraphNode>>;
+  /** In definition order, with whether their time counts towards the result. */
+  readonly chapters: readonly Chapter[];
 }
 
 /** Fixed buttons and QR choices of a node, in definition order, as one list of edges. */
@@ -171,6 +175,7 @@ export const toGraph = (story: Story): GameGraph => {
     outroNode: story.outroNode,
     order: story.order,
     ...(from === undefined ? {} : { start: from }),
+    chapters: story.chapters,
     nodes: Object.fromEntries(
       story.order.map((id) => {
         const node = story.nodes[id]!;
@@ -182,6 +187,7 @@ export const toGraph = (story: Story): GameGraph => {
           dynamic: typeof node.blocks === 'function',
           // Everyone sees the intro, without a state.
           reached: id === story.introNode || state !== undefined,
+          ...(node.chapter === undefined ? {} : { chapter: node.chapter }),
           ...(preview === undefined ? {} : { preview }),
           choices: [
             ...transitionsOf(story, node).map((choice) => ({

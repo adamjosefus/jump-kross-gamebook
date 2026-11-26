@@ -1,4 +1,4 @@
-import type { TeamStatus } from '@gamebook/api';
+import type { TeamStatus, TimeBreakdown } from '@gamebook/api';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,6 +6,7 @@ import {
   playTime,
   resultsCsv,
   resultsJson,
+  resultTime,
   teamResults,
 } from '@/features/admin/results';
 
@@ -24,7 +25,8 @@ const finished: TeamStatus = {
   startedAt: '2027-05-15T08:00:00.000Z',
   finishedAt: '2027-05-15T09:40:12.500Z',
   playtimeMs: 6_012_500,
-  storyMs: 1_230_900,
+  // 1 231 s were in a chapter that does not count.
+  resultMs: 4_781_500,
 };
 
 const running: TeamStatus = {
@@ -40,7 +42,8 @@ const running: TeamStatus = {
   startedAt: '2027-05-15T09:30:00.000Z',
   // The server counted this a poll ago; the client's clock has moved on since.
   playtimeMs: 1_795_000,
-  storyMs: 60_000,
+  resultMs: 1_735_000,
+  phase: { chapter: 'shop', counts: true, since: '2027-05-15T09:45:00.000Z', ms: 895_000 },
 };
 
 const waiting: TeamStatus = {
@@ -51,7 +54,6 @@ const waiting: TeamStatus = {
   step: 0,
   finished: false,
   devices: 0,
-  storyMs: 0,
 };
 
 describe('formatDuration', () => {
@@ -73,6 +75,17 @@ describe('playTime', () => {
   });
 });
 
+describe('resultTime', () => {
+  it('ticks with the play time, except in a chapter that does not count', () => {
+    expect(resultTime(finished, NOW)).toBe(4_781_500);
+    // The 5 s the client's clock has moved on since the poll count too.
+    expect(resultTime(running, NOW)).toBe(1_740_000);
+    const standing = { ...running, phase: { ...running.phase!, counts: false } };
+    expect(resultTime(standing, NOW)).toBe(1_735_000);
+    expect(resultTime(waiting, NOW)).toBeUndefined();
+  });
+});
+
 describe('teamResults', () => {
   const results = teamResults([finished, running, waiting], NOW);
 
@@ -85,15 +98,12 @@ describe('teamResults', () => {
       startedAt: '2027-05-15T08:00:00.000Z',
       finishedAt: '2027-05-15T09:40:12.500Z',
       playtimeDuration: 6_012,
-      storyDuration: 1_230,
-      liveActionDuration: 4_781,
+      resultDuration: 4_781,
+      chapters: {},
+      gaps: {},
       state: { coins: 30, hasMap: true, note: 'řekl; "ano"' },
     });
-    expect(results[1]).toMatchObject({
-      playtimeDuration: 1_800,
-      storyDuration: 60,
-      liveActionDuration: 1_740,
-    });
+    expect(results[1]).toMatchObject({ playtimeDuration: 1_800, resultDuration: 1_740 });
     // Every key is there, with null for what is not known yet and zero for the durations.
     expect(results[2]).toStrictEqual({
       id: 3,
@@ -103,8 +113,9 @@ describe('teamResults', () => {
       startedAt: null,
       finishedAt: null,
       playtimeDuration: 0,
-      storyDuration: 0,
-      liveActionDuration: 0,
+      resultDuration: 0,
+      chapters: {},
+      gaps: {},
       state: {},
     });
   });
@@ -119,11 +130,40 @@ describe('teamResults', () => {
 
   it('writes a semicolon CSV with a column per state key and quoted cells where needed', () => {
     expect(resultsCsv(results).split('\r\n')).toEqual([
-      'id;team;node_id;finished;started_at;finished_at;playtime;story;live_action;playtime_s;story_s;live_action_s;state_coins;state_hasMap;state_note',
-      '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;20:30;1:19:41;6012;1230;4781;30;true;"řekl; ""ano"""',
-      '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;1:00;29:00;1800;60;1740;10;false;',
-      '3;Sovy;;false;;;0:00;0:00;0:00;0;0;0;;;',
+      'id;team;node_id;finished;started_at;finished_at;playtime;result;playtime_s;result_s;state_coins;state_hasMap;state_note',
+      '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;1:19:41;6012;4781;30;true;"řekl; ""ano"""',
+      '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;29:00;1800;1740;10;false;',
+      '3;Sovy;;false;;;0:00;0:00;0;0;;;',
       '',
     ]);
+  });
+
+  it('adds the chapters and the gaps of the breakdown, zero where a team has none', () => {
+    const breakdown: TimeBreakdown = {
+      chapters: [
+        { id: 'home', name: 'Doma', counts: false },
+        { id: 'shop', name: 'Nákup', counts: true },
+      ],
+      gaps: [
+        { from: 'home', to: 'shop' },
+        { from: 'shop', to: '' },
+      ],
+      teams: [
+        {
+          id: 1,
+          chapters: { home: 1_231_000, shop: 4_000_900 },
+          gaps: { 'home>shop': 780_600 },
+        },
+      ],
+    };
+    const split = teamResults([finished, waiting], NOW, breakdown);
+    expect(split[0]!.chapters).toEqual({ home: 1_231, shop: 4_000 });
+    expect(split[0]!.gaps).toEqual({ 'home>shop': 780, 'shop>end': 0 });
+    expect(split[1]!.gaps).toEqual({ 'home>shop': 0, 'shop>end': 0 });
+    const [header, first] = resultsCsv(split).split('\r\n');
+    expect(header).toContain(
+      'result_s;chapter_home_s;chapter_shop_s;gap_home_shop_s;gap_shop_end_s;state_coins',
+    );
+    expect(first).toContain(';4781;1231;4000;780;0;30;');
   });
 });

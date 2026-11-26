@@ -402,6 +402,7 @@ describe('validateStory', () => {
     const story: Story = {
       teams: [{ id: 1, name: 'Tým' }],
       codes: [{ id: 1, name: 'Studna' }],
+      chapters: [],
       introNode: 'I',
       outroNode: 'O',
       order: ['A'],
@@ -697,5 +698,45 @@ describe('validateStory', () => {
     expect(validateStory(story, { maxStates: 50 })).toEqual([
       'Příběh má pro jeden tým víc než 50 kombinací uzlu a stavu, kontrola prošla jen část.',
     ]);
+  });
+  it('reports unknown and empty chapters and chapter ids that would clash in the results', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      codes: {},
+      chapters: { one: 'První', empty: { name: 'Prázdná', counts: false } },
+      introNode: 'INTRO',
+      outroNode: 'C',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          chapter: 'one',
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [{ label: 'B', goto: 'B' }],
+        },
+        B: { chapter: 'nowhere', blocks: ['B'], choices: [{ label: 'C', goto: 'C' }] },
+        C: { blocks: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual([
+      'Uzel B patří k neznámé kapitole nowhere.',
+      'Kapitola empty („Prázdná“) nemá žádný uzel.',
+    ]);
+    const badIds: Story = {
+      ...story,
+      chapters: [
+        ...story.chapters,
+        { id: '', name: 'Bez id', counts: true },
+        { id: 'one_two', name: 'Spojená', counts: true },
+        { id: 'start', name: 'Začátek', counts: true },
+      ],
+    };
+    expect(validateStory(badIds)).toEqual(
+      expect.arrayContaining([
+        'Kapitola „Bez id“ má neplatné id „“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
+        'Kapitola „Spojená“ má neplatné id „one_two“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
+        'Kapitola „Začátek“ nesmí mít id „start“, to označuje začátek nebo konec hry.',
+      ]),
+    );
   });
 });

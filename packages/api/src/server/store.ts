@@ -27,12 +27,11 @@ export interface LogRow {
   readonly state: State;
 }
 
-/** A time a device of the team showed a text. */
-export interface StoryIntervalRow {
-  readonly teamId: number;
-  readonly startedAt: Date;
-  readonly endedAt: Date;
-}
+/** A step of the log as the teams' times need it, without the state. */
+export type StepRow = Pick<LogRow, 'teamId' | 'at' | 'action' | 'toNode'>;
+
+/** The steps that send a team to the start; what came before them no longer tells where it is. */
+export const START_ACTIONS: readonly string[] = ['start', 'reset'];
 
 /** A device logged in to a team, as the admin sees it. */
 export interface SessionRow {
@@ -107,7 +106,7 @@ export interface StoreShape {
 
   /**
    * A new game for these teams in one go: rows created where missing, every team moved to `start`
-   * whatever its step, the first login, the reading and the devices' sessions forgotten, and the
+   * whatever its step, the first login and the devices' sessions forgotten, and the
    * game itself no longer started. Returns the rows as they are then.
    */
   readonly resetTeams: (
@@ -123,7 +122,7 @@ export interface StoreShape {
   /** Records the team's first login; later calls change nothing. */
   readonly markStarted: (id: number) => Effect.Effect<void, StoreError>;
   /**
-   * Forgets the first login and the reading and logs the team's devices out, whatever the team's
+   * Forgets the first login and logs the team's devices out, whatever the team's
    * state, as after its move back to the start: its next login starts its clock.
    */
   readonly clearTiming: (id: number) => Effect.Effect<void, StoreError>;
@@ -134,10 +133,6 @@ export interface StoreShape {
    * nothing changed.
    */
   readonly resetTiming: (id: number) => Effect.Effect<boolean, StoreError>;
-  readonly addStoryIntervals: (
-    rows: readonly StoryIntervalRow[],
-  ) => Effect.Effect<void, StoreError>;
-  readonly listStoryIntervals: () => Effect.Effect<readonly StoryIntervalRow[], StoreError>;
 
   readonly createSession: (
     id: string,
@@ -174,6 +169,12 @@ export interface StoreShape {
   readonly clearAdminFailures: (key: string) => Effect.Effect<void, StoreError>;
 
   readonly recentLog: (limit: number) => Effect.Effect<readonly LogRow[], StoreError>;
+  /**
+   * The steps the teams' times are worked out from, the oldest first: of one team or of all,
+   * each team's from its last move to the start on. Older steps change nothing about where a
+   * team is, and the log is never emptied, so they are left out.
+   */
+  readonly listSteps: (teamId?: number) => Effect.Effect<readonly StepRow[], StoreError>;
   /** Arrivals per node over the whole game, by choice, scan, start, reset or admin move. */
   readonly visitCounts: () => Effect.Effect<ReadonlyMap<string, number>, StoreError>;
 }

@@ -157,13 +157,12 @@ export const PlayerView = Schema.Struct({
       scanTitle: Schema.optionalKey(Schema.String),
       /** The text under that heading, when the story sets one. */
       scanText: Schema.optionalKey(Schema.String),
+      /** The node's chapter does not count: the game time stands still, the screen says so. */
+      timeStops: Schema.Boolean,
     }),
   ),
 });
 export type PlayerView = typeof PlayerView.Type;
-
-/** More than a device can have waiting: it reports after every text, or when the signal is back. */
-export const MAX_STORY_INTERVALS = 200;
 
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
@@ -220,25 +219,20 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       success: PlayerView,
       error: [InvalidCode, StepConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
-    /**
-     * How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. The
-     * device names the team it read for; times of another team (the device switched meanwhile)
-     * are dropped.
-     */
-    HttpApiEndpoint.post('storyTime', '/story-time', {
-      payload: Schema.Struct({
-        teamId: Schema.optionalKey(Schema.Number),
-        intervals: Schema.Array(Schema.Struct({ ms: Schema.Number, agoMs: Schema.Number })).check(
-          Schema.isMaxLength(MAX_STORY_INTERVALS),
-        ),
-      }),
-    }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
   )
   .prefix('/api/player') {}
 
 // ---------------------------------------------------------------------------------------------
 // Admin
+
+/** A named part of the story; the time of one that does not count is left out of the result. */
+export const Chapter = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  counts: Schema.Boolean,
+});
+export type Chapter = typeof Chapter.Type;
 
 export const StoryGraph = Schema.Struct({
   /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
@@ -255,6 +249,7 @@ export const StoryGraph = Schema.Struct({
       type: NodeType,
       dynamic: Schema.Boolean,
       reached: Schema.Boolean,
+      chapter: Schema.optionalKey(Schema.String),
       preview: Schema.optionalKey(
         Schema.Struct({
           state: Schema.optionalKey(GameState),
@@ -273,6 +268,7 @@ export const StoryGraph = Schema.Struct({
       ),
     }),
   ),
+  chapters: Schema.Array(Chapter),
 });
 
 export const QrCode = Schema.Struct({
@@ -280,6 +276,49 @@ export const QrCode = Schema.Struct({
   name: Schema.String,
 });
 export type QrCode = typeof QrCode.Type;
+
+/**
+ * Where a team is in the story now: in a chapter, or between two (on nodes of no chapter). `ms` is
+ * how long it has been there by the server's clock, so the admin's own clock, which may be off,
+ * only counts on from there. `counts` says whether this time counts towards its result.
+ */
+export const TeamPhase = Schema.Struct({
+  /** Missing between chapters. */
+  chapter: Schema.optionalKey(Schema.String),
+  counts: Schema.Boolean,
+  since: Schema.String,
+  ms: Schema.Number,
+});
+export type TeamPhase = typeof TeamPhase.Type;
+
+/**
+ * A stretch between two chapters, on nodes of no chapter. `from` is the chapter the team left, ""
+ * at the start of the game; `to` the one it came to next, "" at the end or while it is still on
+ * its way.
+ */
+export const ChapterGap = Schema.Struct({ from: Schema.String, to: Schema.String });
+export type ChapterGap = typeof ChapterGap.Type;
+
+/** The key of a gap in the teams' times: `from>to`. */
+export const gapKey = ({ from, to }: ChapterGap) => `${from}>${to}`;
+
+/** The times of every team by chapter and between chapters. */
+export const TimeBreakdown = Schema.Struct({
+  /** In the story's order. */
+  chapters: Schema.Array(Chapter),
+  /** The gaps some team went through, in the order of the chapters they lie between. */
+  gaps: Schema.Array(ChapterGap),
+  teams: Schema.Array(
+    Schema.Struct({
+      id: Schema.Number,
+      /** Ms by chapter id; a chapter the team never got to is missing. */
+      chapters: Schema.Record(Schema.String, Schema.Number),
+      /** Ms by `gapKey`; a gap the team never went through is missing. */
+      gaps: Schema.Record(Schema.String, Schema.Number),
+    }),
+  ),
+});
+export type TimeBreakdown = typeof TimeBreakdown.Type;
 
 export const TeamStatus = Schema.Struct({
   id: Schema.Number,
@@ -301,8 +340,13 @@ export const TeamStatus = Schema.Struct({
   finishedAt: Schema.optionalKey(Schema.String),
   /** From `startedAt` until `finishedAt`, or until now; missing before the first login. */
   playtimeMs: Schema.optionalKey(Schema.Number),
-  /** How long a text was on at least one of the team's devices. */
-  storyMs: Schema.Number,
+  /**
+   * The total time without the chapters that do not count: what the team is ranked by. Missing
+   * before the first login.
+   */
+  resultMs: Schema.optionalKey(Schema.Number),
+  /** Missing before the first login and after the end. */
+  phase: Schema.optionalKey(TeamPhase),
 });
 export type TeamStatus = typeof TeamStatus.Type;
 
@@ -361,6 +405,8 @@ export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
   codes: Schema.Array(QrCode),
+  /** The story's chapters; the phase of a team names one by its id. */
+  chapters: Schema.Array(Chapter),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
   visits: Schema.Record(Schema.String, Schema.Number),
@@ -424,6 +470,7 @@ export const PlaytestView = Schema.Struct({
     scan: Schema.Boolean,
     scanTitle: Schema.optionalKey(Schema.String),
     scanText: Schema.optionalKey(Schema.String),
+    timeStops: Schema.Boolean,
     scans: Schema.Array(QrCode),
   }),
 });
@@ -455,6 +502,9 @@ export class AdminGroup extends HttpApiGroup.make('admin')
       error: [InvalidCode, InvalidMove, InvalidState, NotFound],
     }).middleware(AdminAuth),
     HttpApiEndpoint.get('overview', '/overview', { success: Overview }).middleware(AdminAuth),
+    HttpApiEndpoint.get('timeBreakdown', '/time-breakdown', { success: TimeBreakdown }).middleware(
+      AdminAuth,
+    ),
     /** Lets the teams log in; the clock of each starts with its first login. */
     HttpApiEndpoint.post('startGame', '/game/start', { success: GameInfo }).middleware(AdminAuth),
     HttpApiEndpoint.post('setClosed', '/game/closed', {

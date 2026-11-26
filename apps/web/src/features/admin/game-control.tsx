@@ -26,7 +26,7 @@ import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { formatDateTime, formatTime } from './format';
-import { adminKeys, useStoryGraph } from './queries';
+import { invalidateGame, useStoryGraph } from './queries';
 
 /**
  * Where the game is in its life: not started (no team logs in), running, or paused (the admin
@@ -99,7 +99,7 @@ export const GameControl = ({
     setPause(phase === 'running');
     setConfirming(true);
   };
-  const refresh = () => queryClient.invalidateQueries({ queryKey: adminKeys.overview });
+  const refresh = () => invalidateGame(queryClient);
 
   const start = useMutation({
     mutationFn: async () => {

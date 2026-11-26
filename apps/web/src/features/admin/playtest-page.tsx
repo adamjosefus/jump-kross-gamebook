@@ -210,7 +210,15 @@ const introStep = (intro: PlayerIntro): Step => ({
   team: { id: 0, name: '' },
   node: 'Úvod',
   state: {},
-  view: { ...intro, id: 'intro', type: 'passage', choices: [], scan: true, scans: [] },
+  view: {
+    ...intro,
+    id: 'intro',
+    type: 'passage',
+    choices: [],
+    scan: true,
+    timeStops: false,
+    scans: [],
+  },
 });
 
 /** A tooltip over a tool; the wrapper lets it show on a disabled button too. */

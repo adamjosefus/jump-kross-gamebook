@@ -67,6 +67,8 @@ export type MaybeChoice<S, K extends string> = Choice<S, K> | false | null | und
 interface NodeBase<S> {
   /** Makes the node the start, where every team begins with this state; a story has one. */
   readonly initialState?: S;
+  /** The chapter from `chapters` the node belongs to; the time spent here counts towards it. */
+  readonly chapter?: string;
   /** Evaluated once per render; the state does not change while a node is shown. */
   readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
   readonly loginMessages?: never;
@@ -101,6 +103,7 @@ export type StoryNode<S, K extends string, C extends number = number> =
  */
 export interface IntroNode {
   readonly initialState?: never;
+  readonly chapter?: never;
   readonly blocks: readonly MaybeBlock[];
   /** The heading of the login scan screen; the player's default one without it. */
   readonly scanTitle?: string;
@@ -174,6 +177,7 @@ export const loginMessages = (story: Story, team: Team) => {
 /** The outro: the game ends when a team arrives; the blocks may use the state and the team. */
 export interface OutroNode<S> {
   readonly initialState?: never;
+  readonly chapter?: never;
   readonly blocks: readonly MaybeBlock[] | TeamFn<S, readonly MaybeBlock[]>;
   readonly choices?: never;
   readonly scans?: never;
@@ -195,6 +199,23 @@ export interface QrCode {
   readonly name: string;
 }
 
+/**
+ * A named part of the story: a group of nodes whose time is measured together. The time of a
+ * chapter that does not count is taken off the team's result, so the team is not ranked by it.
+ */
+export interface Chapter {
+  readonly id: string;
+  readonly name: string;
+  /** False when the chapter's time is left out of the team's result. */
+  readonly counts: boolean;
+}
+
+/**
+ * A chapter in the story's definition: a plain name counts towards the result, `{ name, counts:
+ * false }` does not, e.g. the introduction or a lunch break.
+ */
+export type ChapterDefinition = string | { readonly name: string; readonly counts: boolean };
+
 /** A team playing the game; its login QR code carries the id. */
 export interface Team {
   readonly id: number;
@@ -206,6 +227,8 @@ export interface Story {
   readonly teams: readonly Team[];
   /** QR codes that move teams on, by id. */
   readonly codes: readonly QrCode[];
+  /** Chapters in definition order. */
+  readonly chapters: readonly Chapter[];
   /** The node anyone sees before scanning a team's login code; the same for every team. */
   readonly introNode: string;
   /** The node the game ends at. */
@@ -229,6 +252,11 @@ export interface StoryDefinition<
    * card, so the players see it too. Only these numbers can appear in `scans`.
    */
   readonly codes: Readonly<Record<C, string>>;
+  /**
+   * Named parts of the story whose time is measured: id → name, or `{ name, counts: false }` for
+   * one left out of the team's result. A node joins one by its `chapter`.
+   */
+  readonly chapters?: Readonly<Record<string, ChapterDefinition>>;
   /**
    * The node shown before login, without any team or state: the story and the rules. After it
    * the player scans the team's code; a team that has not started yet begins at the start node.
@@ -292,12 +320,18 @@ export const defineStory =
   <K extends string, I extends K, O extends Exclude<K, I>, C extends number = never>({
     teams,
     codes,
+    chapters = {},
     introNode,
     outroNode,
     nodes,
   }: StoryDefinition<S, K, I, O, C>): Story => ({
     teams: byId(teams),
     codes: byId(codes),
+    chapters: Object.entries(chapters).map(([id, chapter]) =>
+      typeof chapter === 'string'
+        ? { id, name: chapter, counts: true }
+        : { id, name: chapter.name, counts: chapter.counts },
+    ),
     introNode,
     outroNode,
     order: Object.keys(nodes),

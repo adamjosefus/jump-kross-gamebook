@@ -42,6 +42,11 @@ export interface RenderedNode {
   readonly scanTitle?: string;
   /** The text under that heading, when the story sets one. */
   readonly scanText?: string;
+  /**
+   * The node belongs to a chapter whose time is left out of the team's result: the game time
+   * stands still here, and the team's screen says so.
+   */
+  readonly timeStops: boolean;
 }
 
 export type MoveError =
@@ -190,6 +195,7 @@ export const renderNode = (
     scan: node.scans !== undefined,
     ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
     ...(node.scanText === undefined ? {} : { scanText: node.scanText }),
+    timeStops: story.chapters.some((chapter) => chapter.id === node.chapter && !chapter.counts),
   };
 };
 

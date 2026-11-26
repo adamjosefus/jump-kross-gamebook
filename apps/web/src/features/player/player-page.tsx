@@ -3,7 +3,7 @@ import { parseQr } from '@gamebook/core';
 import { IconLoader2, IconRefresh, IconWifiOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useState, type ComponentProps, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ActionButton } from '@/components/action-button';
 import { api, errorMessage, isApiError } from '@/lib/api';
@@ -15,7 +15,6 @@ import { PlayerFrame } from './player-frame';
 import { playerToast } from './player-toast';
 import { jittered, pollSeed } from './poll';
 import { ACCEPTED_MS, type ScanOutcome } from './qr-scanner';
-import { useStoryTimeReport } from './story-time';
 import { CLOSED_TEXT, type NextCheck, NOT_STARTED_TEXT, WaitingScreen } from './waiting-screen';
 
 const STATE_KEY = ['player', 'state'] as const;
@@ -74,7 +73,20 @@ const PAGE_CHECK_MS = 3_000;
 const isView = (value: unknown): value is PlayerView =>
   typeof value === 'object' && value !== null && 'step' in value && 'team' in value;
 
+/**
+ * Phones of an earlier build kept reading times to send in the browser's storage; they are
+ * measured by chapters on the server now, so that queue is cleared once and never sent.
+ */
+const OLD_READING_QUEUE = 'story-time-queue';
+
 export const PlayerPage = () => {
+  useEffect(() => {
+    try {
+      localStorage.removeItem(OLD_READING_QUEUE);
+    } catch {
+      // Storage may be blocked; there is nothing to clear then.
+    }
+  }, []);
   const queryClient = useQueryClient();
   const search = useSearch({ from: '/' });
   const navigate = useNavigate();
@@ -245,8 +257,7 @@ export const PlayerPage = () => {
           nextCheck={nextCheck(state, statePoll(state))}
         />
       ) : (
-        <TeamNodeScreens
-          teamId={view.team.id}
+        <NodeScreens
           node={view.node}
           step={view.step}
           visitScope={`team-${view.team.id}`}
@@ -278,14 +289,6 @@ export const PlayerPage = () => {
     </main>
   );
 };
-
-/** The screens of a logged-in team, whose reading time is measured. */
-const TeamNodeScreens = ({
-  teamId,
-  ...props
-}: ComponentProps<typeof NodeScreens> & { readonly teamId: number }) => (
-  <NodeScreens {...props} onRead={useStoryTimeReport(teamId)} />
-);
 
 const PAGE = 'player-page flex min-h-dvh flex-col font-story';
 
@@ -360,7 +363,14 @@ const Intro = ({
     );
   return (
     <NodeScreens
-      node={{ ...content, id: 'intro', type: 'passage', choices: [], scan: true }}
+      node={{
+        ...content,
+        id: 'intro',
+        type: 'passage',
+        choices: [],
+        scan: true,
+        timeStops: false,
+      }}
       step={0}
       visitScope='intro'
       busy={busy}
