@@ -149,7 +149,7 @@ export const SlideButton = ({
             ? '-top-px -bottom-px -left-px bg-primary text-primary-foreground shadow-sm'
             : 'top-[calc(50%-1.8125rem)] bottom-[calc(50%-1.8125rem)] left-1 bg-transparent text-foreground',
           drag === undefined
-            ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-300 ease-out'
+            ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-200 ease-out'
             : pressed
               ? 'transition-[top,bottom,left,right,background-color,box-shadow] duration-150 ease-out'
               : 'transition-[top,bottom,left,background-color,box-shadow] duration-150 ease-out',
@@ -170,7 +170,7 @@ export const SlideButton = ({
         aria-hidden
         className={cn(
           'pointer-events-none absolute inset-0 flex items-center text-primary-foreground',
-          drag === undefined && 'transition-[clip-path] duration-300 ease-out',
+          drag === undefined && 'transition-[clip-path] duration-200 ease-out',
           pressed && 'transition-[clip-path] duration-150 ease-out',
         )}
         style={{ clipPath: `inset(-1px calc(100% - ${thumbEnd}) -1px -1px)` }}
