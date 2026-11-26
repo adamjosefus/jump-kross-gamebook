@@ -10,5 +10,6 @@ Slova, kterými se popisuje stavba příběhu. Platí v příběhu, v administra
   - volba v příběhu: víc tlačítek, ze kterých tým jedno vybere (`choices`),
   - naskenování QR kódu (`scans`).
 - **Kapitola** (`chapter`): skupina uzlů, které na sebe navazují; nejmenší kapitola má jeden uzel. Uzel se do ní hlásí polem `chapter`. Hráči kapitoly nevidí, slouží k členění příběhu a k měření času. Kapitola s `counts: false` se do výsledku týmu nepočítá.
+- **Stopky** (`timer`): společný čas několika kapitol, třeba souběžných linek, ze kterých tým projde jen jednu. Kapitola bez stopek se měří sama.
 
 Každý tah týmu, tedy akce, zásah organizátora nebo restart, zvýší počítadlo `revision`. Zařízení posílá revizi, ze které tah udělalo, a tah ze starší revize server odmítne, protože tým už mezitím rozhodl jinak. Tahy se zapisují do logu akcí (`action_log`), který administrace ukazuje v panelu „Poslední akce“.

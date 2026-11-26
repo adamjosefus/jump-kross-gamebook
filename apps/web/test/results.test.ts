@@ -110,7 +110,9 @@ describe('teamResults', () => {
       playtimeDuration: 6_012,
       resultDuration: 4_781,
       chapters: {},
+      timers: {},
       gaps: {},
+      betweenChaptersDuration: 0,
       state: { coins: 30, hasMap: true, note: 'řekl; "ano"' },
     });
     expect(results[1]).toMatchObject({ playtimeDuration: 1_800, resultDuration: 1_740 });
@@ -125,7 +127,9 @@ describe('teamResults', () => {
       playtimeDuration: 0,
       resultDuration: 0,
       chapters: {},
+      timers: {},
       gaps: {},
+      betweenChaptersDuration: 0,
       state: {},
     });
   });
@@ -140,19 +144,24 @@ describe('teamResults', () => {
 
   it('writes a semicolon CSV with a column per state key and quoted cells where needed', () => {
     expect(resultsCsv(results).split('\r\n')).toEqual([
-      'id;team;node_id;finished;started_at;finished_at;playtime;result;playtime_s;result_s;state_coins;state_hasMap;state_note',
-      '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;1:19:41;6012;4781;30;true;"řekl; ""ano"""',
-      '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;29:00;1800;1740;10;false;',
-      '3;Sovy;;false;;;0:00;0:00;0;0;;;',
+      'id;team;node_id;finished;started_at;finished_at;playtime;result;playtime_s;result_s;between_chapters_s;state_coins;state_hasMap;state_note',
+      '1;Vlci;OUTRO;true;2027-05-15T08:00:00.000Z;2027-05-15T09:40:12.500Z;1:40:12;1:19:41;6012;4781;0;30;true;"řekl; ""ano"""',
+      '2;Lišky;MISTO_2;false;2027-05-15T09:30:00.000Z;;30:00;29:00;1800;1740;0;10;false;',
+      '3;Sovy;;false;;;0:00;0:00;0;0;0;;;',
       '',
     ]);
   });
 
-  it('adds the chapters and the gaps of the breakdown, zero where a team has none', () => {
+  it('adds the chapters, timers and gaps of the breakdown, zero where a team has none', () => {
     const breakdown: TimeBreakdown = {
       chapters: [
-        { id: 'home', name: 'Doma', counts: false },
-        { id: 'shop', name: 'Nákup', counts: true },
+        { id: 'home', name: 'Doma', counts: false, timer: 'home' },
+        { id: 'shop', name: 'Nákup', counts: true, timer: 'shopping' },
+        { id: 'market', name: 'Trh', counts: true, timer: 'shopping' },
+      ],
+      timers: [
+        { key: 'home', name: 'Doma' },
+        { key: 'shopping', name: 'Nákupy' },
       ],
       gaps: [
         { from: 'home', to: 'shop' },
@@ -161,19 +170,23 @@ describe('teamResults', () => {
       teams: [
         {
           id: 1,
-          chapters: { home: 1_231_000, shop: 4_000_900 },
+          chapters: { home: 1_231_000, shop: 4_000_900, market: 500_000 },
           gaps: { 'home>shop': 780_600 },
         },
       ],
     };
     const split = teamResults([finished, waiting], CLOCK, breakdown);
-    expect(split[0]!.chapters).toEqual({ home: 1_231, shop: 4_000 });
+    expect(split[0]!.chapters).toEqual({ home: 1_231, shop: 4_000, market: 500 });
+    // The chapters sharing a timer are summed before rounding down.
+    expect(split[0]!.timers).toEqual({ home: 1_231, shopping: 4_500 });
     expect(split[0]!.gaps).toEqual({ 'home>shop': 780, 'shop>end': 0 });
+    expect(split[0]!.betweenChaptersDuration).toBe(780);
     expect(split[1]!.gaps).toEqual({ 'home>shop': 0, 'shop>end': 0 });
+    expect(split[1]!.timers).toEqual({ home: 0, shopping: 0 });
     const [header, first] = resultsCsv(split).split('\r\n');
     expect(header).toContain(
-      'result_s;chapter_home_s;chapter_shop_s;gap_home_shop_s;gap_shop_end_s;state_coins',
+      'result_s;chapter_home_s;chapter_shop_s;chapter_market_s;timer_home_s;timer_shopping_s;gap_home_shop_s;gap_shop_end_s;between_chapters_s;state_coins',
     );
-    expect(first).toContain(';4781;1231;4000;780;0;30;');
+    expect(first).toContain(';4781;1231;4000;500;1231;4500;780;0;780;30;');
   });
 });

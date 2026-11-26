@@ -197,8 +197,13 @@ const chapterProblems = (story: Story): readonly string[] => {
         ? []
         : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
     }),
-    ...story.chapters.flatMap(({ id, name }) => [
+    ...story.chapters.flatMap(({ id, name, timer }) => [
       ...chapterIdProblem(id, name),
+      // A timer names a column of the results too; one without its own key is checked as the id.
+      ...problemIf(
+        timer !== id && !CHAPTER_ID.test(timer),
+        `Kapitola „${name}“ má neplatné stopky „${timer}“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.`,
+      ),
       ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
       ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
     ]),

@@ -430,6 +430,7 @@ describe('validateStory', () => {
         A: { initialState: {}, segments: ['A'], scans: [{ code: 2, goto: 'A' }] },
         B: { initialState: {}, segments: ['B'], choices: [{ label: 'Pryč', goto: 'X' }] },
       },
+      timers: [],
     };
     expect(validateStory(story)).toEqual([
       'Kód 1 („Studna“) nepoužívá žádná QR volba.',
@@ -744,9 +745,10 @@ describe('validateStory', () => {
       ...story,
       chapters: [
         ...story.chapters,
-        { id: '', name: 'Bez id', counts: true },
-        { id: 'one_two', name: 'Spojená', counts: true },
-        { id: 'start', name: 'Začátek', counts: true },
+        { id: '', name: 'Bez id', counts: true, timer: '' },
+        { id: 'one_two', name: 'Spojená', counts: true, timer: 'one_two' },
+        { id: 'start', name: 'Začátek', counts: true, timer: 'start' },
+        { id: 'own', name: 'Vlastní stopky', counts: true, timer: 'na_cestu' },
       ],
     };
     expect(validateStory(badIds)).toEqual(
@@ -754,6 +756,7 @@ describe('validateStory', () => {
         'Kapitola „Bez id“ má neplatné id „“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
         'Kapitola „Spojená“ má neplatné id „one_two“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
         'Kapitola „Začátek“ nesmí mít id „start“, to označuje začátek nebo konec hry.',
+        'Kapitola „Vlastní stopky“ má neplatné stopky „na_cestu“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.',
       ]),
     );
   });

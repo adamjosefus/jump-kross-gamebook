@@ -231,8 +231,14 @@ export const Chapter = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   counts: Schema.Boolean,
+  /** The timer the chapter's time goes to; chapters sharing one are measured together. */
+  timer: Schema.String,
 });
 export type Chapter = typeof Chapter.Type;
+
+/** What the teams' times are summed up by, as `Chapter.timer` names it. */
+export const Timer = Schema.Struct({ key: Schema.String, name: Schema.String });
+export type Timer = typeof Timer.Type;
 
 export const StoryGraph = Schema.Struct({
   /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
@@ -306,6 +312,8 @@ export const gapKey = ({ from, to }: ChapterGap) => `${from}>${to}`;
 export const TimeBreakdown = Schema.Struct({
   /** In the story's order. */
   chapters: Schema.Array(Chapter),
+  /** The timers of the chapters, in the order of their first chapter. */
+  timers: Schema.Array(Timer),
   /** The gaps some team went through, in the order of the chapters they lie between. */
   gaps: Schema.Array(ChapterGap),
   teams: Schema.Array(

@@ -13,6 +13,8 @@ Nikde neběží časovač ani plánovač. Server si jen zapisuje okamžiky, kdy 
 
 Autor příběhu může uzly seskupit do **kapitol** (`chapters` v `packages/story/src/story.ts`, u uzlu vlastnost `chapter`). U kapitoly určí, jestli se její čas **počítá do výsledku**: `home: 'Doma'` se počítá, `home: { name: 'Doma', counts: false }` ne. Nepočítaná kapitola se hodí třeba pro úvod nebo pauzu na oběd.
 
+Kapitoly se stejnými **stopkami** (`timer`) se sečtou i dohromady, třeba tři souběžné obchody, ze kterých tým navštíví jen jeden. Kapitola bez stopek má stopky sama pro sebe.
+
 Uzly bez kapitoly leží **mezi kapitolami**. Čas strávený v nich je mezera mezi kapitolou, ze které tým odešel, a kapitolou, do které přišel, třeba „Nákup → Večeře“. Mezera před první kapitolou začíná „Start“, mezera po poslední (nebo ta, ve které tým zrovna je) končí „konec“. Mezera se do výsledku počítá vždy.
 
 ## Časy
@@ -21,6 +23,7 @@ Uzly bez kapitoly leží **mezi kapitolami**. Čas strávený v nich je mezera m
 | ----------------------- | ---------------------------------------------------------------- |
 | Celkový čas             | konec − začátek bez pauz; u týmu na cestě teď − začátek bez pauz |
 | Čas kapitoly            | součet doby, kterou tým strávil v uzlech kapitoly                |
+| Čas stopek              | součet časů kapitol se stejnými stopkami                         |
 | Čas mezi kapitolami     | doba v uzlech bez kapitoly, zvlášť pro každou dvojici kapitol    |
 | Výsledný čas (výsledek) | celkový čas − čas kapitol, které se nepočítají                   |
 
@@ -30,7 +33,7 @@ Kapitoly a mezery dohromady dávají přesně celkový čas. Když se tým do ka
 
 - **Telefon hráče:** v nepočítané kapitole svítí uprostřed horní lišty žlutá kapsle s knížkou. Říká hráčům, že čas stojí. Jinde se neukazuje nic.
 - **Živě, panel „Klany“:** u každého klanu štítek s kapitolou, ve které tým je (nebo „Mezi kapitolami“), a jak dlouho tam je; u nepočítané kapitoly s poznámkou „nepočítá se“. Pod ním celkový čas a výsledek. Dobu na štítku počítá server, takže nezáleží na hodinách počítače organizátora.
-- **Stránka Časy:** tabulka týmů s výsledkem, celkovým časem a sloupcem pro každou kapitolu a každou mezeru v pořadí, jak jdou příběhem. Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli (s tímtéž slovem pod časem); týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
+- **Stránka Časy:** tabulka týmů s výsledkem, celkovým časem, sloupcem pro stopky sdílené víc kapitolami, celkovým časem mezi kapitolami a sloupcem pro každou kapitolu a každou mezeru v pořadí, jak jdou příběhem. Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli (s tímtéž slovem pod časem); týmy na cestě se do toho nepočítají, protože jejich čas ještě není konečný.
 - **Graf příběhu:** kapitoly jsou v rámečcích s názvem kapitoly vlevo; nepočítaná kapitola má čárkovaný rámeček a u názvu „nepočítá se“.
 
 ## Kdy se čas vynuluje
@@ -45,8 +48,8 @@ Ve všech třech případech se telefony týmu odhlásí a čas se rozběhne, a�
 
 „Kopírovat výsledky“ na stránce Živě zkopíruje výsledky jako CSV nebo JSON s anglickými názvy.
 
-- **CSV:** `id`, `team`, `node_id`, `finished`, `started_at`, `finished_at`, časy `playtime` a `result` jako `h:mm:ss`, tytéž v sekundách jako `playtime_s` a `result_s`. Za nimi sloupec `chapter_<id>_s` pro každou kapitolu, `gap_<odkud>_<kam>_s` pro každou mezeru (začátek hry je `start`, konec `end`) a nakonec `state_<klíč>` pro každou hodnotu stavu.
-- **JSON:** `id`, `name`, `nodeId`, `finished`, `startedAt`, `finishedAt`, `playtimeDuration`, `resultDuration`, `chapters` (sekundy podle id kapitoly), `gaps` (sekundy podle `odkud>kam`, se `start` a `end`) a `state`.
+- **CSV:** `id`, `team`, `node_id`, `finished`, `started_at`, `finished_at`, časy `playtime` a `result` jako `h:mm:ss`, tytéž v sekundách jako `playtime_s` a `result_s`. Za nimi sloupec `chapter_<id>_s` pro každou kapitolu, `timer_<klíč>_s` pro každé stopky, `gap_<odkud>_<kam>_s` pro každou mezeru (začátek hry je `start`, konec `end`), `between_chapters_s` se součtem všech mezer a nakonec `state_<klíč>` pro každou hodnotu stavu.
+- **JSON:** `id`, `name`, `nodeId`, `finished`, `startedAt`, `finishedAt`, `playtimeDuration`, `resultDuration`, `chapters` (sekundy podle id kapitoly), `timers` (sekundy podle klíče stopek), `gaps` (sekundy podle `odkud>kam`, se `start` a `end`), `betweenChaptersDuration` (součet mezer) a `state`.
 
 Každý tým má všechny klíče, všechny kapitoly i všechny mezery, kterými prošel aspoň jeden tým. Časy jsou vždy celé sekundy, u týmu, který se nepřihlásil, nula. Co ještě není známé (u týmu, který se nepřihlásil, uzel a začátek, u týmu na cestě konec), má hodnotu `null`; v CSV je taková buňka prázdná.
 

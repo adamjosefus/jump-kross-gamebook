@@ -70,8 +70,12 @@ export interface TeamResult {
   readonly resultDuration: number;
   /** Whole seconds by chapter id, every chapter of the story. */
   readonly chapters: Readonly<Record<string, number>>;
+  /** Whole seconds by timer: the chapters sharing a timer summed up, every timer of the story. */
+  readonly timers: Readonly<Record<string, number>>;
   /** Whole seconds by gap (`gapName`), every gap some team went through. */
   readonly gaps: Readonly<Record<string, number>>;
+  /** Whole seconds between chapters: every gap summed up. */
+  readonly betweenChaptersDuration: number;
   readonly state: Readonly<Record<string, Value>>;
 }
 
@@ -100,11 +104,24 @@ export const teamResults = (
       chapters: Object.fromEntries(
         (breakdown?.chapters ?? []).map(({ id }) => [id, seconds(times?.chapters[id] ?? 0)]),
       ),
+      timers: Object.fromEntries(
+        (breakdown?.timers ?? []).map(({ key }) => [
+          key,
+          seconds(
+            (breakdown?.chapters ?? [])
+              .filter((chapter) => chapter.timer === key)
+              .reduce((sum, chapter) => sum + (times?.chapters[chapter.id] ?? 0), 0),
+          ),
+        ]),
+      ),
       gaps: Object.fromEntries(
         (breakdown?.gaps ?? []).map((gap) => [
           gapName(gap),
           seconds(times?.gaps[gapKey(gap)] ?? 0),
         ]),
+      ),
+      betweenChaptersDuration: seconds(
+        Object.values(times?.gaps ?? {}).reduce((sum, ms) => sum + ms, 0),
       ),
       state: team.state,
     };
@@ -122,8 +139,9 @@ const cell = (value: Value | null | undefined) => {
 
 /**
  * The results as a table, one row per team: the total and the result both as `h:mm:ss` and as
- * whole seconds, one column per chapter (`chapter_<id>_s`) and per gap (`gap_<from>_<to>_s`, with
- * `start` and `end`), then one column per key of the state. The column names are English, as the
+ * whole seconds, one column per chapter (`chapter_<id>_s`), per timer (`timer_<key>_s`) and per gap
+ * (`gap_<from>_<to>_s`, with `start` and `end`), the time between chapters in all
+ * (`between_chapters_s`), then one column per key of the state. The column names are English, as the
  * JSON's keys are, though not the same ones: a table has `team` and `playtime_s` where the JSON has
  * `name` and `playtimeDuration`. Separated by semicolons, which is what a Czech Excel expects, and
  * ended with CRLF.
@@ -131,6 +149,7 @@ const cell = (value: Value | null | undefined) => {
 export const resultsCsv = (results: readonly TeamResult[]) => {
   const stateKeys = [...new Set(results.flatMap((result) => Object.keys(result.state)))];
   const chapterIds = Object.keys(results[0]?.chapters ?? {});
+  const timerKeys = Object.keys(results[0]?.timers ?? {});
   const gapNames = Object.keys(results[0]?.gaps ?? {});
   const header = [
     'id',
@@ -144,7 +163,9 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     'playtime_s',
     'result_s',
     ...chapterIds.map((id) => `chapter_${id}_s`),
+    ...timerKeys.map((key) => `timer_${key}_s`),
     ...gapNames.map((name) => `gap_${name.replace('>', '_')}_s`),
+    'between_chapters_s',
     ...stateKeys.map((key) => `state_${key}`),
   ];
   const formatted = (value: number) => formatDuration(value * 1000);
@@ -160,7 +181,9 @@ export const resultsCsv = (results: readonly TeamResult[]) => {
     result.playtimeDuration,
     result.resultDuration,
     ...chapterIds.map((id) => result.chapters[id]),
+    ...timerKeys.map((key) => result.timers[key]),
     ...gapNames.map((name) => result.gaps[name]),
+    result.betweenChaptersDuration,
     ...stateKeys.map((key) => result.state[key]),
   ]);
   return [header, ...rows].map((row) => row.map(cell).join(';')).join('\r\n') + '\r\n';

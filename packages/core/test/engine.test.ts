@@ -144,8 +144,39 @@ describe('engine', () => {
     expect(renderNode(chaptered, { node: 'A', state: { n: 0 } }, VLCI)?.timeStops).toBe(true);
     expect(renderNode(chaptered, { node: 'B', state: { n: 0 } }, VLCI)?.timeStops).toBe(false);
     expect(chaptered.chapters).toEqual([
-      { id: 'intro', name: 'Úvod', counts: false },
-      { id: 'game', name: 'Hra', counts: true },
+      { id: 'intro', name: 'Úvod', counts: false, timer: 'intro' },
+      { id: 'game', name: 'Hra', counts: true, timer: 'game' },
+    ]);
+  });
+
+  it('lists the timers of the chapters, shared ones once, named by the story or the chapter', () => {
+    const lines = defineStory<{ n: number }>()({
+      teams: { 1: 'Vlci' },
+      codes: {},
+      chapters: {
+        intro: { name: 'Úvod', counts: false },
+        bakery: { name: 'Pekárna', timer: 'shop' },
+        butcher: { name: 'Řeznictví', timer: 'shop' },
+      },
+      timers: { shop: 'Obchod' },
+      introNode: 'INTRO',
+      outroNode: 'END',
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        A: { chapter: 'intro', initialState: { n: 0 }, segments: ['A'], choices: [{ goto: 'B' }] },
+        B: { chapter: 'bakery', segments: ['B'], choices: [{ goto: 'C' }] },
+        C: { chapter: 'butcher', segments: ['C'], choices: [{ goto: 'END' }] },
+        END: { segments: ['Konec'] },
+      },
+    });
+    expect(lines.chapters.map(({ id, counts, timer }) => [id, counts, timer])).toEqual([
+      ['intro', false, 'intro'],
+      ['bakery', true, 'shop'],
+      ['butcher', true, 'shop'],
+    ]);
+    expect(lines.timers).toEqual([
+      { key: 'intro', name: 'Úvod' },
+      { key: 'shop', name: 'Obchod' },
     ]);
   });
 

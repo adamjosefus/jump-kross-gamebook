@@ -620,6 +620,7 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       );
       const result: TimeBreakdown = {
         chapters: story.chapters,
+        timers: story.timers,
         gaps,
         teams: timelines.map(({ id, timeline }) => ({
           id,

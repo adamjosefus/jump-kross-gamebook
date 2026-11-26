@@ -212,13 +212,24 @@ export interface Chapter {
   readonly name: string;
   /** False when the chapter's time is left out of the team's result. */
   readonly counts: boolean;
+  /** The timer the chapter's time goes to: its `timer`, or its own id when it has none. */
+  readonly timer: string;
+}
+
+/** What the teams' times are summed up by: chapters sharing a timer count together. */
+export interface Timer {
+  readonly key: string;
+  readonly name: string;
 }
 
 /**
  * A chapter in the story's definition: a plain name counts towards the result, `{ name, counts:
- * false }` does not, e.g. the introduction or a lunch break.
+ * false }` does not, e.g. the introduction or a lunch break. Chapters with the same `timer` are
+ * measured together as well, e.g. parallel lines of which a team goes through one.
  */
-export type ChapterDefinition = string | { readonly name: string; readonly counts: boolean };
+export type ChapterDefinition =
+  | string
+  | { readonly name: string; readonly counts?: boolean; readonly timer?: string };
 
 /** A team playing the game; its login QR code carries the id. */
 export interface Team {
@@ -233,6 +244,8 @@ export interface Story {
   readonly codes: readonly QrCode[];
   /** Chapters in definition order. */
   readonly chapters: readonly Chapter[];
+  /** Every timer some chapter's time goes to, in the order of their first chapter. */
+  readonly timers: readonly Timer[];
   /** The node anyone sees before scanning a team's login code; the same for every team. */
   readonly introNode: string;
   /** The node the game ends at. */
@@ -261,6 +274,8 @@ export interface StoryDefinition<
    * one left out of the team's result. A node joins one by its `chapter`.
    */
   readonly chapters?: Readonly<Record<string, ChapterDefinition>>;
+  /** Names of the timers shared by chapters (key → name); a timer without one is its first chapter's. */
+  readonly timers?: Readonly<Record<string, string>>;
   /**
    * The node shown before login, without any team or state: the story and the rules. After it
    * the player scans the team's code; a team that has not started yet begins at the start node.
@@ -325,22 +340,40 @@ export const defineStory =
     teams,
     codes,
     chapters = {},
+    timers = {},
     introNode,
     outroNode,
     nodes,
-  }: StoryDefinition<S, K, I, O, C>): Story => ({
-    teams: byId(teams),
-    codes: byId(codes),
-    chapters: Object.entries(chapters).map(([id, chapter]) =>
+  }: StoryDefinition<S, K, I, O, C>): Story => {
+    const chapterList = Object.entries(chapters).map(([id, chapter]) =>
       typeof chapter === 'string'
-        ? { id, name: chapter, counts: true }
-        : { id, name: chapter.name, counts: chapter.counts },
-    ),
-    introNode,
-    outroNode,
-    order: Object.keys(nodes),
-    nodes,
-  });
+        ? { id, name: chapter, counts: true, timer: id }
+        : {
+            id,
+            name: chapter.name,
+            counts: chapter.counts ?? true,
+            timer: chapter.timer ?? id,
+          },
+    );
+    return {
+      teams: byId(teams),
+      codes: byId(codes),
+      chapters: chapterList,
+      timers: chapterList
+        .filter(
+          (chapter, index) =>
+            chapterList.findIndex((earlier) => earlier.timer === chapter.timer) === index,
+        )
+        .map((chapter) => ({
+          key: chapter.timer,
+          name: Object.hasOwn(timers, chapter.timer) ? timers[chapter.timer]! : chapter.name,
+        })),
+      introNode,
+      outroNode,
+      order: Object.keys(nodes),
+      nodes,
+    };
+  };
 
 const byId = (names: Readonly<Record<number, string>>) =>
   Object.entries<string>(names)

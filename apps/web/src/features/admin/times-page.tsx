@@ -21,7 +21,7 @@ const POLL_MS = 15_000;
 
 type TeamTimes = TimeBreakdown['teams'][number];
 
-/** A column of the table: the result, the total, a chapter or a gap between two. */
+/** A column of the table: the result, the total, a timer, a chapter or a gap between two. */
 interface Column {
   readonly key: string;
   readonly label: string;
@@ -39,10 +39,12 @@ interface Column {
 const shownSeconds = (ms: number) => Math.floor(ms / 1000);
 
 /**
- * The columns in the order the teams go through the story: the gaps from the start, then every
- * chapter followed by the gaps that lead from it.
+ * The columns: the result and the total, every timer shared by chapters and the time between
+ * chapters in all, then in the order the teams go through the story the gaps from the start and
+ * every chapter followed by the gaps that lead from it. A timer of one chapter would only repeat
+ * that chapter's column.
  */
-const columnsOf = ({ chapters, gaps }: TimeBreakdown): readonly Column[] => {
+const columnsOf = ({ chapters, gaps, timers }: TimeBreakdown): readonly Column[] => {
   const names = new Map(chapters.map((chapter) => [chapter.id, chapter.name]));
   const gapColumn = (gap: ChapterGap): Column => ({
     key: `gap:${gapKey(gap)}`,
@@ -60,6 +62,31 @@ const columnsOf = ({ chapters, gaps }: TimeBreakdown): readonly Column[] => {
       ms: (_times, status, clock) => resultTime(status, clock),
     },
     { key: 'total', label: 'Celkem', ms: (_times, status, clock) => playTime(status, clock) },
+    ...timers.flatMap((timer): readonly Column[] => {
+      const shared = chapters.filter((chapter) => chapter.timer === timer.key);
+      return shared.length < 2
+        ? []
+        : [
+            {
+              key: `timer:${timer.key}`,
+              label: timer.name,
+              note: 'stopky kapitol',
+              ms: (times) =>
+                times === undefined || shared.every((chapter) => !(chapter.id in times.chapters))
+                  ? undefined
+                  : shared.reduce((sum, chapter) => sum + (times.chapters[chapter.id] ?? 0), 0),
+            },
+          ];
+    }),
+    {
+      key: 'between',
+      label: 'Mezi kapitolami',
+      note: 'všechny mezery',
+      ms: (times) =>
+        times === undefined || Object.keys(times.gaps).length === 0
+          ? undefined
+          : Object.values(times.gaps).reduce((sum, ms) => sum + ms, 0),
+    },
     ...gaps.filter((gap) => gap.from === '').map(gapColumn),
     ...chapters.flatMap((chapter): readonly Column[] => [
       {

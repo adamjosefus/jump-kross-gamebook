@@ -57,7 +57,8 @@ chapters: {
 - Uzel se ke kapitole přidá vlastností `chapter: 'shopping'`.
 - Kapitola s `counts: false` se do **výsledného času** týmu nepočítá; v telefonu po celou dobu svítí kapsle „čas stojí“. Hodí se pro úvod nebo pauzu.
 - Uzly bez kapitoly jsou **mezi kapitolami**. Jejich čas se měří zvlášť pro každou dvojici kapitol (třeba cesta mezi „Nákup“ a „Večeře“) a do výsledku se počítá.
-- Id kapitoly smí mít jen písmena bez diakritiky a číslice a začíná písmenem (`wayHome`); nesmí to být `start` ani `end`. Pojmenovává totiž sloupce ve výsledcích.
+- Kapitoly se stejnými **stopkami** (`{ name: 'Pekárna', timer: 'shop' }`) se měří i dohromady, třeba souběžné linky, ze kterých tým projde jen jednu. Název stopek se zapíše do `timers: { shop: 'Obchod' }`, jinak se jmenují podle první kapitoly. Kapitola bez `timer` má stopky sama pro sebe.
+- Id kapitoly smí mít jen písmena bez diakritiky a číslice a začíná písmenem (`wayHome`); nesmí to být `start` ani `end`. Pojmenovává totiž sloupce ve výsledcích. Pro klíč stopek platí totéž.
 
 Jak se čas počítá a kde se ukazuje, popisuje [Měření času hry](game-time.md).
 

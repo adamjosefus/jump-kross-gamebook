@@ -19,8 +19,9 @@ const coinsText = (count: number): string => {
  * Every node is one whole part of the story: `segments` are its parts the players page through
  * (markdown, one segment each, optionally with a `theme`). A node leads on by an action, either by
  * `choices` (buttons) or by `scans`: the team scans one of the QR codes and goes where that code
- * leads. Several codes can hang side by side, so the team decides by which one it scans. The team does not see which codes a node accepts, so the
- * segments have to say where to go and which code to scan.
+ * leads. Several codes can hang side by side, so the team decides by which one it scans. The team
+ * does not see which codes a node accepts, so the segments have to say where to go and which code
+ * to scan.
  *
  * `teams` are the teams of the game and `codes` the QR codes that move teams on; the admin prints
  * their codes from here. In every shop the team scans the code on its door and earns the
