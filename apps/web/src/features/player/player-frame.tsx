@@ -12,14 +12,14 @@ import { ReadingChip } from './reading-chip';
  * those of the next one. No text can be selected, so a long press while reading or scanning does
  * not open the selection or the iOS callout.
  *
- * While the team reads and its game time stands still, a capsule with a book sits in the middle of
- * the bar; otherwise there is nothing.
+ * Where the team's game time stands still (in a chapter that does not count towards its result), a
+ * capsule with a book sits in the middle of the bar; otherwise there is nothing.
  */
 export const PlayerFrame = ({
   onBack,
   lead,
   aside,
-  reading = false,
+  timeStops = false,
   className,
   children,
 }: {
@@ -29,8 +29,8 @@ export const PlayerFrame = ({
   readonly lead?: ReactNode;
   /** Shown at the right end of the bar. */
   readonly aside?: ReactNode;
-  /** The team reads and its game time stands still; shows the capsule with a book. */
-  readonly reading?: boolean;
+  /** The team's game time stands still here; shows the capsule with a book. */
+  readonly timeStops?: boolean;
   /** Colors of the whole screen. */
   readonly className?: string | undefined;
   readonly children: ReactNode;
@@ -57,7 +57,7 @@ export const PlayerFrame = ({
             <IconArrowLeft className='size-4 translate-x-px' />
           </Button>
         )}
-        {reading && (
+        {timeStops && (
           <div className='absolute top-1/2 left-1/2 -translate-1/2'>
             <ReadingChip />
           </div>

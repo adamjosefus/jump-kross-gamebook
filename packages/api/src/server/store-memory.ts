@@ -7,7 +7,6 @@ import {
   type GameSettingsRow,
   START_ACTIONS,
   type LogRow,
-  type StoryIntervalRow,
   type SessionRow,
   type TeamMove,
   type TeamRow,
@@ -30,7 +29,6 @@ export interface MemoryData {
   readonly adminFailures: Map<string, AdminFailures>;
   readonly bans: Map<string, BanRow>;
   log: readonly LogRow[];
-  storyIntervals: readonly StoryIntervalRow[];
   gameStartedAt: Date | undefined;
   settings: GameSettingsRow;
 }
@@ -41,7 +39,6 @@ export const emptyMemoryData = (): MemoryData => ({
   adminFailures: new Map(),
   bans: new Map(),
   log: [],
-  storyIntervals: [],
   gameStartedAt: undefined,
   settings: { closed: false, changedAt: undefined },
 });
@@ -111,7 +108,6 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
           teams.set(id, cleared);
           return cleared;
         });
-        data.storyIntervals = data.storyIntervals.filter((row) => !ids.includes(row.teamId));
         for (const [sessionId, session] of sessions)
           if (ids.includes(session.teamId)) sessions.delete(sessionId);
         data.gameStartedAt = undefined;
@@ -130,7 +126,6 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
       Effect.sync(() => {
         const team = teams.get(id);
         if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
-        data.storyIntervals = data.storyIntervals.filter((row) => row.teamId !== id);
         for (const [sessionId, session] of sessions)
           if (session.teamId === id) sessions.delete(sessionId);
       }),
@@ -150,16 +145,10 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             state: team.state,
           },
         ];
-        data.storyIntervals = data.storyIntervals.filter((row) => row.teamId !== id);
         for (const [sessionId, session] of sessions)
           if (session.teamId === id) sessions.delete(sessionId);
         return true;
       }),
-    addStoryIntervals: (rows) =>
-      Effect.sync(() => {
-        data.storyIntervals = [...data.storyIntervals, ...rows];
-      }),
-    listStoryIntervals: () => Effect.sync(() => data.storyIntervals),
 
     createSession: (id, teamId, client) =>
       Effect.sync(() => {

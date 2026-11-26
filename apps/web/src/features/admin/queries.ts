@@ -22,7 +22,7 @@ export const invalidateGame = (queryClient: QueryClient) =>
     queryClient.invalidateQueries({ queryKey: adminKeys.timeBreakdown }),
   ]);
 
-/** Every team's time split by chapter, station and node. */
+/** Every team's time by chapter and between chapters. */
 export const useTimeBreakdown = (refetchInterval: number | false = false) =>
   useQuery({
     queryKey: adminKeys.timeBreakdown,

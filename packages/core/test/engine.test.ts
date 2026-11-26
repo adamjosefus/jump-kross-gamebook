@@ -116,7 +116,35 @@ describe('engine', () => {
         { index: 1, label: 'Možnost dvě' },
       ],
       scan: false,
+      timeStops: false,
     });
+  });
+
+  it('stops the time in a chapter that does not count', () => {
+    const chaptered = defineStory<{ n: number }>()({
+      teams: { 1: 'Vlci' },
+      codes: {},
+      chapters: { intro: { name: 'Úvod', counts: false }, game: 'Hra' },
+      introNode: 'INTRO',
+      outroNode: 'END',
+      nodes: {
+        INTRO: { blocks: ['Úvod'] },
+        A: {
+          chapter: 'intro',
+          initialState: { n: 0 },
+          blocks: ['A'],
+          choices: [{ label: 'Dál', goto: 'B' }],
+        },
+        B: { chapter: 'game', blocks: ['B'], choices: [{ label: 'Konec', goto: 'END' }] },
+        END: { blocks: ['Konec'] },
+      },
+    });
+    expect(renderNode(chaptered, { node: 'A', state: { n: 0 } }, VLCI)?.timeStops).toBe(true);
+    expect(renderNode(chaptered, { node: 'B', state: { n: 0 } }, VLCI)?.timeStops).toBe(false);
+    expect(chaptered.chapters).toEqual([
+      { id: 'intro', name: 'Úvod', counts: false },
+      { id: 'game', name: 'Hra', counts: true },
+    ]);
   });
 
   it('applies choices and merges the next state', () => {
@@ -142,6 +170,7 @@ describe('engine', () => {
       ],
       choices: [],
       scan: true,
+      timeStops: false,
     });
     expect(applyChoice(story, atWell, VLCI, 0)).toEqual({ ok: false, error: 'scan-required' });
     expect(applyScan(story, atWell, VLCI, 34)).toEqual({ ok: false, error: 'wrong-code' });

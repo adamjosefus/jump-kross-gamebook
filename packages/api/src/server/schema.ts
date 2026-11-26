@@ -45,24 +45,10 @@ alter table session add column if not exists user_agent text;
 alter table session add column if not exists device_id text;
 create index if not exists session_device on session (device_id);
 
--- Story time used to be stored as "reading"; the table keeps its rows under the new name. Once
--- renamed, the old names are gone and these statements do nothing.
-alter table if exists reading rename to story_interval;
-alter sequence if exists reading_id_seq rename to story_interval_id_seq;
-alter index if exists reading_pkey rename to story_interval_pkey;
-alter index if exists reading_team rename to story_interval_team;
-
-create table if not exists story_interval (
-  id bigserial primary key,
-  team_id int not null references team (id) on delete cascade,
-  started_at timestamptz not null,
-  ended_at timestamptz not null,
-  node text not null default ''
-);
-create index if not exists story_interval_team on story_interval (team_id);
--- Reading used to be known per team only; such rows have no node and count where the step log
--- has the team.
-alter table story_interval add column if not exists node text not null default '';
+-- Phones used to report how long a text was on ("reading", later "story_interval"); the times are
+-- measured by chapters now, from the step log alone.
+drop table if exists story_interval;
+drop table if exists reading;
 
 -- One row: when the organisers started the game; null until then and after a new game.
 create table if not exists game (

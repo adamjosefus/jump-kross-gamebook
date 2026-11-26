@@ -157,19 +157,12 @@ export const PlayerView = Schema.Struct({
       scanTitle: Schema.optionalKey(Schema.String),
       /** The text under that heading, when the story sets one. */
       scanText: Schema.optionalKey(Schema.String),
+      /** The node's chapter does not count: the game time stands still, the screen says so. */
+      timeStops: Schema.Boolean,
     }),
   ),
 });
 export type PlayerView = typeof PlayerView.Type;
-
-/** More than a device can have waiting: it reports after every text, or when the signal is back. */
-export const MAX_STORY_INTERVALS = 200;
-
-/**
- * The most one continuous view of a text counts for. A phone left unlocked on a text while the
- * team walks is not reading. The player's reading strip goes out after the same time.
- */
-export const MAX_STORY_MS = 5 * 60 * 1000;
 
 export const PlayerSessionCookie = HttpApiSecurity.apiKey({ key: 'gb_session', in: 'cookie' });
 
@@ -226,24 +219,6 @@ export class PlayerGroup extends HttpApiGroup.make('player')
       success: PlayerView,
       error: [InvalidCode, StepConflict, InvalidMove, NotFound, GameClosed],
     }).middleware(PlayerAuth),
-    /**
-     * How long a device showed a text: `ms` long, ending `agoMs` ago by the device's clock. The
-     * device names the team it read for; times of another team (the device switched meanwhile)
-     * are dropped.
-     */
-    HttpApiEndpoint.post('storyTime', '/story-time', {
-      payload: Schema.Struct({
-        teamId: Schema.optionalKey(Schema.Number),
-        intervals: Schema.Array(
-          Schema.Struct({
-            ms: Schema.Number,
-            agoMs: Schema.Number,
-            /** The node whose text was shown; phones of an older build do not send it. */
-            node: Schema.optionalKey(Schema.String),
-          }),
-        ).check(Schema.isMaxLength(MAX_STORY_INTERVALS)),
-      }),
-    }).middleware(PlayerAuth),
     HttpApiEndpoint.post('logout', '/logout', {}).middleware(PlayerAuth),
   )
   .prefix('/api/player') {}
@@ -251,9 +226,13 @@ export class PlayerGroup extends HttpApiGroup.make('player')
 // ---------------------------------------------------------------------------------------------
 // Admin
 
-/** A station or a chapter of the story. */
-export const NamedPart = Schema.Struct({ id: Schema.String, name: Schema.String });
-export type NamedPart = typeof NamedPart.Type;
+/** A named part of the story; the time of one that does not count is left out of the result. */
+export const Chapter = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  counts: Schema.Boolean,
+});
+export type Chapter = typeof Chapter.Type;
 
 export const StoryGraph = Schema.Struct({
   /** The node anyone sees before scanning a team's code; the login leads from it to the start. */
@@ -282,9 +261,6 @@ export const StoryGraph = Schema.Struct({
           label: Schema.String,
           /** Set on QR choices. */
           code: Schema.optionalKey(Schema.Number),
-          /** Set on QR choices of a station's code. */
-          role: Schema.optionalKey(Schema.Literals(['arrival', 'reward'])),
-          station: Schema.optionalKey(Schema.String),
           target: Schema.String,
           conditional: Schema.Boolean,
           available: Schema.optionalKey(Schema.Boolean),
@@ -292,61 +268,53 @@ export const StoryGraph = Schema.Struct({
       ),
     }),
   ),
-  chapters: Schema.Array(NamedPart),
-  stations: Schema.Array(NamedPart),
+  chapters: Schema.Array(Chapter),
 });
 
 export const QrCode = Schema.Struct({
   id: Schema.Number,
   name: Schema.String,
-  /** Navigation leads the way; the arrival starts a station's task and the reward ends it. */
-  role: Schema.Literals(['navigation', 'arrival', 'reward']),
-  /** Set for the arrival and the reward. */
-  station: Schema.optionalKey(Schema.String),
 });
 export type QrCode = typeof QrCode.Type;
 
 /**
- * What a team is doing now, from its last scan; reading is not known until it is reported. `ms`
- * is how long it has been doing it by the server's clock, so the admin's own clock, which may be
- * off, only counts on from there.
+ * Where a team is in the story now: in a chapter, or between two (on nodes of no chapter). `ms` is
+ * how long it has been there by the server's clock, so the admin's own clock, which may be off,
+ * only counts on from there. `counts` says whether this time counts towards its result.
  */
-export const TeamPhase = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal('travel'), since: Schema.String, ms: Schema.Number }),
-  Schema.Struct({
-    kind: Schema.Literal('task'),
-    station: Schema.String,
-    since: Schema.String,
-    ms: Schema.Number,
-  }),
-]);
+export const TeamPhase = Schema.Struct({
+  /** Missing between chapters. */
+  chapter: Schema.optionalKey(Schema.String),
+  counts: Schema.Boolean,
+  since: Schema.String,
+  ms: Schema.Number,
+});
 export type TeamPhase = typeof TeamPhase.Type;
 
-/** How a stretch of a team's time is spent; together the three make its total time. */
-export const TimeSplit = Schema.Struct({
-  storyMs: Schema.Number,
-  travelMs: Schema.Number,
-  taskMs: Schema.Number,
-});
-export type TimeSplit = typeof TimeSplit.Type;
+/**
+ * A stretch between two chapters, on nodes of no chapter. `from` is the chapter the team left, ""
+ * at the start of the game; `to` the one it came to next, "" at the end or while it is still on
+ * its way.
+ */
+export const ChapterGap = Schema.Struct({ from: Schema.String, to: Schema.String });
+export type ChapterGap = typeof ChapterGap.Type;
 
-/** The times of every team split by chapter, station and node. */
+/** The key of a gap in the teams' times: `from>to`. */
+export const gapKey = ({ from, to }: ChapterGap) => `${from}>${to}`;
+
+/** The times of every team by chapter and between chapters. */
 export const TimeBreakdown = Schema.Struct({
-  /** In the story's order; nodes without a chapter count under the id "". */
-  chapters: Schema.Array(NamedPart),
-  stations: Schema.Array(NamedPart),
+  /** In the story's order. */
+  chapters: Schema.Array(Chapter),
+  /** The gaps some team went through, in the order of the chapters they lie between. */
+  gaps: Schema.Array(ChapterGap),
   teams: Schema.Array(
     Schema.Struct({
       id: Schema.Number,
-      /** By chapter id; a chapter the team never got to is missing. */
-      chapters: Schema.Record(Schema.String, TimeSplit),
-      /** By station id: the task, and the way that led to it. */
-      stations: Schema.Record(
-        Schema.String,
-        Schema.Struct({ travelMs: Schema.Number, taskMs: Schema.Number }),
-      ),
-      /** Reading by node id. */
-      nodes: Schema.Record(Schema.String, Schema.Number),
+      /** Ms by chapter id; a chapter the team never got to is missing. */
+      chapters: Schema.Record(Schema.String, Schema.Number),
+      /** Ms by `gapKey`; a gap the team never went through is missing. */
+      gaps: Schema.Record(Schema.String, Schema.Number),
     }),
   ),
 });
@@ -372,8 +340,11 @@ export const TeamStatus = Schema.Struct({
   finishedAt: Schema.optionalKey(Schema.String),
   /** From `startedAt` until `finishedAt`, or until now; missing before the first login. */
   playtimeMs: Schema.optionalKey(Schema.Number),
-  /** How long a text was on at least one of the team's devices. */
-  storyMs: Schema.Number,
+  /**
+   * The total time without the chapters that do not count: what the team is ranked by. Missing
+   * before the first login.
+   */
+  resultMs: Schema.optionalKey(Schema.Number),
   /** Missing before the first login and after the end. */
   phase: Schema.optionalKey(TeamPhase),
 });
@@ -434,8 +405,8 @@ export const Overview = Schema.Struct({
   game: GameInfo,
   teams: Schema.Array(TeamStatus),
   codes: Schema.Array(QrCode),
-  /** Where teams do tasks; the phase of a team names one by its id. */
-  stations: Schema.Array(NamedPart),
+  /** The story's chapters; the phase of a team names one by its id. */
+  chapters: Schema.Array(Chapter),
   log: Schema.Array(LogEntry),
   /** How many times teams arrived at each node; scans do not count. */
   visits: Schema.Record(Schema.String, Schema.Number),
@@ -455,11 +426,6 @@ export const PrintableCode = Schema.Struct({
   kind: Schema.Literals(['T', 'L']),
   id: Schema.Number,
   label: Schema.String,
-  /**
-   * What the code means for the organisers, printed small on the card: „Příchod · Pekárna“ or
-   * „Odměna · Pekárna“ for a station's codes, missing for the others.
-   */
-  note: Schema.optionalKey(Schema.String),
   code: Schema.String,
   /**
    * The story's texts of the scan screens that take this code, each once: the intro's for a team's
@@ -504,6 +470,7 @@ export const PlaytestView = Schema.Struct({
     scan: Schema.Boolean,
     scanTitle: Schema.optionalKey(Schema.String),
     scanText: Schema.optionalKey(Schema.String),
+    timeStops: Schema.Boolean,
     scans: Schema.Array(QrCode),
   }),
 });

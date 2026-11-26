@@ -1,13 +1,6 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
-import {
-  IconDirectionSign,
-  IconDoorEnter,
-  IconFlag,
-  IconGift,
-  IconQrcode,
-  IconWalk,
-} from '@tabler/icons-react';
+import { IconDirectionSign, IconFlag, IconQrcode, IconWalk } from '@tabler/icons-react';
 import {
   Background,
   BaseEdge,
@@ -289,8 +282,6 @@ type RouteEdge = Edge<
     readonly text?: string;
     /** The edge is a QR choice. */
     readonly qr?: boolean;
-    /** The QR choice is a station's arrival or reward code. */
-    readonly role?: 'arrival' | 'reward';
     readonly label?: Box;
     /** Of the label; the theme's text color when missing. */
     readonly color?: string;
@@ -376,11 +367,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
               height: label.height,
             }}
           >
-            {data.role === 'arrival' ? (
-              <IconDoorEnter className='mr-0.5 inline size-3 align-[-2px]' />
-            ) : data.role === 'reward' ? (
-              <IconGift className='mr-0.5 inline size-3 align-[-2px]' />
-            ) : data.qr === true ? (
+            {data.qr === true ? (
               <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />
             ) : (
               <IconDirectionSign className='mr-0.5 inline size-3 align-[-2px]' />
@@ -416,6 +403,8 @@ type ChapterFlowNode = Node<
   {
     readonly name: string;
     readonly hue: number;
+    /** False for a chapter left out of the teams' results. */
+    readonly counts: boolean;
     readonly width: number;
     readonly height: number;
   },
@@ -425,11 +414,17 @@ type ChapterFlowNode = Node<
 /**
  * A chapter around its nodes: an outline in the chapter's color on a faint fill, lighter in light
  * mode and darker in dark mode, and its name outside along the left edge, read from the bottom up.
+ * The outline of a chapter that does not count towards the result is dashed, and its name says so.
  * ELK lays the nodes of a chapter out inside it, so frames never overlap.
  */
-const ChapterFrame = ({ data: { name, hue, width, height } }: NodeProps<ChapterFlowNode>) => (
+const ChapterFrame = ({
+  data: { name, hue, counts, width, height },
+}: NodeProps<ChapterFlowNode>) => (
   <div
-    className='relative rounded-2xl border-2 bg-white/10 dark:bg-black/10'
+    className={cn(
+      'relative rounded-2xl border-2 bg-white/10 dark:bg-black/10',
+      !counts && 'border-dashed',
+    )}
     style={{
       width,
       height,
@@ -440,9 +435,10 @@ const ChapterFrame = ({ data: { name, hue, width, height } }: NodeProps<ChapterF
       // A name longer than the frame is cut short with an ellipsis; the whole one is in the title.
       className='absolute top-3 right-full mr-2 max-h-[calc(100%-1.5rem)] rotate-180 truncate text-sm font-semibold tracking-wide uppercase [writing-mode:vertical-rl]'
       style={{ color: `oklch(0.55 0.15 ${hue})` }}
-      title={name}
+      title={counts ? name : `${name}: čas se do výsledku nepočítá`}
     >
       {name}
+      {!counts && <span className='font-normal normal-case'> · nepočítá se</span>}
     </div>
   </div>
 );
@@ -727,6 +723,7 @@ export const StoryGraph = ({
               data: {
                 name: chapter.name,
                 hue,
+                counts: chapter.counts,
                 width: box.width,
                 height: box.height,
               },
@@ -800,7 +797,6 @@ export const StoryGraph = ({
                   points: route?.points ?? [],
                   text: choice.label,
                   qr: choice.code !== undefined,
-                  ...(choice.role === undefined ? {} : { role: choice.role }),
                   ...(route?.label === undefined ? {} : { label: route.label }),
                   // Paths the start never takes are dimmed.
                   dimmed: choice.available === false || !graph.nodes[id]!.reached,

@@ -1,6 +1,5 @@
-import type { NamedPart, TeamStatus, TimeBreakdown, TimeSplit } from '@gamebook/api';
+import { gapKey, type ChapterGap, type TeamStatus, type TimeBreakdown } from '@gamebook/api';
 import { IconLoader2 } from '@tabler/icons-react';
-import { useState } from 'react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -11,107 +10,87 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 import { useOverview, useTimeBreakdown } from './queries';
-import { formatDuration } from './results';
+import { formatDuration, playTime, resultTime } from './results';
 
 const POLL_MS = 15_000;
 
-type View = 'chapters' | 'stations';
-
 type TeamTimes = TimeBreakdown['teams'][number];
 
-/**
- * The time a column measures for one team, in whole seconds as the page shows it, so two times
- * shown the same are never one fastest and one not; undefined when the team has none of it yet.
- */
-type Measure = (times: TeamTimes) => number | undefined;
+/** A column of the table: the result, the total, a chapter or a gap between two. */
+interface Column {
+  readonly key: string;
+  readonly label: string;
+  /** Shown small under the label, e.g. that the chapter does not count. */
+  readonly note?: string;
+  /** The column's ms for a team; undefined when the team has none of it (yet). */
+  readonly ms: (
+    times: TeamTimes | undefined,
+    status: TeamStatus,
+    now: number,
+  ) => number | undefined;
+}
 
+/** Two times shown the same are never one fastest and one not: they compare as shown. */
 const shownSeconds = (ms: number) => Math.floor(ms / 1000);
 
-const splitTotal = (split: TimeSplit) => split.storyMs + split.travelMs + split.taskMs;
-
-const chapterMeasure =
-  (id: string): Measure =>
-  (times) => {
-    const split = times.chapters[id];
-    return split === undefined ? undefined : shownSeconds(splitTotal(split));
-  };
-
-const stationMeasure =
-  (id: string): Measure =>
-  (times) => {
-    const time = times.stations[id];
-    return time === undefined ? undefined : shownSeconds(time.taskMs);
-  };
-
 /**
- * The fastest and the slowest of the teams in the finish: a team on its way may not have left the
- * chapter or station yet, so its time is not final and would look the fastest.
+ * The columns in the order the teams go through the story: the gaps from the start, then every
+ * chapter followed by the gaps that lead from it.
  */
-const extremes = (
-  parts: readonly NamedPart[],
-  measureOf: (id: string) => Measure,
-  teams: readonly TeamTimes[],
-  finished: ReadonlySet<number>,
-) =>
-  new Map(
-    parts.map(({ id }) => {
-      const measure = measureOf(id);
-      const values = teams
-        .filter((times) => finished.has(times.id))
-        .flatMap((times) => measure(times) ?? []);
-      return [
-        id,
-        // With fewer than two times, or all the same, there is no fastest or slowest.
-        values.length < 2 || Math.min(...values) === Math.max(...values)
-          ? undefined
-          : { fastest: Math.min(...values), slowest: Math.max(...values) },
-      ] as const;
-    }),
-  );
-
-const ChapterCell = ({ split }: { readonly split: TimeSplit | undefined }) =>
-  split === undefined ? (
-    <span className='text-muted-foreground'>–</span>
-  ) : (
-    <div className='flex flex-col gap-0.5'>
-      <span className='font-mono font-medium'>{formatDuration(splitTotal(split))}</span>
-      <span className='text-xs whitespace-nowrap text-muted-foreground'>
-        čtení {formatDuration(split.storyMs)} · cesta {formatDuration(split.travelMs)} · úkol{' '}
-        {formatDuration(split.taskMs)}
-      </span>
-    </div>
-  );
-
-const StationCell = ({
-  time,
-}: {
-  readonly time: { readonly travelMs: number; readonly taskMs: number } | undefined;
-}) =>
-  time === undefined ? (
-    <span className='text-muted-foreground'>–</span>
-  ) : (
-    <div className='flex flex-col gap-0.5'>
-      <span className='font-mono font-medium'>{formatDuration(time.taskMs)}</span>
-      <span className='text-xs whitespace-nowrap text-muted-foreground'>
-        cesta {formatDuration(time.travelMs)}
-      </span>
-    </div>
-  );
+const columnsOf = ({ chapters, gaps }: TimeBreakdown): readonly Column[] => {
+  const names = new Map(chapters.map((chapter) => [chapter.id, chapter.name]));
+  const gapColumn = (gap: ChapterGap): Column => ({
+    key: `gap:${gapKey(gap)}`,
+    label: `${gap.from === '' ? 'Start' : (names.get(gap.from) ?? gap.from)} → ${
+      gap.to === '' ? 'konec' : (names.get(gap.to) ?? gap.to)
+    }`,
+    note: 'mezi kapitolami',
+    ms: (times) => times?.gaps[gapKey(gap)],
+  });
+  return [
+    {
+      key: 'result',
+      label: 'Výsledek',
+      note: 'bez nepočítaných kapitol',
+      ms: (_times, status, now) => resultTime(status, now),
+    },
+    { key: 'total', label: 'Celkem', ms: (_times, status, now) => playTime(status, now) },
+    ...gaps.filter((gap) => gap.from === '').map(gapColumn),
+    ...chapters.flatMap((chapter): readonly Column[] => [
+      {
+        key: `chapter:${chapter.id}`,
+        label: chapter.name,
+        ...(chapter.counts ? {} : { note: 'nepočítá se' }),
+        ms: (times) => times?.chapters[chapter.id],
+      },
+      ...gaps.filter((gap) => gap.from === chapter.id).map(gapColumn),
+    ]),
+  ];
+};
 
 /**
- * How long each team took on each chapter of the story, or at each station, side by side: where
- * the teams spend their time and where one got stuck. Times of a team on its way count up to now.
+ * The fastest and the slowest of the teams in the finish, per column: a team on its way may not
+ * have left a chapter yet, so its time is not final and would look the fastest. Undefined where
+ * fewer than two teams have a time, or all have the same.
+ */
+const extremesOf = (values: readonly number[]) =>
+  values.length < 2 || Math.min(...values) === Math.max(...values)
+    ? undefined
+    : { fastest: Math.min(...values), slowest: Math.max(...values) };
+
+/**
+ * How long each team took in each chapter of the story and between the chapters, side by side with
+ * its total and its result: where the teams spend their time and where one got stuck. Times of a
+ * team on its way count up to now.
  */
 export const TimesPage = () => {
   const breakdown = useTimeBreakdown(POLL_MS);
   const overview = useOverview(POLL_MS);
-  const [view, setView] = useState<View>('chapters');
 
   if (breakdown.isPending || overview.isPending)
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
@@ -120,123 +99,125 @@ export const TimesPage = () => {
       <p className='p-8 text-destructive'>{errorMessage(breakdown.error ?? overview.error)}</p>
     );
 
-  const { chapters, stations, teams } = breakdown.data;
-  const statuses: ReadonlyMap<number, TeamStatus> = new Map(
-    overview.data.teams.map((team) => [team.id, team]),
+  const now = overview.dataUpdatedAt;
+  const columns = columnsOf(breakdown.data);
+  const times: ReadonlyMap<number, TeamTimes> = new Map(
+    breakdown.data.teams.map((entry) => [entry.id, entry]),
   );
-  const finished = new Set(overview.data.teams.filter((team) => team.finished).map(({ id }) => id));
-  const parts = view === 'chapters' ? chapters : stations;
-  const measureOf = view === 'chapters' ? chapterMeasure : stationMeasure;
-  const marks = extremes(parts, measureOf, teams, finished);
-  const started = teams.filter((times) => statuses.get(times.id)?.startedAt !== undefined);
+  const started = overview.data.teams.filter((team) => team.startedAt !== undefined);
+  const marks = new Map(
+    columns.map((column) => [
+      column.key,
+      extremesOf(
+        started
+          .filter((team) => team.finished)
+          .flatMap((team) => {
+            const ms = column.ms(times.get(team.id), team, now);
+            return ms === undefined ? [] : [shownSeconds(ms)];
+          }),
+      ),
+    ]),
+  );
 
-  // The switch is a set of tabs over the table, so the table is the content of the chosen one.
   return (
-    <Tabs
-      value={view}
-      onValueChange={(value) => setView(value === 'stations' ? 'stations' : 'chapters')}
-      className='mx-auto max-w-6xl gap-4 p-4 md:gap-6 md:p-6'
-    >
+    <div className='mx-auto flex max-w-6xl flex-col gap-4 p-4 md:gap-6 md:p-6'>
       <Card>
-        <CardHeader className='flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'>
-          <div className='flex flex-col gap-1.5'>
-            <CardTitle>Časy</CardTitle>
-            <CardDescription>
-              {view === 'chapters'
-                ? 'Jak dlouho byl tým v kapitole příběhu a z toho čtením, cestou a úkolem na stanovišti.'
-                : 'Jak dlouho tým plnil úkol na stanovišti (od kódu příchodu po kód odměny, bez čtení) a jak dlouho k němu šel.'}{' '}
-              Zeleně je nejrychlejší a červeně nejpomalejší tým v cíli. U týmu na cestě se čas
-              počítá do teď.
-            </CardDescription>
-          </div>
-          <TabsList>
-            <TabsTrigger value='chapters'>Kapitoly</TabsTrigger>
-            <TabsTrigger value='stations'>Stanoviště</TabsTrigger>
-          </TabsList>
+        <CardHeader>
+          <CardTitle>Časy</CardTitle>
+          <CardDescription>
+            Jak dlouho byl tým v každé kapitole příběhu a mezi kapitolami, celkem a ve výsledku, do
+            kterého se nepočítají kapitoly označené „nepočítá se“. Zeleně je nejrychlejší a červeně
+            nejpomalejší tým v cíli. U týmu na cestě se čas počítá do teď.
+          </CardDescription>
         </CardHeader>
-        <TabsContent value={view} asChild>
-          <CardContent>
-            {parts.length === 0 ? (
-              <p className='text-sm text-muted-foreground'>
-                {view === 'chapters'
-                  ? 'Příběh nemá žádné kapitoly.'
-                  : 'Příběh nemá žádná stanoviště.'}
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className='sticky left-0 z-10 bg-card'>Tým</TableHead>
-                    {parts.map((part) => (
-                      <TableHead key={part.id}>{part.name}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {started.map((times) => {
-                    const name = statuses.get(times.id)?.name ?? `#${times.id}`;
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='sticky left-0 z-10 bg-card'>Tým</TableHead>
+                {columns.map((column) => (
+                  <TableHead key={column.key} className='h-auto py-2 align-bottom'>
+                    <div className='flex flex-col'>
+                      <span>{column.label}</span>
+                      {column.note !== undefined && (
+                        <span className='text-xs font-normal text-muted-foreground'>
+                          {column.note}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {started.map((team) => (
+                <TableRow key={team.id}>
+                  {/* The row's header, so a screen reader names the team with each time. */}
+                  <TableHead
+                    scope='row'
+                    className='sticky left-0 z-10 h-auto bg-card p-2 font-normal'
+                  >
+                    <div className='flex items-center gap-2'>
+                      <TeamAvatar id={team.id} name={team.name} />
+                      <span className='whitespace-nowrap'>{team.name}</span>
+                    </div>
+                  </TableHead>
+                  {columns.map((column) => {
+                    const ms = column.ms(times.get(team.id), team, now);
+                    const mark = team.finished ? marks.get(column.key) : undefined;
+                    const shown = ms === undefined ? undefined : shownSeconds(ms);
+                    const rank =
+                      mark === undefined || shown === undefined
+                        ? undefined
+                        : shown === mark.fastest
+                          ? 'nejrychlejší'
+                          : shown === mark.slowest
+                            ? 'nejpomalejší'
+                            : undefined;
                     return (
-                      <TableRow key={times.id}>
-                        {/* The row's header, so a screen reader names the team with each time. */}
-                        <TableHead
-                          scope='row'
-                          className='sticky left-0 z-10 h-auto bg-card p-2 font-normal'
-                        >
-                          <div className='flex items-center gap-2'>
-                            <TeamAvatar id={times.id} name={name} />
-                            <span className='whitespace-nowrap'>{name}</span>
-                          </div>
-                        </TableHead>
-                        {parts.map((part) => {
-                          const value = measureOf(part.id)(times);
-                          const mark = finished.has(times.id) ? marks.get(part.id) : undefined;
-                          // The color has a word under the time too, for a screen reader and
-                          // for whom the colors look alike.
-                          const rank =
-                            mark === undefined
-                              ? undefined
-                              : value === mark.fastest
-                                ? 'nejrychlejší'
-                                : value === mark.slowest
-                                  ? 'nejpomalejší'
-                                  : undefined;
-                          return (
-                            <TableCell
-                              key={part.id}
+                      <TableCell
+                        key={column.key}
+                        className={cn(
+                          'align-top',
+                          rank === 'nejrychlejší' && 'bg-emerald-500/10 dark:bg-emerald-400/15',
+                          rank === 'nejpomalejší' && 'bg-red-500/10 dark:bg-red-400/15',
+                        )}
+                      >
+                        {ms === undefined ? (
+                          <span className='text-muted-foreground'>–</span>
+                        ) : (
+                          <div className='flex flex-col gap-0.5'>
+                            <span
                               className={cn(
-                                'align-top',
-                                rank === 'nejrychlejší' &&
-                                  'bg-emerald-500/10 dark:bg-emerald-400/15',
-                                rank === 'nejpomalejší' && 'bg-red-500/10 dark:bg-red-400/15',
+                                'font-mono',
+                                column.key === 'result' && 'font-semibold',
                               )}
                             >
-                              {view === 'chapters' ? (
-                                <ChapterCell split={times.chapters[part.id]} />
-                              ) : (
-                                <StationCell time={times.stations[part.id]} />
-                              )}
-                              {rank !== undefined && (
-                                <span className='text-xs text-muted-foreground'>{rank}</span>
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
+                              {formatDuration(ms)}
+                            </span>
+                            {/* The color has a word too, for a screen reader and for whom the
+                                colors look alike. */}
+                            {rank !== undefined && (
+                              <span className='text-xs text-muted-foreground'>{rank}</span>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
                     );
                   })}
-                  {started.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={parts.length + 1} className='text-muted-foreground'>
-                        Zatím žádný tým nezačal.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </TabsContent>
+                </TableRow>
+              ))}
+              {started.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={columns.length + 1} className='text-muted-foreground'>
+                    Zatím žádný tým nezačal.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
       </Card>
-    </Tabs>
+    </div>
   );
 };

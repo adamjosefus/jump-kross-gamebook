@@ -18,6 +18,7 @@ const meta = {
       id: 'MILL',
       type: 'passage',
       scan: false,
+      timeStops: false,
       choices: [{ index: 0, label: 'Vejít dovnitř' }],
       screens: [
         {
@@ -41,6 +42,7 @@ export const ArrowOnlyNextButton: StoryObj<typeof meta> = {
       id: 'LETTER',
       type: 'passage',
       scan: false,
+      timeStops: false,
       choices: [{ index: 0, label: 'Vyrazit na cestu' }],
       screens: [
         { theme: 'default', content: 'Na stole leží zapečetěný dopis.' },
@@ -57,6 +59,7 @@ export const CustomNextButton: StoryObj<typeof meta> = {
       id: 'LETTER',
       type: 'passage',
       scan: false,
+      timeStops: false,
       choices: [{ index: 0, label: 'Vyrazit na cestu' }],
       screens: [
         { theme: 'default', content: 'Na stole leží zapečetěný dopis.', next: 'Otevřít dopis' },

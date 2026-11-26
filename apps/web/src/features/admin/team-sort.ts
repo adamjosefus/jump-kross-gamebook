@@ -1,19 +1,13 @@
 import type { TeamStatus } from '@gamebook/api';
 import type { Value } from '@gamebook/core';
 
-import { playTime } from './results';
+import { playTime, resultTime } from './results';
 
 /**
- * What the live list of teams is ordered by: the story's own order, the name, one of the three
- * times, or one key of the state (the state is flat, so a key is a column).
+ * What the live list of teams is ordered by: the story's own order, the name, the total time or the
+ * result, or one key of the state (the state is flat, so a key is a column).
  */
-export type TeamSortKey =
-  | 'order'
-  | 'name'
-  | 'playtime'
-  | 'liveAction'
-  | 'story'
-  | `state:${string}`;
+export type TeamSortKey = 'order' | 'name' | 'playtime' | 'result' | `state:${string}`;
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -27,9 +21,8 @@ export const DEFAULT_TEAM_SORT: TeamSort = { key: 'order', direction: 'asc' } as
 const FIXED_OPTIONS = [
   { key: 'order', label: 'Pořadí' },
   { key: 'name', label: 'Název' },
+  { key: 'result', label: 'Výsledný čas' },
   { key: 'playtime', label: 'Celkový čas' },
-  { key: 'liveAction', label: 'Čas bez čtení' },
-  { key: 'story', label: 'Čas čtení' },
 ] as const satisfies readonly { readonly key: TeamSortKey; readonly label: string }[];
 
 /** The choices of the order: the fixed ones, then every key some team has in its state. */
@@ -67,14 +60,11 @@ const sortValue = (team: TeamStatus, key: TeamSortKey, now: number): Value | und
   if (key === 'order') return team.id;
   if (key === 'name') return team.name;
   if (key.startsWith('state:')) return team.state[key.slice('state:'.length)];
-  const playtimeMs = playTime(team, now);
   // A team that has not logged in has no time; zero would put it first among the fastest.
-  if (playtimeMs === undefined) return undefined;
-  if (key === 'playtime') return playtimeMs;
-  return key === 'story' ? team.storyMs : playtimeMs - team.storyMs;
+  return key === 'playtime' ? playTime(team, now) : resultTime(team, now);
 };
 
-const TIME_KEYS: ReadonlySet<TeamSortKey> = new Set(['playtime', 'liveAction', 'story']);
+const TIME_KEYS: ReadonlySet<TeamSortKey> = new Set(['playtime', 'result']);
 
 /**
  * The teams in the chosen order. A team without the value stays at the end in both directions,

@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { StoryGraph } from './story-graph';
 
-/** The demo story, with its chapters and stations; the scans of a station's codes have icons. */
+/** The demo story, with its chapters; the introduction does not count towards the result. */
 const graph = toGraph(story);
 
 const meta = {

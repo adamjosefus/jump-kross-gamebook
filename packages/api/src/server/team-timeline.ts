@@ -1,218 +1,130 @@
 import type { Story } from '@gamebook/core';
 
-import type { StepRow, StoryIntervalRow, TeamRow } from './store.ts';
+import type { StepRow, TeamRow } from './store.ts';
 
-/** How a stretch of the team's time is spent. */
-export interface TimeSplit {
-  /** A text of the story was on at least one of the team's devices. */
-  readonly storyMs: number;
-  /** On the way: between the story and a station's task, navigation codes included. */
-  readonly travelMs: number;
-  /** At a station: from its arrival code to its reward code, reading left out. */
-  readonly taskMs: number;
+/** A gap between two chapters: the chapter the team left and the one it came to ("" for none). */
+export interface Gap {
+  readonly from: string;
+  readonly to: string;
 }
 
-/** The time of one station: its task and the way to it. */
-export interface StationTime {
-  readonly travelMs: number;
-  readonly taskMs: number;
+/** Where the team is now: in a chapter or between two, since when, and whether that counts. */
+export interface Phase {
+  /** Undefined between chapters. */
+  readonly chapter: string | undefined;
+  readonly counts: boolean;
+  readonly since: Date;
 }
-
-/** What the team is doing now, from its last scan; it says nothing about reading. */
-export type Phase =
-  | { readonly kind: 'travel'; readonly since: Date }
-  | { readonly kind: 'task'; readonly station: string; readonly since: Date };
 
 export interface TeamTimeline {
-  /** By chapter id; nodes without a chapter count under `NO_CHAPTER`. */
-  readonly chapters: ReadonlyMap<string, TimeSplit>;
-  /** By station id; only stations the team has been on its way to or at. */
-  readonly stations: ReadonlyMap<string, StationTime>;
-  /** Reading by node id. */
-  readonly nodes: ReadonlyMap<string, number>;
+  /** Ms by chapter id; a chapter the team was in more than once sums up. */
+  readonly chapters: ReadonlyMap<string, number>;
+  /** Ms by gap, keyed by `gapKey`; the gaps themselves in `gapsSeen`. */
+  readonly gaps: ReadonlyMap<string, number>;
+  /** The gaps the team went through, in the order it did. */
+  readonly gapsSeen: readonly Gap[];
+  /** The total time without the chapters that do not count. */
+  readonly resultMs: number;
   /** Missing before the first login and after the end. */
   readonly phase: Phase | undefined;
 }
 
-/** The chapter key of nodes that belong to none. */
-export const NO_CHAPTER = '';
+/** The key of a gap in `TeamTimeline.gaps`, the same as the API's `gapKey`. */
+export const gapKey = ({ from, to }: Gap) => `${from}>${to}`;
 
-/** A stretch of reading credited to one node; reading stretches never overlap. */
-interface Reading {
+/** A stretch of the team's time in one chapter, or between chapters (`chapter` ""). */
+interface Segment {
+  readonly chapter: string;
   readonly from: number;
   readonly to: number;
-  readonly node: string;
 }
 
-/**
- * The team's reading as stretches that do not overlap. Phones of one team often show a text at
- * the same moment, and that is one team reading: the earlier stretch keeps the time, the later
- * one counts only past it.
- */
-const readingOf = (intervals: readonly StoryIntervalRow[]): readonly Reading[] =>
-  intervals
-    .toSorted((first, second) => first.startedAt.getTime() - second.startedAt.getTime())
-    .reduce<{ readonly stretches: readonly Reading[]; readonly coveredTo: number }>(
-      ({ stretches, coveredTo }, interval) => {
-        const from = Math.max(interval.startedAt.getTime(), coveredTo);
-        const to = interval.endedAt.getTime();
-        return to <= from
-          ? { stretches, coveredTo }
-          : { stretches: [...stretches, { from, to, node: interval.node }], coveredTo: to };
-      },
-      { stretches: [], coveredTo: Number.NEGATIVE_INFINITY },
-    ).stretches;
-
-/** Where the team is and what it does, as the log has it at some moment. */
-interface Position {
-  readonly node: string | undefined;
-  /** The station whose task runs; undefined on the way. */
-  readonly station: string | undefined;
-  /** When the current phase began. */
-  readonly since: number;
-}
-
-const SCAN = /^scan:(\d+)$/;
-
-/**
- * The station whose task a team at `node` is doing: the one whose reward code the node waits
- * for. Undefined for a node that waits for no reward.
- */
-const taskStationOf = (story: Story, node: string | undefined): string | undefined => {
-  const scans = node === undefined ? undefined : story.nodes[node]?.scans;
-  return scans
-    ?.map((scan) => story.codes.find((qrCode) => qrCode.id === scan.code))
-    .find((qrCode) => qrCode?.role === 'reward')?.station;
+const EMPTY: TeamTimeline = {
+  chapters: new Map(),
+  gaps: new Map(),
+  gapsSeen: [],
+  resultMs: 0,
+  phase: undefined,
 };
 
 /**
- * Whether the row takes the team somewhere else than its own steps would: back to the start, or
- * to another node by the admin. An admin's fix of the state alone leaves the team where it is.
- */
-const isJump = (position: Position, row: StepRow) =>
-  row.action === 'reset' ||
-  row.action === 'start' ||
-  (row.action === 'admin' && (row.toNode ?? position.node) !== position.node);
-
-/** The position after a step of the log. */
-const step = (story: Story, position: Position, row: StepRow): Position => {
-  const at = row.at.getTime();
-  const node = row.toNode ?? position.node;
-  // A jump ends whatever the team was doing. Where it lands tells what it does next: at a node
-  // that waits for a station's reward (the admin moved it there, say, because the arrival card
-  // could not be read) the station's task runs, anywhere else the team is on its way.
-  if (isJump(position, row)) return { node, station: taskStationOf(story, node), since: at };
-  const scanned = SCAN.exec(row.action)?.[1];
-  const code =
-    scanned === undefined ? undefined : story.codes.find((qrCode) => qrCode.id === Number(scanned));
-  if (code?.role === 'arrival') return { node, station: code.station, since: at };
-  // Only the reward of the station whose task runs ends it.
-  if (code?.role === 'reward' && code.station === position.station)
-    return { node, station: undefined, since: at };
-  return { ...position, node };
-};
-
-const ZERO: TimeSplit = { storyMs: 0, travelMs: 0, taskMs: 0 };
-
-const add = <K>(map: Map<K, TimeSplit>, key: K, kind: keyof TimeSplit, ms: number): void => {
-  if (ms <= 0) return;
-  const current = map.get(key) ?? ZERO;
-  map.set(key, { ...current, [kind]: current[kind] + ms });
-};
-
-/**
- * Splits the team's time from its first login until its end (or `now`) into reading, the way and
- * the stations' tasks. Reading wins where it overlaps the others: while the team reads, its game
- * time stands still. The way counts towards the station the team arrives at next; a way that
- * leads to no station counts only in the chapters. All the parts together make the team's total
- * time, and the reading makes its reading time.
+ * Splits the team's time from its first login until its end (or `now`) by the chapters of the
+ * nodes it was at. The time on nodes of no chapter is a gap between the chapter before and the one
+ * after. The chapters and gaps together make the team's total time; the result leaves out the
+ * chapters that do not count. `steps` may hold other teams' steps too.
  */
 export const teamTimeline = (
   story: Story,
   team: TeamRow,
-  log: readonly StepRow[],
-  intervals: readonly StoryIntervalRow[],
+  steps: readonly StepRow[],
   now: number,
 ): TeamTimeline => {
-  const chapters = new Map<string, TimeSplit>();
-  const stations = new Map<string, StationTime>();
-  const nodes = new Map<string, number>();
-  if (team.startedAt === undefined) return { chapters, stations, nodes, phase: undefined };
-
+  if (team.startedAt === undefined) return EMPTY;
   const start = team.startedAt.getTime();
   const end = Math.max(team.finishedAt?.getTime() ?? now, start);
   const chapterOf = (node: string | undefined) =>
-    (node === undefined ? undefined : story.nodes[node]?.chapter) ?? NO_CHAPTER;
-  const rows = log
+    (node === undefined ? undefined : story.nodes[node]?.chapter) ?? '';
+  const countsOf = (chapter: string) =>
+    story.chapters.find((known) => known.id === chapter)?.counts ?? true;
+
+  const rows = steps
     .filter((row) => row.teamId === team.id)
     .toSorted((first, second) => first.at.getTime() - second.at.getTime());
-  const reading = readingOf(intervals.filter((interval) => interval.teamId === team.id));
+  // Where the team was at its start: the last node before it, or, as the first login records the
+  // start a moment before the move to the start node, the first node after it.
+  const before = rows.filter((row) => row.at.getTime() <= start && row.toNode !== undefined);
+  const startNode = before.at(-1)?.toNode ?? rows.find((row) => row.toNode !== undefined)?.toNode;
 
-  const replayed = rows
-    .filter((row) => row.at.getTime() <= start)
-    .reduce<Position>((position, row) => step(story, position, row), {
-      node: undefined,
-      station: undefined,
-      since: start,
-    });
-  // The first login records the start a moment before the team is moved to the start node, so
-  // that moment belongs to the node the team arrives at first.
-  const atStart: Position =
-    replayed.node !== undefined
-      ? replayed
-      : { ...replayed, node: rows.find((row) => row.toNode !== undefined)?.toNode };
-  // The way to the next station, waiting for the arrival that tells which station it is.
-  let way = 0;
+  // The moments the team changed node within the game, each with the node it came to.
+  const moves = rows.filter(
+    (row) => row.at.getTime() > start && row.at.getTime() <= end && row.toNode !== undefined,
+  );
+  const pieces = [
+    { node: startNode, at: start },
+    ...moves.map((row) => ({ node: row.toNode, at: row.at.getTime() })),
+  ];
+  // Consecutive pieces in the same chapter make one segment, however many steps it took.
+  const segments = pieces.reduce<readonly Segment[]>((done, piece, index) => {
+    const to = pieces[index + 1]?.at ?? end;
+    const chapter = chapterOf(piece.node);
+    const last = done.at(-1);
+    return last !== undefined && last.chapter === chapter
+      ? [...done.slice(0, -1), { ...last, to }]
+      : [...done, { chapter, from: piece.at, to }];
+  }, []);
 
-  /** Credits the time from `from` to `to`, spent in one position. */
-  const credit = (from: number, to: number, position: Position) => {
-    if (to <= from) return;
-    let read = 0;
-    for (const stretch of reading) {
-      const ms = Math.min(stretch.to, to) - Math.max(stretch.from, from);
-      if (ms <= 0) continue;
-      read += ms;
-      // A device that reported no node is credited where the log has the team.
-      const node = stretch.node === '' ? position.node : stretch.node;
-      add(chapters, chapterOf(node), 'storyMs', ms);
-      if (node !== undefined) nodes.set(node, (nodes.get(node) ?? 0) + ms);
+  const chapters = new Map<string, number>();
+  const gaps = new Map<string, number>();
+  const gapsSeen: Gap[] = [];
+  for (const [index, segment] of segments.entries()) {
+    const ms = segment.to - segment.from;
+    if (segment.chapter !== '') {
+      chapters.set(segment.chapter, (chapters.get(segment.chapter) ?? 0) + ms);
+      continue;
     }
-    const rest = to - from - read;
-    const chapter = chapterOf(position.node);
-    if (position.station === undefined) {
-      add(chapters, chapter, 'travelMs', rest);
-      way += rest;
-    } else {
-      add(chapters, chapter, 'taskMs', rest);
-      const current = stations.get(position.station) ?? { travelMs: 0, taskMs: 0 };
-      stations.set(position.station, { ...current, taskMs: current.taskMs + rest });
-    }
-  };
-
-  let position: Position = { ...atStart, since: Math.max(atStart.since, start) };
-  let cursor = start;
-  for (const row of rows) {
-    const at = row.at.getTime();
-    if (at <= start || at > end) continue;
-    credit(cursor, at, position);
-    const next = step(story, position, row);
-    // A way cut short by a jump led to no station: the next one gets only the way from here.
-    if (isJump(position, row) && next.station === undefined) way = 0;
-    if (next.station !== undefined && next.station !== position.station) {
-      const current = stations.get(next.station) ?? { travelMs: 0, taskMs: 0 };
-      stations.set(next.station, { ...current, travelMs: current.travelMs + way });
-      way = 0;
-    }
-    position = next;
-    cursor = at;
+    // A moment on the outro, where the game ends, is no gap.
+    if (ms <= 0) continue;
+    const gap = {
+      from: segments[index - 1]?.chapter ?? '',
+      to: segments[index + 1]?.chapter ?? '',
+    };
+    const key = gapKey(gap);
+    if (!gaps.has(key)) gapsSeen.push(gap);
+    gaps.set(key, (gaps.get(key) ?? 0) + ms);
   }
-  credit(cursor, end, position);
 
+  const leftOut = [...chapters].reduce(
+    (sum, [chapter, ms]) => (countsOf(chapter) ? sum : sum + ms),
+    0,
+  );
+  const current = segments.at(-1);
   const phase: Phase | undefined =
-    team.finishedAt !== undefined
+    team.finishedAt !== undefined || current === undefined
       ? undefined
-      : position.station === undefined
-        ? { kind: 'travel', since: new Date(position.since) }
-        : { kind: 'task', station: position.station, since: new Date(position.since) };
-  return { chapters, stations, nodes, phase };
+      : {
+          chapter: current.chapter === '' ? undefined : current.chapter,
+          counts: current.chapter === '' || countsOf(current.chapter),
+          since: new Date(current.from),
+        };
+  return { chapters, gaps, gapsSeen, resultMs: end - start - leftOut, phase };
 };

@@ -12,7 +12,6 @@ import { CameraGate } from './camera-access';
 import { PlayerFrame } from './player-frame';
 import { ScanScreen, type ScanOutcome } from './qr-scanner';
 import { StoryText } from './story-text/story-text';
-import { useReadingCounts, useStoryTime } from './story-time';
 import { useRecentVisit } from './visits';
 
 type PlayerNode = NonNullable<PlayerView['node']>;
@@ -20,17 +19,10 @@ type PlayerNode = NonNullable<PlayerView['node']>;
 /** A screen's text, shown very quickly when the screen was visited a moment ago. */
 const VisitedStoryText = ({
   block,
-  node,
-  onRead,
   ...props
-}: ComponentProps<typeof StoryText> & {
-  readonly block: string;
-  readonly node: string;
-  readonly onRead: ((ms: number, node: string) => void) | undefined;
-}) => {
-  useStoryTime(onRead, node);
-  return <StoryText {...props} fast={useRecentVisit(block)} />;
-};
+}: ComponentProps<typeof StoryText> & { readonly block: string }) => (
+  <StoryText {...props} fast={useRecentVisit(block)} />
+);
 
 /** How long the buttons stay disabled after they appear, so a tap meant for the text or the
  * previous screen's button does not land on them. */
@@ -128,8 +120,6 @@ export const NodeScreens = ({
   animated = true,
   aside,
   corner,
-  onRead,
-  showReading = onRead !== undefined,
 }: {
   readonly node: PlayerNode;
   readonly step: number;
@@ -148,23 +138,10 @@ export const NodeScreens = ({
   readonly aside?: ReactNode;
   /** Shown small in the top left corner of the first screen, where the others have „Zpět“. */
   readonly corner?: ReactNode;
-  /**
-   * How long a screen's text of the node was on; a test run or the anonymous intro measures
-   * nothing. With it, a capsule with a book shows while a text is on, so the team knows its game
-   * time stands still; see `showReading`.
-   */
-  readonly onRead?: (ms: number, node: string) => void;
-  /**
-   * Shows the reading capsule even where nothing is measured, so a test run looks as the team's
-   * screen does; by default it shows where the reading is measured.
-   */
-  readonly showReading?: boolean;
   /** A QR code read on the scan screen. */
   readonly onCode: (code: string) => ScanOutcome | Promise<ScanOutcome>;
   readonly onPick: (choice: { readonly index: number; readonly label: string }) => void;
 }) => {
-  // The game is over at the outro, so its text is not reading time and shows no capsule.
-  const measure = node.type === 'end' ? undefined : onRead;
   // A node left by scanning has one more screen after its blocks: the scanner.
   const count = node.screens.length + (node.scan ? 1 : 0);
   const [paging, setPaging] = useState(() => freshPaging(node, step, initialIndex, visitScope));
@@ -184,12 +161,6 @@ export const NodeScreens = ({
   const scanScreen = (
     <ScanScreen title={node.scanTitle} text={node.scanText} onCode={onCode} busy={busy} />
   );
-  // The capsule shows while the reading counts: on a text, until the server stops counting it.
-  // The outro has none, the game is over; a test run shows it without measuring.
-  const reading = useReadingCounts(
-    showReading && node.type !== 'end' && screen !== undefined,
-    `${node.id}-${step}-${index}`,
-  );
   const choices = node.choices.toSorted(
     (first, second) => (paging.ranks[first.index] ?? 0) - (paging.ranks[second.index] ?? 0),
   );
@@ -206,7 +177,7 @@ export const NodeScreens = ({
         )
       }
       aside={aside}
-      reading={reading}
+      timeStops={node.timeStops}
       className={screen === undefined ? undefined : THEME_PAGE[theme]}
     >
       <article
@@ -223,8 +194,6 @@ export const NodeScreens = ({
               )}
               <VisitedStoryText
                 block={`${visitScope}/${node.id}/${index}`}
-                node={node.id}
-                onRead={measure}
                 content={screen.content}
                 theme={theme}
                 instant={shown || !animated}

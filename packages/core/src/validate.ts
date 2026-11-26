@@ -157,43 +157,27 @@ const codeProblems = (story: Story): readonly string[] => {
     ...story.codes.flatMap(({ id, name }) =>
       problemIf(!scanned.has(id), `Kód ${id} („${name}“) nepoužívá žádná QR volba.`),
     ),
-    ...story.codes.flatMap(({ id, name, role, station }) =>
-      role === 'navigation'
-        ? []
-        : problemIf(
-            !story.stations.some((known) => known.id === station),
-            `Kód ${id} („${name}“) patří k neznámému stanovišti ${String(station)}.`,
-          ),
-    ),
   ];
 };
 
 /**
- * The ids of chapters and stations name the columns of the results (`chapter_<id>_story_s`), so
- * they are plain words: an id with an underscore could make the same column as another one, and
- * the admin keeps the time of the nodes without a chapter under the id "".
+ * The ids of chapters name the columns of the results (`chapter_<id>_s`, `gap_<from>_<to>_s`), so
+ * they are plain words: an id with an underscore could make the same column as another one.
+ * `start` and `end` stand for the start and the end of the game in the columns of the gaps.
  */
-const PART_ID = /^[A-Za-z][A-Za-z0-9]*$/;
+const CHAPTER_ID = /^[A-Za-z][A-Za-z0-9]*$/;
+const RESERVED_CHAPTER_IDS: readonly string[] = ['start', 'end'];
 
-const idShapeProblem = (what: string, id: string, name: string) =>
-  problemIf(
-    !PART_ID.test(id),
-    `${what} „${name}“ má neplatné id „${id}“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.`,
-  );
-
-/** Every station needs a code to start its task and one to end it. */
-const stationProblems = (story: Story): readonly string[] =>
-  story.stations.flatMap(({ id, name }) => {
-    const roles = new Set(
-      story.codes.filter((code) => code.station === id).map((code) => code.role),
-    );
-    return [
-      ...idShapeProblem('Stanoviště', id, name),
-      ...problemIf(name.trim() === '', `Stanoviště ${id} nemá název.`),
-      ...problemIf(!roles.has('arrival'), `Stanoviště ${id} („${name}“) nemá kód příchodu.`),
-      ...problemIf(!roles.has('reward'), `Stanoviště ${id} („${name}“) nemá kód odměny.`),
-    ];
-  });
+const chapterIdProblem = (id: string, name: string) => [
+  ...problemIf(
+    !CHAPTER_ID.test(id),
+    `Kapitola „${name}“ má neplatné id „${id}“: smí mít jen písmena bez diakritiky a číslice a začínat písmenem.`,
+  ),
+  ...problemIf(
+    RESERVED_CHAPTER_IDS.includes(id),
+    `Kapitola „${name}“ nesmí mít id „${id}“, to označuje začátek nebo konec hry.`,
+  ),
+];
 
 /** A node names a known chapter and every chapter has a node. */
 const chapterProblems = (story: Story): readonly string[] => {
@@ -207,7 +191,7 @@ const chapterProblems = (story: Story): readonly string[] => {
         : problemIf(!known.has(chapter), `Uzel ${id} patří k neznámé kapitole ${chapter}.`);
     }),
     ...story.chapters.flatMap(({ id, name }) => [
-      ...idShapeProblem('Kapitola', id, name),
+      ...chapterIdProblem(id, name),
       ...problemIf(name.trim() === '', `Kapitola ${id} nemá název.`),
       ...problemIf(!used.has(id), `Kapitola ${id} („${name}“) nemá žádný uzel.`),
     ]),
@@ -580,7 +564,6 @@ export const validateStory = (
     ...outroProblems(story),
     ...teamProblems(story),
     ...codeProblems(story),
-    ...stationProblems(story),
     ...chapterProblems(story),
     ...played.flatMap((id) => nodeProblems(story, known, id, story.nodes[id]!)),
     ...mergeTeamProblems(explored),

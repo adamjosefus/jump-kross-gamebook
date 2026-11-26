@@ -137,10 +137,6 @@ const PlayerHandlers = HttpApiBuilder.group(
         const { teamId } = yield* CurrentTeam;
         return yield* orDie(game.scan(teamId, payload.code, payload.expectedStep));
       }),
-      storyTime: Effect.fn(function* ({ payload }) {
-        const { teamId } = yield* CurrentTeam;
-        yield* orDie(game.storyTime(teamId, payload.teamId, payload.intervals));
-      }),
       logout: Effect.fn(function* () {
         const { sessionId } = yield* CurrentTeam;
         yield* orDie(store.deleteSession(sessionId));

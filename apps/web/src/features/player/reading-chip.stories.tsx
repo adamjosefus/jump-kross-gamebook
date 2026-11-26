@@ -24,12 +24,12 @@ const Switching = () => {
 };
 
 /**
- * While a text of the story is on, the team reads and its game time stands still: a yellow capsule
- * with a book says so at the top. The scanner and the outro have none; a test run in the admin
- * shows it, though it measures nothing.
+ * In a chapter that does not count towards the team's result, such as the introduction, the game
+ * time stands still: a yellow capsule with a book says so at the top, on the text and on the
+ * scanner alike. Elsewhere there is nothing.
  */
 const meta = {
-  title: 'Player/Čtení',
+  title: 'Player/Čas stojí',
   component: NodeScreens,
   parameters: { layout: 'fullscreen' },
   args: {
@@ -39,20 +39,19 @@ const meta = {
     animated: false,
     onCode: () => undefined,
     onPick: () => undefined,
-    // A logged-in team measures its reading; a test run or the intro passes nothing.
-    onRead: () => undefined,
     node: {
-      id: 'PEKARNA',
-      type: 'passage',
+      id: 'START',
+      type: 'start',
       scan: true,
-      scanTitle: 'Uhodli jste?',
-      scanText: 'Naskenujte kód, který vám dala pekařka.',
+      timeStops: true,
+      scanTitle: 'Kam na nákup?',
+      scanText: 'Naskenujte kód obchodu, do kterého jdete.',
       choices: [],
       screens: [
         {
-          theme: 'default',
+          theme: 'intro',
           content:
-            'Voní to tu čerstvým chlebem. Pekařka se usměje: „Prodám vám, až uhodnete, kolik druhů pečiva mám ve vitríně.“\n\nSpočítejte to a řekněte jí výsledek. Za správnou odpověď vám dá kód.',
+            'Hra vám měří čas od naskenování kódu klanu až do konce. Tenhle úvod se do výsledku nepočítá: dokud nahoře na obrazovce svítí knížka, čas stojí.',
         },
       ],
     },
@@ -63,30 +62,16 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-/** The team reads: the game time stands still and the capsule shows. */
-export const Cteni: Story = { name: 'Čtení: kapsle s knihou' };
+/** A chapter that does not count: the game time stands still and the capsule shows. */
+export const CasStoji: Story = { name: 'Nepočítaná kapitola: kapsle' };
 
-/** The scanner after the text: the team is on its way or at its task, the game time runs. */
-export const Skener: Story = { name: 'Skener: nic', args: { initialIndex: 1 } };
+/** The scanner in the same chapter: the time still stands, the capsule stays. */
+export const Skener: Story = { name: 'Skener v nepočítané kapitole', args: { initialIndex: 1 } };
 
-/** The outro: the game is over, so nothing is measured and there is no capsule. */
-export const Zaver: Story = {
-  name: 'Závěr: neměří se',
-  args: {
-    node: {
-      id: 'OUTRO',
-      type: 'end',
-      scan: false,
-      choices: [],
-      screens: [{ theme: 'default', content: '## Dobrou chuť!\n\nKonec ukázky.' }],
-    },
-  },
-};
-
-/** A test run in the admin measures nothing, yet shows the capsule as the team sees it. */
-export const TestovaciBeh: Story = {
-  name: 'Test v administraci',
-  render: ({ onRead: _measured, ...args }) => <NodeScreens {...args} showReading />,
+/** A chapter that counts: the time runs and there is nothing. */
+export const CasBezi: Story = {
+  name: 'Počítaná kapitola: nic',
+  args: { node: { ...meta.args.node, id: 'NAKUP', type: 'passage', timeStops: false } },
 };
 
 /** The capsule coming and going on its own every two seconds, to see how it appears. */

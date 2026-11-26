@@ -7,7 +7,7 @@ import {
   startNode,
   stateKey,
 } from './engine.ts';
-import type { AnyNode, Chapter, Choice, CodeRole, Station, Story, Team } from './story.ts';
+import type { AnyNode, Chapter, Choice, Story, Team } from './story.ts';
 import type { NodeType, State } from './types.ts';
 
 export interface GraphChoice {
@@ -15,10 +15,6 @@ export interface GraphChoice {
   readonly label: string;
   /** Set on QR choices: the number of the code that takes the choice. */
   readonly code?: number;
-  /** Set on QR choices of a station's code: the arrival or the reward. */
-  readonly role?: Exclude<CodeRole, 'navigation'>;
-  /** The station of that code. */
-  readonly station?: string;
   readonly target: string;
   /** The choice has a `when` or comes from a `choices` function, so it may be hidden. */
   readonly conditional: boolean;
@@ -58,9 +54,8 @@ export interface GameGraph {
   /** The node every team starts at; the previews are computed from it. */
   readonly start?: string;
   readonly nodes: Readonly<Record<string, GraphNode>>;
-  /** In definition order. */
+  /** In definition order, with whether their time counts towards the result. */
   readonly chapters: readonly Chapter[];
-  readonly stations: readonly Station[];
 }
 
 /** Fixed buttons and QR choices of a node, in definition order, as one list of edges. */
@@ -76,14 +71,6 @@ const transitionsOf = (story: Story, node: AnyNode) => [
     code: scan.code,
   })),
 ];
-
-/** The role and station of a station's code; nothing for a button or a navigation code. */
-const stationOf = (story: Story, code: number | undefined) => {
-  const qrCode = story.codes.find((known) => known.id === code);
-  return qrCode === undefined || qrCode.role === 'navigation' || qrCode.station === undefined
-    ? {}
-    : { role: qrCode.role, station: qrCode.station };
-};
 
 /** Upper bound on explored (node, state) pairs; stories with counters could otherwise explode. */
 const MAX_VISITS = 10_000;
@@ -189,7 +176,6 @@ export const toGraph = (story: Story): GameGraph => {
     order: story.order,
     ...(from === undefined ? {} : { start: from }),
     chapters: story.chapters,
-    stations: story.stations,
     nodes: Object.fromEntries(
       story.order.map((id) => {
         const node = story.nodes[id]!;
@@ -207,7 +193,6 @@ export const toGraph = (story: Story): GameGraph => {
             ...transitionsOf(story, node).map((choice) => ({
               label: choice.label,
               ...(choice.code === undefined ? {} : { code: choice.code }),
-              ...stationOf(story, choice.code),
               target: choice.goto,
               conditional: choice.when !== undefined,
               ...(state === undefined || choice.when === undefined

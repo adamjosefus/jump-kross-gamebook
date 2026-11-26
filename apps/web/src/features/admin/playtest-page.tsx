@@ -210,7 +210,15 @@ const introStep = (intro: PlayerIntro): Step => ({
   team: { id: 0, name: '' },
   node: 'Úvod',
   state: {},
-  view: { ...intro, id: 'intro', type: 'passage', choices: [], scan: true, scans: [] },
+  view: {
+    ...intro,
+    id: 'intro',
+    type: 'passage',
+    choices: [],
+    scan: true,
+    timeStops: false,
+    scans: [],
+  },
 });
 
 /** A tooltip over a tool; the wrapper lets it show on a disabled button too. */
@@ -529,8 +537,6 @@ export const PlaytestPage = () => {
                 busy={play.isPending}
                 onCode={scan}
                 requireCamera={current.intro === true}
-                // The run shows what the team sees: the reading capsule after the login.
-                showReading={current.intro !== true}
                 animated={animated}
                 onPick={(choice) => take({ choice: choice.index })}
                 // The screen in the URL belongs to the path in it; after a move it starts over.

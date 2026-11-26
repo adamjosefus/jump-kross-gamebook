@@ -12,7 +12,6 @@ import {
   START_ACTIONS,
   type LogRow,
   type StepRow,
-  type StoryIntervalRow,
   type SessionRow,
   type TeamRow,
 } from './store.ts';
@@ -139,13 +138,6 @@ const toSettings = (row: Row | undefined): GameSettingsRow => ({
       : timestamp(row['closed_changed_at']),
 });
 
-const toStoryInterval = (row: Row): StoryIntervalRow => ({
-  teamId: Number(row['team_id']),
-  node: text(row['node']),
-  startedAt: timestamp(row['started_at']),
-  endedAt: timestamp(row['ended_at']),
-});
-
 /** The store on a Postgres database reached through `client`; the schema is applied on the first query. */
 export const makePostgresStore = (client: SqlClient) => {
   const { query: run, transaction } = client;
@@ -228,7 +220,6 @@ export const makePostgresStore = (client: SqlClient) => {
               started_at = null,
               updated_at = now()
             where id = any(${list}::int[])`,
-          sql`delete from story_interval where team_id = any(${list}::int[])`,
           sql`delete from session where team_id = any(${list}::int[])`,
           sql`update game set started_at = null`,
         ]);
@@ -264,7 +255,6 @@ export const makePostgresStore = (client: SqlClient) => {
       query(() =>
         transaction([
           sql`update team set started_at = null where id = ${id}`,
-          sql`delete from story_interval where team_id = ${id}`,
           sql`delete from session where team_id = ${id}`,
         ]),
       ),
@@ -281,25 +271,10 @@ export const makePostgresStore = (client: SqlClient) => {
             insert into step_log (team_id, action, from_node, to_node, state)
             select cleared.id, 'reset-time', cleared.node, null, cleared.state from cleared
           ),
-          unread as (delete from story_interval where team_id in (select id from cleared)),
           logged_out as (delete from session where team_id in (select id from cleared))
           select id from cleared`);
         return rows.length > 0;
       }),
-    addStoryIntervals: (rows) =>
-      query(() =>
-        transaction(
-          rows.map(
-            ({ teamId, node, startedAt, endedAt }) => sql`
-              insert into story_interval (team_id, node, started_at, ended_at)
-              values (${teamId}, ${node}, ${startedAt.toISOString()}::timestamptz, ${endedAt.toISOString()}::timestamptz)`,
-          ),
-        ),
-      ),
-    listStoryIntervals: () =>
-      query(async () =>
-        (await run(sql`select * from story_interval order by id`)).map(toStoryInterval),
-      ),
 
     createSession: (id, teamId, { ip, userAgent, deviceId }) =>
       query(

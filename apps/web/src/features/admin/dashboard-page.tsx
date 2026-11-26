@@ -56,7 +56,14 @@ import { api, errorMessage } from '@/lib/api';
 import { formatTime, timeAgo } from './format';
 import { invalidateGame, useOverview, useStoryGraph, useTimeBreakdown } from './queries';
 import { ResetDialog } from './reset-dialog';
-import { formatDuration, playTime, resultsCsv, resultsJson, teamResults } from './results';
+import {
+  formatDuration,
+  playTime,
+  resultsCsv,
+  resultsJson,
+  resultTime,
+  teamResults,
+} from './results';
 import { Subpage, useNarrow, useSubpageBack } from './subpage';
 import {
   DEFAULT_TEAM_SORT,
@@ -74,7 +81,7 @@ const isState = (value: unknown): value is Readonly<Record<string, Value>> =>
   Object.values(value).every((entry) => ['string', 'number', 'boolean'].includes(typeof entry));
 
 const POLL_MS = 5_000;
-/** The split by chapter and station is only for the copied results, so it is fetched less often. */
+/** The times by chapter are only for the copied results, so they are fetched less often. */
 const BREAKDOWN_POLL_MS = 15_000;
 
 /** The current time, refreshed every second, so a running clock ticks between two polls. */
@@ -88,21 +95,21 @@ const useNow = () => {
 };
 
 /**
- * The team's play time, reading time and the rest (travel and tasks), all to the second, and
- * whether it is on its way or at a station's task now, for how long. Reading is not shown live:
- * the phones report it only once a text is no longer on.
+ * The team's total time and its result (without the chapters that do not count), to the second,
+ * and the chapter it is in now, or that it is between chapters, for how long. A chapter that does
+ * not count is marked, its time stands still in the result.
  */
 const TeamTimes = ({
   team,
   now,
   fetchedAt,
-  stations,
+  chapters,
 }: {
   readonly team: TeamStatus;
   readonly now: number;
   /** When the team's status arrived, by this browser's clock. */
   readonly fetchedAt: number;
-  readonly stations: ReadonlyMap<string, string>;
+  readonly chapters: ReadonlyMap<string, string>;
 }) => {
   const playtimeMs = playTime(team, now);
   if (playtimeMs === undefined) return null;
@@ -111,10 +118,15 @@ const TeamTimes = ({
     <>
       {phase !== undefined && (
         <div className='text-xs'>
-          <Badge variant={phase.kind === 'task' ? 'default' : 'outline'} className='tabular-nums'>
-            {phase.kind === 'task'
-              ? `Úkol: ${stations.get(phase.station) ?? phase.station}`
-              : 'Cesta'}{' '}
+          <Badge
+            variant={phase.chapter === undefined ? 'outline' : 'default'}
+            className='tabular-nums'
+            title={phase.counts ? undefined : 'Čas této kapitoly se do výsledku nepočítá.'}
+          >
+            {phase.chapter === undefined
+              ? 'Mezi kapitolami'
+              : (chapters.get(phase.chapter) ?? phase.chapter)}
+            {phase.counts ? '' : ' (nepočítá se)'}{' '}
             {/* The server's duration plus the time since it arrived: both ends of that are
                 read from this browser's clock, so a clock that is off does not show. */}
             {formatDuration(phase.ms + Math.max(now - fetchedAt, 0))}
@@ -122,8 +134,7 @@ const TeamTimes = ({
         </div>
       )}
       <div className='font-mono text-xs text-muted-foreground tabular-nums'>
-        Hra {formatDuration(playtimeMs)} · čtení {formatDuration(team.storyMs)} · bez čtení{' '}
-        {formatDuration(playtimeMs - team.storyMs)}
+        Hra {formatDuration(playtimeMs)} · výsledek {formatDuration(resultTime(team, now) ?? 0)}
       </div>
     </>
   );
@@ -163,14 +174,14 @@ const CopyResults = ({
           className='h-6 px-1.5 font-mono text-xs uppercase'
           title={
             breakdown.isPending
-              ? 'Načítají se časy po kapitolách a stanovištích…'
+              ? 'Načítají se časy po kapitolách…'
               : breakdown.data === undefined
-                ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, bez časů po kapitolách a stanovištích (${errorMessage(breakdown.error)})`
+                ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, bez časů po kapitolách (${errorMessage(breakdown.error)})`
                 : breakdown.isError
-                  ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}; časy po kapitolách a stanovištích jsou z ${new Date(breakdown.dataUpdatedAt).toLocaleTimeString('cs-CZ')}, nepodařilo se je obnovit (${errorMessage(breakdown.error)})`
+                  ? `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}, časy po kapitolách jsou z ${new Date(breakdown.dataUpdatedAt).toLocaleTimeString('cs-CZ')}, nepodařilo se je obnovit (${errorMessage(breakdown.error)})`
                   : `Zkopírovat časy a stav všech týmů jako ${format.toUpperCase()}`
           }
-          // Waits for the breakdown, so the results do not lack the chapters and stations
+          // Waits for the breakdown, so the results do not lack the chapters and gaps
           // unnoticed; when it fails, the rest is still worth copying and the title says why.
           disabled={breakdown.isPending}
           onClick={() => void copy(format)}
@@ -193,9 +204,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   'reset-time': 'vynulování času',
   admin: 'zásah organizátora',
 } as const;
-const ROLE_LABELS = { navigation: 'sken', arrival: 'příchod', reward: 'odměna' } as const;
-
-/** A step of the log in words; a scan names its code and what it means for the team's time. */
+/** A step of the log in words; a scan names its code. */
 const actionLabel = (action: string, codes: readonly QrCode[]) => {
   const label = ACTION_LABELS[action];
   if (label !== undefined) return label;
@@ -203,9 +212,7 @@ const actionLabel = (action: string, codes: readonly QrCode[]) => {
   if (!action.startsWith('scan:')) return action;
   const id = action.slice(5);
   const code = codes.find((qrCode) => String(qrCode.id) === id);
-  return code === undefined
-    ? `sken kódu ${id}`
-    : `${ROLE_LABELS[code.role]}: ${code.name} (kód ${id})`;
+  return code === undefined ? `sken kódu ${id}` : `sken: ${code.name} (kód ${id})`;
 };
 
 type Panel = 'teams' | 'log';
@@ -416,8 +423,8 @@ export const DashboardPage = () => {
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   const { game, teams, log, codes } = overview.data;
   const names: ReadonlyMap<number, string> = new Map(teams.map((team) => [team.id, team.name]));
-  const stationNames: ReadonlyMap<string, string> = new Map(
-    overview.data.stations.map((station) => [station.id, station.name]),
+  const chapterNames: ReadonlyMap<string, string> = new Map(
+    overview.data.chapters.map((chapter) => [chapter.id, chapter.name]),
   );
 
   const teamsContent = (
@@ -464,7 +471,7 @@ export const DashboardPage = () => {
                 team={team}
                 now={now}
                 fetchedAt={overview.dataUpdatedAt}
-                stations={stationNames}
+                chapters={chapterNames}
               />
             </div>
             <Button
@@ -770,8 +777,8 @@ const MoveDialog = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Vynulovat čas týmu {team.name}?</AlertDialogTitle>
               <AlertDialogDescription>
-                Čas hry i čas čtení se vynulují a telefony týmu se odhlásí. Postup a stav týmu
-                zůstanou. Čas se rozběhne znovu, až tým naskenuje svůj kód. Nejde to vrátit.
+                Čas hry se vynuluje a telefony týmu se odhlásí. Postup a stav týmu zůstanou. Čas se
+                rozběhne znovu, až tým naskenuje svůj kód. Nejde to vrátit.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

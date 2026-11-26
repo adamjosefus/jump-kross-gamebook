@@ -197,34 +197,24 @@ export type AnyNode = StoryNode<State, string> | IntroNode | OutroNode<State>;
 export interface QrCode {
   readonly id: number;
   readonly name: string;
-  readonly role: CodeRole;
-  /** The station the code belongs to; set exactly for the arrival and the reward. */
-  readonly station?: string;
 }
 
 /**
- * What scanning a code means for the team's time. A navigation code only leads the way, so the
- * team is still on its way. The arrival hangs at a station: scanning it starts the station's task.
- * The reward is handed over by the station's organiser when the task is done: scanning it ends it.
+ * A named part of the story: a group of nodes whose time is measured together. The time of a
+ * chapter that does not count is taken off the team's result, so the team is not ranked by it.
  */
-export type CodeRole = 'navigation' | 'arrival' | 'reward';
-
-/** A code in the story's definition: a plain name is a navigation code. */
-export type CodeDefinition<T extends string> =
-  | string
-  | { readonly name: string; readonly role: 'arrival' | 'reward'; readonly station: T };
-
-/** A place where teams do a task, set up by the organisers; its codes are the arrival and reward. */
-export interface Station {
-  readonly id: string;
-  readonly name: string;
-}
-
-/** A named part of the story: a group of nodes whose time is summed up together. */
 export interface Chapter {
   readonly id: string;
   readonly name: string;
+  /** False when the chapter's time is left out of the team's result. */
+  readonly counts: boolean;
 }
+
+/**
+ * A chapter in the story's definition: a plain name counts towards the result, `{ name, counts:
+ * false }` does not, e.g. the introduction or a lunch break.
+ */
+export type ChapterDefinition = string | { readonly name: string; readonly counts: boolean };
 
 /** A team playing the game; its login QR code carries the id. */
 export interface Team {
@@ -237,8 +227,6 @@ export interface Story {
   readonly teams: readonly Team[];
   /** QR codes that move teams on, by id. */
   readonly codes: readonly QrCode[];
-  /** Stations in definition order. */
-  readonly stations: readonly Station[];
   /** Chapters in definition order. */
   readonly chapters: readonly Chapter[];
   /** The node anyone sees before scanning a team's login code; the same for every team. */
@@ -256,20 +244,19 @@ export interface StoryDefinition<
   I extends K,
   O extends Exclude<K, I>,
   C extends number,
-  T extends string = never,
 > {
   /** Teams: number → name. Each team gets a login QR code with its number. */
   readonly teams: Readonly<Record<number, string>>;
   /**
    * QR codes that move teams on: number → name, e.g. where it hangs. The name is printed on the
-   * card, so the players see it too. Only these numbers can appear in `scans`. A plain name is a
-   * navigation code; `{ name, role: 'arrival' | 'reward', station }` is a code of a station.
+   * card, so the players see it too. Only these numbers can appear in `scans`.
    */
-  readonly codes: Readonly<Record<C, CodeDefinition<NoInfer<T>>>>;
-  /** Stations where teams do tasks: id → name. Arrival and reward codes name one of them. */
-  readonly stations?: Readonly<Record<T, string>>;
-  /** Named parts of the story: id → name. A node joins one by its `chapter`. */
-  readonly chapters?: Readonly<Record<string, string>>;
+  readonly codes: Readonly<Record<C, string>>;
+  /**
+   * Named parts of the story whose time is measured: id → name, or `{ name, counts: false }` for
+   * one left out of the team's result. A node joins one by its `chapter`.
+   */
+  readonly chapters?: Readonly<Record<string, ChapterDefinition>>;
   /**
    * The node shown before login, without any team or state: the story and the rules. After it
    * the player scans the team's code; a team that has not started yet begins at the start node.
@@ -330,39 +317,26 @@ type NodeShapes<S, K extends string, I extends string, O extends string, C exten
  */
 export const defineStory =
   <S extends State>() =>
-  <
-    K extends string,
-    I extends K,
-    O extends Exclude<K, I>,
-    C extends number = never,
-    T extends string = never,
-  >({
+  <K extends string, I extends K, O extends Exclude<K, I>, C extends number = never>({
     teams,
     codes,
-    stations,
     chapters = {},
     introNode,
     outroNode,
     nodes,
-  }: StoryDefinition<S, K, I, O, C, T>): Story => ({
+  }: StoryDefinition<S, K, I, O, C>): Story => ({
     teams: byId(teams),
-    codes: Object.entries<CodeDefinition<T>>(codes)
-      .map(([id, code]) =>
-        typeof code === 'string'
-          ? { id: Number(id), name: code, role: 'navigation' as const }
-          : { id: Number(id), name: code.name, role: code.role, station: code.station },
-      )
-      .toSorted((first, second) => first.id - second.id),
-    stations: byKey(stations ?? {}),
-    chapters: byKey(chapters),
+    codes: byId(codes),
+    chapters: Object.entries(chapters).map(([id, chapter]) =>
+      typeof chapter === 'string'
+        ? { id, name: chapter, counts: true }
+        : { id, name: chapter.name, counts: chapter.counts },
+    ),
     introNode,
     outroNode,
     order: Object.keys(nodes),
     nodes,
   });
-
-const byKey = (names: Readonly<Record<string, string>>) =>
-  Object.entries(names).map(([id, name]) => ({ id, name }));
 
 const byId = (names: Readonly<Record<number, string>>) =>
   Object.entries<string>(names)

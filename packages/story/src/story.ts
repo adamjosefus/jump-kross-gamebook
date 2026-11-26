@@ -14,7 +14,7 @@ const coinsText = (count: number): string => {
 /**
  * A short demo of what the gamebook can do: three parallel lines (the shop a team picks), choices
  * on the screen, QR scans that are choices too, one number in the state, `coins`, which both
- * choices and scans change, and stations where teams do a task, measured on their own.
+ * choices and scans change, and chapters whose time is measured on its own.
  *
  * Every node is one step of the story: `blocks` are its screens (markdown, one screen each,
  * optionally with a `theme`). A node leads on either by `choices` (buttons) or by `scans`: the team
@@ -23,10 +23,10 @@ const coinsText = (count: number): string => {
  * screens have to say where to go and which code to scan.
  *
  * `teams` are the teams of the game and `codes` the QR codes that move teams on; the admin prints
- * their codes from here. Every shop is a station (`stations`): the team scans the code on its door
- * when it arrives, which starts the task, and the shopkeeper hands over the reward code when the
- * task is done, which ends it. The bus stop and the park only lead the way. `chapters` group the
- * nodes into the parts of the story whose times the admin compares in „Časy“.
+ * their codes from here. In every shop the team scans the code on its door and earns the
+ * shopkeeper's code with a task. `chapters` group the nodes into the parts of the story whose times
+ * the admin compares in „Časy“; the time between two chapters, on the nodes of none (the way
+ * home), is measured too. The time of „Doma“, the introduction, does not count towards the result.
  *
  * `introNode` is what anyone sees before scanning a team's code; then the team continues where it
  * is, or at START when it has not started yet. `outroNode` is where the game ends.
@@ -52,28 +52,24 @@ export const story = defineStory<State>()({
   introNode: 'INTRO',
   outroNode: 'OUTRO',
   // The names are printed on the cards, so they say where a code hangs or who has it, not where
-  // it leads. A shop's arrival code hangs on its door; the shopkeeper keeps the reward code and
-  // hands it over when the task is done. The bus stop and the park only lead the way.
+  // it leads. A shop's code hangs on its door; the shopkeeper keeps the other one and hands it
+  // over when the task is done.
   codes: {
-    1: { name: 'Pekárna', role: 'arrival', station: 'bakery' },
-    2: { name: 'Zelinářství', role: 'arrival', station: 'greengrocer' },
-    3: { name: 'Řeznictví', role: 'arrival', station: 'butcher' },
+    1: 'Pekárna',
+    2: 'Zelinářství',
+    3: 'Řeznictví',
     4: 'Autobusová zastávka',
     5: 'Park',
-    6: { name: 'Pekařka', role: 'reward', station: 'bakery' },
-    7: { name: 'Zelinář', role: 'reward', station: 'greengrocer' },
-    8: { name: 'Řezník', role: 'reward', station: 'butcher' },
+    6: 'Pekařka',
+    7: 'Zelinář',
+    8: 'Řezník',
   },
-  stations: {
-    bakery: 'Pekárna',
-    greengrocer: 'Zelinářství',
-    butcher: 'Řeznictví',
-  },
-  // The time of the nodes of a chapter is summed up in the admin's „Časy“.
+  // The time of the nodes of a chapter is summed up in the admin's „Časy“. The introduction does
+  // not count towards the result; the way home belongs to no chapter, so it is the time between
+  // „Nákup“ and „Večeře“.
   chapters: {
-    home: 'Doma',
+    home: { name: 'Doma', counts: false },
     shopping: 'Nákup',
-    wayHome: 'Cesta domů',
     dinner: 'Večeře',
   },
   nodes: {
@@ -117,7 +113,7 @@ Vítejte v ukázce.
         {
           theme: 'intro',
           content: `
-Tohle je krátké demo toho, co hra umí: rozhodnutí na displeji, skenování QR kódů, stanoviště s úkoly a stav, který se podle toho mění.
+Tohle je krátké demo toho, co hra umí: rozhodnutí na displeji, skenování QR kódů, úkoly v obchodech a stav, který se podle toho mění.
 
 Váš stav je jediné číslo: **mince**. Teď máte ${coinsText(state.coins)}.
       `,
@@ -125,9 +121,9 @@ Váš stav je jediné číslo: **mince**. Teď máte ${coinsText(state.coins)}.
         {
           theme: 'intro',
           content: `
-Hra vám měří čas. Když čtete příběh, čas stojí a nahoře na obrazovce uvidíte knížku. Čtěte tedy v klidu.
+Hra vám měří čas od naskenování kódu klanu až do konce. Tenhle úvod se do výsledku nepočítá: dokud nahoře na obrazovce svítí knížka, čas stojí. Čtěte tedy v klidu.
 
-Na stanovištích plníte úkoly. Kód na dveřích úkol zahájí, kód, který vám dá obsluha za splněný úkol, ho ukončí.
+V obchodech plníte úkoly. Kód na dveřích vás pustí dovnitř a za splněný úkol vám obsluha dá další kód.
       `,
         },
         {
@@ -170,8 +166,8 @@ Dohodněte se, kam půjdete, a u vchodu naskenujte kód toho obchodu.
       ],
     },
 
-    // Line 1: the bakery, a station with a task. Scanning its door code started the task; the
-    // baker's reward code ends it. The other shops work the same way.
+    // Line 1: the bakery. The door code led here; the baker's code, earned with a task, leads on.
+    // The other shops work the same way.
     PEKARNA: {
       chapter: 'shopping',
       scanTitle: 'Uhodli jste?',
@@ -208,7 +204,6 @@ Co si koupíte?
       ],
     },
     PEKARNA_CESTA: {
-      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -249,7 +244,7 @@ Co bude k večeři?
       ],
     },
 
-    // Line 2: the greengrocer, a station too.
+    // Line 2: the greengrocer.
     ZELINAR: {
       chapter: 'shopping',
       scanTitle: 'Máte to?',
@@ -286,7 +281,6 @@ Co si koupíte?
       ],
     },
     ZELINAR_CESTA: {
-      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -332,7 +326,7 @@ Co bude k večeři?
       ],
     },
 
-    // Line 3: the butcher, a station too.
+    // Line 3: the butcher.
     REZNICTVI: {
       chapter: 'shopping',
       scanTitle: 'Uhodli jste?',
@@ -369,7 +363,6 @@ Co si koupíte?
       ],
     },
     REZNICTVI_CESTA: {
-      chapter: 'wayHome',
       scanTitle: 'Jak domů?',
       scanText: 'Naskenujte kód autobusové zastávky nebo parku.',
       blocks: (state) => [
@@ -416,7 +409,7 @@ Co bude k večeři?
 
 Konec ukázky. V peněžence vám zbylo ${coinsText(state.coins)}.
 
-Tři cesty, tři stanoviště s úkoly, pár rozhodnutí, pár skenů a jeden stav, který se s nimi měnil.
+Tři cesty, tři obchody s úkoly, pár rozhodnutí, pár skenů a jeden stav, který se s nimi měnil.
       `,
       ],
     },
