@@ -7,10 +7,12 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useConnection,
   useStore,
   type FinalConnectionState,
   type Node,
   type NodeProps,
+  type XYPosition,
 } from '@xyflow/react';
 import {
   createContext,
@@ -79,7 +81,13 @@ const VIEWPORT_MARGIN = 48;
 const MOVE_DURATION = 400;
 
 type DraftFlowNode = Node<
-  { readonly node: DraftNode; readonly start: boolean; readonly maxHeight: number },
+  {
+    readonly node: DraftNode;
+    readonly start: boolean;
+    readonly maxHeight: number;
+    /** A new edge dragged now would lead here. */
+    readonly dropTarget: boolean;
+  },
   'draft'
 >;
 
@@ -127,13 +135,10 @@ const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => 
       style={{ left: x }}
       className={cn(
         // React Flow's own handle look gives way to the dot's.
-        'size-4! min-h-0! min-w-0! rounded-full!',
+        'min-h-0! min-w-0! rounded-full!',
         dot === 'new'
-          ? cn(
-              NEW_DOT_LOOK,
-              'border-dashed! border-muted-foreground! bg-card! hover:border-yellow-500!',
-            )
-          : cn(DOT_LOOK, 'border-card! bg-muted-foreground! hover:bg-yellow-500!'),
+          ? cn(NEW_DOT_LOOK, 'size-6! border-border! bg-card!')
+          : cn(DOT_LOOK, 'size-4! border-card! bg-muted-foreground! hover:bg-yellow-500!'),
         connectable && 'cursor-crosshair',
       )}
     >
@@ -182,6 +187,7 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         ref={card}
         node={data.node}
         start={data.start}
+        dropTarget={data.dropTarget}
         far={far}
         selected={selected}
         maxHeight={data.maxHeight}
@@ -384,27 +390,6 @@ const layoutDraft = async (draft: Draft, heights: ReadonlyMap<string, number>) =
   return layoutPass(draft, heights, sorted);
 };
 
-/** The point on the screen where a drag ended. */
-const pointOf = (event: MouseEvent | TouchEvent) => {
-  if ('changedTouches' in event) {
-    const touch = event.changedTouches[0];
-    if (touch === undefined) {
-      return undefined;
-    }
-
-    return { x: touch.clientX, y: touch.clientY };
-  }
-
-  return { x: event.clientX, y: event.clientY };
-};
-
-/** The draft node under a point on the screen, if any. */
-const nodeAt = (point: { readonly x: number; readonly y: number }) =>
-  document
-    .elementFromPoint(point.x, point.y)
-    ?.closest('.react-flow__node-draft')
-    ?.getAttribute('data-id') ?? undefined;
-
 export interface DraftCanvasProps {
   readonly draft: Draft;
   /**
@@ -440,6 +425,10 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   );
 
   const keyed = useMemo(() => keyedDraft(draft), [draft]);
+  /** Where a new edge being dragged out points now, on the canvas. */
+  const dragging = useConnection((connection) =>
+    connection.inProgress ? connection.to : undefined,
+  );
   const writing = onChange !== undefined && selected !== undefined && close;
 
   const onHeight = useCallback((key: string, height: number) => {
@@ -576,6 +565,31 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     };
   }, [structure, measured]);
 
+  /** The card at a point of the canvas, if any: where a dragged edge points or is dropped. */
+  const keyAt = useCallback(
+    (point: XYPosition) =>
+      [...(laidOut?.layout.nodes ?? [])].find(([key, position]) => {
+        const height = heights.get(key);
+        return (
+          height !== undefined &&
+          point.x >= position.x &&
+          point.x <= position.x + CARD_WIDTH &&
+          point.y >= position.y &&
+          point.y <= position.y + height
+        );
+      })?.[0],
+    [heights, laidOut],
+  );
+  const dropTarget = dragging === undefined ? undefined : keyAt(dragging);
+  /** The card outlined last in the drag going on, where the edge is dropped. */
+  const lastTarget = useRef<string>(undefined);
+
+  useEffect(() => {
+    if (dragging !== undefined) {
+      lastTarget.current = dropTarget;
+    }
+  }, [dragging, dropTarget]);
+
   const center = useCallback(
     (key: string, zoom?: number) => {
       const position = laidOut?.layout.nodes.get(key);
@@ -626,7 +640,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           // till it measures the node again.
           ...(height === undefined ? {} : { measured: { width: CARD_WIDTH, height } }),
           selected: key === selected,
-          data: { node, start: starts.has(key), maxHeight },
+          data: { node, start: starts.has(key), maxHeight, dropTarget: key === dropTarget },
         };
       }),
       {
@@ -650,7 +664,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           ]
         : []),
     ];
-  }, [draft, keyed, laidOut, selected, maxHeight, heights]);
+  }, [draft, keyed, laidOut, selected, maxHeight, heights, dropTarget]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);
@@ -690,21 +704,16 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   }, [keyed, laidOut]);
 
   /** A drag from a dot: dropped on a node it leads there, elsewhere it draws out a new node. */
-  const onConnectEnd = (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
+  const onConnectEnd = (_event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
     const from = connection.fromNode?.id;
     const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
     const dot = dotOf(connection.fromHandle?.id);
-    const point = pointOf(event);
-    if (
-      onChange === undefined ||
-      source === undefined ||
-      dot === undefined ||
-      point === undefined
-    ) {
+    if (onChange === undefined || source === undefined || dot === undefined) {
       return;
     }
 
-    const over = connection.toNode?.id ?? nodeAt(point);
+    // The card outlined last while dragging; React Flow's final `to` is not always the last one.
+    const over = connection.toNode?.id ?? lastTarget.current;
     const target = over === undefined ? undefined : draft.nodes[indexOf(over)]?.id;
     const next = linkChoice(draft, source, dot, target);
     if (target === undefined) {

@@ -48,7 +48,7 @@ export const dotText = (key: DotKey) => (key === 'new' ? '+' : String(key + 1));
  */
 export const DotContent = ({ dot }: { readonly dot: DotKey }) =>
   dot === 'new' ? (
-    <IconPlus className='pointer-events-none size-2.5' stroke={3} />
+    <IconPlus className='pointer-events-none size-3' stroke={2.5} />
   ) : (
     <span className='pointer-events-none [text-box:trim-both_cap_alphabetic]'>{dotText(dot)}</span>
   );
@@ -58,11 +58,11 @@ export const DOT_LOOK =
   'flex size-4 items-center justify-center rounded-full border border-card bg-muted-foreground font-sans text-[9px] leading-none font-semibold text-card';
 
 /**
- * The dot of „+ volba“ is outlined, unlike the choices' ones, and shows only while the pointer is
- * over the card or a new edge is dragged out of it.
+ * The dot of „+ volba“: larger than the choices' ones, light, with a dashed ring 2 px inside its
+ * edge, and shown only while the pointer is over the card or a new edge is dragged out of it.
  */
 export const NEW_DOT_LOOK =
-  'flex size-4 items-center justify-center rounded-full border border-dashed border-muted-foreground bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100';
+  "relative flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100 before:pointer-events-none before:absolute before:inset-px before:rounded-full before:border before:border-dashed before:border-muted-foreground before:content-[''] hover:text-foreground hover:before:border-yellow-500";
 
 /** A plain dot on the card's bottom edge. */
 const PlainDot = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => (
@@ -270,6 +270,8 @@ export interface DraftNodeCardProps {
   /** Zoomed out: only the summary, large; the card keeps its size. */
   readonly far?: boolean;
   readonly selected?: boolean;
+  /** A new edge dragged now would lead here: the card is outlined. */
+  readonly dropTarget?: boolean;
   /** No other node leads here. */
   readonly start?: boolean;
   /** The text scrolls inside the card above this height. */
@@ -293,6 +295,7 @@ export const DraftNodeCard = ({
   node,
   far = false,
   selected = false,
+  dropTarget = false,
   start = false,
   maxHeight,
   onOpen,
@@ -310,6 +313,7 @@ export const DraftNodeCard = ({
       className={cn(
         'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
         selected && 'outline-2 outline-offset-2 outline-yellow-500',
+        dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
         className,
       )}
       style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
