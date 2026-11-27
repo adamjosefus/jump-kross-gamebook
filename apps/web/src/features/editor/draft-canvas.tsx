@@ -49,6 +49,7 @@ import { cn } from '@/lib/utils';
 import {
   draftNodeId,
   endsOf,
+  meanCharactersOf,
   routesTo,
   startsOf,
   type Draft,
@@ -75,6 +76,7 @@ import {
   type CardEdit,
   type DotKey,
 } from './draft-node-card';
+import { differenceText } from './numbers';
 
 /** Below this zoom the cards show only their summaries. */
 export const FAR_ZOOM = 0.7;
@@ -228,20 +230,32 @@ const counted = (count: number, one: string, few: string, many: string) => {
   return count >= 2 && count <= 4 ? few : many;
 };
 
-type EndFlowNode = Node<{ readonly routes: RoutesToEnd | undefined }, 'final'>;
+type EndFlowNode = Node<
+  {
+    readonly routes: RoutesToEnd | undefined;
+    /** How many more characters the ways here have than the ways to all the ends on average. */
+    readonly difference: number | undefined;
+  },
+  'final'
+>;
 
-/** An end ring with how long the ways to the end are: in nodes, and in text to read. */
-const EndRing = ({ data: { routes } }: NodeProps<EndFlowNode>) => (
+/**
+ * An end ring with how long the ways to the end are: in nodes, and in text to read against the
+ * average way, so a much longer or shorter way stands out.
+ */
+const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => (
   <>
     <FinalDot />
     {routes !== undefined && (
-      <div className='pointer-events-none absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'>
+      <div className='absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'>
         <div>
           {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
         </div>
-        <div>
-          {rangeText(routes.characters)} {counted(routes.characters.max, 'znak', 'znaky', 'znaků')}
-        </div>
+        {difference !== undefined && (
+          <div title='O kolik znaků textu segmentů je cesta do tohoto konce delší než průměrná cesta do všech konců.'>
+            {differenceText(difference)} znaků
+          </div>
+        )}
       </div>
     )}
   </>
@@ -474,6 +488,29 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     () => new Map(endsOf(keyed).map((node) => [node.id, routesTo(keyed, node.id)])),
     [keyed],
   );
+  const meanCharacters = useMemo(
+    () =>
+      meanCharactersOf(
+        [...routes.values()].filter((route) => {
+          return route !== undefined;
+        }),
+      ),
+    [routes],
+  );
+  /** How much longer the ways to each end are than the average way, in characters. */
+  const differences = useMemo(
+    () =>
+      new Map(
+        [...routes].map(([key, route]) => {
+          if (route === undefined || meanCharacters === undefined) {
+            return [key, undefined] as const;
+          }
+
+          return [key, route.meanCharacters - meanCharacters] as const;
+        }),
+      ),
+    [routes, meanCharacters],
+  );
   /** Where a new edge being dragged out points now, on the canvas. */
   const dragging = useConnection((connection) =>
     connection.inProgress ? connection.to : undefined,
@@ -705,11 +742,14 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         type: 'final',
         position: position(finalRingId(node.id)),
         measured: { width: FINAL_SIZE, height: FINAL_SIZE },
-        data: { routes: routes.get(node.id) },
+        data: {
+          routes: routes.get(node.id),
+          difference: differences.get(node.id),
+        },
         selectable: false,
       })),
     ];
-  }, [draft, keyed, routes, laidOut, selected, maxHeight, heights, dropTarget]);
+  }, [draft, keyed, routes, differences, laidOut, selected, maxHeight, heights, dropTarget]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);

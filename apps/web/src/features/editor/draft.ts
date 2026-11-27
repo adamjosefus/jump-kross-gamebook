@@ -135,8 +135,13 @@ export interface Range {
 /** How long the ways to an end are: in nodes, start and end included, and in segment text. */
 export interface RoutesToEnd {
   readonly steps: Range;
-  /** Characters of the segments' text the players read on the way, the end's included. */
-  readonly characters: Range;
+  /** How many ways lead there. */
+  readonly ways: number;
+  /**
+   * Characters of the segments' text the players read on a way, the end's included, on average
+   * over the ways.
+   */
+  readonly meanCharacters: number;
 }
 
 /** Most ways walked to one end; a draft branching more than that is measured by the first ones. */
@@ -202,6 +207,26 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
 
   return {
     steps: { min: Math.min(...steps), max: Math.max(...steps) },
-    characters: { min: Math.min(...texts), max: Math.max(...texts) },
+    ways: steps.length,
+    meanCharacters:
+      texts.reduce((sum, text) => {
+        return sum + text;
+      }, 0) / texts.length,
   };
+};
+
+/** Characters of the ways to all the ends together, on average over all the ways. */
+export const meanCharactersOf = (routes: readonly RoutesToEnd[]): number | undefined => {
+  const ways = routes.reduce((sum, route) => {
+    return sum + route.ways;
+  }, 0);
+  if (ways === 0) {
+    return undefined;
+  }
+
+  return (
+    routes.reduce((sum, route) => {
+      return sum + route.meanCharacters * route.ways;
+    }, 0) / ways
+  );
 };

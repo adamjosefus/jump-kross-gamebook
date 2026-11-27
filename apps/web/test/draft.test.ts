@@ -4,6 +4,7 @@ import {
   draftNodeId,
   endsOf,
   incoming,
+  meanCharactersOf,
   routesTo,
   startsOf,
   type Draft,
@@ -114,15 +115,24 @@ describe('routesTo', () => {
     // a → end, or a → b → end; going round b again does not make a way of its own.
     expect(routesTo(draft, 'end')).toEqual({
       steps: { min: 2, max: 3 },
-      characters: { min: 11, max: 16 },
+      ways: 2,
+      meanCharacters: (11 + 16) / 2,
     });
   });
 
   it('counts a start that is an end too', () => {
     expect(routesTo(draft, 'lost')).toEqual({
       steps: { min: 1, max: 1 },
-      characters: { min: 1, max: 1 },
+      ways: 1,
+      meanCharacters: 1,
     });
+  });
+
+  it('averages the characters over all the ways to all the ends', () => {
+    const ends = [routesTo(draft, 'end')!, routesTo(draft, 'lost')!];
+    // The ways have 11, 16 and 1 characters.
+    expect(meanCharactersOf(ends)).toBe((11 + 16 + 1) / 3);
+    expect(meanCharactersOf([])).toBeUndefined();
   });
 
   it('gives nothing for a node no start leads to', () => {

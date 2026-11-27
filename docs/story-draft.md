@@ -8,7 +8,7 @@ Slova jako uzel, segment a akce jsou ve [slovníčku](story-glossary.md), skript
 
 Editor je v administraci pod „Editor“, ale jen při `pnpm dev`. Koncept ukládá vývojový server do souboru `packages/story/draft/story-draft.json` v repozitáři. Nasazená administrace editor nemá a soubor nečte. Když soubor neexistuje, editor začne s jedním prázdným uzlem a soubor vytvoří při první změně.
 
-- **Graf** se rozkládá sám, shora dolů. Při oddálení je na kartách vidět jen shrnutí. Každý uzel bez voleb je konec a má pod sebou vlastní kroužek konce; konců může být víc. Pod kroužkem je, kolik uzlů a znaků textu segmentů vede od začátku do tohoto konce: nejkratší a nejdelší cesta, každý uzel na cestě nejvýš jednou.
+- **Graf** se rozkládá sám, shora dolů. Při oddálení je na kartách vidět jen shrnutí. Každý uzel bez voleb je konec a má pod sebou vlastní kroužek konce; konců může být víc. Pod kroužkem je, kolik uzlů vede od začátku do tohoto konce (nejkratší a nejdelší cesta, každý uzel na cestě nejvýš jednou), a o kolik znaků textu segmentů je cesta sem delší nebo kratší než průměrná cesta do všech konců, např. „+35“ nebo „−1,2 k“.
 - **Klik** na uzel ho vycentruje a otevře k psaní: id, shrnutí, poznámku, segmenty a volby. **Dvojklik** ho i přiblíží. Klik do prázdna psaní ukončí a graf se znovu rozloží.
 - **Segmenty** se píší jako jeden text: řádek `===` (s tématem `=== red`) a Enter je oddělí, `/` na začátku řádku nabídne příkazy a řádek `//` je poznámka.
 - **Volby:** očíslovaná tečka na spodní hraně karty patří k volbě se stejným číslem. Tažením tečky na jiný uzel vede volba tam, tažením do prázdna vznikne nový uzel. Tečka „+“ (při najetí na kartu) nebo „+ volba“ přidá novou volbu.
