@@ -8,6 +8,7 @@ import {
   ReactFlowProvider,
   useReactFlow,
   useConnection,
+  useNodeId,
   useStore,
   type FinalConnectionState,
   type Node,
@@ -78,6 +79,9 @@ import {
 } from './draft-node-card';
 import { differenceText } from './numbers';
 
+/** How far the pointer may move on a dot, in pixels, and still make a click, not a drag. */
+const CLICK_DISTANCE = 4;
+
 /** Below this zoom the cards show only their summaries. */
 export const FAR_ZOOM = 0.7;
 
@@ -110,7 +114,15 @@ const CardContext = createContext<{
   readonly onOpen: ((key: string) => void) | undefined;
   readonly connectable: boolean;
   readonly editOf: ((key: string) => CardEdit) | undefined;
-}>({ onHeight: () => {}, onOpen: undefined, connectable: false, editOf: undefined });
+  /** A click on the plus of the card `key`: a choice leading to a new node. */
+  readonly onAdd: ((key: string) => void) | undefined;
+}>({
+  onHeight: () => {},
+  onOpen: undefined,
+  connectable: false,
+  editOf: undefined,
+  onAdd: undefined,
+});
 
 /** Handle id of a choice's dot, or of „+ volba“. */
 const dotHandle = (key: DotKey) => (key === 'new' ? 'choice-new' : `choice-${key}`);
@@ -135,7 +147,8 @@ const dotOf = (handle: string | null | undefined): DotKey | undefined => {
 
 /** A choice's dot as a handle to drag a new edge from, when the canvas lets the draft change. */
 const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => {
-  const { connectable } = use(CardContext);
+  const { connectable, onAdd } = use(CardContext);
+  const key = useNodeId();
   return (
     <Handle
       type='source'
@@ -143,6 +156,14 @@ const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => 
       position={Position.Bottom}
       isConnectable={connectable}
       style={{ left: x }}
+      {...(dot === 'new' && onAdd !== undefined && key !== null
+        ? {
+            title: 'Přidat volbu: klikněte, nebo táhněte na uzel',
+            onClick: () => {
+              onAdd(key);
+            },
+          }
+        : {})}
       className={cn(
         // React Flow's own handle look gives way to the dot's.
         'min-h-0! min-w-0! rounded-full!',
@@ -621,11 +642,6 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       onRemoveChoice: (index) => {
         change(removeChoice(draft, id, index));
       },
-      onAddChoice: () => {
-        const next = linkChoice(draft, id, 'new');
-        setFollowing((current) => new Set([...current, next.target]));
-        change(next.draft);
-      },
       onRemove: () => {
         setSelected(undefined);
         change(removeNode(draft, id));
@@ -646,6 +662,15 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           },
     connectable: onChange !== undefined,
     editOf: onChange === undefined ? undefined : editOf,
+    onAdd:
+      onChange === undefined
+        ? undefined
+        : (key: string) => {
+            const node = draft.nodes[indexOf(key)];
+            if (node !== undefined) {
+              link(node.id, 'new', undefined);
+            }
+          },
   };
 
   const measured = keyed.nodes.every((node) => {
@@ -844,18 +869,15 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     ];
   }, [keyed, laidOut]);
 
-  /** A drag from a dot: dropped on a node it leads there, elsewhere it draws out a new node. */
-  const onConnectEnd = (_event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
-    const from = connection.fromNode?.id;
-    const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
-    const dot = dotOf(connection.fromHandle?.id);
-    if (onChange === undefined || source === undefined || dot === undefined) {
+  /**
+   * Leads a choice of `source` to `target`, or to a new node without one, and brings that node to
+   * the middle, selected.
+   */
+  const link = (source: string, dot: DotKey, target: string | undefined) => {
+    if (onChange === undefined) {
       return;
     }
 
-    // The card outlined last while dragging; React Flow's final `to` is not always the last one.
-    const over = connection.toNode?.id ?? lastTarget.current;
-    const target = over === undefined ? undefined : draft.nodes[indexOf(over)]?.id;
     const next = linkChoice(draft, source, dot, target);
     if (target === undefined) {
       setFollowing((current) => new Set([...current, next.target]));
@@ -869,6 +891,20 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     onChange(next.draft);
     setSelected(key);
     pending.current = key;
+  };
+
+  /** A drag from a dot: dropped on a node it leads there, elsewhere it draws out a new node. */
+  const onConnectEnd = (_event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
+    const from = connection.fromNode?.id;
+    const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
+    const dot = dotOf(connection.fromHandle?.id);
+    if (source === undefined || dot === undefined) {
+      return;
+    }
+
+    // The card outlined last while dragging; React Flow's final `to` is not always the last one.
+    const over = connection.toNode?.id ?? lastTarget.current;
+    link(source, dot, over === undefined ? undefined : draft.nodes[indexOf(over)]?.id);
   };
 
   return (
@@ -904,6 +940,10 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
             setSelected(undefined);
           }}
           onConnectEnd={onConnectEnd}
+          // A click on a dot is no way to connect, and a move this small still a click: on the
+          // plus it adds a choice.
+          connectOnClick={false}
+          connectionDragThreshold={CLICK_DISTANCE}
           colorMode={resolved}
           minZoom={0.1}
           nodesDraggable={false}

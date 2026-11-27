@@ -1,12 +1,5 @@
-import {
-  IconArrowsMaximize,
-  IconChevronDown,
-  IconChevronUp,
-  IconPlus,
-  IconTrash,
-  IconX,
-} from '@tabler/icons-react';
-import { Fragment, useRef, useState, type ReactNode, type Ref } from 'react';
+import { IconArrowsMaximize, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import { Fragment, useRef, useState, type DragEvent, type ReactNode, type Ref } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -19,10 +12,8 @@ export const CARD_WIDTH = 320;
 /** How the plain arrow is named on the card and the edges. */
 export const NEXT_LABEL = 'Další';
 
-/** Heights of the rows at the bottom of the card, in pixels: the choices, then „+ volba“. */
+/** Height of a choice's row, in pixels. */
 const CHOICE_ROW = 28;
-const ADD_ROW = 24;
-const FOOTER_PADDING = 8;
 
 /** What a dot stands for: a choice by its index, or a new choice. */
 export type DotKey = number | 'new';
@@ -74,13 +65,6 @@ const PlainDot = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => (
   </span>
 );
 
-/** The number of a choice beside its button, matching its dot on the bottom edge. */
-const ChoiceNumber = ({ children }: { readonly children: ReactNode }) => (
-  <span className='w-3 shrink-0 text-center font-mono text-[10px] text-muted-foreground'>
-    {children}
-  </span>
-);
-
 /** What a card can change; the canvas turns each into a change of the draft. */
 export interface CardEdit {
   readonly onSummary: (summary: string) => void;
@@ -92,8 +76,6 @@ export interface CardEdit {
   readonly onLabel: (index: number, label: string) => void;
   readonly onMove: (index: number, offset: number) => void;
   readonly onRemoveChoice: (index: number) => void;
-  /** Adds a choice leading to a new node. */
-  readonly onAddChoice: () => void;
   readonly onRemove: () => void;
 }
 
@@ -199,58 +181,132 @@ const CardButton = ({
   </button>
 );
 
-/** A choice: its text as on the button, where it leads, and buttons to move or remove it. */
-const ChoiceRow = ({
-  choice,
-  index,
-  count,
+/**
+ * Where a dragged choice would land: before the row it is over, or after it in its lower half;
+ * `count` is past the last row.
+ */
+const dropIndex = (event: DragEvent<HTMLElement>, index: number) => {
+  const box = event.currentTarget.getBoundingClientRect();
+  return event.clientY > box.top + box.height / 2 ? index + 1 : index;
+};
+
+/**
+ * The choices in a grid, so their texts and targets line up: the number, as on the dot on the
+ * bottom edge, the text of the button, where it leads, and a button to remove it. The number is
+ * the handle to drag a choice to another place in the order.
+ */
+const ChoiceList = ({
+  choices,
   edit,
 }: {
-  readonly choice: DraftChoice;
-  readonly index: number;
-  readonly count: number;
+  readonly choices: readonly DraftChoice[];
   readonly edit: CardEdit | undefined;
-}) => (
-  <div className='group/row flex items-center gap-1.5 px-3' style={{ height: CHOICE_ROW }}>
-    <ChoiceNumber>{dotText(index)}</ChoiceNumber>
-    <input
-      value={choice.label}
-      placeholder={NEXT_LABEL}
-      readOnly={edit === undefined}
-      aria-label={`Text volby ${index + 1}`}
-      onChange={(event) => {
-        edit?.onLabel(index, event.target.value);
-      }}
-      className={cn(
-        IN_CANVAS,
-        'min-w-0 flex-1 rounded-md border bg-background px-2 py-0.5 text-xs outline-none placeholder:text-muted-foreground focus:border-ring',
-      )}
-    />
-    <span
-      title={choice.to}
-      className='max-w-20 truncate font-mono text-[10px] text-muted-foreground'
-    >
-      → {choice.to}
-    </span>
-    {edit !== undefined && (
-      <span className='flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'>
-        {index > 0 && (
-          <CardButton title='Posunout výš' onClick={() => edit.onMove(index, -1)}>
-            <IconChevronUp className='size-3.5' />
-          </CardButton>
-        )}
-        {index < count - 1 && (
-          <CardButton title='Posunout níž' onClick={() => edit.onMove(index, 1)}>
-            <IconChevronDown className='size-3.5' />
-          </CardButton>
-        )}
-        <CardButton title='Smazat volbu' onClick={() => edit.onRemoveChoice(index)}>
-          <IconX className='size-3.5' />
-        </CardButton>
-      </span>
-    )}
-  </div>
-);
+}) => {
+  /** The choice dragged now, and where it would land. */
+  const [drag, setDrag] = useState<{ readonly from: number; readonly to: number }>();
+  if (choices.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className='grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-1.5 rounded-b-lg border-t bg-muted/40 px-3 py-1.5'>
+      {choices.map((choice, index) => (
+        <div
+          // The choices have no ids; their order is all there is.
+          key={index}
+          className={cn(
+            'group/row relative col-span-4 grid grid-cols-subgrid items-center',
+            drag?.from === index && 'opacity-40',
+          )}
+          style={{ height: CHOICE_ROW }}
+          onDragOver={(event) => {
+            if (drag === undefined) {
+              return;
+            }
+
+            event.preventDefault();
+            const to = dropIndex(event, index);
+            if (to !== drag.to) {
+              setDrag({ ...drag, to });
+            }
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            if (drag === undefined) {
+              return;
+            }
+
+            // Where it lands once taken out of its place.
+            const landing = drag.to > drag.from ? drag.to - 1 : drag.to;
+            if (landing !== drag.from) {
+              edit?.onMove(drag.from, landing - drag.from);
+            }
+
+            setDrag(undefined);
+          }}
+        >
+          {/* A line where the dragged choice would land. */}
+          {drag !== undefined && drag.to === index && (
+            <span className='pointer-events-none absolute inset-x-0 top-0 h-0.5 -translate-y-1/2 rounded bg-sky-500' />
+          )}
+          {drag !== undefined && drag.to === index + 1 && index === choices.length - 1 && (
+            <span className='pointer-events-none absolute inset-x-0 bottom-0 h-0.5 translate-y-1/2 rounded bg-sky-500' />
+          )}
+          <span
+            draggable={edit !== undefined && choices.length > 1}
+            title={edit === undefined ? undefined : 'Přetažením změníte pořadí'}
+            onDragStart={(event) => {
+              const row = event.currentTarget.parentElement;
+              if (row !== null) {
+                event.dataTransfer.setDragImage(row, 8, CHOICE_ROW / 2);
+              }
+
+              event.dataTransfer.effectAllowed = 'move';
+              setDrag({ from: index, to: index });
+            }}
+            onDragEnd={() => {
+              setDrag(undefined);
+            }}
+            className={cn(
+              IN_CANVAS,
+              'w-3 text-center font-mono text-[10px] text-muted-foreground',
+              edit !== undefined && choices.length > 1 && 'cursor-grab active:cursor-grabbing',
+            )}
+          >
+            {dotText(index)}
+          </span>
+          <input
+            value={choice.label}
+            placeholder={NEXT_LABEL}
+            readOnly={edit === undefined}
+            aria-label={`Text volby ${index + 1}`}
+            onChange={(event) => {
+              edit?.onLabel(index, event.target.value);
+            }}
+            className={cn(
+              IN_CANVAS,
+              'min-w-0 rounded-md border bg-background px-2 py-0.5 text-xs outline-none placeholder:text-muted-foreground focus:border-ring',
+            )}
+          />
+          <span
+            title={choice.to}
+            className='max-w-24 truncate font-mono text-[10px] text-muted-foreground'
+          >
+            → {choice.to}
+          </span>
+          {/* Its place is kept, so the texts stay as wide in every row. */}
+          <span className='size-[18px] opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'>
+            {edit !== undefined && (
+              <CardButton title='Smazat volbu' onClick={() => edit.onRemoveChoice(index)}>
+                <IconX className='size-3.5' />
+              </CardButton>
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export interface DraftNodeCardProps {
   readonly node: DraftNode;
@@ -355,36 +411,7 @@ export const DraftNodeCard = ({
         />
       </div>
     </div>
-    <div
-      className='shrink-0 rounded-b-lg border-t bg-muted/40'
-      style={{ paddingBottom: FOOTER_PADDING }}
-    >
-      {node.choices.map((choice, index) => (
-        <ChoiceRow
-          key={index}
-          choice={choice}
-          index={index}
-          count={node.choices.length}
-          edit={edit}
-        />
-      ))}
-      <button
-        type='button'
-        disabled={edit === undefined}
-        onClick={edit?.onAddChoice}
-        title='Přidat volbu, která vede do nového uzlu'
-        className={cn(
-          IN_CANVAS,
-          'flex w-full items-center gap-1.5 px-3 text-[11px] text-muted-foreground enabled:hover:text-foreground',
-        )}
-        style={{ height: ADD_ROW }}
-      >
-        <ChoiceNumber>
-          <IconPlus className='mx-auto size-3' />
-        </ChoiceNumber>
-        volba
-      </button>
-    </div>
+    <ChoiceList choices={node.choices} edit={edit} />
     {/* From afar the summary covers the card, and takes the clicks meant for the node. */}
     <div
       className={cn(
