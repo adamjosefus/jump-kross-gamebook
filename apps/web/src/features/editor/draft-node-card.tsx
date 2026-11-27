@@ -26,10 +26,10 @@ export const choiceDotY = (height: number, count: number, index: number) =>
   height - BORDER - FOOTER_PADDING - ADD_ROW - (count - index) * CHOICE_ROW + CHOICE_ROW / 2;
 
 /**
- * Where the arrows into the card end, from its bottom: level with its last choice. A choice leads
- * straight on when the cards' choices line up, so the layout does not drift down layer by layer.
+ * Where the arrows into the card end on its top, from its right corner: above the side the choices
+ * leave from, so a choice leads almost straight down and the layout does not drift sideways.
  */
-export const ENTRY_FROM_BOTTOM = BORDER + FOOTER_PADDING + ADD_ROW + CHOICE_ROW / 2;
+export const ENTRY_FROM_RIGHT = 24;
 
 /** What a dot stands for: a choice by its index, or a new choice. */
 export type DotKey = number | 'new';

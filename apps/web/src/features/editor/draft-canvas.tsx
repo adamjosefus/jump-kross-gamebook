@@ -48,7 +48,7 @@ import {
   CARD_WIDTH,
   choiceDotY,
   DraftNodeCard,
-  ENTRY_FROM_BOTTOM,
+  ENTRY_FROM_RIGHT,
   NEXT_LABEL,
   type DotKey,
 } from './draft-node-card';
@@ -145,9 +145,9 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
     <>
       <Handle
         type='target'
-        position={Position.Left}
+        position={Position.Top}
         className='opacity-0'
-        style={{ top: 'auto', bottom: ENTRY_FROM_BOTTOM }}
+        style={{ left: CARD_WIDTH - ENTRY_FROM_RIGHT }}
         isConnectable={connectable}
       />
       <DraftNodeCard
@@ -191,12 +191,12 @@ const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
   );
 
 /**
- * Left to right, with the edges leaving at the choices' dots and entering level with the last
- * choice; a node is laid out as early as the nodes leading to it allow.
+ * Top to bottom, with the edges leaving at the choices' dots on the right and entering the next
+ * card from above; a node is laid out as early as the nodes leading to it allow.
  */
 const layoutDraft = (draft: Draft, heights: ReadonlyMap<string, number>) =>
   layoutBoxes({
-    direction: 'RIGHT',
+    direction: 'DOWN',
     options: { 'elk.layered.layering.strategy': 'LONGEST_PATH_SOURCE' },
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
@@ -205,7 +205,7 @@ const layoutDraft = (draft: Draft, heights: ReadonlyMap<string, number>) =>
         width: CARD_WIDTH,
         height,
         ports: [
-          { id: entryId(node.id), x: 0, y: height - ENTRY_FROM_BOTTOM, side: 'WEST' as const },
+          { id: entryId(node.id), x: CARD_WIDTH - ENTRY_FROM_RIGHT, y: 0, side: 'NORTH' as const },
           ...node.choices.map((_choice, index) => {
             return {
               id: portId(node.id, index),
@@ -525,7 +525,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
 };
 
 /**
- * The draft as a graph laid out by ELK from left to right. Each card is as high as its text, up to
+ * The draft as a graph laid out by ELK from top to bottom. Each card is as high as its text, up to
  * the canvas's height; zoomed out, it shows only its summary. A click brings a node to the middle,
  * a double click closer too; a choice's dot dragged onto a node leads there, and dragged elsewhere
  * draws out a new node.
