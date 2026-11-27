@@ -1,4 +1,4 @@
-import { IconArrowsMaximize } from '@tabler/icons-react';
+import { IconAlertTriangle } from '@tabler/icons-react';
 import {
   Fragment,
   useRef,
@@ -11,14 +11,34 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-import { PROBLEM_TEXT, type DraftChoice, type DraftNode, type DraftSize } from './draft';
+import {
+  PROBLEM_HINT,
+  PROBLEM_TEXT,
+  type DraftChoice,
+  type DraftNode,
+  type DraftProblem,
+  type DraftSize,
+} from './draft';
 import { SegmentEditor } from './segment-editor';
 import type { TagColor } from './tag-colors';
 
 /** The card's width; its height follows the text, up to `maxHeight`. */
 export const CARD_WIDTH = 320;
+
+/**
+ * The largest the summary grows from afar, in the canvas's pixels; a card that follows its text is
+ * at least as high as the summary at this size, so from afar it shows whole.
+ */
+const FAR_SUMMARY_MAX = 36;
+
+/** In place of a summary not written yet: a faint dash, not a word to read. */
+const NO_SUMMARY = '—';
+
+/** The summary as it covers the card from afar; the same in the room kept for it. */
+const FAR_SUMMARY = 'p-5 leading-tight font-normal wrap-break-word hyphens-auto';
 
 /** How far a card can be resized, in pixels. */
 const SIZE_LIMITS = { width: [240, 800], height: [120, 2000] } as const;
@@ -39,7 +59,7 @@ export type DotKey = number | 'new' | 'in';
 const CARD_BORDER = 1;
 
 /** How far apart the dots in one pill are: a dot and the gap after it, in pixels. */
-const SEGMENT = 17;
+const SEGMENT = 21;
 
 /** Where the dots sit on the card's bottom edge, from its left. */
 export interface DotPlaces {
@@ -102,10 +122,10 @@ export const DotContent = ({ dot }: { readonly dot: DotKey }) =>
 
 /** The shape of a choice's dot and number, without its colors. */
 export const DOT_SHAPE =
-  'flex size-4 shrink-0 items-center justify-center font-sans text-[9px] leading-none font-semibold';
+  'flex size-5 shrink-0 items-center justify-center font-sans text-2xs leading-none font-semibold';
 
 /** The colors of a choice's dot leading to no node of the draft. */
-export const DOT_GREY = 'bg-muted-foreground text-card';
+export const DOT_GREY = 'bg-muted text-muted-foreground';
 
 /**
  * The circles in the corners, to draw a new edge from: small and solid in the text's color, white
@@ -237,12 +257,15 @@ export const RemoveButton = ({
   question,
   detail,
   onConfirm,
+  className,
   children,
 }: {
   readonly title: string;
   readonly question: string;
   readonly detail?: string;
   readonly onConfirm: () => void;
+  /** Of the button, over its small look. */
+  readonly className?: string;
   readonly children: ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
@@ -258,6 +281,7 @@ export const RemoveButton = ({
             IN_CANVAS,
             'rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive',
             open && 'bg-muted text-destructive',
+            className,
           )}
         >
           {children}
@@ -301,49 +325,105 @@ export const RemoveButton = ({
   );
 };
 
-/** A small button of a card. */
-const CardButton = ({
-  title,
-  onClick,
-  children,
+/**
+ * The warning sign of a node with something wrong; its tooltip says what, and what to do about
+ * it. The card names no problem otherwise.
+ */
+const ProblemSign = ({
+  problems,
+  className,
 }: {
-  readonly title: string;
-  readonly onClick: () => void;
-  readonly children: ReactNode;
+  readonly problems: readonly DraftProblem[];
+  readonly className?: string;
 }) => (
-  <button
-    type='button'
-    title={title}
-    aria-label={title}
-    onClick={onClick}
-    className={cn(
-      IN_CANVAS,
-      'rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground',
-    )}
-  >
-    {children}
-  </button>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span
+        role='img'
+        aria-label={problems.map((problem) => PROBLEM_TEXT[problem]).join(', ')}
+        className={cn('flex shrink-0 cursor-help text-destructive', className)}
+      >
+        <IconAlertTriangle className='size-full' />
+      </span>
+    </TooltipTrigger>
+    <TooltipContent side='top' className='max-w-64 flex-col items-start gap-2 text-left'>
+      {problems.map((problem) => (
+        <span key={problem} className='flex flex-col gap-0.5'>
+          <span className='font-semibold'>{PROBLEM_TEXT[problem]}</span>
+          <span className='opacity-80'>{PROBLEM_HINT[problem]}</span>
+        </span>
+      ))}
+    </TooltipContent>
+  </Tooltip>
 );
 
-/** Which sides a resize handle moves: the right edge, the bottom edge, or both from the corner. */
-type ResizeAxis = 'x' | 'y' | 'xy';
+/**
+ * Which sides a resize handle moves: one edge, or the two edges of a corner. The top left corner
+ * holds the plus into the node, the bottom right one the plus out of it; the plus wins there.
+ */
+interface ResizeSides {
+  readonly x?: 'left' | 'right';
+  readonly y?: 'top' | 'bottom';
+}
+
+const RESIZE_HANDLES: readonly (ResizeSides & {
+  readonly key: string;
+  readonly className: string;
+})[] = [
+  {
+    key: 'right',
+    x: 'right',
+    className: 'top-0 right-0 h-full w-2 translate-x-1/2 cursor-ew-resize',
+  },
+  {
+    key: 'left',
+    x: 'left',
+    className: 'top-0 left-0 h-full w-2 -translate-x-1/2 cursor-ew-resize',
+  },
+  {
+    key: 'bottom',
+    y: 'bottom',
+    className: 'bottom-0 left-0 h-2 w-full translate-y-1/2 cursor-ns-resize',
+  },
+  { key: 'top', y: 'top', className: 'top-0 left-0 h-2 w-full -translate-y-1/2 cursor-ns-resize' },
+  {
+    key: 'bottom-right',
+    x: 'right',
+    y: 'bottom',
+    className: 'right-0 bottom-0 size-3 translate-1/2 cursor-nwse-resize',
+  },
+  {
+    key: 'top-right',
+    x: 'right',
+    y: 'top',
+    className: 'top-0 right-0 size-3 translate-x-1/2 -translate-y-1/2 cursor-nesw-resize',
+  },
+  {
+    key: 'bottom-left',
+    x: 'left',
+    y: 'bottom',
+    className: 'bottom-0 left-0 size-3 -translate-x-1/2 translate-y-1/2 cursor-nesw-resize',
+  },
+] as const;
 
 const clamp = (value: number, [min, max]: readonly [number, number]) =>
   Math.round(Math.min(max, Math.max(min, value)));
 
 /**
- * A handle on the card's right edge, bottom edge or corner to resize it with the pointer: the card
- * follows the pointer, and the size is set when the pointer is let go. A double click lets the
- * sides it moves follow the text again.
+ * A handle on the card's edge or corner to resize it with the pointer: the card follows the
+ * pointer, and the size is set when the pointer is let go. A double click lets the sides it moves
+ * follow the text again.
  */
 const ResizeHandle = ({
-  axis,
+  sides,
+  className,
   card,
   size,
   onLive,
   onResize,
 }: {
-  readonly axis: ResizeAxis;
+  readonly sides: ResizeSides;
+  readonly className: string;
   readonly card: RefObject<HTMLDivElement | null>;
   readonly size: DraftSize | undefined;
   readonly onLive: (size: DraftSize | undefined) => void;
@@ -360,29 +440,30 @@ const ResizeHandle = ({
       return undefined;
     }
 
+    // The pointer's way in the canvas's pixels. Pulled out by its left or top edge, the card grows
+    // as much, but to the right or down: it stays where it is, as the layout keeps it, and the
+    // layout places it anew when the pointer is let go.
+    const along = (pointer: number, origin: number, side: 'left' | 'right' | 'top' | 'bottom') =>
+      ((side === 'left' || side === 'top' ? -1 : 1) * (pointer - origin)) / from.scale;
+    const width =
+      sides.x === undefined
+        ? undefined
+        : clamp(from.width + along(event.clientX, from.x, sides.x), SIZE_LIMITS.width);
+    const height =
+      sides.y === undefined
+        ? undefined
+        : clamp(from.height + along(event.clientY, from.y, sides.y), SIZE_LIMITS.height);
     return {
       ...size,
-      ...(axis === 'y'
-        ? {}
-        : { width: clamp(from.width + (event.clientX - from.x) / from.scale, SIZE_LIMITS.width) }),
-      ...(axis === 'x'
-        ? {}
-        : {
-            height: clamp(from.height + (event.clientY - from.y) / from.scale, SIZE_LIMITS.height),
-          }),
+      ...(width === undefined ? {} : { width }),
+      ...(height === undefined ? {} : { height }),
     };
   };
 
   return (
     <span
       aria-hidden
-      className={cn(
-        IN_CANVAS,
-        'absolute z-10 touch-none',
-        axis === 'x' && 'top-0 right-0 h-full w-2 translate-x-1/2 cursor-ew-resize',
-        axis === 'y' && 'bottom-0 left-0 h-2 w-full translate-y-1/2 cursor-ns-resize',
-        axis === 'xy' && 'right-0 bottom-0 size-3 translate-1/2 cursor-nwse-resize',
-      )}
+      className={cn(IN_CANVAS, 'absolute z-10 touch-none', className)}
       onPointerDown={(event) => {
         const element = card.current;
         if (element === null) {
@@ -420,8 +501,8 @@ const ResizeHandle = ({
         event.stopPropagation();
         const { width, height } = size ?? {};
         const kept = {
-          ...(axis === 'y' && width !== undefined ? { width } : {}),
-          ...(axis === 'x' && height !== undefined ? { height } : {}),
+          ...(sides.x === undefined && width !== undefined ? { width } : {}),
+          ...(sides.y === undefined && height !== undefined ? { height } : {}),
         };
         onResize(Object.keys(kept).length === 0 ? undefined : kept);
       }}
@@ -440,16 +521,10 @@ export interface DraftNodeCardProps {
   readonly dropTarget?: boolean;
   /** The node the story begins at. */
   readonly start?: boolean;
-  /** The start points at other nodes too, which is a problem. */
-  readonly startClash?: boolean;
-  /** Nothing leads here, and it is not the start: it hangs loose, which is a problem. */
-  readonly loose?: boolean;
-  /** Something is wrong with the node: its outline is red. */
-  readonly invalid?: boolean;
+  /** What is wrong with the node, shown by a warning sign; nothing for a node in order. */
+  readonly problems?: readonly DraftProblem[];
   /** The text scrolls inside the card above this height. */
   readonly maxHeight?: number;
-  /** Shows a button to open the node in the focus mode. */
-  readonly onOpen?: () => void;
   /** What writing into the card changes; without it the card is only read. */
   readonly edit?: CardEdit;
   /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
@@ -476,11 +551,8 @@ export const DraftNodeCard = ({
   targetOrder,
   dropTarget = false,
   start = false,
-  startClash = false,
-  loose = false,
-  invalid = false,
+  problems = [],
   maxHeight,
-  onOpen,
   edit,
   dot = (key, x, dotColor) => <PlainDot dot={key} x={x} color={dotColor} />,
   color,
@@ -513,10 +585,10 @@ export const DraftNodeCard = ({
       className={cn(
         // The border only keeps its room; the outline is a ring around it, as wide on the screen at
         // any zoom of the canvas, which sets `--line` to one screen pixel.
-        'group/card relative flex flex-col rounded-lg border border-transparent bg-card text-card-foreground shadow-xs ring-[length:var(--line,1px)] ring-border',
-        invalid && 'ring-[length:calc(2*var(--line,1px))] ring-destructive',
+        'group/card relative flex flex-col rounded-lg border border-transparent bg-card/70 text-card-foreground shadow-xs ring-[length:var(--line,1px)] ring-border backdrop-blur-xs',
         selected &&
-          'outline-[length:calc(2*var(--line,1px))] outline-offset-[calc(3*var(--line,1px))] outline-yellow-500',
+          // A thin line in the text's color: white on the dark canvas.
+          'outline-[length:var(--line,1px)] outline-offset-[calc(3*var(--line,1px))] outline-foreground',
         dropTarget &&
           'outline-[length:calc(2*var(--line,1px))] outline-offset-[calc(5*var(--line,1px))] outline-sky-500',
         className,
@@ -541,104 +613,110 @@ export const DraftNodeCard = ({
         className='absolute -z-10'
         style={{ inset: `calc(-1 * min(24 * var(--line, 1px), 24px) - ${CARD_BORDER}px)` }}
       />
-      <div
-        className={cn(
-          'flex min-h-0 flex-1 flex-col transition-opacity duration-300',
-          far && 'opacity-0',
-        )}
-      >
-        <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
-          <span
-            title='Id uzlu, jeho název ve skriptu'
-            className={cn(
-              'mr-auto max-w-full truncate rounded px-1.5 font-semibold',
-              color?.tag ?? 'bg-muted',
-            )}
-          >
-            {node.id}
-          </span>
-          {start && (
-            <span
-              title={startClash ? 'Začátek vede do víc uzlů; má vést jen do jednoho.' : undefined}
-              className={cn('rounded px-1', startClash ? 'bg-destructive text-white' : 'bg-muted')}
-            >
-              začátek
-            </span>
-          )}
-          {loose && (
-            <span
-              title='Do uzlu nevede žádná volba a není to začátek příběhu.'
-              className='rounded bg-destructive px-1 text-white'
-            >
-              {PROBLEM_TEXT.loose.toLowerCase()}
-            </span>
-          )}
-          {node.choices.length === 0 && <span className='rounded bg-muted px-1'>konec</span>}
-          {onOpen !== undefined && (
-            <CardButton title='Otevřít v detailu (Enter nebo mezerník)' onClick={onOpen}>
-              <IconArrowsMaximize className='size-3.5' />
-            </CardButton>
-          )}
-        </div>
-        <div className='flex flex-col gap-1 px-3 pt-1'>
-          <p
-            className={cn(
-              'text-sm leading-snug font-medium',
-              node.summary === '' && 'text-muted-foreground/60',
-            )}
-          >
-            {node.summary === '' ? 'Bez shrnutí' : node.summary}
-          </p>
-          {node.note !== undefined && (
-            <p className='text-xs whitespace-pre-line text-muted-foreground italic'>{node.note}</p>
-          )}
-        </div>
-        {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
+      {/* The close look and the room of the summary from afar in one cell: a card that follows its
+        text is as high as the higher of the two. */}
+      <div className='grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)]'>
+        <p
+          aria-hidden
+          lang='cs'
+          className={cn('invisible overflow-hidden [grid-area:1/1]', FAR_SUMMARY)}
+          style={{ fontSize: FAR_SUMMARY_MAX }}
+        >
+          {node.summary === '' ? NO_SUMMARY : node.summary}
+        </p>
         <div
           className={cn(
-            // Room under the text for the dots on the bottom edge.
-            'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-5 leading-relaxed',
-            selected && 'nowheel',
+            'flex min-h-0 flex-col transition-opacity duration-300 [grid-area:1/1]',
+            far && 'opacity-0',
           )}
         >
-          {/* Only read here: the node is written in the detail. */}
-          <SegmentEditor
-            value={node.segments}
-            readOnly
-            fontSize={11}
-            // The themes are set in the detail; the card only shows where segments divide.
-            themes={false}
-            className='min-h-6'
-          />
+          <div className='flex items-center gap-2 px-3 pt-2.5 font-mono text-2xs leading-4 text-muted-foreground'>
+            <span
+              title='Id uzlu, jeho název ve skriptu'
+              className={cn(
+                'mr-auto max-w-full truncate rounded-md px-2 py-0.5 font-semibold',
+                color?.tag ?? 'bg-muted',
+              )}
+            >
+              {node.id}
+            </span>
+            {start && <span className='rounded-md bg-muted px-1.5 py-0.5'>začátek</span>}
+            {node.choices.length === 0 && (
+              <span className='rounded-md bg-muted px-1.5 py-0.5'>konec</span>
+            )}
+            {problems.length > 0 && <ProblemSign problems={problems} className='size-4' />}
+          </div>
+          <div className='flex flex-col gap-1 px-3 pt-1'>
+            <p
+              className={cn(
+                'text-sm leading-snug font-medium',
+                node.summary === '' && 'text-foreground/20',
+              )}
+            >
+              {node.summary === '' ? NO_SUMMARY : node.summary}
+            </p>
+            {node.note !== undefined && (
+              <p className='text-xs whitespace-pre-line text-muted-foreground italic'>
+                {node.note}
+              </p>
+            )}
+          </div>
+          {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
+          <div
+            className={cn(
+              // Room under the text for the dots on the bottom edge.
+              'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-5 leading-relaxed',
+              selected && 'nowheel',
+            )}
+          >
+            {/* Only read here: the node is written in the detail. */}
+            <SegmentEditor
+              value={node.segments}
+              readOnly
+              fontSize={11}
+              // The themes are set in the detail; the card only shows where segments divide.
+              themes={false}
+              className='min-h-6'
+            />
+          </div>
         </div>
       </div>
-      {/* From afar the summary covers the card, and takes the clicks meant for the node. */}
+      {/* From afar the summary takes the place of the rest, faded out under it, and takes the clicks
+        meant for the node. */}
       <div
         className={cn(
-          'absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
+          'absolute inset-0 overflow-hidden rounded-[inherit] transition-opacity duration-300',
           !far && 'pointer-events-none opacity-0',
         )}
       >
         {/* Larger on the screen than the zoom alone would make it: the canvas sets `--zoom-out`
-          to one over the zoom, and the text grows with a part of it. */}
+          to one over the zoom, and the text grows with a part of it, up to the size the card
+          keeps room for. */}
         <p
           // Czech, so a word too long for the card is split with a hyphen where Czech allows.
           lang='cs'
-          className='leading-tight font-normal wrap-break-word hyphens-auto'
-          style={{ fontSize: 'calc(30px * pow(var(--zoom-out, 1), 0.4))' }}
+          className={FAR_SUMMARY}
+          style={{
+            fontSize: `min(calc(30px * pow(var(--zoom-out, 1), 0.4)), ${FAR_SUMMARY_MAX}px)`,
+          }}
         >
+          {problems.length > 0 && (
+            // In the top right corner, the text flowing round it; as large as a line of the text.
+            <ProblemSign problems={problems} className='float-right ml-2 size-[1.2em]' />
+          )}
           {node.summary === '' ? (
-            <span className='text-muted-foreground'>Bez shrnutí</span>
+            <span className='text-foreground/20'>{NO_SUMMARY}</span>
           ) : (
             node.summary
           )}
         </p>
       </div>
       {edit !== undefined &&
-        (['x', 'y', 'xy'] as const).map((axis) => (
+        RESIZE_HANDLES.map(({ key, className: place, ...sides }) => (
           <ResizeHandle
-            key={axis}
-            axis={axis}
+            key={key}
+            sides={sides}
+            className={place}
             card={own}
             size={node.size}
             onLive={setLive}

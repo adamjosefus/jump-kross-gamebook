@@ -271,6 +271,29 @@ describe('toMermaid', () => {
     );
   });
 
+  it('shows the note and the segments too with the full detail', () => {
+    const draft: Draft = {
+      version: 1,
+      nodes: [
+        {
+          id: 'a',
+          summary: 'Pekárna',
+          note: 'QR: 6',
+          segments: [
+            { text: 'Voní to.\nPekařka čeká.' },
+            { text: ' ' },
+            { text: 'Co si koupíte?' },
+          ],
+          choices: [],
+        },
+      ],
+    };
+    expect(toMermaid(draft, 'full')).toContain(
+      'a["<b>Pekárna</b><br><br><i>QR: 6</i><br><br>Voní to.<br>Pekařka čeká.<br><br>Co si koupíte?"]',
+    );
+    expect(toMermaid(draft)).toContain('a["Pekárna"]');
+  });
+
   it('keeps the quotes inside a label from closing it', () => {
     const draft: Draft = {
       version: 1,

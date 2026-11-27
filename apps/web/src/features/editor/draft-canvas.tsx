@@ -73,10 +73,11 @@ import {
   startsOf,
   type Draft,
   type DraftNode,
+  type DraftProblem,
   type Range,
   type RoutesToEnd,
 } from './draft';
-import { addStart, linkChoice, linkInto, removeAll, setSize } from './draft-edit';
+import { addStart, linkChoice, linkInto, removeAll, setSize, startInNew } from './draft-edit';
 import {
   CARD_WIDTH,
   DOT_SHAPE,
@@ -111,12 +112,8 @@ type DraftFlowNode = Node<
   {
     readonly node: DraftNode;
     readonly start: boolean;
-    /** The start points at other nodes too. */
-    readonly startClash: boolean;
-    /** Nothing leads here, and it is not the start. */
-    readonly loose: boolean;
-    /** Something is wrong with the node. */
-    readonly invalid: boolean;
+    /** What is wrong with the node; nothing for a node in order. */
+    readonly problems: readonly DraftProblem[];
     readonly maxHeight: number;
     /** A new edge dragged now would lead here. */
     readonly dropTarget: boolean;
@@ -135,16 +132,17 @@ type DraftFlowNode = Node<
  */
 const CardContext = createContext<{
   readonly onHeight: (key: string, height: number) => void;
-  readonly onOpen: ((key: string) => void) | undefined;
   readonly connectable: boolean;
   readonly editOf: ((key: string) => CardEdit) | undefined;
   /** A click on the plus of the card `key`: a choice leading to a new node. */
   readonly onAdd: ((key: string) => void) | undefined;
   /** A click on the top plus of the card `key`: a new node with a choice leading here. */
   readonly onAddInto: ((key: string) => void) | undefined;
+  /** A click on the start dot while it points nowhere: a new node the story begins at. */
+  readonly onStartNew: (() => void) | undefined;
 }>({
   onHeight: () => {},
-  onOpen: undefined,
+  onStartNew: undefined,
   connectable: false,
   editOf: undefined,
   onAdd: undefined,
@@ -233,9 +231,9 @@ const DotHandle = ({
           : cn(
               // A square in its pill, which rounds the ends, not placed by React Flow.
               DOT_SHAPE,
-              'static! size-4! transform-none! cursor-default! rounded-none! border-0!',
+              'static! size-5! transform-none! cursor-default! rounded-none! border-0!',
               // In the color of the node the choice leads to, as that node's id tag.
-              color?.dot ?? 'bg-muted-foreground! text-card!',
+              color?.dot ?? 'bg-muted! text-muted-foreground!',
             ),
         connectable && plus && 'cursor-crosshair',
       )}
@@ -252,7 +250,7 @@ const dotOfCard = (dot: DotKey, x: number | undefined, color: TagColor | undefin
 /** A card on the canvas: it reports its height and offers its choices' dots to drag from. */
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
   const far = useStore((state) => state.transform[2] < FAR_ZOOM);
-  const { onHeight, onOpen, connectable, editOf } = use(CardContext);
+  const { onHeight, connectable, editOf } = use(CardContext);
   // Written in right away; from afar the summary covers the card and takes the clicks.
   const edit = editOf?.(id);
   const card = useRef<HTMLDivElement>(null);
@@ -308,9 +306,7 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         ref={card}
         node={data.node}
         start={data.start}
-        startClash={data.startClash}
-        loose={data.loose}
-        invalid={data.invalid}
+        problems={data.problems}
         color={data.color}
         choiceColors={data.choiceColors}
         dropTarget={data.dropTarget}
@@ -318,13 +314,6 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         far={far}
         selected={selected}
         maxHeight={data.maxHeight}
-        {...(onOpen === undefined
-          ? {}
-          : {
-              onOpen: () => {
-                onOpen(id);
-              },
-            })}
         {...(edit === undefined ? {} : { edit })}
         dot={dotOfCard}
       />
@@ -376,7 +365,7 @@ const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => {
       <FinalDot />
       {routes !== undefined && (
         <div
-          className='absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'
+          className='absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-2xs leading-tight whitespace-nowrap text-muted-foreground'
           style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
         >
           <div>
@@ -405,7 +394,7 @@ const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => {
  * nodes to begin at. One arrow is right; none or more are a problem the editor shows.
  */
 const StartDot = () => {
-  const { connectable } = use(CardContext);
+  const { connectable, onStartNew } = use(CardContext);
   return (
     // As large as the layout made room for; the handle fills it and is the dot itself.
     <div className='relative' style={{ width: INITIAL_SIZE, height: INITIAL_SIZE }}>
@@ -414,12 +403,18 @@ const StartDot = () => {
         id={START_HANDLE}
         position={Position.Bottom}
         isConnectable={connectable}
-        title={connectable ? 'Začátek příběhu: táhněte na uzel, kde začíná' : 'Začátek příběhu'}
+        title={
+          connectable
+            ? 'Začátek příběhu: táhněte na uzel, kde začíná, nebo do prázdna pro nový uzel'
+            : 'Začátek příběhu'
+        }
+        // Pointing nowhere yet, a click makes the node the story begins at.
+        {...(onStartNew === undefined ? {} : { onClick: onStartNew })}
         className={cn(
           'inset-0! size-full! min-h-0! min-w-0! transform-none! rounded-full! border-0! bg-foreground!',
           // A larger target than the dot itself.
           "before:absolute before:-inset-2 before:rounded-full before:content-['']",
-          connectable && 'cursor-crosshair hover:ring-4 hover:ring-yellow-500/50',
+          connectable && 'cursor-crosshair hover:ring-4 hover:ring-foreground/30',
         )}
       />
     </div>
@@ -469,7 +464,8 @@ const DragLine = ({
     targetPosition: toPosition,
   });
   const dot = dotOf(fromHandle.id);
-  const hint = (dot === 'new' || dot === 'in') && !overCard;
+  // From the start dot too: dropped off a card, the story begins at a new node.
+  const hint = (dot === 'new' || dot === 'in' || fromHandle.id === START_HANDLE) && !overCard;
   const { width, height, gap } = NEW_NODE_HINT;
   // The new node of a choice comes below the pointer, the node of a choice into this one above.
   const top = dot === 'in' ? -height - gap : gap;
@@ -503,7 +499,7 @@ const DragLine = ({
           textAnchor='middle'
           dominantBaseline='central'
           fill='var(--muted-foreground)'
-          fontSize={11}
+          className='text-2xs'
         >
           Esc nebo pravé tlačítko zruší
         </text>
@@ -530,7 +526,7 @@ const DragLine = ({
             textAnchor='end'
             dominantBaseline='central'
             fill={DRAG_COLOR}
-            fontSize={12}
+            className='text-xs'
           >
             Nový uzel
           </text>
@@ -589,19 +585,33 @@ const pickOfEdge = (id: string): EdgePick | undefined => {
 };
 
 /**
- * The yellow line around the selected card, `outline-offset` of 3 and a width of 2 screen pixels
- * off its ring of 1: the arrows into the card clear a gap in it, as large on the screen at any zoom.
+ * The line around the selected card, `outline-offset` of 3 and a width of 1 screen pixel off its
+ * ring of 1: the arrows into the card clear a gap in it, as large on the screen at any zoom.
  */
-const SELECTED_CARD_LINE = { distance: 4, gap: 9, width: 4, scale: 'var(--zoom-out, 1)' } as const;
+const SELECTED_CARD_LINE = {
+  distance: 3.5,
+  gap: 9,
+  width: 3,
+  scale: 'var(--zoom-out, 1)',
+} as const;
 
-/** Above the nodes, the selected one too, so an arrow is drawn over the yellow line of its card. */
+/** Above the nodes, the selected one too, so an arrow is drawn over the line around its card. */
 const INTO_SELECTED_Z_INDEX = 1001;
 
-/** The labels of the raised edges, above the edges themselves, so no line strikes them through. */
-const RAISED_LABEL_Z_INDEX = 1002;
+/**
+ * The card a raised edge leaves, above that edge, so the edge goes under its dots as any edge
+ * does and no line shows through them.
+ */
+const RAISED_SOURCE_Z_INDEX = 1002;
 
-/** The selected edge: yellow like a selected card, twice as thick, over the other edges. */
-const SELECTED_COLOR = 'var(--color-yellow-500)';
+/** The labels of the raised edges, above the edges themselves, so no line strikes them through. */
+const RAISED_LABEL_Z_INDEX = 1003;
+
+/**
+ * The selected edge: in the text's color like the line around a selected card, white on the dark
+ * canvas; twice as thick, over the other edges.
+ */
+const SELECTED_COLOR = 'var(--foreground)';
 const SELECTED_STROKE = 'calc(2 * var(--xy-edge-stroke-width, 1))';
 const SELECTED_EDGE_Z_INDEX = 1000;
 const portId = (source: string, key: DotKey) => `port:${source}:${key}`;
@@ -998,15 +1008,6 @@ const Canvas = ({
 
   const cards = {
     onHeight,
-    onOpen:
-      onOpen === undefined
-        ? undefined
-        : (key: string) => {
-            const node = draft.nodes[indexOf(key)];
-            if (node !== undefined) {
-              onOpen(node.id);
-            }
-          },
     connectable: onChange !== undefined,
     editOf: onChange === undefined ? undefined : editOf,
     onAdd:
@@ -1027,6 +1028,7 @@ const Canvas = ({
               linkIn(node.id, undefined);
             }
           },
+    onStartNew: onChange === undefined || startsOf(keyed).length > 0 ? undefined : () => startNew(),
   };
 
   const measured = keyed.nodes.every((node) => {
@@ -1193,25 +1195,27 @@ const Canvas = ({
     const position = (key: string) => laidOut?.layout.nodes.get(key) ?? { x: 0, y: 0 };
     const starts = new Set(startsOf(keyed).map((node) => node.id));
     const problems = draftProblems(keyed);
-    const loose = new Set(
+    const problemsOf = new Map(
       problems.flatMap(({ id, problems: kinds }) => {
-        return id !== undefined && kinds.includes('loose') ? [id] : [];
-      }),
-    );
-    const invalid = new Set(
-      problems.flatMap(({ id }) => {
-        return id === undefined ? [] : [id];
+        return id === undefined ? [] : [[id, kinds] as const];
       }),
     );
     const indexById = new Map(draft.nodes.map((node, index) => [node.id, index]));
+    /** The edges are raised when selected or leading into a selected card; see `marked`. */
+    const raisesEdge = (source: string, index: number, target: string) =>
+      selection.edges.includes(edgeId(source, index)) || selection.nodes.includes(target);
     return [
       ...draft.nodes.map((node, index): DraftFlowNode => {
         const key = keyOf(index);
         const height = heights.get(key);
+        const raised = keyed.nodes[index]?.choices.some((choice, at) => {
+          return raisesEdge(key, at, choice.to);
+        });
         return {
           id: key,
           type: 'draft',
           position: position(key),
+          ...(raised === true ? { zIndex: RAISED_SOURCE_Z_INDEX } : {}),
           // The size measured here: React Flow keeps a node it knows the size of visible while
           // the node changes, so a field in it keeps the focus; without it, it hides the node
           // till it measures the node again.
@@ -1220,9 +1224,7 @@ const Canvas = ({
           data: {
             node,
             start: starts.has(key),
-            startClash: starts.has(key) && starts.size > 1,
-            loose: loose.has(key),
-            invalid: invalid.has(key),
+            problems: problemsOf.get(key) ?? [],
             maxHeight,
             dropTarget: key === dropTarget,
             color: tagColor(index),
@@ -1241,6 +1243,14 @@ const Canvas = ({
         type: 'initial',
         position: position(INITIAL_ID),
         measured: { width: INITIAL_SIZE, height: INITIAL_SIZE },
+        // Over its raised edges too.
+        ...(startsOf(keyed).some((node) => {
+          return (
+            selection.nodes.includes(node.id) || selection.edges.includes(initialEdgeId(node.id))
+          );
+        })
+          ? { zIndex: RAISED_SOURCE_Z_INDEX }
+          : {}),
         data: {},
         selectable: false,
       },
@@ -1256,7 +1266,18 @@ const Canvas = ({
         selectable: false,
       })),
     ];
-  }, [draft, keyed, routes, differences, laidOut, selection.nodes, maxHeight, heights, dropTarget]);
+  }, [
+    draft,
+    keyed,
+    routes,
+    differences,
+    laidOut,
+    selection.nodes,
+    selection.edges,
+    maxHeight,
+    heights,
+    dropTarget,
+  ]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);
@@ -1268,7 +1289,7 @@ const Canvas = ({
       markerEnd: ARROW_HEAD,
       data: { points: route(id)?.points ?? [], dimmed: false, smooth: smoothEdges },
     });
-    /** The selected edges in yellow, and every edge into a selected card over its line. */
+    /** The selected edges in the text's color, and every edge into a selected card over its line. */
     const marked = (edge: RouteEdge): RouteEdge => {
       const data = edge.data ?? { points: [], dimmed: false };
       const into = selection.nodes.includes(edge.target);
@@ -1540,6 +1561,19 @@ const Canvas = ({
     pending.current = key;
   };
 
+  /** A new node the start dot points at, brought to the middle, selected. */
+  const startNew = () => {
+    if (onChange === undefined) {
+      return;
+    }
+
+    const next = startInNew(draft);
+    const key = keyOf(next.draft.nodes.length - 1);
+    onChange(next.draft);
+    selectOne(key);
+    pending.current = key;
+  };
+
   const link = (source: string, dot: number | 'new', target: string | undefined) => {
     if (onChange === undefined) {
       return;
@@ -1568,9 +1602,11 @@ const Canvas = ({
     // The card pointed at last while dragging; React Flow's final `to` is not always the last one.
     const over = connection.toNode?.id ?? lastTarget.current;
     const overNode = over === undefined ? undefined : draft.nodes[indexOf(over)]?.id;
-    // The start's arrow points at a node dropped on; dropped elsewhere, nothing changes.
+    // The start's arrow points at a node dropped on; dropped elsewhere, at a new node.
     if (from === INITIAL_ID) {
-      if (overNode !== undefined && onChange !== undefined) {
+      if (overNode === undefined) {
+        startNew();
+      } else if (onChange !== undefined) {
         onChange(addStart(draft, overNode));
       }
 
@@ -1599,11 +1635,19 @@ const Canvas = ({
         <div
           ref={wrapper}
           className={cn(
-            'story-graph size-full transition-opacity duration-200',
+            // The edges' labels larger than the story graph's, to read the choices easily.
+            'story-graph relative size-full transition-opacity duration-200 [--edge-label-scale:1.4]',
             laidOut === undefined && 'opacity-0',
             className,
           )}
         >
+          {draft.nodes.length === 0 && onChange !== undefined && (
+            // A draft with no node yet says how to begin; the start dot is all there is.
+            <p className='pointer-events-none absolute inset-x-0 top-6 z-10 text-center text-sm text-muted-foreground'>
+              Koncept je prázdný. Klikněte na tečku začátku, nebo z ní táhněte do prázdna, a vznikne
+              první uzel.
+            </p>
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}

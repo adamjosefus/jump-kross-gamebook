@@ -30,6 +30,11 @@ export interface DraftNode {
   readonly choices: readonly DraftChoice[];
   /** The card's size as the author set it, for the editor only; it follows the text when missing. */
   readonly size?: DraftSize;
+  /**
+   * When the node itself last changed, as an ISO date and time in UTC: its text, note, id or
+   * choices, not the size of its card. Missing for a node not changed since the editor kept it.
+   */
+  readonly updatedAt?: string;
 }
 
 /** A card's size in pixels; a side not given follows the card's content. */
@@ -191,6 +196,14 @@ export const startsOf = (draft: Draft): readonly DraftNode[] => {
 
 /** What can be wrong with a node; the editor keeps such a draft, and shows what is wrong. */
 export type DraftProblem = 'sameLabels' | 'loose' | 'manyStarts' | 'noStart';
+
+/** What the author can do about a problem of a node, after its name. */
+export const PROBLEM_HINT: Readonly<Record<DraftProblem, string>> = {
+  sameLabels: 'Hráči tlačítka nerozliší. Přepište v detailu text jedné z voleb.',
+  loose: 'Do uzlu nevede žádná volba a není to začátek. Přetáhněte do něj šipku, nebo ho smažte.',
+  manyStarts: 'Začátek vede do víc uzlů. Nechte jen jednu šipku ze začátku.',
+  noStart: 'Přetáhněte šipku ze začátku na uzel, kde příběh začíná.',
+};
 
 /** How a problem is named to the author. */
 export const PROBLEM_TEXT: Readonly<Record<DraftProblem, string>> = {
@@ -392,20 +405,45 @@ const mermaidText = (text: string) =>
 /** Id of the start in the diagram, which no node id can be: node ids do not start with `_`. */
 const MERMAID_START = '_start';
 
+/** How much of each node a Mermaid diagram shows. */
+export type MermaidDetail = 'summaries' | 'full';
+
 /**
- * The shape of the story as a Mermaid flowchart, top to bottom: the start, the nodes by their
- * summaries, or ids without one, and the choices by their texts; the segments are left out.
+ * A node's label in the diagram: its summary, or its id without one; with `full` detail also its
+ * note in italics and the text of its segments, each segment a paragraph of its own.
  */
-export const toMermaid = (draft: Draft): string => {
+const mermaidLabel = (node: DraftNode, detail: MermaidDetail) => {
+  const summary = mermaidText(node.summary.trim() === '' ? node.id : node.summary);
+  if (detail === 'summaries') {
+    return summary;
+  }
+
+  const lines = (text: string) =>
+    text
+      .split('\n')
+      .map((line) => mermaidText(line))
+      .join('<br>');
+  return [
+    `<b>${summary}</b>`,
+    ...(node.note === undefined ? [] : [`<i>${lines(node.note)}</i>`]),
+    ...node.segments.flatMap((segment) => {
+      return segment.text.trim() === '' ? [] : [lines(segment.text.trim())];
+    }),
+  ].join('<br><br>');
+};
+
+/**
+ * The shape of the story as a Mermaid flowchart, top to bottom: the start, the nodes and the
+ * choices by their texts. A node shows its summary, or its id without one; with `full` detail
+ * also its note and the text of its segments.
+ */
+export const toMermaid = (draft: Draft, detail: MermaidDetail = 'summaries'): string => {
   const ids = new Set(draft.nodes.map((node) => node.id));
   const starts = startsOf(draft);
   return [
     'flowchart TD',
     ...(starts.length > 0 ? [`  ${MERMAID_START}([Začátek])`] : []),
-    ...draft.nodes.map((node) => {
-      const label = node.summary.trim() === '' ? node.id : node.summary;
-      return `  ${mermaidId(node.id)}["${mermaidText(label)}"]`;
-    }),
+    ...draft.nodes.map((node) => `  ${mermaidId(node.id)}["${mermaidLabel(node, detail)}"]`),
     ...starts.map((node) => `  ${MERMAID_START} --> ${mermaidId(node.id)}`),
     ...draft.nodes.flatMap((node) =>
       node.choices.flatMap((choice) => {

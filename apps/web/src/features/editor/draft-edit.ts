@@ -41,6 +41,19 @@ export const addStart = (draft: Draft, id: string): Draft => {
   return withStarts(draft, [...ids, id]);
 };
 
+/** The draft with a new empty node the start dot points at; the new node's id with it. */
+export const startInNew = (draft: Draft): { readonly draft: Draft; readonly target: string } => {
+  const id = draftNodeId(
+    '',
+    new Set(
+      draft.nodes.map((node) => {
+        return node.id;
+      }),
+    ),
+  );
+  return { draft: addStart({ ...draft, nodes: [...draft.nodes, emptyNode(id)] }, id), target: id };
+};
+
 /** The draft with the start dot no longer pointing at the node `id`. */
 export const removeStart = (draft: Draft, id: string): Draft =>
   withStarts(
@@ -342,6 +355,14 @@ const parseNode = (value: unknown): DraftNode | undefined => {
     return undefined;
   }
 
+  const { updatedAt } = value;
+  if (
+    updatedAt !== undefined &&
+    (typeof updatedAt !== 'string' || Number.isNaN(Date.parse(updatedAt)))
+  ) {
+    return undefined;
+  }
+
   return {
     id: value['id'],
     summary: value['summary'],
@@ -349,6 +370,7 @@ const parseNode = (value: unknown): DraftNode | undefined => {
     segments,
     choices,
     ...(size === undefined ? {} : { size }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
   };
 };
 
@@ -371,10 +393,15 @@ export const parseDraft = (value: unknown): Draft | undefined => {
     return undefined;
   }
 
+  // A time of the draft's last change, kept by older files, is left out: the nodes keep theirs.
   const starts = value['starts'];
   // A draft from before the start was kept gets it written out, so it stays where it is.
   if (starts === undefined) {
-    return { version: 1, starts: startsOf({ version: 1, nodes }).map((node) => node.id), nodes };
+    return {
+      version: 1,
+      starts: startsOf({ version: 1, nodes }).map((node) => node.id),
+      nodes,
+    };
   }
 
   if (!Array.isArray(starts) || !starts.every((id) => typeof id === 'string')) {
@@ -404,4 +431,44 @@ export const removeAll = (draft: Draft, removal: Removal): Draft => {
     withoutChoices,
   );
   return removal.nodes.reduce((current, id) => removeNode(current, id), withoutStarts);
+};
+
+/** The draft as its file has it, the editor's save and its download alike, its keys in order. */
+export const draftForFile = (draft: Draft): Draft => ({
+  version: 1,
+  ...(draft.starts === undefined ? {} : { starts: draft.starts }),
+  nodes: draft.nodes,
+});
+
+/** The text of the draft's file, as the dev server writes it. */
+export const draftFileText = (draft: Draft) => `${JSON.stringify(draftForFile(draft), null, 2)}\n`;
+
+/** What of a node counts as a change of it: all but the size of its card and the time itself. */
+const contentOf = ({ size: _size, updatedAt: _updatedAt, ...content }: DraftNode) =>
+  JSON.stringify(content);
+
+/**
+ * The draft `next` with `at` as the time of the last change of every node changed since
+ * `previous`: one with another text, note, id or choices, or a new one. A node is matched by its
+ * id, or, renamed, by its place. The same draft when no node changed.
+ */
+export const stampChanges = (previous: Draft, next: Draft, at: string): Draft => {
+  const before = new Map(previous.nodes.map((node) => [node.id, node]));
+  const nodes = next.nodes.map((node, index) => {
+    const old = before.get(node.id) ?? previous.nodes[index];
+    if (old !== undefined && contentOf(old) === contentOf(node)) {
+      return node;
+    }
+
+    return { ...node, updatedAt: at };
+  });
+  if (
+    nodes.every((node, index) => {
+      return node === next.nodes[index];
+    })
+  ) {
+    return next;
+  }
+
+  return { ...next, nodes };
 };

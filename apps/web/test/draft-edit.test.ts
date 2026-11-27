@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { Draft } from '@/features/editor/draft';
 import {
   addStart,
+  startInNew,
+  draftFileText,
   EMPTY_DRAFT,
   fitAllSizes,
   linkChoice,
@@ -15,6 +17,7 @@ import {
   removeStart,
   renameNode,
   setSize,
+  stampChanges,
   updateNode,
 } from '@/features/editor/draft-edit';
 import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
@@ -140,11 +143,53 @@ describe('editing a draft', () => {
   });
 });
 
+describe('stampChanges', () => {
+  const at = '2026-11-27T18:04:05.000Z';
+
+  it('stamps the nodes changed or added, and leaves the others', () => {
+    const changed = updateNode(draft, 'b', (node) => ({ ...node, summary: 'Bé' }));
+    const stamped = stampChanges(draft, changed, at);
+    expect(stamped.nodes.map((node) => node.updatedAt)).toEqual([undefined, at, undefined]);
+    const drawn = linkChoice(draft, 'c', 'new').draft;
+    expect(stampChanges(draft, drawn, at).nodes.map((node) => node.updatedAt)).toEqual([
+      undefined,
+      undefined,
+      at,
+      at,
+    ]);
+  });
+
+  it('takes a renamed node for the same node, and a resized card for no change', () => {
+    const renamed = stampChanges(draft, renameNode(draft, 'c', 'konec'), at);
+    expect(renamed.nodes.map((node) => node.updatedAt)).toEqual([at, undefined, at]);
+    const sized = setSize(draft, 'a', { width: 400 });
+    expect(stampChanges(draft, sized, at)).toBe(sized);
+  });
+});
+
 describe('parseDraft', () => {
   it('reads back a draft written as JSON', () => {
     expect(parseDraft(JSON.parse(JSON.stringify(SAMPLE_DRAFT)))).toEqual(SAMPLE_DRAFT);
     const sized = setSize(SAMPLE_DRAFT, 'vecere', { width: 420, height: 300 });
     expect(parseDraft(JSON.parse(JSON.stringify(sized)))).toEqual(sized);
+  });
+
+  it('reads the time of the last change of a node', () => {
+    const at = '2026-11-27T18:04:05.000Z';
+    const stamped = { ...SAMPLE_DRAFT, nodes: [{ ...SAMPLE_DRAFT.nodes[0], updatedAt: at }] };
+    expect(parseDraft(JSON.parse(JSON.stringify(stamped)))?.nodes[0]?.updatedAt).toBe(at);
+  });
+
+  it('leaves out the time of the last change of the whole draft an older file keeps', () => {
+    const older = { ...SAMPLE_DRAFT, updatedAt: '2026-11-27T17:04:05.000Z' };
+    expect(parseDraft(older)).toEqual(SAMPLE_DRAFT);
+  });
+
+  it('writes the file with its keys in order, the version first', () => {
+    const text = draftFileText(SAMPLE_DRAFT);
+    expect(Object.keys(JSON.parse(text))).toEqual(['version', 'starts', 'nodes']);
+    expect(text.endsWith('}\n')).toBe(true);
+    expect(parseDraft(JSON.parse(text))).toEqual(SAMPLE_DRAFT);
   });
 
   it('writes out the start of a draft from before it was kept', () => {
@@ -166,5 +211,14 @@ describe('parseDraft', () => {
     expect(parseDraft({ version: 1, nodes: [node, node] })).toBeUndefined();
     expect(parseDraft({ version: 1, nodes: [{ ...node, size: { width: -1 } }] })).toBeUndefined();
     expect(parseDraft({ version: 1, nodes: [{ ...node, size: 'big' }] })).toBeUndefined();
+  });
+});
+
+describe('startInNew', () => {
+  it('begins an empty draft at a new node', () => {
+    const empty: Draft = { version: 1, starts: [], nodes: [] };
+    const begun = startInNew(empty);
+    expect(begun.draft.nodes.map((node) => node.id)).toEqual([begun.target]);
+    expect(begun.draft.starts).toEqual([begun.target]);
   });
 });

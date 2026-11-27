@@ -196,16 +196,17 @@ export const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) 
         <EdgeLabelRenderer>
           <div
             className={cn(
-              'pointer-events-none absolute overflow-hidden rounded bg-(--graph-canvas) px-1 text-center text-[11px] whitespace-pre text-foreground',
+              'pointer-events-none absolute overflow-hidden rounded bg-(--graph-canvas) px-1 text-center text-2xs whitespace-pre text-foreground',
               data.dimmed && 'opacity-30',
             )}
             style={{
               lineHeight: `${LABEL_LINE_HEIGHT}px`,
               color: data.color,
               // Moved by `translate` so `scale` keeps it in place: a canvas that sets `--zoom-out`
-              // to one over the zoom keeps its labels as large on the screen at any zoom.
+              // to one over the zoom keeps its labels as large on the screen at any zoom, and
+              // `--edge-label-scale` makes them larger than the room laid out for them.
               translate: `${label.x}px ${label.y}px`,
-              scale: 'var(--zoom-out, 1)',
+              scale: 'calc(var(--zoom-out, 1) * var(--edge-label-scale, 1))',
               ...(data.labelZIndex === undefined ? {} : { zIndex: data.labelZIndex }),
               width: label.width,
               height: label.height,

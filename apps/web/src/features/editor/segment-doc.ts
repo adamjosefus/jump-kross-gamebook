@@ -4,23 +4,20 @@ import type { DraftSegment } from './draft';
 
 /**
  * The segments of a node as one text, the way the segment editor holds them. Every segment starts
- * with a divider line, `===` followed by its theme (none for the default one), then its notes as
- * lines starting with `//`, then its markdown:
+ * with a divider line, `===` followed by its theme (none for the default one), then its markdown:
  *
  * ```
  * ===
  * Voní to tu čerstvým chlebem.
  * === red
- * // the baker is angry here
  * „Ven!“
  * ```
+ *
+ * The segments' notes are no part of the text; the editor keeps them by their dividers.
  */
 
 /** A divider line: `===`, optionally followed by a theme. */
 const DIVIDER = /^===(?:[ \t]+(\S+))?[ \t]*$/;
-
-/** A line of a segment's note. */
-const NOTE = /^\/\/ ?(.*)$/;
 
 const THEME_NAMES: ReadonlySet<string> = new Set(THEMES);
 
@@ -48,9 +45,6 @@ export const dividerTheme = (line: string): Theme | undefined => {
   return name;
 };
 
-/** Whether a line is a note of its segment. */
-export const isNoteLine = (line: string): boolean => NOTE.test(line);
-
 /** Blank lines at the start and the end are not part of the text. */
 const trimLines = (lines: readonly string[]): string =>
   lines
@@ -58,42 +52,32 @@ const trimLines = (lines: readonly string[]): string =>
     .replace(/^\s*\n/, '')
     .trimEnd();
 
-/** The editor's text of these segments. */
+/** The editor's text of these segments, without their notes. */
 export const segmentsToDoc = (segments: readonly DraftSegment[]): string =>
   segments
     .map((segment) => {
-      const notes = (segment.note ?? '')
-        .split('\n')
-        .filter((line) => {
-          return line !== '';
-        })
-        .map((line) => {
-          return `// ${line}`;
-        });
-      return [
-        dividerLine(segment.theme),
-        ...notes,
-        // An empty segment keeps an empty line to write in.
-        segment.text,
-      ].join('\n');
+      // An empty segment keeps an empty line to write in.
+      return `${dividerLine(segment.theme)}\n${segment.text}`;
     })
     .join('\n');
 
 /**
- * The segments of the editor's text. Text before the first divider is a segment of its own; notes
- * are gathered wherever in the segment they are. A node always keeps at least one segment.
+ * The segments of the editor's text, with `notes` in the order of the segments. Text before the
+ * first divider is a segment of its own. A node always keeps at least one segment.
  */
-export const docToSegments = (doc: string): readonly DraftSegment[] => {
+export const docToSegments = (
+  doc: string,
+  notes: readonly (string | undefined)[] = [],
+): readonly DraftSegment[] => {
   interface Open {
     readonly theme: Theme | undefined;
     readonly lines: string[];
-    readonly notes: string[];
   }
 
   const open: Open[] = [];
   for (const line of doc.split('\n')) {
     if (isDivider(line)) {
-      open.push({ theme: dividerTheme(line), lines: [], notes: [] });
+      open.push({ theme: dividerTheme(line), lines: [] });
       continue;
     }
 
@@ -103,28 +87,24 @@ export const docToSegments = (doc: string): readonly DraftSegment[] => {
         continue;
       }
 
-      open.push({ theme: undefined, lines: [], notes: [] });
+      open.push({ theme: undefined, lines: [] });
     }
 
-    const segment = open.at(-1)!;
-    const note = NOTE.exec(line);
-    if (note === null) {
-      segment.lines.push(line);
-    } else {
-      segment.notes.push(note[1]!);
-    }
+    open.at(-1)!.lines.push(line);
   }
 
   if (open.length === 0) {
-    return [{ text: '' }];
+    const note = notes[0];
+    return [{ text: '', ...(note === undefined || note.trim() === '' ? {} : { note }) }];
   }
 
-  return open.map((segment) => {
-    const note = trimLines(segment.notes);
+  return open.map((segment, index) => {
+    // Kept as written, a space at its end too, so a note being written is not cut under the pen.
+    const note = notes[index] ?? '';
     return {
       ...(segment.theme === undefined ? {} : { theme: segment.theme }),
       text: trimLines(segment.lines),
-      ...(note === '' ? {} : { note }),
+      ...(note.trim() === '' ? {} : { note }),
     };
   });
 };

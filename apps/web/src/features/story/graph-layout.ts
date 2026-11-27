@@ -123,7 +123,7 @@ export const labelSize = (text: string, icon = true) => {
   const lines = labelLines(text);
   return {
     width:
-      Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) +
+      Math.ceil(Math.max(...lines.map((line) => line.length)) * 7) +
       (icon ? LABEL_ICON_ROOM : LABEL_PADDING),
     height: LABEL_LINE_HEIGHT * lines.length,
   };

@@ -1,28 +1,40 @@
 import {
   IconAlertTriangle,
-  IconArrowAutofitContent,
+  IconArrowsDiagonalMinimize2,
   IconArrowBackUp,
   IconArrowForwardUp,
   IconChevronDown,
-  IconCopy,
+  IconBraces,
+  IconDownload,
+  IconFileText,
+  IconSchema,
   IconLoader2,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { saveBlob } from '@/features/admin/download';
 
 import { draftProblems, PROBLEM_TEXT, toMermaid, type Draft, type NodeProblems } from './draft';
 import { DraftCanvas, type DraftCanvasHandle } from './draft-canvas';
-import { EMPTY_DRAFT, fitAllSizes, parseDraft } from './draft-edit';
+import {
+  draftFileText,
+  draftForFile,
+  EMPTY_DRAFT,
+  fitAllSizes,
+  parseDraft,
+  stampChanges,
+} from './draft-edit';
 import { historyReducer, startHistory } from './draft-history';
 import {
   EDGE_STYLE_TEXT,
@@ -74,7 +86,7 @@ const saveDraft = async (draft: Draft, keepalive = false) => {
   const response = await fetch(DRAFT_URL, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(draft),
+    body: JSON.stringify(draftForFile(draft)),
     keepalive,
   });
   if (!response.ok) {
@@ -191,6 +203,65 @@ const Picker = <T extends string>({
   </DropdownMenu>
 );
 
+/** Downloads a text file. */
+const download = (text: string, name: string, type: string) => {
+  saveBlob(new Blob([text], { type }), name);
+};
+
+/**
+ * The draft for use outside the editor: as Mermaid diagrams, of the summaries only or of the whole
+ * text, or as its own file, the one the editor saves.
+ */
+const ExportMenu = ({ draft }: { readonly draft: Draft }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant='ghost' size='sm'>
+        <IconDownload /> Export <IconChevronDown className='opacity-60' />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align='end' className='w-72'>
+      <DropdownMenuItem
+        onSelect={() => {
+          download(toMermaid(draft, 'summaries'), 'story-draft.mmd', 'text/vnd.mermaid');
+        }}
+      >
+        <IconSchema />
+        <span className='flex flex-col'>
+          Mermaid: shrnutí
+          <span className='text-xs text-muted-foreground'>Uzly jen se shrnutím, volby s texty</span>
+        </span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onSelect={() => {
+          download(toMermaid(draft, 'full'), 'story-draft-full.mmd', 'text/vnd.mermaid');
+        }}
+      >
+        <IconFileText />
+        <span className='flex flex-col'>
+          Mermaid: celý obsah
+          <span className='text-xs text-muted-foreground'>
+            Uzly se shrnutím, poznámkou a textem segmentů
+          </span>
+        </span>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onSelect={() => {
+          download(draftFileText(draft), 'story-draft.json', 'application/json');
+        }}
+      >
+        <IconBraces />
+        <span className='flex flex-col'>
+          Koncept (JSON)
+          <span className='text-xs text-muted-foreground'>
+            Jako {DRAFT_PATH.split('/').at(-1)}, s časem změny každého uzlu
+          </span>
+        </span>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
 /** „1 problém“, „3 problémy“, „5 problémů“. */
 const problemsText = (count: number) => {
   if (count === 1) {
@@ -223,10 +294,10 @@ const ProblemsIndicator = ({
     })
     .join('\n');
   return (
+    // Solid red, so a problem is not missed among the quiet tools around.
     <Button
-      variant='ghost'
       size='sm'
-      className='text-destructive hover:text-destructive'
+      className='bg-destructive font-semibold text-white hover:bg-destructive/85'
       title={`Ukázat první uzel s problémem.\n\n${list}`}
       onClick={() => {
         // A problem of the whole draft has no node to show.
@@ -257,7 +328,8 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
   const change = (next: Draft, field?: string) => {
     dispatch({
       type: 'change',
-      draft: next,
+      // Each node changed keeps when; a redo or an undo brings back the times it had.
+      draft: stampChanges(draft, next, new Date().toISOString()),
       ...(field === undefined ? {} : { field }),
       at: Date.now(),
     });
@@ -328,19 +400,7 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
             }}
           />
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
-          <Button
-            variant='ghost'
-            size='sm'
-            title='Zkopírovat tvar příběhu jako diagram Mermaid: uzly se shrnutím a volby s texty'
-            onClick={() => {
-              navigator.clipboard.writeText(toMermaid(draft)).then(
-                () => toast.success('Graf je ve schránce jako Mermaid.'),
-                () => toast.error('Graf se nepodařilo zkopírovat.'),
-              );
-            }}
-          >
-            <IconCopy /> Mermaid
-          </Button>
+          <ExportMenu draft={draft} />
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
           <Button
             variant='ghost'
@@ -351,7 +411,7 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
             }}
             title='Vrátit všem kartám velikost podle obsahu, jako dvojklik na roh každé karty'
           >
-            <IconArrowAutofitContent /> Velikost podle obsahu
+            <IconArrowsDiagonalMinimize2 /> Reset velikosti bodů
           </Button>
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
           <Button
