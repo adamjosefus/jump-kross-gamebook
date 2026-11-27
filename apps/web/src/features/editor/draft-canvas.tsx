@@ -175,7 +175,8 @@ const edgeTypes = { route: RouteEdgeView } as const;
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
 const portId = (source: string, index: number) => `port:${source}:${index}`;
-const entryId = (target: string) => `entry:${target}`;
+/** Every edge enters its card at a point of its own, so the arrows never end on each other. */
+const entryId = (edge: string) => `entry:${edge}`;
 
 /** The text an edge shows: the button's, or „Další“ for the plain arrow. */
 const edgeText = (label: string) => (label === '' ? NEXT_LABEL : label);
@@ -190,22 +191,57 @@ const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
     ]),
   );
 
+/** Room between the points where the edges enter a card; less when many lead in. */
+const ENTRY_GAP = 16;
+
+/** The ids of the edges into each node, in the order of the nodes and their choices. */
+const incomingEdges = (draft: Draft) => {
+  const into = new Map<string, string[]>();
+  for (const node of draft.nodes) {
+    for (const [index, choice] of node.choices.entries()) {
+      into.set(choice.to, [...(into.get(choice.to) ?? []), edgeId(node.id, index)]);
+    }
+  }
+
+  return into;
+};
+
+/**
+ * Where the edges into a card enter its top, from the left: they line up leftwards from near its
+ * right corner, the side the choices leave from, as many as fit.
+ */
+const entryXs = (count: number): readonly number[] => {
+  const gap = Math.min(ENTRY_GAP, (CARD_WIDTH - 2 * ENTRY_FROM_RIGHT) / Math.max(1, count - 1));
+  return Array.from({ length: count }, (_, index) => {
+    return CARD_WIDTH - ENTRY_FROM_RIGHT - (count - 1 - index) * gap;
+  });
+};
+
 /**
  * Top to bottom, with the edges leaving at the choices' dots on the right and entering the next
- * card from above; a node is laid out as early as the nodes leading to it allow.
+ * card from above, each at a point of its own; `into` gives their order from the left. A node is
+ * laid out as early as the nodes leading to it allow.
  */
-const layoutDraft = (draft: Draft, heights: ReadonlyMap<string, number>) =>
+const layoutPass = (
+  draft: Draft,
+  heights: ReadonlyMap<string, number>,
+  into: ReadonlyMap<string, readonly string[]>,
+) =>
   layoutBoxes({
     direction: 'DOWN',
     options: { 'elk.layered.layering.strategy': 'LONGEST_PATH_SOURCE' },
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
+      const entries = into.get(node.id) ?? [];
+      const xs = entryXs(entries.length);
       return {
         id: node.id,
         width: CARD_WIDTH,
         height,
         ports: [
-          { id: entryId(node.id), x: CARD_WIDTH - ENTRY_FROM_RIGHT, y: 0, side: 'NORTH' as const },
+          ...entries.map((edge, index) => {
+            return { id: entryId(edge), x: xs[index]!, y: 0, side: 'NORTH' as const };
+          }),
           ...node.choices.map((_choice, index) => {
             return {
               id: portId(node.id, index),
@@ -218,18 +254,48 @@ const layoutDraft = (draft: Draft, heights: ReadonlyMap<string, number>) =>
       };
     }),
     edges: draft.nodes.flatMap((node) =>
-      node.choices.map((choice, index) => ({
-        id: edgeId(node.id, index),
-        source: node.id,
-        target: choice.to,
-        sourcePort: portId(node.id, index),
-        targetPort: entryId(choice.to),
-        label: edgeText(choice.label),
-      })),
+      node.choices.map((choice, index) => {
+        const id = edgeId(node.id, index);
+        return {
+          id,
+          source: node.id,
+          target: choice.to,
+          sourcePort: portId(node.id, index),
+          targetPort: entryId(id),
+          label: edgeText(choice.label),
+        };
+      }),
     ),
     initial: startsOf(draft).map((node) => node.id),
     final: endsOf(draft).map((node) => node.id),
   });
+
+/**
+ * Laid out twice: the second time the edges enter each card in the order their routes came in
+ * the first time, from the left, so they do not cross right above the card.
+ */
+const layoutDraft = async (draft: Draft, heights: ReadonlyMap<string, number>) => {
+  const into = incomingEdges(draft);
+  const first = await layoutPass(draft, heights, into);
+  // Where a route comes from sideways: the last route ends straight down into the card, so the
+  // point before its last bend; its start when it has no bends.
+  const comesFrom = (edge: string) => {
+    const points = first.edges.get(edge)?.points ?? [];
+    return points.at(-3)?.x ?? points[0]?.x ?? 0;
+  };
+
+  const sorted = new Map(
+    [...into].map(([target, edges]) => {
+      return [
+        target,
+        edges.toSorted((left, right) => {
+          return comesFrom(left) - comesFrom(right);
+        }),
+      ] as const;
+    }),
+  );
+  return layoutPass(draft, heights, sorted);
+};
 
 /** The point on the screen where a drag ended. */
 const pointOf = (event: MouseEvent | TouchEvent) => {
