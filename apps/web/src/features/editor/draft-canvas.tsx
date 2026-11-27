@@ -30,7 +30,6 @@ import {
   FinalDot,
   InitialDot,
   RouteEdgeView,
-  type FinalFlowNode,
   type InitialFlowNode,
   type RouteEdge,
 } from '@/features/story/graph-edges';
@@ -47,7 +46,16 @@ import {
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-import { draftNodeId, endsOf, startsOf, type Draft, type DraftNode } from './draft';
+import {
+  draftNodeId,
+  endsOf,
+  routesTo,
+  startsOf,
+  type Draft,
+  type DraftNode,
+  type Range,
+  type RoutesToEnd,
+} from './draft';
 import {
   linkChoice,
   moveChoice,
@@ -205,7 +213,41 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
   );
 };
 
-const nodeTypes = { draft: DraftFlowCard, initial: InitialDot, final: FinalDot } as const;
+/** A number of a range: one when the ways do not differ, else the shortest and the longest. */
+const rangeText = ({ min, max }: Range) => {
+  const number = (value: number) => value.toLocaleString('cs-CZ');
+  return min === max ? number(min) : `${number(min)}–${number(max)}`;
+};
+
+/** The Czech word after a number, e.g. „1 krok“, „3 kroky“, „5 kroků“. */
+const counted = (count: number, one: string, few: string, many: string) => {
+  if (count === 1) {
+    return one;
+  }
+
+  return count >= 2 && count <= 4 ? few : many;
+};
+
+type EndFlowNode = Node<{ readonly routes: RoutesToEnd | undefined }, 'final'>;
+
+/** An end ring with how long the ways to the end are: in nodes, and in text to read. */
+const EndRing = ({ data: { routes } }: NodeProps<EndFlowNode>) => (
+  <>
+    <FinalDot />
+    {routes !== undefined && (
+      <div className='pointer-events-none absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'>
+        <div>
+          {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
+        </div>
+        <div>
+          {rangeText(routes.characters)} {counted(routes.characters.max, 'znak', 'znaky', 'znaků')}
+        </div>
+      </div>
+    )}
+  </>
+);
+
+const nodeTypes = { draft: DraftFlowCard, initial: InitialDot, final: EndRing } as const;
 const edgeTypes = { route: RouteEdgeView } as const;
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
@@ -427,6 +469,11 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   );
 
   const keyed = useMemo(() => keyedDraft(draft), [draft]);
+  /** How long the ways to each end are; measured again only when the draft changes. */
+  const routes = useMemo(
+    () => new Map(endsOf(keyed).map((node) => [node.id, routesTo(keyed, node.id)])),
+    [keyed],
+  );
   /** Where a new edge being dragged out points now, on the canvas. */
   const dragging = useConnection((connection) =>
     connection.inProgress ? connection.to : undefined,
@@ -626,7 +673,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   }, [laidOut, center, flow]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
-  const nodes = useMemo<(DraftFlowNode | InitialFlowNode | FinalFlowNode)[]>(() => {
+  const nodes = useMemo<(DraftFlowNode | InitialFlowNode | EndFlowNode)[]>(() => {
     const position = (key: string) => laidOut?.layout.nodes.get(key) ?? { x: 0, y: 0 };
     const starts = new Set(startsOf(keyed).map((node) => node.id));
     return [
@@ -653,16 +700,16 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         data: {},
         selectable: false,
       },
-      ...endsOf(keyed).map((node): FinalFlowNode => ({
+      ...endsOf(keyed).map((node): EndFlowNode => ({
         id: finalRingId(node.id),
         type: 'final',
         position: position(finalRingId(node.id)),
         measured: { width: FINAL_SIZE, height: FINAL_SIZE },
-        data: {},
+        data: { routes: routes.get(node.id) },
         selectable: false,
       })),
     ];
-  }, [draft, keyed, laidOut, selected, maxHeight, heights, dropTarget]);
+  }, [draft, keyed, routes, laidOut, selected, maxHeight, heights, dropTarget]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { draftNodeId, endsOf, incoming, startsOf, type Draft } from '@/features/editor/draft';
+import {
+  draftNodeId,
+  endsOf,
+  incoming,
+  routesTo,
+  startsOf,
+  type Draft,
+} from '@/features/editor/draft';
 import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
 
 describe('draftNodeId', () => {
@@ -70,5 +77,59 @@ describe('the shape of a draft', () => {
     const ids = new Set(SAMPLE_DRAFT.nodes.map((node) => node.id));
     const targets = SAMPLE_DRAFT.nodes.flatMap((node) => node.choices.map((choice) => choice.to));
     expect(targets.filter((target) => !ids.has(target))).toEqual([]);
+  });
+});
+
+describe('routesTo', () => {
+  const text = (length: number) => [{ text: 'x'.repeat(length) }];
+  const draft: Draft = {
+    version: 1,
+    nodes: [
+      {
+        id: 'a',
+        summary: '',
+        segments: text(10),
+        choices: [
+          { label: 'Krátce', to: 'end' },
+          { label: 'Oklikou', to: 'b' },
+        ],
+      },
+      {
+        id: 'b',
+        summary: '',
+        segments: [{ text: 'xx' }, { text: 'yyy' }],
+        choices: [
+          { label: 'Znovu', to: 'b' },
+          { label: 'Dál', to: 'end' },
+        ],
+      },
+      { id: 'end', summary: '', segments: text(1), choices: [] },
+      { id: 'lost', summary: '', segments: text(1), choices: [] },
+      { id: 'island', summary: '', segments: text(1), choices: [{ label: '', to: 'island_2' }] },
+      { id: 'island_2', summary: '', segments: text(1), choices: [{ label: '', to: 'island' }] },
+    ],
+  };
+
+  it('measures the shortest and the longest way, each node once, in nodes and text', () => {
+    // a → end, or a → b → end; going round b again does not make a way of its own.
+    expect(routesTo(draft, 'end')).toEqual({
+      steps: { min: 2, max: 3 },
+      characters: { min: 11, max: 16 },
+    });
+  });
+
+  it('counts a start that is an end too', () => {
+    expect(routesTo(draft, 'lost')).toEqual({
+      steps: { min: 1, max: 1 },
+      characters: { min: 1, max: 1 },
+    });
+  });
+
+  it('gives nothing for a node no start leads to', () => {
+    expect(routesTo(draft, 'island')).toBeUndefined();
+  });
+
+  it('holds for the sample draft: through either shop, with or without the neighbours', () => {
+    expect(routesTo(SAMPLE_DRAFT, 'konec_hry')?.steps).toEqual({ min: 6, max: 8 });
   });
 });

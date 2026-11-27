@@ -125,3 +125,83 @@ export const endsOf = (draft: Draft): readonly DraftNode[] =>
   draft.nodes.filter((node) => {
     return node.choices.length === 0;
   });
+
+/** The smallest and the largest of some numbers. */
+export interface Range {
+  readonly min: number;
+  readonly max: number;
+}
+
+/** How long the ways to an end are: in nodes, start and end included, and in segment text. */
+export interface RoutesToEnd {
+  readonly steps: Range;
+  /** Characters of the segments' text the players read on the way, the end's included. */
+  readonly characters: Range;
+}
+
+/** Most ways walked to one end; a draft branching more than that is measured by the first ones. */
+const ROUTE_LIMIT = 10_000;
+
+/**
+ * How long the ways from the starts to the node `end` are, each node at most once on a way, so a
+ * choice back does not make a way endless. `undefined` when no start leads there.
+ */
+export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => {
+  const nodes = new Map(draft.nodes.map((node) => [node.id, node]));
+  // Only the nodes the end can be reached from are worth walking through.
+  const leading = new Set([end]);
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const node of draft.nodes) {
+      if (
+        !leading.has(node.id) &&
+        node.choices.some((choice) => {
+          return leading.has(choice.to);
+        })
+      ) {
+        leading.add(node.id);
+        grown = true;
+      }
+    }
+  }
+
+  const characters = (node: DraftNode) =>
+    node.segments.reduce((sum, segment) => {
+      return sum + segment.text.length;
+    }, 0);
+  const steps: number[] = [];
+  const texts: number[] = [];
+  const walk = (node: DraftNode, on: ReadonlySet<string>, length: number, text: number) => {
+    if (steps.length >= ROUTE_LIMIT) {
+      return;
+    }
+
+    if (node.id === end) {
+      steps.push(length);
+      texts.push(text);
+      return;
+    }
+
+    for (const choice of node.choices) {
+      const next = nodes.get(choice.to);
+      if (next !== undefined && leading.has(next.id) && !on.has(next.id)) {
+        walk(next, new Set([...on, next.id]), length + 1, text + characters(next));
+      }
+    }
+  };
+
+  for (const start of startsOf(draft)) {
+    if (leading.has(start.id)) {
+      walk(start, new Set([start.id]), 1, characters(start));
+    }
+  }
+
+  if (steps.length === 0) {
+    return undefined;
+  }
+
+  return {
+    steps: { min: Math.min(...steps), max: Math.max(...steps) },
+    characters: { min: Math.min(...texts), max: Math.max(...texts) },
+  };
+};
