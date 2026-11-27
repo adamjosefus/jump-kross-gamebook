@@ -1,8 +1,14 @@
-/** Looks of a node's color: its id's tag, and the dots of the choices leading to it. */
+/**
+ * Looks of a node's color, the same in both places: a light background, dark text and an outline
+ * in the full color, for contrast on the card and on the canvas alike.
+ */
 export interface TagColor {
   /** The tag with the node's id. */
   readonly tag: string;
-  /** A choice's dot; `!` wins over React Flow's own look of a handle. */
+  /**
+   * A choice's dot leading to the node: the same classes with `!`, which wins over React Flow's
+   * own look of a handle. Written out whole, so that Tailwind finds them.
+   */
   readonly dot: string;
 }
 
@@ -11,15 +17,42 @@ export interface TagColor {
  * their order in the draft, so a node keeps its color while its id follows the summary.
  */
 export const TAG_COLORS: readonly TagColor[] = [
-  { tag: 'bg-red-500/15 text-red-700 dark:text-red-300', dot: 'bg-red-500!' },
-  { tag: 'bg-orange-500/15 text-orange-700 dark:text-orange-300', dot: 'bg-orange-500!' },
-  { tag: 'bg-amber-500/20 text-amber-800 dark:text-amber-300', dot: 'bg-amber-500!' },
-  { tag: 'bg-lime-500/20 text-lime-800 dark:text-lime-300', dot: 'bg-lime-600!' },
-  { tag: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500!' },
-  { tag: 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300', dot: 'bg-cyan-500!' },
-  { tag: 'bg-blue-500/15 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500!' },
-  { tag: 'bg-violet-500/15 text-violet-700 dark:text-violet-300', dot: 'bg-violet-500!' },
-  { tag: 'bg-pink-500/15 text-pink-700 dark:text-pink-300', dot: 'bg-pink-500!' },
+  {
+    tag: 'border-red-500 bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
+    dot: 'border-red-500! bg-red-100! text-red-800! dark:bg-red-950! dark:text-red-200!',
+  },
+  {
+    tag: 'border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200',
+    dot: 'border-orange-500! bg-orange-100! text-orange-800! dark:bg-orange-950! dark:text-orange-200!',
+  },
+  {
+    tag: 'border-amber-500 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
+    dot: 'border-amber-500! bg-amber-100! text-amber-800! dark:bg-amber-950! dark:text-amber-200!',
+  },
+  {
+    tag: 'border-lime-600 bg-lime-100 text-lime-800 dark:bg-lime-950 dark:text-lime-200',
+    dot: 'border-lime-600! bg-lime-100! text-lime-800! dark:bg-lime-950! dark:text-lime-200!',
+  },
+  {
+    tag: 'border-emerald-500 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
+    dot: 'border-emerald-500! bg-emerald-100! text-emerald-800! dark:bg-emerald-950! dark:text-emerald-200!',
+  },
+  {
+    tag: 'border-cyan-500 bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-200',
+    dot: 'border-cyan-500! bg-cyan-100! text-cyan-800! dark:bg-cyan-950! dark:text-cyan-200!',
+  },
+  {
+    tag: 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200',
+    dot: 'border-blue-500! bg-blue-100! text-blue-800! dark:bg-blue-950! dark:text-blue-200!',
+  },
+  {
+    tag: 'border-violet-500 bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200',
+    dot: 'border-violet-500! bg-violet-100! text-violet-800! dark:bg-violet-950! dark:text-violet-200!',
+  },
+  {
+    tag: 'border-pink-500 bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-200',
+    dot: 'border-pink-500! bg-pink-100! text-pink-800! dark:bg-pink-950! dark:text-pink-200!',
+  },
 ];
 
 /** The color of the node at `index` in the draft. */
