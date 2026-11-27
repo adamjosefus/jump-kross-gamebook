@@ -163,8 +163,8 @@ const dotOfCard = (dot: DotKey, x: number) => <DotHandle dot={dot} x={x} />;
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
   const far = useStore((state) => state.transform[2] < FAR_ZOOM);
   const { onHeight, onOpen, connectable, editOf } = use(CardContext);
-  // Written in only close up: from afar the summary covers the card.
-  const edit = selected && !far ? editOf?.(id) : undefined;
+  // Written in right away; from afar the summary covers the card and takes the clicks.
+  const edit = editOf?.(id);
   const card = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {

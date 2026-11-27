@@ -1,16 +1,13 @@
 import {
-  IconArrowRight,
   IconArrowsMaximize,
   IconChevronDown,
   IconChevronUp,
-  IconNote,
   IconPlus,
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
 import { Fragment, useRef, useState, type ReactNode, type Ref } from 'react';
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 import type { DraftChoice, DraftNode, DraftSegment } from './draft';
@@ -84,28 +81,7 @@ const ChoiceNumber = ({ children }: { readonly children: ReactNode }) => (
   </span>
 );
 
-/** A choice as a button the players see: its text, or the plain arrow. */
-const ChoiceRow = ({ choice, index }: { readonly choice: DraftChoice; readonly index: number }) => (
-  <div className='flex items-center gap-1.5 px-3' style={{ height: CHOICE_ROW }}>
-    <ChoiceNumber>{dotText(index)}</ChoiceNumber>
-    <div
-      className={cn(
-        'min-w-0 flex-1 truncate rounded-md border bg-background px-2 py-0.5 text-xs',
-        choice.label === '' && 'text-muted-foreground',
-      )}
-    >
-      {choice.label === '' ? (
-        <>
-          {NEXT_LABEL} <IconArrowRight className='inline size-3 align-[-2px]' />
-        </>
-      ) : (
-        choice.label
-      )}
-    </div>
-  </div>
-);
-
-/** What a card being written in can change; the canvas turns each into a change of the draft. */
+/** What a card can change; the canvas turns each into a change of the draft. */
 export interface CardEdit {
   readonly onSummary: (summary: string) => void;
   /** The summary field was left: the id stops following it. */
@@ -127,7 +103,7 @@ export interface CardEdit {
  */
 const IN_CANVAS = 'nodrag nopan nokey nowheel';
 
-/** A text field without a frame that grows with its text. */
+/** A text field without a frame that grows with its text; read-only without `onChange`. */
 const GrowingField = ({
   value,
   onChange,
@@ -136,8 +112,8 @@ const GrowingField = ({
   className,
 }: {
   readonly value: string;
-  readonly onChange: (value: string) => void;
-  readonly onBlur?: () => void;
+  readonly onChange: ((value: string) => void) | undefined;
+  readonly onBlur?: (() => void) | undefined;
   readonly placeholder: string;
   readonly className?: string;
 }) => (
@@ -145,8 +121,9 @@ const GrowingField = ({
     rows={1}
     value={value}
     placeholder={placeholder}
+    readOnly={onChange === undefined}
     onChange={(event) => {
-      onChange(event.target.value);
+      onChange?.(event.target.value);
     }}
     {...(onBlur === undefined ? {} : { onBlur })}
     className={cn(
@@ -158,12 +135,19 @@ const GrowingField = ({
 );
 
 /** The node's id, written over by hand; it takes effect when the field is left or on Enter. */
-const IdField = ({ id, onId }: { readonly id: string; readonly onId: (id: string) => void }) => {
+const IdField = ({
+  id,
+  onId,
+}: {
+  readonly id: string;
+  readonly onId: ((id: string) => void) | undefined;
+}) => {
   const [typed, setTyped] = useState<string>();
   const cancelled = useRef(false);
   return (
     <input
       value={typed ?? id}
+      readOnly={onId === undefined}
       title='Id uzlu, jeho název ve skriptu'
       aria-label='Id uzlu'
       onFocus={() => {
@@ -175,7 +159,7 @@ const IdField = ({ id, onId }: { readonly id: string; readonly onId: (id: string
       }}
       onBlur={() => {
         if (!cancelled.current && typed !== undefined && typed.trim() !== '' && typed !== id) {
-          onId(typed);
+          onId?.(typed);
         }
 
         setTyped(undefined);
@@ -191,7 +175,7 @@ const IdField = ({ id, onId }: { readonly id: string; readonly onId: (id: string
   );
 };
 
-/** A small button of the card being written in. */
+/** A small button of a card. */
 const CardButton = ({
   title,
   onClick,
@@ -215,8 +199,8 @@ const CardButton = ({
   </button>
 );
 
-/** A choice being written: its text, where it leads, and buttons to move or remove it. */
-const ChoiceEditor = ({
+/** A choice: its text as on the button, where it leads, and buttons to move or remove it. */
+const ChoiceRow = ({
   choice,
   index,
   count,
@@ -225,16 +209,17 @@ const ChoiceEditor = ({
   readonly choice: DraftChoice;
   readonly index: number;
   readonly count: number;
-  readonly edit: CardEdit;
+  readonly edit: CardEdit | undefined;
 }) => (
   <div className='group/row flex items-center gap-1.5 px-3' style={{ height: CHOICE_ROW }}>
     <ChoiceNumber>{dotText(index)}</ChoiceNumber>
     <input
       value={choice.label}
       placeholder={NEXT_LABEL}
+      readOnly={edit === undefined}
       aria-label={`Text volby ${index + 1}`}
       onChange={(event) => {
-        edit.onLabel(index, event.target.value);
+        edit?.onLabel(index, event.target.value);
       }}
       className={cn(
         IN_CANVAS,
@@ -247,21 +232,23 @@ const ChoiceEditor = ({
     >
       → {choice.to}
     </span>
-    <span className='flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'>
-      {index > 0 && (
-        <CardButton title='Posunout výš' onClick={() => edit.onMove(index, -1)}>
-          <IconChevronUp className='size-3.5' />
+    {edit !== undefined && (
+      <span className='flex opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'>
+        {index > 0 && (
+          <CardButton title='Posunout výš' onClick={() => edit.onMove(index, -1)}>
+            <IconChevronUp className='size-3.5' />
+          </CardButton>
+        )}
+        {index < count - 1 && (
+          <CardButton title='Posunout níž' onClick={() => edit.onMove(index, 1)}>
+            <IconChevronDown className='size-3.5' />
+          </CardButton>
+        )}
+        <CardButton title='Smazat volbu' onClick={() => edit.onRemoveChoice(index)}>
+          <IconX className='size-3.5' />
         </CardButton>
-      )}
-      {index < count - 1 && (
-        <CardButton title='Posunout níž' onClick={() => edit.onMove(index, 1)}>
-          <IconChevronDown className='size-3.5' />
-        </CardButton>
-      )}
-      <CardButton title='Smazat volbu' onClick={() => edit.onRemoveChoice(index)}>
-        <IconX className='size-3.5' />
-      </CardButton>
-    </span>
+      </span>
+    )}
   </div>
 );
 
@@ -278,7 +265,7 @@ export interface DraftNodeCardProps {
   readonly maxHeight?: number;
   /** Shows a button to open the node in the focus mode. */
   readonly onOpen?: () => void;
-  /** Shows fields to write in instead of the text, for the node selected close up. */
+  /** What writing into the card changes; without it the card is only read. */
   readonly edit?: CardEdit;
   /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
   readonly dot?: (key: DotKey, x: number) => ReactNode;
@@ -287,9 +274,10 @@ export interface DraftNodeCardProps {
 }
 
 /**
- * A node of the draft on the canvas, as high as its text. Close up: its id, summary, segments and
- * choices as buttons, numbered like the dots on the bottom edge their edges start from; from afar
- * the summary covers it, so the whole story reads as a list of events. The two cross-fade.
+ * A node of the draft on the canvas, as high as its text and written in right there: its id,
+ * summary, note, segments and choices, numbered like the dots on the bottom edge their edges start
+ * from. It looks the same read or written in, so a click changes nothing but the cursor. From afar
+ * the summary covers it, so the whole story reads as a list of events; the two cross-fade.
  */
 export const DraftNodeCard = ({
   node,
@@ -303,166 +291,118 @@ export const DraftNodeCard = ({
   dot = (key, x) => <PlainDot dot={key} x={x} />,
   ref,
   className,
-}: DraftNodeCardProps) => {
-  const end = node.choices.length === 0;
-  const summaryText =
-    node.summary === '' ? <span className='text-muted-foreground'>Bez shrnutí</span> : node.summary;
-  return (
+}: DraftNodeCardProps) => (
+  <div
+    ref={ref}
+    className={cn(
+      'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
+      selected && 'outline-2 outline-offset-2 outline-yellow-500',
+      dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
+      className,
+    )}
+    style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
+  >
     <div
-      ref={ref}
       className={cn(
-        'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
-        selected && 'outline-2 outline-offset-2 outline-yellow-500',
-        dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
-        className,
+        'flex min-h-0 flex-1 flex-col transition-opacity duration-300',
+        far && 'opacity-0',
       )}
-      style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
     >
+      <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
+        <IdField id={node.id} onId={edit?.onId} />
+        {start && <span className='rounded bg-muted px-1'>začátek</span>}
+        {node.choices.length === 0 && <span className='rounded bg-muted px-1'>konec</span>}
+        {onOpen !== undefined && (
+          <CardButton title='Otevřít v režimu soustředění' onClick={onOpen}>
+            <IconArrowsMaximize className='size-3.5' />
+          </CardButton>
+        )}
+        {edit !== undefined && (
+          <CardButton title='Smazat uzel' onClick={edit.onRemove}>
+            <IconTrash className='size-3.5' />
+          </CardButton>
+        )}
+      </div>
+      <div className='flex flex-col gap-1 px-3 pt-1'>
+        <GrowingField
+          value={node.summary}
+          placeholder='Shrnutí: co se v uzlu stane'
+          onChange={edit?.onSummary}
+          onBlur={edit?.onSummaryDone}
+          className='text-sm leading-snug font-medium'
+        />
+        {/* Always there, so writing a note does not change the card's height; its hint only
+            shows over the card. */}
+        <GrowingField
+          value={node.note ?? ''}
+          placeholder='Poznámka pro převod: podmínky, stav, QR…'
+          onChange={edit?.onNote}
+          className='text-xs text-muted-foreground italic placeholder:opacity-0 group-hover/card:placeholder:opacity-100 focus:placeholder:opacity-100'
+        />
+      </div>
+      {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
       <div
         className={cn(
-          'flex min-h-0 flex-1 flex-col transition-opacity duration-300',
-          far && 'opacity-0',
+          'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3 leading-relaxed',
+          selected && 'nowheel',
         )}
       >
-        <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
-          {edit === undefined ? (
-            <span className='min-w-0 flex-1 truncate'>{node.id}</span>
-          ) : (
-            <IdField id={node.id} onId={edit.onId} />
-          )}
-          {start && <span className='rounded bg-muted px-1'>začátek</span>}
-          {end && <span className='rounded bg-muted px-1'>konec</span>}
-          {edit === undefined && node.note !== undefined && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <IconNote className='size-3.5 shrink-0' aria-label='Poznámka' />
-              </TooltipTrigger>
-              <TooltipContent side='top' className='whitespace-pre-line'>
-                {node.note}
-              </TooltipContent>
-            </Tooltip>
-          )}
-          {onOpen !== undefined && (
-            <CardButton title='Otevřít v režimu soustředění' onClick={onOpen}>
-              <IconArrowsMaximize className='size-3.5' />
-            </CardButton>
-          )}
-          {edit !== undefined && (
-            <CardButton title='Smazat uzel' onClick={edit.onRemove}>
-              <IconTrash className='size-3.5' />
-            </CardButton>
-          )}
-        </div>
-        {edit === undefined ? (
-          <p className='px-3 pt-1 text-sm leading-snug font-medium'>{summaryText}</p>
-        ) : (
-          <div className='flex flex-col gap-1 px-3 pt-1'>
-            <GrowingField
-              value={node.summary}
-              placeholder='Shrnutí: co se v uzlu stane'
-              onChange={edit.onSummary}
-              onBlur={edit.onSummaryDone}
-              className='text-sm leading-snug font-medium'
-            />
-            <GrowingField
-              value={node.note ?? ''}
-              placeholder='Poznámka pro převod: podmínky, stav, QR…'
-              onChange={edit.onNote}
-              className='text-xs text-muted-foreground italic'
-            />
-          </div>
-        )}
-        {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
-        <div
-          className={cn(
-            'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3 font-mono text-[11px] leading-relaxed',
-            selected && 'nowheel',
-          )}
-        >
-          {edit === undefined ? (
-            node.segments.map((segment, index) => (
-              // The segments have no ids; their order is all there is.
-              <div key={index}>
-                <div className='flex items-center gap-1.5 pt-1 text-[10px] text-muted-foreground'>
-                  <span className='rounded-full border px-1.5 font-sans leading-4'>
-                    {segment.theme ?? 'default'}
-                  </span>
-                  <span className='h-px flex-1 bg-border' />
-                </div>
-                {segment.note !== undefined && (
-                  <p className='whitespace-pre-wrap text-muted-foreground italic'>{segment.note}</p>
-                )}
-                <p className='whitespace-pre-wrap'>{segment.text}</p>
-              </div>
-            ))
-          ) : (
-            <SegmentEditor
-              value={node.segments}
-              onChange={edit.onSegments}
-              fontSize={11}
-              className={cn(IN_CANVAS, 'min-h-12 cursor-text')}
-            />
-          )}
-        </div>
+        <SegmentEditor
+          value={node.segments}
+          {...(edit === undefined ? { readOnly: true } : { onChange: edit.onSegments })}
+          fontSize={11}
+          className={cn(IN_CANVAS, 'min-h-6 cursor-text')}
+        />
       </div>
-      <div
-        className='shrink-0 rounded-b-lg border-t bg-muted/40'
-        style={{ paddingBottom: FOOTER_PADDING }}
-      >
-        {node.choices.map((choice, index) =>
-          edit === undefined ? (
-            <ChoiceRow key={index} choice={choice} index={index} />
-          ) : (
-            <ChoiceEditor
-              key={index}
-              choice={choice}
-              index={index}
-              count={node.choices.length}
-              edit={edit}
-            />
-          ),
-        )}
-        {edit === undefined ? (
-          <div
-            className='flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground'
-            style={{ height: ADD_ROW }}
-          >
-            <ChoiceNumber>
-              <IconPlus className='mx-auto size-3' />
-            </ChoiceNumber>
-            volba
-          </div>
-        ) : (
-          <button
-            type='button'
-            onClick={edit.onAddChoice}
-            title='Přidat volbu, která vede do nového uzlu'
-            className={cn(
-              IN_CANVAS,
-              'flex w-full items-center gap-1.5 px-3 text-[11px] text-muted-foreground hover:text-foreground',
-            )}
-            style={{ height: ADD_ROW }}
-          >
-            <ChoiceNumber>
-              <IconPlus className='mx-auto size-3' />
-            </ChoiceNumber>
-            volba
-          </button>
-        )}
-      </div>
-      {/* From afar the summary covers the card. */}
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
-          !far && 'opacity-0',
-        )}
-      >
-        <p className='text-[28px] leading-tight font-semibold'>{summaryText}</p>
-      </div>
-      {/* On the bottom edge, where the edges start; over the summary too. */}
-      {[...node.choices.keys(), 'new' as const].map((key) => (
-        <Fragment key={key}>{dot(key, dotX(node.choices.length, key))}</Fragment>
-      ))}
     </div>
-  );
-};
+    <div
+      className='shrink-0 rounded-b-lg border-t bg-muted/40'
+      style={{ paddingBottom: FOOTER_PADDING }}
+    >
+      {node.choices.map((choice, index) => (
+        <ChoiceRow
+          key={index}
+          choice={choice}
+          index={index}
+          count={node.choices.length}
+          edit={edit}
+        />
+      ))}
+      <button
+        type='button'
+        disabled={edit === undefined}
+        onClick={edit?.onAddChoice}
+        title='Přidat volbu, která vede do nového uzlu'
+        className={cn(
+          IN_CANVAS,
+          'flex w-full items-center gap-1.5 px-3 text-[11px] text-muted-foreground enabled:hover:text-foreground',
+        )}
+        style={{ height: ADD_ROW }}
+      >
+        <ChoiceNumber>
+          <IconPlus className='mx-auto size-3' />
+        </ChoiceNumber>
+        volba
+      </button>
+    </div>
+    {/* From afar the summary covers the card, and takes the clicks meant for the node. */}
+    <div
+      className={cn(
+        'absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
+        !far && 'pointer-events-none opacity-0',
+      )}
+    >
+      <p className='text-[28px] leading-tight font-semibold'>
+        {node.summary === '' ? (
+          <span className='text-muted-foreground'>Bez shrnutí</span>
+        ) : (
+          node.summary
+        )}
+      </p>
+    </div>
+    {/* On the bottom edge, where the edges start; over the summary too. */}
+    {[...node.choices.keys(), 'new' as const].map((key) => (
+      <Fragment key={key}>{dot(key, dotX(node.choices.length, key))}</Fragment>
+    ))}
+  </div>
+);

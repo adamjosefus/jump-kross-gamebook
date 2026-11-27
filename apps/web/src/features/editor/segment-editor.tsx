@@ -385,6 +385,8 @@ export interface SegmentEditorProps {
   readonly value: readonly DraftSegment[];
   readonly onChange?: (segments: readonly DraftSegment[]) => void;
   readonly autoFocus?: boolean;
+  /** Only shown, not written in. */
+  readonly readOnly?: boolean;
   /** Of the text, in pixels. */
   readonly fontSize?: number;
   /** Replaces the default minimum height. */
@@ -400,6 +402,7 @@ export const SegmentEditor = ({
   value,
   onChange,
   autoFocus,
+  readOnly = false,
   fontSize = 14,
   className,
 }: SegmentEditorProps) => {
@@ -423,10 +426,14 @@ export const SegmentEditor = ({
         doc: doc.current,
         // The cursor starts in the text, under the first divider.
         selection: { anchor: doc.current.indexOf('\n') + 1 },
-        extensions: extensions((next) => {
-          doc.current = next;
-          change.current?.(docToSegments(next));
-        }),
+        extensions: [
+          extensions((next) => {
+            doc.current = next;
+            change.current?.(docToSegments(next));
+          }),
+          EditorState.readOnly.of(readOnly),
+          EditorView.editable.of(!readOnly),
+        ],
       }),
     });
     view.current = created;
@@ -438,7 +445,7 @@ export const SegmentEditor = ({
       created.destroy();
       view.current = null;
     };
-  }, [autoFocus]);
+  }, [autoFocus, readOnly]);
 
   useEffect(() => {
     const next = segmentsToDoc(value);
