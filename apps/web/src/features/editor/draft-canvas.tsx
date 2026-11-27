@@ -279,24 +279,14 @@ const entryId = (edge: string) => `entry:${edge}`;
 /** The text an edge shows: the button's, or „Další“ for the plain arrow. */
 const edgeText = (label: string) => (label === '' ? NEXT_LABEL : label);
 
-/**
- * What the layout depends on: the nodes, their heights and where their choices lead, with what
- * text. While a card is written in, only the nodes and where the choices lead: the cards stay where
- * they are as one grows, and the layout catches up once the author leaves it.
- */
-const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>, writing: boolean) =>
+/** What the layout depends on: the nodes, their heights, and where and with what text they lead. */
+const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
   JSON.stringify(
-    draft.nodes.map((node) => {
-      if (writing) {
-        return [node.id, node.choices.map((choice) => choice.to)];
-      }
-
-      return [
-        node.id,
-        heights.get(node.id),
-        node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
-      ];
-    }),
+    draft.nodes.map((node) => [
+      node.id,
+      heights.get(node.id),
+      node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
+    ]),
   );
 
 /** The flow id of the node at `index`: by position, so a node keeps its card while renamed. */
@@ -471,12 +461,15 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const { resolved } = useTheme();
   const flow = useReactFlow();
   const canvasHeight = useStore((state) => state.height);
-  const close = useStore((state) => state.transform[2] >= FAR_ZOOM);
   const maxHeight = Math.max(200, canvasHeight - 2 * VIEWPORT_MARGIN);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
   const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: BoxLayout }>();
   /** The card clicked last; the nodes are not changed by React Flow, so it is kept here. */
   const [selected, setSelected] = useState<string>();
+  /** The card being brought to the middle, till when, and how close. */
+  const centering = useRef<{ readonly key: string; readonly until: number; readonly zoom: number }>(
+    undefined,
+  );
   /** A card to bring to the middle once it is laid out, e.g. one just drawn out. */
   const pending = useRef<string>(undefined);
   /** The ids that still follow their node's summary: of new nodes, till the summary is left. */
@@ -522,7 +515,6 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const dragging = useConnection((connection) =>
     connection.inProgress ? connection.to : undefined,
   );
-  const writing = onChange !== undefined && selected !== undefined && close;
 
   const onHeight = useCallback((key: string, height: number) => {
     setHeights((current) => {
@@ -633,7 +625,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const measured = keyed.nodes.every((node) => {
     return heights.has(node.id);
   });
-  const structure = useMemo(() => structureOf(keyed, heights, writing), [keyed, heights, writing]);
+  const structure = useMemo(() => structureOf(keyed, heights), [keyed, heights]);
   /** What the layout is made of; it waits for the structure only, not for the texts. */
   const latest = useRef({ keyed, heights });
 
@@ -691,6 +683,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         return;
       }
 
+      centering.current = { key, until: Date.now() + MOVE_DURATION, zoom: zoom ?? flow.getZoom() };
       void flow.setCenter(position.x + CARD_WIDTH / 2, position.y + height / 2, {
         zoom: zoom ?? flow.getZoom(),
         duration: MOVE_DURATION,
@@ -698,6 +691,36 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     },
     [flow, heights, laidOut],
   );
+
+  /** The layout shown before the last one, to see how far the selected card moved. */
+  const previous = useRef<BoxLayout>(undefined);
+
+  // A card that grows, as it opens to write in or takes a new choice, lays the graph out anew, so
+  // nothing hides under it. The view follows the selected card so it stays put on the screen, or,
+  // still on its way to the middle, it is brought there anew.
+  useLayoutEffect(() => {
+    const before = previous.current;
+    const after = laidOut?.layout;
+    previous.current = after;
+    const from = selected === undefined ? undefined : before?.nodes.get(selected);
+    const to = selected === undefined ? undefined : after?.nodes.get(selected);
+    if (selected === undefined || from === undefined || to === undefined || after === before) {
+      return;
+    }
+
+    const moving = centering.current;
+    if (moving !== undefined && moving.key === selected && Date.now() < moving.until) {
+      center(selected, moving.zoom);
+      return;
+    }
+
+    if (from.x === to.x && from.y === to.y) {
+      return;
+    }
+
+    const { x, y, zoom } = flow.getViewport();
+    void flow.setViewport({ x: x - (to.x - from.x) * zoom, y: y - (to.y - from.y) * zoom, zoom });
+  }, [laidOut, selected, center, flow]);
 
   // The first layout fits the whole draft in; later ones keep the view where the author is.
   const shown = laidOut !== undefined;
