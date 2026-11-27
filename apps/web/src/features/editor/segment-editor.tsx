@@ -28,8 +28,6 @@ import { THEMES, type Theme } from '@gamebook/core';
 import { tags } from '@lezer/highlight';
 import { useEffect, useRef } from 'react';
 
-import { cn } from '@/lib/utils';
-
 import type { DraftSegment } from './draft';
 import {
   dividerLine,
@@ -310,7 +308,8 @@ const MARKDOWN_LOOK = HighlightStyle.define([
 ]);
 
 const LOOK = EditorView.theme({
-  '&': { fontSize: '14px', color: 'var(--foreground)', backgroundColor: 'transparent' },
+  // The size comes from the element around, `fontSize` of the component.
+  '&': { fontSize: 'inherit', color: 'var(--foreground)', backgroundColor: 'transparent' },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': {
     fontFamily: 'var(--font-mono, ui-monospace, monospace)',
@@ -386,6 +385,9 @@ export interface SegmentEditorProps {
   readonly value: readonly DraftSegment[];
   readonly onChange?: (segments: readonly DraftSegment[]) => void;
   readonly autoFocus?: boolean;
+  /** Of the text, in pixels. */
+  readonly fontSize?: number;
+  /** Replaces the default minimum height. */
   readonly className?: string;
 }
 
@@ -394,7 +396,13 @@ export interface SegmentEditorProps {
  * line divides two segments and turns into a divider with the theme, `/` at the start of a line
  * offers commands, a line starting with `//` is a note.
  */
-export const SegmentEditor = ({ value, onChange, autoFocus, className }: SegmentEditorProps) => {
+export const SegmentEditor = ({
+  value,
+  onChange,
+  autoFocus,
+  fontSize = 14,
+  className,
+}: SegmentEditorProps) => {
   const host = useRef<HTMLDivElement>(null);
   /** The segments the editor starts with; later values come in through the second effect. */
   const initial = useRef(value);
@@ -443,5 +451,5 @@ export const SegmentEditor = ({ value, onChange, autoFocus, className }: Segment
     current.dispatch({ changes: { from: 0, to: current.state.doc.length, insert: next } });
   }, [value]);
 
-  return <div ref={host} className={cn('min-h-24', className)} />;
+  return <div ref={host} className={className ?? 'min-h-24'} style={{ fontSize }} />;
 };

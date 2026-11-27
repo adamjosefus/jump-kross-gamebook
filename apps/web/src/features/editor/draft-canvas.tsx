@@ -34,8 +34,10 @@ import {
 } from '@/features/story/graph-edges';
 import {
   FINAL_ID,
+  FINAL_SIZE,
   finalEdgeId,
   INITIAL_ID,
+  INITIAL_SIZE,
   initialEdgeId,
   layoutBoxes,
   type BoxLayout,
@@ -45,6 +47,14 @@ import { cn } from '@/lib/utils';
 
 import { draftNodeId, endsOf, startsOf, type Draft, type DraftNode } from './draft';
 import {
+  linkChoice,
+  moveChoice,
+  removeChoice,
+  removeNode,
+  renameNode,
+  updateNode,
+} from './draft-edit';
+import {
   CARD_WIDTH,
   DOT_LOOK,
   DotContent,
@@ -52,6 +62,7 @@ import {
   DraftNodeCard,
   NEW_DOT_LOOK,
   NEXT_LABEL,
+  type CardEdit,
   type DotKey,
 } from './draft-node-card';
 
@@ -72,12 +83,16 @@ type DraftFlowNode = Node<
   'draft'
 >;
 
-/** What the cards need from the canvas: where to report their heights, whether to offer drags. */
+/**
+ * What the cards need from the canvas: where to report their heights, whether to offer drags, and
+ * what a card written in can change. The cards are told apart by their flow ids.
+ */
 const CardContext = createContext<{
-  readonly onHeight: (id: string, height: number) => void;
-  readonly onOpen: ((id: string) => void) | undefined;
+  readonly onHeight: (key: string, height: number) => void;
+  readonly onOpen: ((key: string) => void) | undefined;
   readonly connectable: boolean;
-}>({ onHeight: () => {}, onOpen: undefined, connectable: false });
+  readonly editOf: ((key: string) => CardEdit) | undefined;
+}>({ onHeight: () => {}, onOpen: undefined, connectable: false, editOf: undefined });
 
 /** Handle id of a choice's dot, or of „+ volba“. */
 const dotHandle = (key: DotKey) => (key === 'new' ? 'choice-new' : `choice-${key}`);
@@ -132,7 +147,9 @@ const dotOfCard = (dot: DotKey, x: number) => <DotHandle dot={dot} x={x} />;
 /** A card on the canvas: it reports its height and offers its choices' dots to drag from. */
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
   const far = useStore((state) => state.transform[2] < FAR_ZOOM);
-  const { onHeight, onOpen, connectable } = use(CardContext);
+  const { onHeight, onOpen, connectable, editOf } = use(CardContext);
+  // Written in only close up: from afar the summary covers the card.
+  const edit = selected && !far ? editOf?.(id) : undefined;
   const card = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -175,6 +192,7 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
                 onOpen(id);
               },
             })}
+        {...(edit === undefined ? {} : { edit })}
         dot={dotOfCard}
       />
     </>
@@ -192,15 +210,66 @@ const entryId = (edge: string) => `entry:${edge}`;
 /** The text an edge shows: the button's, or „Další“ for the plain arrow. */
 const edgeText = (label: string) => (label === '' ? NEXT_LABEL : label);
 
-/** What the layout depends on: the nodes, their heights and where their choices lead. */
-const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
+/**
+ * What the layout depends on: the nodes, their heights and where their choices lead, with what
+ * text. While a card is written in, only the nodes and where the choices lead: the cards stay where
+ * they are as one grows, and the layout catches up once the author leaves it.
+ */
+const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>, writing: boolean) =>
   JSON.stringify(
-    draft.nodes.map((node) => [
-      node.id,
-      heights.get(node.id),
-      node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
-    ]),
+    draft.nodes.map((node) => {
+      if (writing) {
+        return [node.id, node.choices.map((choice) => choice.to)];
+      }
+
+      return [
+        node.id,
+        heights.get(node.id),
+        node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
+      ];
+    }),
   );
+
+/** The flow id of the node at `index`: by position, so a node keeps its card while renamed. */
+const keyOf = (index: number) => `n${index}`;
+
+/** The index of the node with the flow id `key`. */
+const indexOf = (key: string) => Number(key.slice(1));
+
+/** The draft with the flow ids for node ids; a choice to no node leads nowhere and is left out. */
+const keyedDraft = (draft: Draft): Draft => {
+  const keys = new Map(draft.nodes.map((node, index) => [node.id, keyOf(index)]));
+  return {
+    ...draft,
+    nodes: draft.nodes.map((node, index) => {
+      return {
+        ...node,
+        id: keyOf(index),
+        choices: node.choices.flatMap((choice) => {
+          const to = keys.get(choice.to);
+          if (to === undefined) {
+            return [];
+          }
+
+          return [{ ...choice, to }];
+        }),
+      };
+    }),
+  };
+};
+
+/** The node without its note when the note is empty. */
+const withNote = (node: DraftNode, note: string): DraftNode => {
+  if (note !== '') {
+    return { ...node, note };
+  }
+
+  return { id: node.id, summary: node.summary, segments: node.segments, choices: node.choices };
+};
+
+/** Whether an element takes text, so the canvas leaves clicks and keys in it alone. */
+const isWritable = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('input, textarea, [contenteditable]') !== null;
 
 /** Room between the points where the edges enter a card; less when many lead in. */
 const ENTRY_GAP = 16;
@@ -336,47 +405,13 @@ const nodeAt = (point: { readonly x: number; readonly y: number }) =>
     ?.closest('.react-flow__node-draft')
     ?.getAttribute('data-id') ?? undefined;
 
-/**
- * The draft with a choice of `source` leading to `target`: the choice `dot`, or a new plain one.
- * Without a `target` a new empty node is added for it.
- */
-const linked = (
-  draft: Draft,
-  source: string,
-  dot: DotKey,
-  target: string | undefined,
-): { readonly draft: Draft; readonly target: string } => {
-  const taken = new Set(draft.nodes.map((node) => node.id));
-  const to = target ?? draftNodeId('', taken);
-  const nodes = draft.nodes.map((node) => {
-    if (node.id !== source) {
-      return node;
-    }
-
-    if (dot === 'new') {
-      return { ...node, choices: [...node.choices, { label: '', to }] };
-    }
-
-    return {
-      ...node,
-      choices: node.choices.map((choice, index) => {
-        if (index !== dot) {
-          return choice;
-        }
-
-        return { ...choice, to };
-      }),
-    };
-  });
-  const added: readonly DraftNode[] =
-    target === undefined ? [{ id: to, summary: '', segments: [{ text: '' }], choices: [] }] : [];
-  return { draft: { ...draft, nodes: [...nodes, ...added] }, target: to };
-};
-
 export interface DraftCanvasProps {
   readonly draft: Draft;
-  /** Without it the draft is only shown: no edges can be drawn out. */
-  readonly onChange?: (draft: Draft) => void;
+  /**
+   * Without it the draft is only shown. `field` names what was typed into, so that the keystrokes
+   * into one field can make one step of the history.
+   */
+  readonly onChange?: (draft: Draft, field?: string) => void;
   /** Opens a node in the focus mode. */
   readonly onOpen?: (id: string) => void;
   readonly className?: string;
@@ -386,38 +421,143 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const { resolved } = useTheme();
   const flow = useReactFlow();
   const canvasHeight = useStore((state) => state.height);
+  const close = useStore((state) => state.transform[2] >= FAR_ZOOM);
   const maxHeight = Math.max(200, canvasHeight - 2 * VIEWPORT_MARGIN);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
   const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: BoxLayout }>();
-  /** The node clicked last; the nodes are not changed by React Flow, so it is kept here. */
+  /** The card clicked last; the nodes are not changed by React Flow, so it is kept here. */
   const [selected, setSelected] = useState<string>();
-  /** A node to bring to the middle once it is laid out, e.g. one just drawn out. */
+  /** A card to bring to the middle once it is laid out, e.g. one just drawn out. */
   const pending = useRef<string>(undefined);
+  /** The ids that still follow their node's summary: of new nodes, till the summary is left. */
+  const [following, setFollowing] = useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        draft.nodes.flatMap((node) => {
+          return node.summary === '' ? [node.id] : [];
+        }),
+      ),
+  );
 
-  const onHeight = useCallback((id: string, height: number) => {
+  const keyed = useMemo(() => keyedDraft(draft), [draft]);
+  const writing = onChange !== undefined && selected !== undefined && close;
+
+  const onHeight = useCallback((key: string, height: number) => {
     setHeights((current) => {
-      if (current.get(id) === height) {
+      if (current.get(key) === height) {
         return current;
       }
 
-      return new Map([...current, [id, height]]);
+      return new Map([...current, [key, height]]);
     });
   }, []);
-  const cards = useMemo(
-    () => ({ onHeight, onOpen, connectable: onChange !== undefined }),
-    [onHeight, onOpen, onChange],
-  );
 
-  const measured = draft.nodes.every((node) => {
+  /** The changes of the card `key` as changes of the draft. */
+  const editOf = (key: string): CardEdit => {
+    const change = (next: Draft, field?: string) => {
+      onChange?.(next, field === undefined ? undefined : `${key}:${field}`);
+    };
+
+    const id = draft.nodes[indexOf(key)]?.id ?? '';
+    const others = new Set(
+      draft.nodes.flatMap((node) => {
+        return node.id === id ? [] : [node.id];
+      }),
+    );
+    const stopFollowing = (...ids: readonly string[]) => {
+      setFollowing((current) => {
+        return new Set([...current].filter((followed) => !ids.includes(followed)));
+      });
+    };
+
+    return {
+      onSummary: (summary) => {
+        const next = updateNode(draft, id, (node) => ({ ...node, summary }));
+        if (!following.has(id)) {
+          change(next, 'summary');
+          return;
+        }
+
+        const derived = draftNodeId(summary, others);
+        setFollowing((current) => {
+          return new Set([...current].map((followed) => (followed === id ? derived : followed)));
+        });
+        change(renameNode(next, id, derived), 'summary');
+      },
+      onSummaryDone: () => {
+        stopFollowing(id);
+      },
+      onId: (typed) => {
+        const renamed = draftNodeId(typed, others);
+        stopFollowing(id, renamed);
+        change(renameNode(draft, id, renamed));
+      },
+      onNote: (note) => {
+        change(
+          updateNode(draft, id, (node) => withNote(node, note)),
+          'note',
+        );
+      },
+      onSegments: (segments) => {
+        change(
+          updateNode(draft, id, (node) => ({ ...node, segments })),
+          'segments',
+        );
+      },
+      onLabel: (index, label) => {
+        change(
+          updateNode(draft, id, (node) => ({
+            ...node,
+            choices: node.choices.map((choice, at) =>
+              at === index ? { ...choice, label } : choice,
+            ),
+          })),
+          `choice:${index}`,
+        );
+      },
+      onMove: (index, offset) => {
+        change(moveChoice(draft, id, index, offset));
+      },
+      onRemoveChoice: (index) => {
+        change(removeChoice(draft, id, index));
+      },
+      onAddChoice: () => {
+        const next = linkChoice(draft, id, 'new');
+        setFollowing((current) => new Set([...current, next.target]));
+        change(next.draft);
+      },
+      onRemove: () => {
+        setSelected(undefined);
+        change(removeNode(draft, id));
+      },
+    };
+  };
+
+  const cards = {
+    onHeight,
+    onOpen:
+      onOpen === undefined
+        ? undefined
+        : (key: string) => {
+            const node = draft.nodes[indexOf(key)];
+            if (node !== undefined) {
+              onOpen(node.id);
+            }
+          },
+    connectable: onChange !== undefined,
+    editOf: onChange === undefined ? undefined : editOf,
+  };
+
+  const measured = keyed.nodes.every((node) => {
     return heights.has(node.id);
   });
-  const structure = useMemo(() => structureOf(draft, heights), [draft, heights]);
+  const structure = useMemo(() => structureOf(keyed, heights, writing), [keyed, heights, writing]);
   /** What the layout is made of; it waits for the structure only, not for the texts. */
-  const latest = useRef({ draft, heights });
+  const latest = useRef({ keyed, heights });
 
   useEffect(() => {
-    latest.current = { draft, heights };
-  }, [draft, heights]);
+    latest.current = { keyed, heights };
+  }, [keyed, heights]);
 
   useEffect(() => {
     if (!measured) {
@@ -426,7 +566,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
 
     // Flipped by the cleanup so a layout finishing after the draft changed is not applied.
     let current = true;
-    void layoutDraft(latest.current.draft, latest.current.heights).then((layout) => {
+    void layoutDraft(latest.current.keyed, latest.current.heights).then((layout) => {
       if (current) {
         setLaidOut({ key: structure, layout });
       }
@@ -437,9 +577,9 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   }, [structure, measured]);
 
   const center = useCallback(
-    (id: string, zoom?: number) => {
-      const position = laidOut?.layout.nodes.get(id);
-      const height = heights.get(id);
+    (key: string, zoom?: number) => {
+      const position = laidOut?.layout.nodes.get(key);
+      const height = heights.get(key);
       if (position === undefined || height === undefined) {
         return;
       }
@@ -456,50 +596,61 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const shown = laidOut !== undefined;
   useEffect(() => {
     if (shown) {
-      void flow.fitView();
+      // No closer than the cards' own size: a draft of one node would fill the screen.
+      void flow.fitView({ maxZoom: 1 });
     }
   }, [shown, flow]);
 
   useEffect(() => {
-    const id = pending.current;
-    if (id !== undefined && laidOut?.layout.nodes.has(id) === true) {
+    const key = pending.current;
+    if (key !== undefined && laidOut?.layout.nodes.has(key) === true) {
       pending.current = undefined;
-      center(id, Math.max(flow.getZoom(), FAR_ZOOM));
+      center(key, Math.max(flow.getZoom(), FAR_ZOOM));
     }
   }, [laidOut, center, flow]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
   const nodes = useMemo<(DraftFlowNode | InitialFlowNode | FinalFlowNode)[]>(() => {
-    const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
-    const starts = new Set(startsOf(draft).map((node) => node.id));
+    const position = (key: string) => laidOut?.layout.nodes.get(key) ?? { x: 0, y: 0 };
+    const starts = new Set(startsOf(keyed).map((node) => node.id));
     return [
-      ...draft.nodes.map((node): DraftFlowNode => ({
-        id: node.id,
-        type: 'draft',
-        position: position(node.id),
-        selected: node.id === selected,
-        data: { node, start: starts.has(node.id), maxHeight },
-      })),
+      ...draft.nodes.map((node, index): DraftFlowNode => {
+        const key = keyOf(index);
+        const height = heights.get(key);
+        return {
+          id: key,
+          type: 'draft',
+          position: position(key),
+          // The size measured here: React Flow keeps a node it knows the size of visible while
+          // the node changes, so a field in it keeps the focus; without it, it hides the node
+          // till it measures the node again.
+          ...(height === undefined ? {} : { measured: { width: CARD_WIDTH, height } }),
+          selected: key === selected,
+          data: { node, start: starts.has(key), maxHeight },
+        };
+      }),
       {
         id: INITIAL_ID,
         type: 'initial',
         position: position(INITIAL_ID),
+        measured: { width: INITIAL_SIZE, height: INITIAL_SIZE },
         data: {},
         selectable: false,
       },
-      ...(endsOf(draft).length > 0
+      ...(endsOf(keyed).length > 0
         ? [
             {
               id: FINAL_ID,
               type: 'final' as const,
               position: position(FINAL_ID),
+              measured: { width: FINAL_SIZE, height: FINAL_SIZE },
               data: {},
               selectable: false,
             },
           ]
         : []),
     ];
-  }, [draft, laidOut, selected, maxHeight]);
+  }, [draft, keyed, laidOut, selected, maxHeight, heights]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);
@@ -512,8 +663,8 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       data: { points: route(id)?.points ?? [], dimmed: false },
     });
     return [
-      ...startsOf(draft).map((node) => plain(initialEdgeId(node.id), INITIAL_ID, node.id)),
-      ...draft.nodes.flatMap((node) =>
+      ...startsOf(keyed).map((node) => plain(initialEdgeId(node.id), INITIAL_ID, node.id)),
+      ...keyed.nodes.flatMap((node) =>
         node.choices.map((choice, index): RouteEdge => {
           const id = edgeId(node.id, index);
           const label = route(id)?.label;
@@ -531,16 +682,17 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           };
         }),
       ),
-      ...endsOf(draft).map((node) => ({
+      ...endsOf(keyed).map((node) => ({
         ...plain(finalEdgeId(node.id), node.id, FINAL_ID),
         sourceHandle: dotHandle('new'),
       })),
     ];
-  }, [draft, laidOut]);
+  }, [keyed, laidOut]);
 
   /** A drag from a dot: dropped on a node it leads there, elsewhere it draws out a new node. */
   const onConnectEnd = (event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
-    const source = connection.fromNode?.id;
+    const from = connection.fromNode?.id;
+    const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
     const dot = dotOf(connection.fromHandle?.id);
     const point = pointOf(event);
     if (
@@ -553,15 +705,20 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     }
 
     const over = connection.toNode?.id ?? nodeAt(point);
-    const target = draft.nodes.some((node) => {
-      return node.id === over;
-    })
-      ? over
-      : undefined;
-    const next = linked(draft, source, dot, target);
+    const target = over === undefined ? undefined : draft.nodes[indexOf(over)]?.id;
+    const next = linkChoice(draft, source, dot, target);
+    if (target === undefined) {
+      setFollowing((current) => new Set([...current, next.target]));
+    }
+
+    const key = keyOf(
+      next.draft.nodes.findIndex((node) => {
+        return node.id === next.target;
+      }),
+    );
     onChange(next.draft);
-    setSelected(next.target);
-    pending.current = next.target;
+    setSelected(key);
+    pending.current = key;
   };
 
   return (
@@ -579,13 +736,16 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodeClick={(_event, node) => {
-            if (node.type === 'draft') {
+            // A click into the card being written in only places the cursor.
+            if (node.type === 'draft' && node.id !== selected) {
               setSelected(node.id);
               center(node.id);
             }
           }}
-          onNodeDoubleClick={(_event, node) => {
-            if (node.type === 'draft') {
+          onNodeDoubleClick={(event, node) => {
+            // A double click into a text selects a word there.
+            if (node.type === 'draft' && !isWritable(event.target)) {
+              setSelected(node.id);
               center(node.id, CLOSE_ZOOM);
             }
           }}
@@ -598,6 +758,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           nodesDraggable={false}
           nodesConnectable={onChange !== undefined}
           zoomOnDoubleClick={false}
+          deleteKeyCode={null}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
@@ -610,9 +771,9 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
 
 /**
  * The draft as a graph laid out by ELK from top to bottom. Each card is as high as its text, up to
- * the canvas's height; zoomed out, it shows only its summary. A click brings a node to the middle,
- * a double click closer too; a choice's dot dragged onto a node leads there, and dragged elsewhere
- * draws out a new node.
+ * the canvas's height; zoomed out, it shows only its summary. A click brings a node to the middle
+ * and opens it to write in, a double click brings it closer too; a choice's dot dragged onto a node
+ * leads there, and dragged elsewhere draws out a new node.
  */
 export const DraftCanvas = (props: DraftCanvasProps) => (
   <ReactFlowProvider>
