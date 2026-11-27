@@ -272,6 +272,13 @@ const counted = (count: number, one: string, few: string, many: string) => {
   return count >= 2 && count <= 4 ? few : many;
 };
 
+/**
+ * How much the numbers under the end rings resist the zoom: 0 zooms them with the canvas, 1 keeps
+ * them as large on the screen at any zoom. At 0.75 they are 8 px high at the zoom of 0.3 against
+ * 11 px at 1, and 13 px at 2.
+ */
+const LABEL_ZOOM_RESISTANCE = 0.75;
+
 type EndFlowNode = Node<
   {
     readonly routes: RoutesToEnd | undefined;
@@ -285,30 +292,38 @@ type EndFlowNode = Node<
  * An end ring with how long the ways to the end are: in nodes, and in text to read against the
  * average way, so a much longer or shorter way stands out.
  */
-const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => (
-  <>
-    <FinalDot />
-    {routes !== undefined && (
-      <div className='absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'>
-        <div>
-          {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
-        </div>
-        {difference !== undefined && (
-          <div
-            title='O kolik znaků textu segmentů je cesta do tohoto konce delší než průměrná cesta do všech konců.'
-            className={cn(
-              // Longer than the average in green, shorter in red; no difference stays grey.
-              Math.round(difference) > 0 && 'text-green-600 dark:text-green-400',
-              Math.round(difference) < 0 && 'text-red-600 dark:text-red-400',
-            )}
-          >
-            {differenceText(difference)} znaků
+const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => {
+  // The numbers keep most of their size while zooming: they shrink and grow only a little with the
+  // canvas, so they stay legible from afar and do not loom close up.
+  const scale = useStore((state) => state.transform[2] ** -LABEL_ZOOM_RESISTANCE);
+  return (
+    <>
+      <FinalDot />
+      {routes !== undefined && (
+        <div
+          className='absolute top-full left-1/2 mt-1.5 -translate-x-1/2 text-center text-[11px] leading-tight whitespace-nowrap text-muted-foreground'
+          style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
+        >
+          <div>
+            {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
           </div>
-        )}
-      </div>
-    )}
-  </>
-);
+          {difference !== undefined && (
+            <div
+              title='O kolik znaků textu segmentů je cesta do tohoto konce delší než průměrná cesta do všech konců.'
+              className={cn(
+                // Longer than the average in green, shorter in red; no difference stays grey.
+                Math.round(difference) > 0 && 'text-green-600 dark:text-green-400',
+                Math.round(difference) < 0 && 'text-red-600 dark:text-red-400',
+              )}
+            >
+              {differenceText(difference)} znaků
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
 
 const nodeTypes = { draft: DraftFlowCard, initial: InitialDot, final: EndRing } as const;
 const edgeTypes = { route: RouteEdgeView } as const;
