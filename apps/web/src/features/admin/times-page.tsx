@@ -119,12 +119,14 @@ export const TimesPage = () => {
   const breakdown = useTimeBreakdown(POLL_MS);
   const overview = useOverview(POLL_MS);
 
-  if (breakdown.isPending || overview.isPending)
+  if (breakdown.isPending || overview.isPending) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
-  if (breakdown.data === undefined || overview.data === undefined)
+  }
+  if (breakdown.data === undefined || overview.data === undefined) {
     return (
       <p className='p-8 text-destructive'>{errorMessage(breakdown.error ?? overview.error)}</p>
     );
+  }
 
   // The times as the server measured them; the parts of the breakdown cannot move on anyway.
   const clock: Clock = {

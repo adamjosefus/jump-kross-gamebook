@@ -49,7 +49,9 @@ const usePageTitle = (page: string | undefined) => {
 const PausedBar = ({ pathname }: { readonly pathname: string }) => {
   const overview = useOverview();
   const game = overview.data?.game;
-  if (game?.startedAt === undefined || !game.closed) return null;
+  if (game?.startedAt === undefined || !game.closed) {
+    return null;
+  }
   return (
     <div
       role='status'
@@ -82,7 +84,9 @@ export const AdminLayout = () => {
       api((client) => client.admin.me(), { signal }).then(
         () => true,
         (error: unknown) => {
-          if (isApiError(error, 'Unauthorized')) return false;
+          if (isApiError(error, 'Unauthorized')) {
+            return false;
+          }
           throw error;
         },
       ),
@@ -103,7 +107,9 @@ export const AdminLayout = () => {
       </div>
     );
   }
-  if (me.data !== true) return <AdminLogin />;
+  if (me.data !== true) {
+    return <AdminLogin />;
+  }
 
   return (
     // When printed (the QR codes), the page grows with its content and the bar is left out.

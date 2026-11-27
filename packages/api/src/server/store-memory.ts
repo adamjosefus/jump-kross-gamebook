@@ -52,7 +52,9 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
 
   const ensure = (id: number): TeamRow => {
     const existing = teams.get(id);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      return existing;
+    }
     const team: TeamRow = {
       id,
       node: undefined,
@@ -98,8 +100,12 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     moveTeam: (id, expectedRevision, next) =>
       Effect.sync(() => {
         const team = teams.get(id);
-        if (team === undefined) return undefined;
-        if (expectedRevision !== undefined && team.revision !== expectedRevision) return undefined;
+        if (team === undefined) {
+          return undefined;
+        }
+        if (expectedRevision !== undefined && team.revision !== expectedRevision) {
+          return undefined;
+        }
         return move(team, next, new Date());
       }),
     resetTeams: (ids, start) =>
@@ -111,8 +117,11 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
           teams.set(id, cleared);
           return cleared;
         });
-        for (const [sessionId, session] of sessions)
-          if (ids.includes(session.teamId)) sessions.delete(sessionId);
+        for (const [sessionId, session] of sessions) {
+          if (ids.includes(session.teamId)) {
+            sessions.delete(sessionId);
+          }
+        }
         data.gameStartedAt = undefined;
         data.pauses = data.pauses.filter(({ endedAt }) => endedAt === undefined);
         return reset;
@@ -124,19 +133,28 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     markStarted: (id) =>
       Effect.sync(() => {
         const team = teams.get(id);
-        if (team !== undefined) teams.set(id, { ...team, startedAt: team.startedAt ?? new Date() });
+        if (team !== undefined) {
+          teams.set(id, { ...team, startedAt: team.startedAt ?? new Date() });
+        }
       }),
     clearTiming: (id) =>
       Effect.sync(() => {
         const team = teams.get(id);
-        if (team !== undefined) teams.set(id, { ...team, startedAt: undefined });
-        for (const [sessionId, session] of sessions)
-          if (session.teamId === id) sessions.delete(sessionId);
+        if (team !== undefined) {
+          teams.set(id, { ...team, startedAt: undefined });
+        }
+        for (const [sessionId, session] of sessions) {
+          if (session.teamId === id) {
+            sessions.delete(sessionId);
+          }
+        }
       }),
     resetTiming: (id) =>
       Effect.sync(() => {
         const team = teams.get(id);
-        if (team === undefined || team.finishedAt !== undefined) return false;
+        if (team === undefined || team.finishedAt !== undefined) {
+          return false;
+        }
         teams.set(id, { ...team, startedAt: undefined });
         data.log = [
           ...data.log,
@@ -149,8 +167,11 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             state: team.state,
           },
         ];
-        for (const [sessionId, session] of sessions)
-          if (session.teamId === id) sessions.delete(sessionId);
+        for (const [sessionId, session] of sessions) {
+          if (session.teamId === id) {
+            sessions.delete(sessionId);
+          }
+        }
         return true;
       }),
 
@@ -162,10 +183,16 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     touchSession: (id, createdAfter) =>
       Effect.sync(() => {
         const session = sessions.get(id);
-        if (session === undefined || !teams.has(session.teamId)) return undefined;
-        if (session.createdAt <= createdAfter) return undefined;
+        if (session === undefined || !teams.has(session.teamId)) {
+          return undefined;
+        }
+        if (session.createdAt <= createdAfter) {
+          return undefined;
+        }
         // A session that slipped in while its device was being banned is refused too.
-        if (session.deviceId !== undefined && bans.has(session.deviceId)) return undefined;
+        if (session.deviceId !== undefined && bans.has(session.deviceId)) {
+          return undefined;
+        }
         sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),
@@ -187,9 +214,14 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
 
     banDevice: (ban) =>
       Effect.sync(() => {
-        if (!bans.has(ban.deviceId)) bans.set(ban.deviceId, { ...ban, bannedAt: new Date() });
-        for (const [id, session] of sessions)
-          if (session.deviceId === ban.deviceId) sessions.delete(id);
+        if (!bans.has(ban.deviceId)) {
+          bans.set(ban.deviceId, { ...ban, bannedAt: new Date() });
+        }
+        for (const [id, session] of sessions) {
+          if (session.deviceId === ban.deviceId) {
+            sessions.delete(id);
+          }
+        }
       }),
     unbanDevice: (deviceId) => Effect.sync(() => void bans.delete(deviceId)),
     isBanned: (deviceId) => Effect.sync(() => bans.has(deviceId)),
@@ -229,8 +261,11 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     listMoves: (teamId) =>
       Effect.sync(() => {
         const lastStart = new Map<number, number>();
-        for (const [index, row] of data.log.entries())
-          if (START_ACTIONS.includes(row.action)) lastStart.set(row.teamId, index);
+        for (const [index, row] of data.log.entries()) {
+          if (START_ACTIONS.includes(row.action)) {
+            lastStart.set(row.teamId, index);
+          }
+        }
         return data.log.filter(
           (row, index) =>
             (teamId === undefined || row.teamId === teamId) &&

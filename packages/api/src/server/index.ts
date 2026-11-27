@@ -60,10 +60,13 @@ export const handlerFromEnv = (
   memory?: MemoryData,
 ) => {
   const missing = missingSecrets(env);
-  if (missing.length > 0) return misconfiguredHandler(missingMessage(missing));
+  if (missing.length > 0) {
+    return misconfiguredHandler(missingMessage(missing));
+  }
   const url = env['DATABASE_URL'];
-  if (url === undefined || url === '')
+  if (url === undefined || url === '') {
     return makeHandler(configFromEnv(env), MemoryStoreLayer(memory));
+  }
   // The driver would report a malformed URL with the password in it; this message names only the variable.
   if (!isDatabaseUrl(url)) {
     return misconfiguredHandler(

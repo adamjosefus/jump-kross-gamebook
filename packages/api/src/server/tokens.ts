@@ -27,8 +27,9 @@ export const secretsEqual = (expected: string, given: string): boolean => {
   // Every byte of both is visited whatever the lengths, which only the result reveals.
   const length = Math.max(first.length, second.length);
   let difference = first.length ^ second.length;
-  for (let index = 0; index < length; index += 1)
+  for (let index = 0; index < length; index += 1) {
     difference |= (first[index] ?? 0) ^ (second[index] ?? 0);
+  }
   return difference === 0;
 };
 
@@ -52,8 +53,12 @@ export const verifyAdminToken = async (
   now = Date.now(),
 ): Promise<boolean> => {
   const [expires, signature, ...rest] = token.split('.');
-  if (expires === undefined || signature === undefined || rest.length > 0) return false;
-  if (!/^\d+$/.test(expires) || Number(expires) < now) return false;
+  if (expires === undefined || signature === undefined || rest.length > 0) {
+    return false;
+  }
+  if (!/^\d+$/.test(expires) || Number(expires) < now) {
+    return false;
+  }
   return secretsEqual(await sign(keyOf(key), `admin:${expires}`), signature);
 };
 

@@ -21,7 +21,9 @@ const pgliteClient = (db: PGlite): SqlClient => ({
   query: async ({ text, params }) => (await db.query<Row>(text, [...params])).rows,
   transaction: (statements) =>
     db.transaction(async (transaction) => {
-      for (const { text, params } of statements) await transaction.query(text, [...params]);
+      for (const { text, params } of statements) {
+        await transaction.query(text, [...params]);
+      }
     }),
 });
 
@@ -229,7 +231,9 @@ describe('postgres store', () => {
       query: client.query,
       transaction: (statements) => {
         calls.push(statements[0]!.text.slice(0, 12));
-        if (failing) return Promise.reject(new Error('connection refused'));
+        if (failing) {
+          return Promise.reject(new Error('connection refused'));
+        }
         return client.transaction(statements);
       },
     };

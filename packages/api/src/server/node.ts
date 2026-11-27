@@ -22,8 +22,9 @@ const protocolOf = (req: IncomingMessage) => {
 const toRequest = async (req: IncomingMessage): Promise<Request> => {
   // The body arrives as an async stream, so its chunks are collected in a loop.
   const chunks: Buffer[] = [];
-  for await (const chunk of req)
+  for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
   const body = chunks.length === 0 ? undefined : Buffer.concat(chunks);
   return new Request(`${protocolOf(req)}://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`, {
     method: req.method ?? 'GET',
@@ -36,10 +37,14 @@ const toRequest = async (req: IncomingMessage): Promise<Request> => {
 const send = async (response: Response, res: ServerResponse) => {
   res.statusCode = response.status;
   response.headers.forEach((value, key) => {
-    if (key !== 'set-cookie') res.setHeader(key, value);
+    if (key !== 'set-cookie') {
+      res.setHeader(key, value);
+    }
   });
   const cookies = response.headers.getSetCookie();
-  if (cookies.length > 0) res.setHeader('set-cookie', cookies);
+  if (cookies.length > 0) {
+    res.setHeader('set-cookie', cookies);
+  }
   res.end(Buffer.from(await response.arrayBuffer()));
 };
 

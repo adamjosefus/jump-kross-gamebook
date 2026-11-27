@@ -21,7 +21,9 @@ const SAMPLES = [
 const Demo = ({ lasting }: { readonly lasting: boolean }) => {
   useEffect(() => {
     // All of them at once on opening the story.
-    for (const show of SAMPLES) show();
+    for (const show of SAMPLES) {
+      show();
+    }
     return () => {
       toast.dismiss();
     };

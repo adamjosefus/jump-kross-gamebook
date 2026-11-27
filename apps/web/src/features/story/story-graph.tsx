@@ -118,7 +118,9 @@ const LABEL_LINE_HEIGHT = 14;
 const labelLines = (text: string): readonly string[] =>
   text.split(' ').reduce<readonly string[]>((lines, word) => {
     const last = lines.at(-1);
-    if (last === undefined) return [word];
+    if (last === undefined) {
+      return [word];
+    }
     return `${last} ${word}`.length <= LABEL_LINE_LENGTH
       ? [...lines.slice(0, -1), `${last} ${word}`]
       : [...lines, word];
@@ -301,8 +303,12 @@ const roundedPath = (points: readonly XYPosition[]) =>
     .map((point, index) => {
       const previous = points[index - 1];
       const next = points[index + 1];
-      if (previous === undefined) return `M ${point.x} ${point.y}`;
-      if (next === undefined) return `L ${point.x} ${point.y}`;
+      if (previous === undefined) {
+        return `M ${point.x} ${point.y}`;
+      }
+      if (next === undefined) {
+        return `L ${point.x} ${point.y}`;
+      }
       const radius = Math.min(
         CORNER_RADIUS,
         Math.hypot(point.x - previous.x, point.y - previous.y) / 2,
@@ -325,7 +331,9 @@ const roundedPath = (points: readonly XYPosition[]) =>
 const focusLineGap = (points: readonly XYPosition[]) => {
   const end = points.at(-1);
   const previous = points.at(-2);
-  if (end === undefined || previous === undefined) return undefined;
+  if (end === undefined || previous === undefined) {
+    return undefined;
+  }
   const length = Math.hypot(end.x - previous.x, end.y - previous.y) || 1;
   const along = { x: (end.x - previous.x) / length, y: (end.y - previous.y) / length };
   const middle = {
@@ -338,7 +346,9 @@ const focusLineGap = (points: readonly XYPosition[]) => {
 
 /** Edge drawn along the route ELK computed, with its label where ELK placed it. */
 const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
-  if (data === undefined || data.points.length === 0) return null;
+  if (data === undefined || data.points.length === 0) {
+    return null;
+  }
   const path = roundedPath(data.points);
   const { label } = data;
   const gap = data.focusTarget === true ? focusLineGap(data.points) : undefined;
@@ -645,7 +655,9 @@ const FocusView = ({
   const y = center?.y;
   const shift = (inset.left - inset.right) / 2;
   useEffect(() => {
-    if (!initialized || x === undefined || y === undefined) return;
+    if (!initialized || x === undefined || y === undefined) {
+      return;
+    }
     const zoom = Math.max(flow.getZoom(), 0.75);
     void flow.setCenter(x - shift / zoom, y, { zoom, duration: 400 });
   }, [flow, initialized, x, y, shift]);
@@ -695,9 +707,13 @@ export const StoryGraph = ({
     let current = true;
     const cached = layouts.get(structure);
     const pending = cached ?? layout(graph, grouped);
-    if (cached === undefined) layouts.set(structure, pending);
+    if (cached === undefined) {
+      layouts.set(structure, pending);
+    }
     void pending.then((result) => {
-      if (current) setLaidOut({ key: structure, layout: result });
+      if (current) {
+        setLaidOut({ key: structure, layout: result });
+      }
     });
     return () => {
       current = false;
@@ -784,7 +800,9 @@ export const StoryGraph = ({
       [
         ...graph.order.flatMap((id) =>
           graph.nodes[id]!.choices.flatMap((choice, index): readonly RouteEdge[] => {
-            if (!Object.hasOwn(graph.nodes, choice.target)) return [];
+            if (!Object.hasOwn(graph.nodes, choice.target)) {
+              return [];
+            }
             const route = laidOut?.layout.edges.get(edgeId(id, index));
             return [
               {
@@ -883,7 +901,9 @@ export const StoryGraph = ({
           {...(onPaneClick === undefined ? {} : { onPaneClick })}
           onNodeClick={(_event, node) => {
             // A chapter's frame is only a background.
-            if (node.type === 'story') setOpened(node.id);
+            if (node.type === 'story') {
+              setOpened(node.id);
+            }
           }}
           colorMode={resolved}
           // A focused node sets the view itself.

@@ -95,8 +95,12 @@ export const qrRuns = (value: string, style: QrStyle = {}): QrRuns => {
         Boolean(modules.get(moduleRow, moduleColumn))
       );
     }
-    if (noise?.shape === 'circle' && Math.hypot(column + 0.5 - centre, row + 0.5 - centre) > radius)
+    if (
+      noise?.shape === 'circle' &&
+      Math.hypot(column + 0.5 - centre, row + 0.5 - centre) > radius
+    ) {
       return false;
+    }
     return random() < NOISE_DENSITY;
   };
 
@@ -104,7 +108,9 @@ export const qrRuns = (value: string, style: QrStyle = {}): QrRuns => {
   // Row by row, column by column, so the noise comes out in the same order every time.
   const rowRuns = (row: number): readonly QrRun[] =>
     positions.reduce<readonly QrRun[]>((runs, column) => {
-      if (!dark(row, column)) return runs;
+      if (!dark(row, column)) {
+        return runs;
+      }
       const last = runs.at(-1);
       return last !== undefined && last.column + last.length === column
         ? [...runs.slice(0, -1), { ...last, length: last.length + 1 }]

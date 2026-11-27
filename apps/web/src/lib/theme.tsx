@@ -45,15 +45,19 @@ export const ThemeProvider = ({ children }: { readonly children: ReactNode }) =>
   useEffect(() => {
     document.documentElement.classList.toggle('dark', resolved === 'dark');
     // The browser's bar follows the app's mode, which may differ from the system's.
-    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'))
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
       meta.content = THEME_COLOR[resolved];
+    }
   }, [resolved]);
 
   const setPreference = (next: ThemePreference) => {
     setPreferenceState(next);
     try {
-      if (next === 'system') localStorage.removeItem(STORAGE_KEY);
-      else localStorage.setItem(STORAGE_KEY, next);
+      if (next === 'system') {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        localStorage.setItem(STORAGE_KEY, next);
+      }
     } catch {
       // Storage may be unavailable (private mode); the choice then lasts for this visit.
     }

@@ -42,7 +42,9 @@ const ScreenButtons = ({
 }) => {
   const [enabled, setEnabled] = useState(false);
   useEffect(() => {
-    if (!shown) return undefined;
+    if (!shown) {
+      return undefined;
+    }
     const timer = setTimeout(() => setEnabled(true), BUTTONS_ENABLE_MS);
     return () => clearTimeout(timer);
   }, [shown]);
@@ -145,8 +147,9 @@ export const NodeSegments = ({
   // A node left by scanning has one more page after its segments: the scanner.
   const count = node.segments.length + (node.scan ? 1 : 0);
   const [paging, setPaging] = useState(() => freshPaging(node, revision, initialIndex, visitScope));
-  if (paging.node !== node.id || paging.revision !== revision)
+  if (paging.node !== node.id || paging.revision !== revision) {
     setPaging(freshPaging(node, revision, initialIndex, visitScope));
+  }
   const index = Math.max(Math.min(paging.index, count - 1), 0);
   const go = (to: number) => {
     setPaging({ ...paging, index: to });
@@ -198,7 +201,9 @@ export const NodeSegments = ({
                 theme={theme}
                 instant={shown || !animated}
                 onRevealed={() => {
-                  if (!shown) setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+                  if (!shown) {
+                    setPaging((now) => ({ ...now, seen: [...now.seen, index] }));
+                  }
                 }}
               />
             </div>

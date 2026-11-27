@@ -132,7 +132,9 @@ export const resultsJson = (results: readonly TeamResult[]) => JSON.stringify(re
 
 /** A CSV cell: quoted when it holds the separator, a quote or a line break. */
 const cell = (value: Value | null | undefined) => {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined) {
+    return '';
+  }
   const text = String(value);
   return /[;"\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };

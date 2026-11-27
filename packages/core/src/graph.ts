@@ -158,7 +158,9 @@ interface Exploration {
  */
 const explore = (story: Story, start: string, teams: readonly Team[]): Exploration => {
   const initial = story.nodes[start]?.initialState;
-  if (initial === undefined) return { states: new Map(), edges: new Map() };
+  if (initial === undefined) {
+    return { states: new Map(), edges: new Map() };
+  }
   // Breadth-first search: the maps, the set and the queue are filled in place, an immutable version
   // would copy them on every step.
   const states = new Map([[start, initial]]);
@@ -167,27 +169,37 @@ const explore = (story: Story, start: string, teams: readonly Team[]): Explorati
   const seen = new Set([JSON.stringify([start, stateKey(initial)])]);
   // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
   for (const [visited, { node: id, state }] of queue.entries()) {
-    if (visited >= MAX_VISITS) break;
+    if (visited >= MAX_VISITS) {
+      break;
+    }
     const node = story.nodes[id]!;
     const fromFunction = edgesFromFunction(story, node, state, teams);
     for (const { edge, index } of fromFunction) {
       const known = edges.get(id) ?? new Map<string, Edge>();
       const key = edgeKey(edge, index);
-      if (!known.has(key)) known.set(key, edge);
+      if (!known.has(key)) {
+        known.set(key, edge);
+      }
       edges.set(id, known);
     }
     const transitions = [...transitionsOf(story, node), ...fromFunction.map(({ edge }) => edge)];
     for (const { goto, nextState } of transitions) {
-      if (!Object.hasOwn(story.nodes, goto)) continue;
+      if (!Object.hasOwn(story.nodes, goto)) {
+        continue;
+      }
       let next: State;
       try {
         next = mergeState(state, nextState?.(state));
       } catch {
         continue;
       }
-      if (!states.has(goto)) states.set(goto, next);
+      if (!states.has(goto)) {
+        states.set(goto, next);
+      }
       const key = JSON.stringify([goto, stateKey(next)]);
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       queue.push({ node: goto, state: next });
     }
@@ -200,7 +212,9 @@ const previewOf = (
   state: State | undefined,
   team: Team,
 ): NodePreview | undefined => {
-  if (typeof node.segments === 'function' && state === undefined) return undefined;
+  if (typeof node.segments === 'function' && state === undefined) {
+    return undefined;
+  }
   try {
     const segments = segmentsOf(node, state ?? {}, team);
     return {
@@ -270,7 +284,9 @@ const graphChoice = (edge: Edge, conditional: boolean): GraphChoice => ({
 /** Structural mistakes the type checker cannot see. */
 export const graphProblems = (graph: GameGraph): readonly string[] => {
   const starts = graph.order.filter((id) => graph.nodes[id]!.type === 'start');
-  if (starts.length === 0) return ['Příběh nemá start (uzel s initialState).'];
+  if (starts.length === 0) {
+    return ['Příběh nemá start (uzel s initialState).'];
+  }
   // Breadth-first search: the set and the queue are filled in place, an immutable version would
   // copy both on every step.
   const reached = new Set(starts);
@@ -278,7 +294,9 @@ export const graphProblems = (graph: GameGraph): readonly string[] => {
   // for...of reads the array's length on every step, so ids pushed while iterating are visited too.
   for (const id of queue) {
     for (const { target } of graph.nodes[id]?.choices ?? []) {
-      if (reached.has(target)) continue;
+      if (reached.has(target)) {
+        continue;
+      }
       reached.add(target);
       queue.push(target);
     }

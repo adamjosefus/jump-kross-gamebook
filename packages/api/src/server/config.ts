@@ -51,7 +51,9 @@ export const configFromEnv = (
   env: Readonly<Record<string, string | undefined>>,
 ): ServerConfigShape => {
   const missing = missingSecrets(env);
-  if (missing.length > 0) throw new Error(`Missing environment variables ${missing.join(', ')}`);
+  if (missing.length > 0) {
+    throw new Error(`Missing environment variables ${missing.join(', ')}`);
+  }
   const read = (name: SecretName) => (isUnset(env, name) ? DEV_FALLBACKS[name] : env[name]!);
   return {
     adminPassword: read('ADMIN_PASSWORD'),

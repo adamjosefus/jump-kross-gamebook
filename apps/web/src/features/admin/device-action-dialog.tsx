@@ -93,7 +93,9 @@ export const DeviceActionDialog = ({
           className='flex flex-col gap-4'
           onSubmit={(event) => {
             event.preventDefault();
-            if (confirmed) run.mutate();
+            if (confirmed) {
+              run.mutate();
+            }
           }}
         >
           <dl className='grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border p-3 text-sm'>

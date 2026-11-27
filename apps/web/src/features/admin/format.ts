@@ -27,7 +27,11 @@ const isToday = (date: Date, now: Date) =>
  */
 export const timeAgo = (iso: string, now = new Date()) => {
   const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 1000));
-  if (seconds < 60) return `před ${seconds} s`;
-  if (seconds < 3600) return `před ${Math.round(seconds / 60)} min`;
+  if (seconds < 60) {
+    return `před ${seconds} s`;
+  }
+  if (seconds < 3600) {
+    return `před ${Math.round(seconds / 60)} min`;
+  }
   return isToday(new Date(iso), now) ? formatTime(iso) : formatDateTime(iso);
 };

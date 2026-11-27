@@ -27,14 +27,18 @@ const useCameraAccess = () => {
     let status: PermissionStatus | undefined;
     let cancelled = false;
     const follow = () => {
-      if (cancelled || status === undefined) return;
+      if (cancelled || status === undefined) {
+        return;
+      }
       // A granted permission is checked by opening the camera only when the player asks.
       setState(
         status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'prompt',
       );
     };
     const query = navigator.permissions?.query({ name: 'camera' });
-    if (query === undefined) return undefined;
+    if (query === undefined) {
+      return undefined;
+    }
     query
       .then((result) => {
         status = result;
@@ -42,7 +46,9 @@ const useCameraAccess = () => {
         follow();
       })
       .catch(() => {
-        if (!cancelled) setState('prompt');
+        if (!cancelled) {
+          setState('prompt');
+        }
       });
     return () => {
       cancelled = true;
@@ -58,7 +64,9 @@ const useCameraAccess = () => {
         video: { facingMode: 'environment' },
         audio: false,
       });
-      for (const track of stream.getTracks()) track.stop();
+      for (const track of stream.getTracks()) {
+        track.stop();
+      }
       // Some Android phones free the camera a moment after the track ends; the scanner opening
       // it right away would be told it is in use by another app.
       await new Promise((resolve) => setTimeout(resolve, CAMERA_RELEASE_MS));
@@ -91,13 +99,16 @@ export const CameraGate = ({ children }: { readonly children: ReactNode }) => {
   const insecure = !window.isSecureContext || navigator.mediaDevices === undefined;
   const { state, request } = useCameraAccess();
 
-  if (!insecure && state === 'granted') return children;
-  if (!insecure && state === 'checking')
+  if (!insecure && state === 'granted') {
+    return children;
+  }
+  if (!insecure && state === 'checking') {
     return (
       <div className='flex flex-1 items-center justify-center'>
         <IconLoader2 className='size-6 animate-spin' />
       </div>
     );
+  }
 
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-6 text-center'>

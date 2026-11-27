@@ -49,7 +49,9 @@ const apiDevServer = (): Plugin => {
       const packages = path.resolve(import.meta.dirname, '../../packages');
       server.watcher.add(packages);
       server.watcher.on('change', (file) => {
-        if (!file.startsWith(`${packages}${path.sep}`) || api === undefined) return;
+        if (!file.startsWith(`${packages}${path.sep}`) || api === undefined) {
+          return;
+        }
         // The old one lets go of its database connections.
         void api.then((old) => old.dispose()).catch(() => undefined);
         api = undefined;
@@ -57,14 +59,18 @@ const apiDevServer = (): Plugin => {
         server.ws.send({ type: 'full-reload' });
       });
       server.middlewares.use((req, res, next) => {
-        if (!req.url?.startsWith('/api/')) return next();
+        if (!req.url?.startsWith('/api/')) {
+          return next();
+        }
         api ??= load(server);
         api
           .then(({ handle }) => handle(req, res))
           .catch((error: unknown) => {
             // The client left, as a page does when it reloads: nobody waits for an answer, and
             // the error overlay would only cover the reloaded page.
-            if (req.socket.destroyed) return;
+            if (req.socket.destroyed) {
+              return;
+            }
             api = undefined;
             next(error);
           });
@@ -76,7 +82,9 @@ const apiDevServer = (): Plugin => {
 /** The commit being built: Vercel names it, locally git does. */
 const commitHash = () => {
   const vercel = process.env['VERCEL_GIT_COMMIT_SHA'];
-  if (vercel !== undefined && vercel !== '') return vercel.slice(0, 7);
+  if (vercel !== undefined && vercel !== '') {
+    return vercel.slice(0, 7);
+  }
   try {
     return execSync('git rev-parse --short=7 HEAD', { encoding: 'utf8' }).trim();
   } catch {

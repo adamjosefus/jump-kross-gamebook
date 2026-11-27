@@ -28,7 +28,9 @@ const firstMatch = (table: readonly (readonly [RegExp, string])[], userAgent: st
  * anything; what is not recognised is left out.
  */
 export const deviceLabel = (userAgent: string | undefined): string => {
-  if (userAgent === undefined || userAgent === '') return 'Neznámé zařízení';
+  if (userAgent === undefined || userAgent === '') {
+    return 'Neznámé zařízení';
+  }
   const parts = [firstMatch(SYSTEMS, userAgent), firstMatch(BROWSERS, userAgent)].filter(
     (part) => part !== undefined,
   );

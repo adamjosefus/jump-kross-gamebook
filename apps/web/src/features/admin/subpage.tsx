@@ -37,7 +37,9 @@ export const useSubpageBack = (close: () => void) => {
       if (pushed && router.history.canGoBack()) {
         setPushed(false);
         router.history.back();
-      } else close();
+      } else {
+        close();
+      }
     },
   } as const;
 };

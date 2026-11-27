@@ -15,8 +15,11 @@ const canVibrate = () => 'vibrate' in navigator;
 
 /** A small click, e.g. when a finger takes hold of a control. */
 export const hapticLight = () => {
-  if (canVibrate()) navigator.vibrate(10);
-  else tapBySwitch();
+  if (canVibrate()) {
+    navigator.vibrate(10);
+  } else {
+    tapBySwitch();
+  }
 };
 
 /** A distinct click, e.g. when an action is done. A switch taps only lightly, so it taps twice. */

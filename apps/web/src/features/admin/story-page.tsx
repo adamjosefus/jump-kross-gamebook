@@ -18,8 +18,12 @@ export const StoryPage = () => {
     [graph.data],
   );
 
-  if (graph.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
-  if (graph.isError) return <p className='p-8 text-destructive'>{errorMessage(graph.error)}</p>;
+  if (graph.isPending) {
+    return <IconLoader2 className='m-8 size-6 animate-spin' />;
+  }
+  if (graph.isError) {
+    return <p className='p-8 text-destructive'>{errorMessage(graph.error)}</p>;
+  }
 
   return (
     <div className='flex h-full flex-col'>

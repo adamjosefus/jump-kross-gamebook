@@ -46,7 +46,9 @@ const statePoll = (state: PollState<PlayerView | null>) => {
 
 /** The same delay the query runs on, as the span the waiting screen shows. */
 const nextCheck = (state: PollState<unknown>, delay: number | false): NextCheck | undefined => {
-  if (delay === false) return undefined;
+  if (delay === false) {
+    return undefined;
+  }
   const from = pollSeed(state);
   return { from, at: from + delay };
 };
@@ -98,7 +100,9 @@ export const PlayerPage = () => {
     queryKey: STATE_KEY,
     queryFn: ({ signal }) =>
       api((client) => client.player.state(), { signal }).catch((error: unknown) => {
-        if (isApiError(error, 'Unauthorized')) return null;
+        if (isApiError(error, 'Unauthorized')) {
+          return null;
+        }
         throw error;
       }),
     refetchInterval: (query) => statePoll(query.state),
@@ -113,8 +117,9 @@ export const PlayerPage = () => {
 
   // A request already in flight is enough; it is not cancelled for a new one.
   const checkOnPage = () => {
-    if (!state.isFetching && Date.now() - state.dataUpdatedAt > PAGE_CHECK_MS)
+    if (!state.isFetching && Date.now() - state.dataUpdatedAt > PAGE_CHECK_MS) {
       void state.refetch({ cancelRefetch: false });
+    }
   };
 
   // A poll still in flight would overwrite the move's result when it lands; it is dropped first.
@@ -132,8 +137,9 @@ export const PlayerPage = () => {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
     // The intro shows a game not started or closed in place of the scanner.
-    if (isApiError(error, 'GameClosed') || isApiError(error, 'GameNotStarted'))
+    if (isApiError(error, 'GameClosed') || isApiError(error, 'GameNotStarted')) {
       void queryClient.invalidateQueries({ queryKey: INTRO_KEY });
+    }
   };
 
   const onLogin = (next: PlayerView) => {
@@ -174,13 +180,16 @@ export const PlayerPage = () => {
   };
 
   const onCode = (code: string): ScanOutcome | Promise<ScanOutcome> => {
-    if (view == null) return answer(login.mutateAsync(code), onLogin);
+    if (view == null) {
+      return answer(login.mutateAsync(code), onLogin);
+    }
     const parsed = parseQr(code);
-    if (parsed?.kind !== 'T')
+    if (parsed?.kind !== 'T') {
       return answer(
         scan.mutateAsync({ code, revision: view.revision }),
         (next) => void onResult(next),
       );
+    }
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {
@@ -194,12 +203,14 @@ export const PlayerPage = () => {
 
   // The slide button is the confirmation, so a choice is sent right away.
   const pick = (choice: { readonly index: number }) => {
-    if (view != null) choose.mutate({ index: choice.index, revision: view.revision });
+    if (view != null) {
+      choose.mutate({ index: choice.index, revision: view.revision });
+    }
   };
 
   const busy = login.isPending || choose.isPending || scan.isPending;
 
-  if (state.isPending)
+  if (state.isPending) {
     return (
       <main className={PAGE}>
         <PlayerFrame>
@@ -209,6 +220,7 @@ export const PlayerPage = () => {
         </PlayerFrame>
       </main>
     );
+  }
 
   // The last state is kept while the server cannot be reached; the bar says so instead of the
   // game pretending that nothing happened.
@@ -225,7 +237,7 @@ export const PlayerPage = () => {
 
   // Without a state to show (the first load failed) the device may well be logged in: the login
   // screen would be wrong, so the problem is shown with a way to try again.
-  if (view === undefined && state.isError)
+  if (view === undefined && state.isError) {
     return (
       <main className={PAGE}>
         <PlayerFrame>
@@ -235,6 +247,7 @@ export const PlayerPage = () => {
         </PlayerFrame>
       </main>
     );
+  }
 
   return (
     <main className={PAGE}>
@@ -286,7 +299,9 @@ export const PlayerPage = () => {
         confirmLabel={view?.loginMessages.switchConfirm ?? ''}
         cancelLabel={view?.loginMessages.switchCancel ?? ''}
         onConfirm={() => {
-          if (switchCode !== undefined) login.mutate(switchCode, { onSuccess: onLogin });
+          if (switchCode !== undefined) {
+            login.mutate(switchCode, { onSuccess: onLogin });
+          }
         }}
       >
         {view?.loginMessages.switchText}
@@ -344,7 +359,7 @@ const Intro = ({
   });
   // A poll that fails while waiting keeps the last answer on the screen and the next one tries
   // again; only an intro never loaded shows the problem.
-  if (intro.data === undefined)
+  if (intro.data === undefined) {
     return (
       <PlayerFrame>
         <Centered>
@@ -356,9 +371,10 @@ const Intro = ({
         </Centered>
       </PlayerFrame>
     );
+  }
   const { started, closed, ...content } = intro.data;
   // Until the teams can log in, the waiting screen comes first, before the intro.
-  if (!started || closed)
+  if (!started || closed) {
     return (
       <WaitingScreen
         message={started ? CLOSED_TEXT : NOT_STARTED_TEXT}
@@ -366,6 +382,7 @@ const Intro = ({
         nextCheck={nextCheck(intro, introPoll(intro))}
       />
     );
+  }
   return (
     <NodeSegments
       node={{

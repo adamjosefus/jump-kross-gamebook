@@ -49,7 +49,9 @@ export const ConfirmDialog = ({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setOpening((count) => count + 1);
+    if (open) {
+      setOpening((count) => count + 1);
+    }
   }
 
   return (

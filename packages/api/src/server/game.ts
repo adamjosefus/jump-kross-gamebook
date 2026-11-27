@@ -164,8 +164,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     let cachedSettings: { readonly row: GameSettingsRow; readonly at: number } | undefined;
     const gameSettings = Effect.fn('Game.gameSettings')(function* () {
       const now = Date.now();
-      if (cachedSettings !== undefined && now - cachedSettings.at < SETTINGS_TTL_MS)
+      if (cachedSettings !== undefined && now - cachedSettings.at < SETTINGS_TTL_MS) {
         return cachedSettings.row;
+      }
       const row = yield* store.gameSettings();
       cachedSettings = { row, at: now };
       return row;
@@ -197,7 +198,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         team.node === undefined
           ? undefined
           : renderNode(story, { node: team.node, state: team.state }, identity);
-      if (node === undefined) return { ...base, status: 'not-ready' };
+      if (node === undefined) {
+        return { ...base, status: 'not-ready' };
+      }
       return {
         ...base,
         status: node.type === 'end' ? 'finished' : 'playing',
@@ -216,9 +219,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     /** Puts a team that has not started yet on the start node. */
     const ensureStarted = Effect.fn('Game.ensureStarted')(function* (team: TeamRow) {
-      if (team.node !== undefined) return team;
+      if (team.node !== undefined) {
+        return team;
+      }
       const start = startPosition(story);
-      if (start === undefined) return team;
+      if (start === undefined) {
+        return team;
+      }
       const moved = yield* store.moveTeam(team.id, team.revision, {
         ...start,
         finished: false,
@@ -230,7 +237,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     const loadTeam = Effect.fn('Game.loadTeam')(function* (teamId: number) {
       const team = yield* store.getTeam(teamId);
-      if (team === undefined) return yield* notFound('Tým');
+      if (team === undefined) {
+        return yield* notFound('Tým');
+      }
       return yield* ensureStarted(team);
     });
 
@@ -245,7 +254,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     /** Fails when the admin closed the game. */
     const requireOpen = Effect.fn('Game.requireOpen')(function* () {
       const { closed } = yield* gameSettings();
-      if (closed) yield* gameClosed();
+      if (closed) {
+        yield* gameClosed();
+      }
     });
 
     /**
@@ -254,7 +265,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
      */
     const closedView = (team: TeamRow): PlayerView => {
       const open = view(team);
-      if (open.status === 'finished') return open;
+      if (open.status === 'finished') {
+        return open;
+      }
       const { node: _node, ...rest } = open;
       return { ...rest, status: 'closed' };
     };
@@ -271,11 +284,12 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       result: MoveResult,
       action: string,
     ) {
-      if (!result.ok)
+      if (!result.ok) {
         return yield* new InvalidMove({
           reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
+      }
       // A `NaN` or an object in the state is a mistake in the story (or an admin's state without a
       // key the story counts on). Stored, it would make the team's row unreadable; refused, the
       // team stays where it is and the admin can mend the state.
@@ -290,8 +304,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         });
       }
       const moved = yield* store.moveTeam(team.id, team.revision, moveOf(result, action));
-      if (moved === undefined)
+      if (moved === undefined) {
         return yield* new RevisionConflict({ message: 'Váš tým už mezitím rozhodl.' });
+      }
       return view(moved);
     });
 
@@ -302,8 +317,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const [team] = yield* Effect.all([loadTeam(teamId), requireOpen()], {
         concurrency: 'unbounded',
       });
-      if (team.revision !== expectedRevision)
+      if (team.revision !== expectedRevision) {
         return yield* new RevisionConflict({ message: 'Váš tým už mezitím rozhodl.' });
+      }
       if (team.node === undefined) {
         return yield* new InvalidMove({
           reason: 'not-started',
@@ -337,7 +353,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         });
       }
       const team = story.teams.find((candidate) => candidate.id === payload.id);
-      if (team === undefined) return yield* new InvalidCode({ message: loginTexts.unknownTeam });
+      if (team === undefined) {
+        return yield* new InvalidCode({ message: loginTexts.unknownTeam });
+      }
       return team;
     });
 
@@ -348,11 +366,13 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         yield* penalty;
         return yield* new InvalidCode({ message: 'Tento QR kód nepatří ke hře.' });
       }
-      if (payload.kind === 'T')
+      if (payload.kind === 'T') {
         return yield* new InvalidCode({ message: 'Tohle je přihlašovací kód týmu.' });
+      }
       const qrCode = story.codes.find((candidate) => candidate.id === payload.id);
-      if (qrCode === undefined)
+      if (qrCode === undefined) {
         return yield* new InvalidCode({ message: 'Tento QR kód už neplatí.' });
+      }
       return qrCode;
     });
 
@@ -377,16 +397,21 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
      */
     const login = Effect.fn('Game.login')(function* (code: string, client: SessionClient) {
       const { id } = yield* teamOf(code);
-      if ((yield* store.gameStartedAt()) === undefined)
+      if ((yield* store.gameStartedAt()) === undefined) {
         return yield* new GameNotStarted({ message: GAME_NOT_STARTED_MESSAGE });
+      }
       const { deviceId } = client;
       const [, banned] = yield* Effect.all(
         [requireOpen(), deviceId === undefined ? Effect.succeed(false) : store.isBanned(deviceId)],
         { concurrency: 'unbounded' },
       );
-      if (banned) return yield* new DeviceBanned({ message: BANNED_MESSAGE });
+      if (banned) {
+        return yield* new DeviceBanned({ message: BANNED_MESSAGE });
+      }
       const team = yield* store.ensureTeam(id);
-      if (team.startedAt === undefined) yield* store.markStarted(team.id);
+      if (team.startedAt === undefined) {
+        yield* store.markStarted(team.id);
+      }
       const sessionId = crypto.randomUUID();
       yield* store.createSession(sessionId, team.id, {
         ip: clip(client.ip, MAX_IP_LENGTH),
@@ -490,7 +515,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
         Promise.all(sessions.map((session) => publicId('session', session.id))),
       );
       const session = sessions[ids.indexOf(id)];
-      if (session === undefined) return yield* notFound('Zařízení');
+      if (session === undefined) {
+        return yield* notFound('Zařízení');
+      }
       return session;
     });
 
@@ -642,7 +669,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     });
 
     const requireTeam = Effect.fn('Game.requireTeam')(function* (id: number) {
-      if (!story.teams.some((team) => team.id === id)) return yield* notFound('Tým');
+      if (!story.teams.some((team) => team.id === id)) {
+        return yield* notFound('Tým');
+      }
       return yield* store.ensureTeam(id);
     });
 
@@ -652,7 +681,9 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
      */
     const adminMove = Effect.fn('Game.adminMove')(function* (team: TeamRow, move: TeamMove) {
       const moved = yield* store.moveTeam(team.id, undefined, move);
-      if (moved === undefined) return yield* Effect.die(new Error(`Tým ${team.id} zmizel.`));
+      if (moved === undefined) {
+        return yield* Effect.die(new Error(`Tým ${team.id} zmizel.`));
+      }
       return moved;
     });
 
@@ -679,10 +710,11 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const resetTeamTime = Effect.fn('Game.resetTeamTime')(function* (id: number) {
       const team = yield* requireTeam(id);
       // The store checks the end itself, in the same write: the team may finish right now.
-      if (!(yield* store.resetTiming(id)))
+      if (!(yield* store.resetTiming(id))) {
         return yield* new TeamFinished({
           message: 'Tým už je v cíli. Jeho čas jde vynulovat jen restartem hry týmu.',
         });
+      }
       // The row read before the write may be a move behind the team.
       return yield* singleTeamStatus({
         ...((yield* store.getTeam(id)) ?? team),
@@ -708,11 +740,15 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
     const moveTeam = Effect.fn('Game.moveTeam')(function* (id: number, node: string, given: State) {
       const team = yield* requireTeam(id);
       // `story.nodes[node]` alone would find `toString` and the like on the prototype.
-      if (!Object.hasOwn(story.nodes, node)) return yield* notFound(`Uzel ${node}`);
+      if (!Object.hasOwn(story.nodes, node)) {
+        return yield* notFound(`Uzel ${node}`);
+      }
       // A key the admin leaves out keeps the start's value, so the story does not count with a
       // missing one later (`state.gold - 20` of nothing is `NaN`).
       const state: State = { ...startPosition(story)?.state, ...given };
-      if (unsoundStateKeys(state).length > 0) return yield* invalidState(state);
+      if (unsoundStateKeys(state).length > 0) {
+        return yield* invalidState(state);
+      }
       const moved = yield* adminMove(team, {
         node,
         state,
@@ -739,13 +775,17 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
       const team =
         scanned ?? story.teams.find((known) => known.id === input.team) ?? sampleTeam(story);
       if (input.position !== undefined) {
-        if (!Object.hasOwn(story.nodes, input.position.node))
+        if (!Object.hasOwn(story.nodes, input.position.node)) {
           return yield* notFound(`Uzel ${input.position.node}`);
-        if (unsoundStateKeys(input.position.state).length > 0)
+        }
+        if (unsoundStateKeys(input.position.state).length > 0) {
           return yield* invalidState(input.position.state);
+        }
       }
       const start = input.position ?? startPosition(story);
-      if (start === undefined) return yield* notFound('Start');
+      if (start === undefined) {
+        return yield* notFound('Start');
+      }
       const result: MoveResult =
         input.move === undefined || input.position === undefined
           ? { ok: true, position: start }
@@ -757,16 +797,18 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
                 team,
                 'scan' in input.move ? input.move.scan : (yield* qrCodeOf(input.move.code)).id,
               );
-      if (!result.ok)
+      if (!result.ok) {
         return yield* new InvalidMove({
           reason: reasonOf(result.error),
           message: MOVE_MESSAGES[result.error],
         });
+      }
       const { position } = result;
       const node = story.nodes[position.node];
       const rendered = renderNode(story, position, team);
-      if (node === undefined || rendered === undefined)
+      if (node === undefined || rendered === undefined) {
         return yield* notFound(`Uzel ${position.node}`);
+      }
       const visit: PlaytestView = {
         team,
         node: position.node,

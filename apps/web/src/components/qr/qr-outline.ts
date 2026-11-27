@@ -65,13 +65,17 @@ export const qrOutlines = (
   // Walking the edges is a traversal with a visited set, so it is mutable by design.
   const visited = new Set<GridEdge>();
   return edges.flatMap((first) => {
-    if (visited.has(first)) return [];
+    if (visited.has(first)) {
+      return [];
+    }
     const corners: GridPoint[] = [];
     let edge = first;
     do {
       visited.add(edge);
       const following = next(edge);
-      if (following.direction !== edge.direction) corners.push(endOf(edge));
+      if (following.direction !== edge.direction) {
+        corners.push(endOf(edge));
+      }
       edge = following;
     } while (edge !== first);
     return [corners];

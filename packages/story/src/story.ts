@@ -7,7 +7,9 @@ type State = {
 
 /** The number of coins with the Czech word for "coins" in the right form, e.g. „5 mincí“. */
 const coinsText = (count: number): string => {
-  if (count >= 1 && count <= 4) return `${count} mince`;
+  if (count >= 1 && count <= 4) {
+    return `${count} mince`;
+  }
   return `${count} mincí`;
 };
 
@@ -244,7 +246,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
       // The bus is a scan only a team with the fare can take; the park pays the finder a coin. One
       // function gives the codes for the state, so the park is always there to go on by.
       scans: (state) => {
-        if (state.coins >= 2)
+        if (state.coins >= 2) {
           return [
             {
               code: 4,
@@ -261,6 +263,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
               },
             },
           ];
+        }
         return [
           {
             code: 5,
@@ -284,7 +287,7 @@ Co bude k večeři?
         ];
       },
       choices: (state) => {
-        if (state.coins >= 5)
+        if (state.coins >= 5) {
           return [
             { goto: 'OUTRO', label: 'Topinky s česnekem' },
             {
@@ -295,6 +298,7 @@ Co bude k večeři?
               },
             },
           ];
+        }
         return [{ goto: 'OUTRO', label: 'Topinky s česnekem' }];
       },
     },
@@ -354,7 +358,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
         ];
       },
       scans: (state) => {
-        if (state.coins >= 2)
+        if (state.coins >= 2) {
           return [
             {
               code: 4,
@@ -371,6 +375,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
               },
             },
           ];
+        }
         return [
           {
             code: 5,
@@ -395,7 +400,7 @@ Co bude k večeři?
       },
       // The soup for the whole floor earns coins: a choice can add to the state, not only take.
       choices: (state) => {
-        if (state.coins >= 4)
+        if (state.coins >= 4) {
           return [
             { goto: 'OUTRO', label: 'Bramboračka' },
             {
@@ -413,6 +418,7 @@ Co bude k večeři?
               },
             },
           ];
+        }
         return [
           { goto: 'OUTRO', label: 'Bramboračka' },
           {
@@ -481,7 +487,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
         ];
       },
       scans: (state) => {
-        if (state.coins >= 2)
+        if (state.coins >= 2) {
           return [
             {
               code: 4,
@@ -498,6 +504,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
               },
             },
           ];
+        }
         return [
           {
             code: 5,
@@ -521,7 +528,7 @@ Co bude k večeři?
         ];
       },
       choices: (state) => {
-        if (state.coins >= 6)
+        if (state.coins >= 6) {
           return [
             { goto: 'OUTRO', label: 'Kuře na paprice' },
             {
@@ -532,6 +539,7 @@ Co bude k večeři?
               },
             },
           ];
+        }
         return [{ goto: 'OUTRO', label: 'Kuře na paprice' }];
       },
     },

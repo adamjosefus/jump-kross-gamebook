@@ -80,7 +80,9 @@ const isEmptySegment = ({ content, svg }: RenderedSegment) =>
 const introProblems = (story: Story): readonly string[] => {
   const id = story.introNode;
   const intro = story.nodes[id];
-  if (intro === undefined) return [`Příběh nemá uzel úvodu ${id}.`];
+  if (intro === undefined) {
+    return [`Příběh nemá uzel úvodu ${id}.`];
+  }
   return [
     ...problemIf(id === story.outroNode, `Úvod a konec je tentýž uzel ${id}.`),
     ...problemIf(intro.initialState !== undefined, `Úvod ${id} nesmí být start.`),
@@ -108,7 +110,9 @@ const introProblems = (story: Story): readonly string[] => {
 const outroProblems = (story: Story): readonly string[] => {
   const id = story.outroNode;
   const outro = story.nodes[id];
-  if (outro === undefined) return [`Příběh nemá uzel konce ${id}.`];
+  if (outro === undefined) {
+    return [`Příběh nemá uzel konce ${id}.`];
+  }
   return [
     ...problemIf(outro.initialState !== undefined, `Konec ${id} nesmí být start.`),
     ...problemIf(
@@ -340,10 +344,12 @@ const step = (
 ): Step => {
   const node = story.nodes[id]!;
   const contentProblems = contentProblemsOf(id, node, state, team);
-  if (id === story.outroNode) return { problems: contentProblems, scanned: [], next: [] };
+  if (id === story.outroNode) {
+    return { problems: contentProblems, scanned: [], next: [] };
+  }
 
   const offered = attempt(() => offeredAt(node, state, team));
-  if (!offered.ok)
+  if (!offered.ok) {
     return {
       problems: [
         ...contentProblems,
@@ -354,6 +360,7 @@ const step = (
       scanned: [],
       next: [],
     };
+  }
   const available = offered.value;
   const codes = available.flatMap(({ transition }) =>
     'code' in transition ? [transition.code] : [],
@@ -428,7 +435,9 @@ const collapseStates = (problems: readonly string[]): readonly string[] => {
       firsts.set(problem, problem);
       continue;
     }
-    if (!firsts.has(key)) firsts.set(key, problem);
+    if (!firsts.has(key)) {
+      firsts.set(key, problem);
+    }
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [...firsts].map(([key, first]) => {
@@ -471,13 +480,17 @@ const explore = (
     const result = step(story, known, team, visit);
     reached.add(visit.node);
     problems.push(...result.problems);
-    for (const code of result.scanned) scanned.add(code);
+    for (const code of result.scanned) {
+      scanned.add(code);
+    }
     const from = visitKey(visit);
     played.set(from, visit);
     edges.set(from, result.next.map(visitKey));
     for (const next of result.next) {
       const key = visitKey(next);
-      if (seen.has(key)) continue;
+      if (seen.has(key)) {
+        continue;
+      }
       seen.add(key);
       queue.push(next);
     }
@@ -509,17 +522,24 @@ const trappedVisits = (
   edges: ReadonlyMap<string, readonly string[]>,
 ): readonly Visit[] => {
   const incoming = new Map<string, string[]>();
-  for (const [from, targets] of edges)
-    for (const target of targets) incoming.set(target, [...(incoming.get(target) ?? []), from]);
+  for (const [from, targets] of edges) {
+    for (const target of targets) {
+      incoming.set(target, [...(incoming.get(target) ?? []), from]);
+    }
+  }
   // Breadth-first search backwards from the end: the set and the queue are filled in place.
   const finishing = [...played.keys()].filter((key) => played.get(key)!.node === story.outroNode);
-  if (finishing.length === 0) return [];
+  if (finishing.length === 0) {
+    return [];
+  }
   const canFinish = new Set(finishing);
   const queue = [...finishing];
   // for...of reads the array's length on every step, so keys pushed while iterating are visited too.
   for (const key of queue) {
     for (const from of incoming.get(key) ?? []) {
-      if (canFinish.has(from)) continue;
+      if (canFinish.has(from)) {
+        continue;
+      }
       canFinish.add(from);
       queue.push(from);
     }
@@ -555,10 +575,14 @@ export const validateStory = (
   // Everything below looks nodes up by `order`, so a story whose order names no node gets only
   // that reported.
   const structure = structureProblems(story);
-  if (structure.length > 0) return structure;
+  if (structure.length > 0) {
+    return structure;
+  }
   const starts = story.order.filter((id) => story.nodes[id]!.initialState !== undefined);
   const start = starts[0];
-  if (start === undefined) return ['Příběh nemá start (uzel s initialState).'];
+  if (start === undefined) {
+    return ['Příběh nemá start (uzel s initialState).'];
+  }
 
   const known = new Set(story.codes.map((qrCode) => qrCode.id));
   // The intro is played by nobody: the login leads from it to the start.

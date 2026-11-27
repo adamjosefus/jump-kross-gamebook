@@ -665,7 +665,9 @@ describe('validateStory', () => {
               nextState: () => ({ n: state.n + 1 }),
             } as const;
             const aside = { label: 'Nikam', goto: 'C' } as const;
-            if (state.n < 2) return [again];
+            if (state.n < 2) {
+              return [again];
+            }
             return state.n < 5 ? [again, aside] : [{ label: 'Konec', goto: 'OUTRO' }, aside];
           },
         },

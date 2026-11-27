@@ -57,8 +57,11 @@ const useLogPanel = () => {
   const change = (next: boolean) => {
     setOpen(next);
     try {
-      if (next) localStorage.removeItem(LOG_KEY);
-      else localStorage.setItem(LOG_KEY, 'hidden');
+      if (next) {
+        localStorage.removeItem(LOG_KEY);
+      } else {
+        localStorage.setItem(LOG_KEY, 'hidden');
+      }
     } catch {
       // Storage may be blocked; the panel then keeps its state only until a reload.
     }
@@ -78,8 +81,11 @@ const useAnimations = () => {
   const change = (next: boolean) => {
     setAnimated(next);
     try {
-      if (next) localStorage.removeItem(ANIMATIONS_KEY);
-      else localStorage.setItem(ANIMATIONS_KEY, 'off');
+      if (next) {
+        localStorage.removeItem(ANIMATIONS_KEY);
+      } else {
+        localStorage.setItem(ANIMATIONS_KEY, 'off');
+      }
     } catch {
       // Storage may be blocked; the switch then holds only until a reload.
     }
@@ -101,10 +107,14 @@ const usePreviewScale = () => {
   const [block, blockRef] = useState<HTMLElement | null>(null);
   const [scale, setScale] = useState(1);
   useEffect(() => {
-    if (page === null || block === null) return undefined;
+    if (page === null || block === null) {
+      return undefined;
+    }
     const measure = () => {
       // The offset sizes ignore the transform, so these are the block's natural size.
-      if (block.offsetWidth === 0 || block.offsetHeight === 0) return;
+      if (block.offsetWidth === 0 || block.offsetHeight === 0) {
+        return;
+      }
       const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
       // On a phone a third of the width would be too small to read; the graph stays behind it.
       const available =
@@ -149,16 +159,26 @@ const encodeMove = (move: Move | undefined) =>
 /** `undefined` is the skipped login; a token nobody wrote is `invalid`, not a move. */
 const decodeMove = (token: string): Move | undefined | 'invalid' => {
   const rest = token.slice(1);
-  if (token === 'x') return undefined;
-  if (token.startsWith('c') && /^\d+$/.test(rest)) return { choice: Number(rest) };
-  if (token.startsWith('s') && /^\d+$/.test(rest)) return { scan: Number(rest) };
-  if (token.startsWith('q') && rest !== '') return { code: rest };
+  if (token === 'x') {
+    return undefined;
+  }
+  if (token.startsWith('c') && /^\d+$/.test(rest)) {
+    return { choice: Number(rest) };
+  }
+  if (token.startsWith('s') && /^\d+$/.test(rest)) {
+    return { scan: Number(rest) };
+  }
+  if (token.startsWith('q') && rest !== '') {
+    return { code: rest };
+  }
   return 'invalid';
 };
 
 /** How the path shows the move from `from`. */
 const viaOf = (from: PlaytestVisit, move: Move | undefined) => {
-  if (move === undefined) return 'Přihlášení přeskočeno';
+  if (move === undefined) {
+    return 'Přihlášení přeskočeno';
+  }
   if ('choice' in move) {
     const label = from.view.choices.find((choice) => choice.index === move.choice)?.label;
     // An empty text is the plain arrow „Další“.
@@ -166,7 +186,9 @@ const viaOf = (from: PlaytestVisit, move: Move | undefined) => {
   }
   const scanned = 'scan' in move ? move.scan : parseQr(move.code)?.id;
   const name = from.view.scans.find((qrCode) => qrCode.id === scanned)?.name;
-  if ('scan' in move) return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;
+  if ('scan' in move) {
+    return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;
+  }
   return from.intro === true ? `Kód týmu ${move.code}` : `QR ${name ?? move.code}`;
 };
 
@@ -193,7 +215,9 @@ const replayVisits = async (
   tokens: readonly string[],
 ): Promise<readonly PlaytestVisit[]> => {
   const [token, ...rest] = tokens;
-  if (token === undefined) return [];
+  if (token === undefined) {
+    return [];
+  }
   const move = decodeMove(token);
   // A mistyped token, or a skipped login after the intro, would otherwise replay as a skipped
   // login and the rest of the path would go on from a wrong place.
@@ -264,7 +288,9 @@ const CodeEntry = ({
     });
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (code !== '' && !busy) send(code);
+    if (code !== '' && !busy) {
+      send(code);
+    }
   };
   return (
     <Popover open={open && !disabled} onOpenChange={setOpen}>
@@ -389,16 +415,19 @@ export const PlaytestPage = () => {
   const backTo = (index: number) => setMoves(visits.slice(0, index));
 
   const take = (move: Move | undefined) => {
-    if (current !== undefined)
+    if (current !== undefined) {
       play.mutate(
         { from: current, ...(move === undefined ? {} : { move }) },
         { onSuccess: advance },
       );
+    }
   };
 
   /** As in the game: a code taken shows its check mark first, a refused one an exclamation mark. */
   const scan = async (code: string): Promise<ScanOutcome> => {
-    if (current === undefined) return undefined;
+    if (current === undefined) {
+      return undefined;
+    }
     try {
       const next = await play.mutateAsync({ from: current, move: { code } });
       setTimeout(() => advance(next), ACCEPTED_MS);
@@ -474,7 +503,9 @@ export const PlaytestPage = () => {
     void navigate({ to: '/admin/playtest', search: rest, replace: true });
   });
   const openLog = () => {
-    if (!narrow) return setLogOpen(true);
+    if (!narrow) {
+      return setLogOpen(true);
+    }
     subpageBack.opened();
     void navigate({ to: '/admin/playtest', search: { ...search, panel: 'log' } });
   };
@@ -485,7 +516,9 @@ export const PlaytestPage = () => {
   // reload would then replay another path than the one shown.
   const urlPath = search.path ?? '';
   useEffect(() => {
-    if (moves === undefined || urlPath === pathParam) return;
+    if (moves === undefined || urlPath === pathParam) {
+      return;
+    }
     void navigate({
       to: '/admin/playtest',
       search: {
@@ -496,9 +529,12 @@ export const PlaytestPage = () => {
     });
   }, [moves, urlPath, pathParam, urlPanel, navigate]);
 
-  if (intro.isPending || (opened !== '' && replay.isPending))
+  if (intro.isPending || (opened !== '' && replay.isPending)) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
-  if (intro.isError) return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
+  }
+  if (intro.isError) {
+    return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
+  }
 
   return (
     <div ref={pageRef} className='relative h-full overflow-hidden'>
@@ -590,7 +626,7 @@ export const PlaytestPage = () => {
             disabled={current?.view.scan !== true}
             busy={play.isPending}
             onCode={(code, done) => {
-              if (current !== undefined)
+              if (current !== undefined) {
                 play.mutate(
                   { from: current, move: { code } },
                   {
@@ -600,6 +636,7 @@ export const PlaytestPage = () => {
                     },
                   },
                 );
+              }
             }}
           />
           {current?.intro === true ? (

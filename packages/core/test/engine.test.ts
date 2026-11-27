@@ -196,7 +196,9 @@ describe('engine', () => {
 
   it('moves on by scanning the QR code of one of the offered codes', () => {
     const moved = applyChoice(story, start, VLCI, 1);
-    if (!moved.ok) throw new Error(moved.error);
+    if (!moved.ok) {
+      throw new Error(moved.error);
+    }
     const atWell = moved.position;
     expect(atWell.state).toEqual({ gold: 80, hatColor: 'green' });
 
@@ -390,7 +392,9 @@ describe('`choices` as a function', () => {
           const onward = { label: `Dál, ${team.name}`, goto: 'B' } as const;
           const foxes = { label: 'Lišky', goto: 'C' } as const;
           const rich = { label: 'Bohatí', goto: 'D' } as const;
-          if (team.id === 2) return state.gold > 5 ? [onward, foxes, rich] : [onward, foxes];
+          if (team.id === 2) {
+            return state.gold > 5 ? [onward, foxes, rich] : [onward, foxes];
+          }
           return state.gold > 5 ? [onward, rich] : [onward];
         },
       },
@@ -562,7 +566,9 @@ describe('graph', () => {
           S: {
             segments: ['S'],
             scans: (state) => {
-              if (state.key) return [{ code: 2, goto: 'B' }];
+              if (state.key) {
+                return [{ code: 2, goto: 'B' }];
+              }
               return [{ code: 1, goto: 'B' }];
             },
           },
@@ -645,7 +651,9 @@ describe('graph', () => {
             initialState: { n: 0 },
             segments: ['A'],
             choices: (state, team) => {
-              if (state.n > 0) return [{ label: 'Konec', goto: 'B' }];
+              if (state.n > 0) {
+                return [{ label: 'Konec', goto: 'B' }];
+              }
               const again = { label: 'Znovu', goto: 'A', nextState: () => ({ n: 1 }) } as const;
               return team.id === 2 ? [again, { label: 'Lišky', goto: 'B' }] : [again];
             },

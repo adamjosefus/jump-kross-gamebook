@@ -19,7 +19,9 @@ const Demo = ({ armMs }: { readonly armMs: number }) => {
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (!next) setAnswer((current) => current ?? 'Zůstat');
+          if (!next) {
+            setAnswer((current) => current ?? 'Zůstat');
+          }
         }}
         armMs={armMs}
         title='Přepnout na jiný tým?'

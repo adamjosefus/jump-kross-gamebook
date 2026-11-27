@@ -111,7 +111,9 @@ const TeamTimes = ({
   readonly chapters: ReadonlyMap<string, string>;
 }) => {
   const playtimeMs = playTime(team, clock);
-  if (playtimeMs === undefined) return null;
+  if (playtimeMs === undefined) {
+    return null;
+  }
   const phase = team.phase;
   return (
     <>
@@ -205,9 +207,15 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
 /** An action of the log in words; a scan names its code. */
 const actionLabel = (action: string, codes: readonly QrCode[]) => {
   const label = ACTION_LABELS[action];
-  if (label !== undefined) return label;
-  if (action.startsWith('choice:')) return 'volba';
-  if (!action.startsWith('scan:')) return action;
+  if (label !== undefined) {
+    return label;
+  }
+  if (action.startsWith('choice:')) {
+    return 'volba';
+  }
+  if (!action.startsWith('scan:')) {
+    return action;
+  }
   const id = action.slice(5);
   const code = codes.find((qrCode) => String(qrCode.id) === id);
   return code === undefined ? `sken kódu ${id}` : `sken: ${code.name} (kód ${id})`;
@@ -236,8 +244,9 @@ const usePanels = () => {
   const [value, setValue] = useState<PanelStates>(() => {
     try {
       const stored: unknown = JSON.parse(localStorage.getItem(PANELS_KEY) ?? 'null');
-      if (typeof stored === 'object' && stored !== null && 'teams' in stored && 'log' in stored)
+      if (typeof stored === 'object' && stored !== null && 'teams' in stored && 'log' in stored) {
         return { teams: readPanel(stored.teams), log: readPanel(stored.log) };
+      }
     } catch {
       // Storage may be unavailable or hold something else; start with the graph alone.
     }
@@ -296,7 +305,9 @@ const TeamSortControl = ({
       <Select
         value={sort.key}
         onValueChange={(key) => {
-          if (isTeamSortKey(key)) onChange({ ...sort, key });
+          if (isTeamSortKey(key)) {
+            onChange({ ...sort, key });
+          }
         }}
       >
         <SelectTrigger size='sm' className='h-7 flex-1 text-xs' aria-labelledby='team-sort-label'>
@@ -407,7 +418,9 @@ export const DashboardPage = () => {
       ? {
           state: CLOSED,
           onChange: (next: PanelState) => {
-            if (next.open) openSubpage(panel);
+            if (next.open) {
+              openSubpage(panel);
+            }
           },
         }
       : {
@@ -415,10 +428,13 @@ export const DashboardPage = () => {
           onChange: (next: PanelState) => setPanels({ ...panels, [panel]: next }),
         };
 
-  if (overview.isPending) return <IconLoader2 className='m-8 size-6 animate-spin' />;
+  if (overview.isPending) {
+    return <IconLoader2 className='m-8 size-6 animate-spin' />;
+  }
   // Without anything to show the error is the page; with the last data it is a bar above them.
-  if (overview.data === undefined)
+  if (overview.data === undefined) {
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
+  }
   const { game, teams, log, codes } = overview.data;
   // The times come from the last poll; a closed game stops every clock.
   const clock: Clock = { now, measuredAt: overview.dataUpdatedAt, paused: game.closed };
@@ -605,7 +621,9 @@ const MoveDialog = ({
   const [filledFrom, setFilledFrom] = useState(team.revision);
   const movedSince = current !== undefined && current.revision !== filledFrom;
   const refill = () => {
-    if (current === undefined) return;
+    if (current === undefined) {
+      return;
+    }
     setNode(current.node ?? graph.start ?? graph.order[0] ?? '');
     setStateText(JSON.stringify(current.state, null, 2));
     setFilledFrom(current.revision);
@@ -668,7 +686,9 @@ const MoveDialog = ({
           className='flex min-h-0 flex-col gap-4'
           onSubmit={(event) => {
             event.preventDefault();
-            if (confirmed) move.mutate();
+            if (confirmed) {
+              move.mutate();
+            }
           }}
         >
           <div className='-mx-4 flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-1'>

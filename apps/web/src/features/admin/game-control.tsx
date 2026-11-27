@@ -106,7 +106,9 @@ export const GameControl = ({
       const started = await api((client) => client.admin.startGame());
       // A game paused and then wiped is not started but still closed; starting it lets teams in.
       // The server's answer decides, not the page's data, which another organizer may have outdated.
-      if (!started.closed) return;
+      if (!started.closed) {
+        return;
+      }
       try {
         await api((client) => client.admin.setClosed({ payload: { closed: false } }));
       } catch (error) {

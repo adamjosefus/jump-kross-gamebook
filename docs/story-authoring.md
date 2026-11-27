@@ -44,7 +44,7 @@ Uzel pokračuje buď **volbami**, nebo **skeny**, nikdy obojím:
 
 ```ts
 scans: (state) => {
-  if (state.coins >= 2)
+  if (state.coins >= 2) {
     return [
       // the bus
       {
@@ -57,11 +57,12 @@ scans: (state) => {
       // the park
       { code: 5, goto: 'DOMA' },
     ];
+  }
   return [{ code: 5, goto: 'DOMA' }];
 },
 ```
 
-Každá větev vrací celý seznam. Linter v příběhu (`packages/story/src`) nepustí podmínku `a ? b : c` a chce, aby každá arrow funkce měla tělo v `{ … }` s `return`; větvení se tak píše přes `if` a `return`.
+Každá větev vrací celý seznam. Linter v příběhu (`packages/story/src`) nepustí podmínku `a ? b : c` a chce, aby každá arrow funkce měla tělo v `{ … }` s `return`; větvení se tak píše přes `if` a `return`. V celém projektu má navíc každé `if`, `else` a cyklus tělo ve složených závorkách.
 
 Úvod může mít `loginMessages`: texty hlášek kolem přihlášení (přihlášen, už hrajete, cizí kód, přepnutí týmu…). Co chybí, doplní se výchozím textem.
 

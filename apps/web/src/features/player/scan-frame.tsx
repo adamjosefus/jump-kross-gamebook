@@ -148,7 +148,9 @@ export const ScanFrame = ({
     const shadeElement = shade.current;
     const lineElement = line.current;
     const iconElement = icon.current;
-    if (shadeElement === null || lineElement === null || iconElement === null) return undefined;
+    if (shadeElement === null || lineElement === null || iconElement === null) {
+      return undefined;
+    }
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     // Where the aim is, where the dashes' centers are along it (a multiple of a quarter: on the
     // corners), how fast they run and how long they are.
@@ -174,9 +176,9 @@ export const ScanFrame = ({
         };
       });
 
-      if (current.state === 'arming' && !reducedMotion.matches)
+      if (current.state === 'arming' && !reducedMotion.matches) {
         speed += (SPEED - speed) * (1 - Math.exp(-seconds / SPEED_UP));
-      else {
+      } else {
         // A critically damped spring to the next corner ahead, far enough to stop smoothly.
         const corner = Math.ceil((phase + speed / SETTLE) / QUARTER) * QUARTER;
         speed += (SETTLE ** 2 * (corner - phase) - 2 * SETTLE * speed) * seconds;

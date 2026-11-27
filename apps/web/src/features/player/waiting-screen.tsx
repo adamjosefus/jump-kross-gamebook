@@ -40,7 +40,9 @@ const CheckPie = ({ from, at }: NextCheck) => {
   const running = useRef<Animation | null>(null);
   useEffect(() => {
     const element = arc.current;
-    if (element === null) return;
+    if (element === null) {
+      return;
+    }
     const now = Date.now();
     const previous = running.current;
     // Where the arc stands right now, before the old animation is dropped.

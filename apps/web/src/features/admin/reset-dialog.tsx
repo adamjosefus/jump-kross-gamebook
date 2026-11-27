@@ -60,7 +60,9 @@ export const ResetDialog = ({
   // Every way of closing forgets what was typed, so the destructive button is never armed on the
   // next opening.
   const close = (next: boolean) => {
-    if (!next) setTyped('');
+    if (!next) {
+      setTyped('');
+    }
     onOpenChange(next);
   };
 
@@ -83,7 +85,9 @@ export const ResetDialog = ({
           className='flex flex-col gap-2'
           onSubmit={(event) => {
             event.preventDefault();
-            if (typed === word) reset.mutate();
+            if (typed === word) {
+              reset.mutate();
+            }
           }}
         >
           <label htmlFor='reset-confirm' className='text-sm'>

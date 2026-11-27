@@ -34,7 +34,8 @@
       {
         "allow": ["**/*.css"]
       }
-    ]
+    ],
+    "curly": ["warn", "all"]
   },
   "ignorePatterns": [
     "**/dist",

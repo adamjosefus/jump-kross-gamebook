@@ -65,18 +65,24 @@ const isMisconfigured = (body: unknown) =>
  * and what to do. The technical error, and a misconfigured server's own message, go to the console.
  */
 const understandable = async (error: unknown): Promise<unknown> => {
-  if (isApiError(error) && DECLARED.has(error._tag)) return error;
+  if (isApiError(error) && DECLARED.has(error._tag)) {
+    return error;
+  }
   console.error(error);
-  if (Cause.isTimeoutError(error))
+  if (Cause.isTimeoutError(error)) {
     return { _tag: 'Offline', message: TIMED_OUT } satisfies ApiError;
-  if (!HttpClientError.isHttpClientError(error))
+  }
+  if (!HttpClientError.isHttpClientError(error)) {
     return { _tag: 'UnexpectedResponse', message: UNEXPECTED } satisfies ApiError;
+  }
   // The request never got an answer: no network, or the server did not respond at all.
-  if (error.reason._tag === 'TransportError')
+  if (error.reason._tag === 'TransportError') {
     return { _tag: 'Offline', message: OFFLINE } satisfies ApiError;
+  }
   const response = error.response;
-  if (response === undefined || response.status < 500)
+  if (response === undefined || response.status < 500) {
     return { _tag: 'UnexpectedResponse', message: UNEXPECTED } satisfies ApiError;
+  }
   const body: unknown = await Effect.runPromise(response.json).catch(() => undefined);
   if (isMisconfigured(body)) {
     console.error(body);
@@ -103,7 +109,9 @@ export const api = <A, E>(
     )
     .catch(async (error: unknown) => {
       // A cancelled query is TanStack's own doing; it expects the rejection as it is.
-      if (options?.signal?.aborted === true) throw error;
+      if (options?.signal?.aborted === true) {
+        throw error;
+      }
       throw await understandable(error);
     });
 

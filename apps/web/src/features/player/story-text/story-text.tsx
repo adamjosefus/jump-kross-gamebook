@@ -59,7 +59,9 @@ const REVEAL_EASING = 2.5;
  * ones quickly, always one after another.
  */
 const revealDelay = (index: number, words: number, pace: RevealPace) => {
-  if (words <= 1) return pace.firstWordDelayMs;
+  if (words <= 1) {
+    return pace.firstWordDelayMs;
+  }
   const curve = Math.min(words * pace.wordStepMs, pace.maxRevealMs);
   const progress = index / (words - 1);
   // The inverse of the ease-in-out: the time at which this share of the words is shown.
@@ -105,7 +107,9 @@ const loadFont = async (
   isCancelled: () => boolean,
   retry = 0,
 ): Promise<void> => {
-  if (retry >= FACE_RETRIES || isCancelled()) return;
+  if (retry >= FACE_RETRIES || isCancelled()) {
+    return;
+  }
   try {
     const faces = await document.fonts.load(font, sample);
     if (faces.length > 0) {
@@ -134,7 +138,9 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
   const measurable = fonts.every((font) => isMeasurable(font, sample));
   const ready = loaded === key || measurable;
   useEffect(() => {
-    if (ready) return undefined;
+    if (ready) {
+      return undefined;
+    }
     // Loading cannot be aborted, so the cleanup flags the effect as over instead.
     let cancelled = false;
     const isCancelled = () => cancelled;
@@ -143,7 +149,9 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
       Promise.all(fonts.map((font) => loadFont(font, sample, isCancelled))),
       after(FONT_TIMEOUT_MS),
     ]).then(() => {
-      if (!cancelled) setLoaded(key);
+      if (!cancelled) {
+        setLoaded(key);
+      }
     });
     return () => {
       cancelled = true;
@@ -152,10 +160,16 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
   // Laid out in the fallback font after the timeout: when the fonts do arrive, the browser swaps
   // them into the old line breaks, so the text has to be laid out again.
   useEffect(() => {
-    if (!ready || measurable) return undefined;
+    if (!ready || measurable) {
+      return undefined;
+    }
     const check = () => {
-      if (!fonts.every((font) => document.fonts.check(font, sample))) return;
-      for (const font of fonts) loadedFonts.add(font);
+      if (!fonts.every((font) => document.fonts.check(font, sample))) {
+        return;
+      }
+      for (const font of fonts) {
+        loadedFonts.add(font);
+      }
       setArrived((count) => count + 1);
     };
     document.fonts.addEventListener('loadingdone', check);
@@ -173,9 +187,13 @@ const useWidth = () => {
   const [width, setWidth] = useState<number>();
   useEffect(() => {
     const element = ref.current;
-    if (element === null) return undefined;
+    if (element === null) {
+      return undefined;
+    }
     const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) setWidth(Math.floor(entry.contentRect.width * 4) / 4);
+      if (entry !== undefined) {
+        setWidth(Math.floor(entry.contentRect.width * 4) / 4);
+      }
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -316,10 +334,14 @@ const gapOf = (paragraph: Paragraph, previous: Paragraph | undefined, type: Para
 const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
   const countLines = (width: number) => walkRichInlineLineRanges(inline, width, () => undefined);
   const lines = countLines(maxWidth);
-  if (lines <= 1) return maxWidth;
+  if (lines <= 1) {
+    return maxWidth;
+  }
   // Halves the range between a width with more lines and one with as many, down to a pixel.
   const narrow = (tooNarrow: number, wide: number): number => {
-    if (wide - tooNarrow <= 1) return wide;
+    if (wide - tooNarrow <= 1) {
+      return wide;
+    }
     const middle = (wide + tooNarrow) / 2;
     return countLines(middle) === lines ? narrow(tooNarrow, middle) : narrow(middle, wide);
   };
@@ -338,21 +360,33 @@ const prettyWidth = (inline: PreparedRichInline, maxWidth: number) => {
   };
   const wide = measure(maxWidth);
   const longEnough = maxWidth / 3;
-  if (wide.lines <= 1 || wide.lastLine >= longEnough) return maxWidth;
+  if (wide.lines <= 1 || wide.lastLine >= longEnough) {
+    return maxWidth;
+  }
   // Four pixels narrower at a time, until the last line is long enough or a line is added.
   const narrowed = (width: number): number => {
-    if (width <= 0) return maxWidth;
+    if (width <= 0) {
+      return maxWidth;
+    }
     const narrower = measure(width);
-    if (narrower.lines > wide.lines) return maxWidth;
-    if (narrower.lastLine >= longEnough) return width;
+    if (narrower.lines > wide.lines) {
+      return maxWidth;
+    }
+    if (narrower.lastLine >= longEnough) {
+      return width;
+    }
     return narrowed(width - 4);
   };
   return narrowed(maxWidth - 4);
 };
 
 const wrapWidth = (item: Prepared, available: number) => {
-  if (item.type.wrap === 'balance') return balancedWidth(item.inline, available);
-  if (item.type.wrap === 'pretty') return prettyWidth(item.inline, available);
+  if (item.type.wrap === 'balance') {
+    return balancedWidth(item.inline, available);
+  }
+  if (item.type.wrap === 'pretty') {
+    return prettyWidth(item.inline, available);
+  }
   return available;
 };
 
@@ -467,7 +501,9 @@ export const StoryText = ({
   const reportRevealed = useEffectEvent(() => onRevealed?.());
   const laidOut = layout !== undefined;
   useEffect(() => {
-    if (!laidOut) return undefined;
+    if (!laidOut) {
+      return undefined;
+    }
     if (instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       reportRevealed();
       return undefined;

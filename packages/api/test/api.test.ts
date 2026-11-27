@@ -742,8 +742,9 @@ describe('devices from the admin', () => {
       code: await encodeQr(config.qrSecret, { kind: 'T', id: 1 }),
     });
     // As if the session had been created before the device cookie existed.
-    for (const [id, session] of data.sessions)
+    for (const [id, session] of data.sessions) {
       data.sessions.set(id, { ...session, deviceId: undefined });
+    }
     const [listed] = (await admin('GET', '/api/admin/devices')).body.devices;
     expect(listed.bannable).toBe(false);
     const refused = await admin('POST', `/api/admin/devices/${listed.id}/ban`);
@@ -758,7 +759,9 @@ describe('admin password', () => {
     const attacker = device(fresh.handler);
     const wrong = () => attacker('POST', '/api/admin/login', { password: 'nope' });
     const statuses = [];
-    for (let attempt = 0; attempt < 4; attempt += 1) statuses.push((await wrong()).body.message);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      statuses.push((await wrong()).body.message);
+    }
     expect(statuses.slice(0, 3)).toEqual(['Špatné heslo.', 'Špatné heslo.', 'Špatné heslo.']);
     expect(statuses[3]).toMatch(/^Příliš mnoho pokusů/);
     // Even the right password waits while the address is locked.

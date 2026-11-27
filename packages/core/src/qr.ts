@@ -34,7 +34,9 @@ const FORMAT = /^([TL])[-:]([1-9]\d{0,5})[-:]([0-9A-Z]{6})$/;
 const encoder = new TextEncoder();
 
 const hmac = async (secret: string, message: string): Promise<Uint8Array> => {
-  if (secret === '') throw new Error('QR kódy potřebují tajemství (QR_SECRET), prázdné nestačí.');
+  if (secret === '') {
+    throw new Error('QR kódy potřebují tajemství (QR_SECRET), prázdné nestačí.');
+  }
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -59,23 +61,31 @@ const checkOf = async (secret: string, { kind, id }: QrPayload): Promise<string>
 
 /** Throws on an id a code cannot carry; the story's validation reports such ids beforehand. */
 export const encodeQr = async (secret: string, payload: QrPayload): Promise<string> => {
-  if (!isQrId(payload.id)) throw new RangeError(`Číslo ${payload.id} se do QR kódu nevejde.`);
+  if (!isQrId(payload.id)) {
+    throw new RangeError(`Číslo ${payload.id} se do QR kódu nevejde.`);
+  }
   return `${payload.kind}-${payload.id}-${await checkOf(secret, payload)}`;
 };
 
 /** Parses the format without verifying the check (e.g. to show what was scanned). */
 export const parseQr = (text: string): (QrPayload & { readonly check: string }) | undefined => {
   const match = FORMAT.exec(text.trim().toUpperCase());
-  if (!match) return undefined;
+  if (!match) {
+    return undefined;
+  }
   const kind = match[1];
-  if (!isQrKind(kind)) return undefined;
+  if (!isQrKind(kind)) {
+    return undefined;
+  }
   return { kind, id: Number(match[2]), check: match[3]! };
 };
 
 /** Returns the payload only when the check matches the secret. */
 export const verifyQr = async (secret: string, text: string): Promise<QrPayload | undefined> => {
   const parsed = parseQr(text);
-  if (parsed === undefined) return undefined;
+  if (parsed === undefined) {
+    return undefined;
+  }
   const expected = await checkOf(secret, parsed);
   return expected === parsed.check ? { kind: parsed.kind, id: parsed.id } : undefined;
 };

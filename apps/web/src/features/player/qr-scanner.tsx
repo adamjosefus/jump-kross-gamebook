@@ -11,17 +11,23 @@ import { ScanFrame, type ScanPoint } from './scan-frame';
  * „Camera not found“, so the permission is asked separately.
  */
 const cameraProblem = async (error: unknown) => {
-  if (!window.isSecureContext || navigator.mediaDevices === undefined)
+  if (!window.isSecureContext || navigator.mediaDevices === undefined) {
     return 'Kamera funguje jen na zabezpečené adrese (https).';
+  }
   const permission = await navigator.permissions
     ?.query({ name: 'camera' })
     .then((status) => status.state)
     .catch(() => undefined);
   const name = error instanceof Error ? error.name : '';
-  if (permission === 'denied' || name === 'NotAllowedError')
+  if (permission === 'denied' || name === 'NotAllowedError') {
     return 'Prohlížeč nepovolil přístup ke kameře. Povolte ho v nastavení stránky.';
-  if (name === 'NotReadableError') return 'Kameru právě používá jiná aplikace. Zavřete ji.';
-  if (name === 'NotFoundError' || error === 'Camera not found.') return 'Nenašla se žádná kamera.';
+  }
+  if (name === 'NotReadableError') {
+    return 'Kameru právě používá jiná aplikace. Zavřete ji.';
+  }
+  if (name === 'NotFoundError' || error === 'Camera not found.') {
+    return 'Nenašla se žádná kamera.';
+  }
   return 'Kameru se nepodařilo spustit.';
 };
 
@@ -79,7 +85,9 @@ const STEADY_MS = 400;
 const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
   let done = false;
   const finish = () => {
-    if (done) return;
+    if (done) {
+      return;
+    }
     done = true;
     onSteady();
   };
@@ -92,8 +100,11 @@ const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
     const frame: VideoFrameRequestCallback = (_now, { width, height }) => {
       steadyFrames = `${width}×${height}` === size ? steadyFrames + 1 : 1;
       size = `${width}×${height}`;
-      if (steadyFrames >= STEADY_FRAMES) finish();
-      else if (!done) handle = video.requestVideoFrameCallback(frame);
+      if (steadyFrames >= STEADY_FRAMES) {
+        finish();
+      } else if (!done) {
+        handle = video.requestVideoFrameCallback(frame);
+      }
     };
     handle = video.requestVideoFrameCallback(frame);
     return () => {
@@ -123,7 +134,9 @@ const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
  */
 const coverSquare = (video: HTMLVideoElement) => {
   const { videoWidth: width, videoHeight: height } = video;
-  if (width === 0 || height === 0) return;
+  if (width === 0 || height === 0) {
+    return;
+  }
   video.style.width = width >= height ? `${(width / height) * 100}%` : '100%';
   video.style.height = width >= height ? '100%' : `${(height / width) * 100}%`;
 };
@@ -221,12 +234,15 @@ const QrScannerView = ({
     const now = Date.now();
     seenAt.current = now;
     setCorners(found);
-    if (disabled || answer !== undefined) return;
+    if (disabled || answer !== undefined) {
+      return;
+    }
     if (
       last.current?.code === code &&
       (last.current.untilLost || now - last.current.at < REPEAT_MS)
-    )
+    ) {
       return;
+    }
     setArming(code);
   });
   const send = useEffectEvent(async (code: string) => {
@@ -241,7 +257,9 @@ const QrScannerView = ({
   // An exclamation mark stays a while, then the scanner aims again; a check mark stays until the
   // game moves on.
   useEffect(() => {
-    if (answer !== 'rejected') return undefined;
+    if (answer !== 'rejected') {
+      return undefined;
+    }
     const timer = setTimeout(() => setAnswer(undefined), REJECTED_MS);
     return () => clearTimeout(timer);
   }, [answer]);
@@ -249,27 +267,37 @@ const QrScannerView = ({
   // A code not read for a while has left the view: it is not sent and the shade lets it go.
   useEffect(() => {
     const timer = setInterval(() => {
-      if (Date.now() - seenAt.current <= LOST_MS) return;
+      if (Date.now() - seenAt.current <= LOST_MS) {
+        return;
+      }
       setArming(undefined);
       setCorners(undefined);
-      if (last.current?.untilLost === true) last.current = { ...last.current, untilLost: false };
+      if (last.current?.untilLost === true) {
+        last.current = { ...last.current, untilLost: false };
+      }
     }, 100);
     return () => clearInterval(timer);
   }, []);
 
   // A code held in view for `ARM_MS` is sent.
   useEffect(() => {
-    if (arming === undefined) return undefined;
+    if (arming === undefined) {
+      return undefined;
+    }
     const timer = setTimeout(() => void send(arming), ARM_MS);
     return () => clearTimeout(timer);
   }, [arming]);
 
   // Nothing waits to be sent while the last code is.
-  if (disabled && arming !== undefined) setArming(undefined);
+  if (disabled && arming !== undefined) {
+    setArming(undefined);
+  }
 
   useEffect(() => {
     const container = stage.current;
-    if (failed || container === null) return undefined;
+    if (failed || container === null) {
+      return undefined;
+    }
     // Every scanner gets its own video: a destroyed scanner stops the stream in its video 300 ms
     // later, which in a shared one would be the next scanner's camera (React runs effects twice
     // in development, so that happens on every mount).
@@ -327,12 +355,15 @@ const QrScannerView = ({
         // only hides the switch; the camera itself runs.
         const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
         const cameras = devices.filter((device) => device.kind === 'videoinput');
-        if (current)
+        if (current) {
           setCanSwitch((facing === 'environment' || facing === 'user') && cameras.length > 1);
+        }
       },
       async (error: unknown) => {
         const message = await cameraProblem(error);
-        if (current) setCameraError(message);
+        if (current) {
+          setCameraError(message);
+        }
       },
     );
     return () => {
@@ -342,7 +373,9 @@ const QrScannerView = ({
       video.removeEventListener('loadedmetadata', fit);
       video.removeEventListener('resize', fit);
       instance.destroy();
-      if (scanner.current === instance) scanner.current = undefined;
+      if (scanner.current === instance) {
+        scanner.current = undefined;
+      }
       container.replaceChildren();
     };
   }, [failed]);

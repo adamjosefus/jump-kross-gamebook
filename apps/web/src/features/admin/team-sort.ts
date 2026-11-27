@@ -47,19 +47,29 @@ const typeRank = (value: Value) =>
   typeof value === 'boolean' ? 0 : typeof value === 'number' ? 1 : 2;
 
 const compareValues = (first: Value, second: Value) => {
-  if (typeof first === 'number' && typeof second === 'number') return first - second;
-  if (typeof first === 'boolean' && typeof second === 'boolean')
+  if (typeof first === 'number' && typeof second === 'number') {
+    return first - second;
+  }
+  if (typeof first === 'boolean' && typeof second === 'boolean') {
     return Number(first) - Number(second);
-  if (typeof first === 'string' && typeof second === 'string')
+  }
+  if (typeof first === 'string' && typeof second === 'string') {
     return collator.compare(first, second);
+  }
   return typeRank(first) - typeRank(second);
 };
 
 /** What the team is ordered by; undefined when it has no such value (yet). */
 const sortValue = (team: TeamStatus, key: TeamSortKey, clock: Clock): Value | undefined => {
-  if (key === 'order') return team.id;
-  if (key === 'name') return team.name;
-  if (key.startsWith('state:')) return team.state[key.slice('state:'.length)];
+  if (key === 'order') {
+    return team.id;
+  }
+  if (key === 'name') {
+    return team.name;
+  }
+  if (key.startsWith('state:')) {
+    return team.state[key.slice('state:'.length)];
+  }
   // A team that has not logged in has no time; zero would put it first among the fastest.
   return key === 'playtime' ? playTime(team, clock) : resultTime(team, clock);
 };
@@ -81,14 +91,21 @@ export const sortTeams = (
     .map((team) => ({ team, value: sortValue(team, key, clock) }))
     .toSorted((first, second) => {
       if (first.value === undefined || second.value === undefined) {
-        if (first.value !== undefined) return -1;
-        if (second.value !== undefined) return 1;
+        if (first.value !== undefined) {
+          return -1;
+        }
+        if (second.value !== undefined) {
+          return 1;
+        }
         return first.team.id - second.team.id;
       }
-      if (TIME_KEYS.has(key) && first.team.finished !== second.team.finished)
+      if (TIME_KEYS.has(key) && first.team.finished !== second.team.finished) {
         return first.team.finished ? -1 : 1;
+      }
       const order = compareValues(first.value, second.value);
-      if (order === 0) return first.team.id - second.team.id;
+      if (order === 0) {
+        return first.team.id - second.team.id;
+      }
       return direction === 'asc' ? order : -order;
     })
     .map(({ team }) => team);

@@ -64,12 +64,15 @@ const PlayerAuthLive = Layer.effect(
     return PlayerAuth.of({
       session: Effect.fn(function* (httpEffect, { credential }) {
         const sessionId = Redacted.value(credential);
-        if (sessionId === '') return yield* new Unauthorized({ message: 'Nejste přihlášeni.' });
+        if (sessionId === '') {
+          return yield* new Unauthorized({ message: 'Nejste přihlášeni.' });
+        }
         const teamId = yield* orDie(
           store.touchSession(sessionId, new Date(Date.now() - PLAYER_SESSION_TTL_MS)),
         );
-        if (teamId === undefined)
+        if (teamId === undefined) {
           return yield* new Unauthorized({ message: 'Přihlášení vypršelo.' });
+        }
         return yield* Effect.provideService(httpEffect, CurrentTeam, { sessionId, teamId });
       }),
     });
@@ -85,7 +88,9 @@ const AdminAuthLive = Layer.effect(
         const valid = yield* Effect.promise(() =>
           verifyAdminToken(config, Redacted.value(credential)),
         );
-        if (!valid) return yield* new Unauthorized({ message: 'Přihlaste se heslem tvůrce.' });
+        if (!valid) {
+          return yield* new Unauthorized({ message: 'Přihlaste se heslem tvůrce.' });
+        }
         return yield* httpEffect;
       }),
     });
@@ -173,7 +178,9 @@ const AdminHandlers = HttpApiBuilder.group(
           yield* Effect.sleep('600 millis');
           yield* new Unauthorized({ message: 'Špatné heslo.' });
         }
-        if (previous !== undefined) yield* orDie(store.clearAdminFailures(key));
+        if (previous !== undefined) {
+          yield* orDie(store.clearAdminFailures(key));
+        }
         const token = yield* Effect.promise(() => createAdminToken(config));
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, token, {
           ...cookie,

@@ -320,7 +320,9 @@ export const ExportDialog = ({
                   <Select
                     value={view.side}
                     onValueChange={(side) => {
-                      if (isSide(side)) setView({ ...view, side });
+                      if (isSide(side)) {
+                        setView({ ...view, side });
+                      }
                     }}
                   >
                     <SelectTrigger size='sm' className='w-full' aria-label='Kde stojí divák'>
