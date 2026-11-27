@@ -459,6 +459,32 @@ export interface DraftCanvasProps {
 
 const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const { resolved } = useTheme();
+  const wrapper = useRef<HTMLDivElement>(null);
+  // React Flow skips every wheel over a `nowheel` field, a pinch too; this hands the pinch to the
+  // pane, which zooms around the fingers, while the wheel alone still scrolls the field's text.
+  useEffect(() => {
+    const element = wrapper.current;
+    const onWheel = (event: WheelEvent) => {
+      const pane = element?.querySelector('.react-flow__pane') ?? null;
+      if (
+        !event.ctrlKey ||
+        pane === null ||
+        !(event.target instanceof Element) ||
+        event.target.closest('.nowheel') === null
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      pane.dispatchEvent(new WheelEvent('wheel', event));
+    };
+
+    element?.addEventListener('wheel', onWheel, { capture: true, passive: false });
+    return () => {
+      element?.removeEventListener('wheel', onWheel, { capture: true });
+    };
+  }, []);
   const flow = useReactFlow();
   const canvasHeight = useStore((state) => state.height);
   const maxHeight = Math.max(200, canvasHeight - 2 * VIEWPORT_MARGIN);
@@ -848,6 +874,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   return (
     <CardContext value={cards}>
       <div
+        ref={wrapper}
         className={cn(
           'story-graph size-full transition-opacity duration-200',
           laidOut === undefined && 'opacity-0',
