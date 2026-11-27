@@ -73,7 +73,8 @@ export const segmentsToDoc = (segments: readonly DraftSegment[]): string =>
       return [
         dividerLine(segment.theme),
         ...notes,
-        ...(segment.text === '' ? [] : [segment.text]),
+        // An empty segment keeps an empty line to write in.
+        segment.text,
       ].join('\n');
     })
     .join('\n');

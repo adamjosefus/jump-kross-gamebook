@@ -47,6 +47,7 @@ describe('segmentsToDoc and docToSegments', () => {
         '// She shouts.',
         '**„Ven!“**',
         '=== letter',
+        '',
       ].join('\n'),
     );
   });
