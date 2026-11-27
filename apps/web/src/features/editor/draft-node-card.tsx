@@ -297,7 +297,7 @@ const ChoiceList = ({
   }
 
   return (
-    <div className='grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] gap-x-1.5 rounded-b-lg border-t bg-muted/40 px-3 py-1.5'>
+    <div className='grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] gap-x-1.5 rounded-b-lg border-t bg-muted/40 px-3 pt-1.5 pb-4'>
       {choices.map((choice, index) => (
         <div
           // The choices have no ids; their order is all there is.
