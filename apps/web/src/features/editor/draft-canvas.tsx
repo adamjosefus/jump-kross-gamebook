@@ -252,7 +252,14 @@ const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => (
           {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
         </div>
         {difference !== undefined && (
-          <div title='O kolik znaků textu segmentů je cesta do tohoto konce delší než průměrná cesta do všech konců.'>
+          <div
+            title='O kolik znaků textu segmentů je cesta do tohoto konce delší než průměrná cesta do všech konců.'
+            className={cn(
+              // Longer than the average in green, shorter in red; no difference stays grey.
+              Math.round(difference) > 0 && 'text-green-600 dark:text-green-400',
+              Math.round(difference) < 0 && 'text-red-600 dark:text-red-400',
+            )}
+          >
             {differenceText(difference)} znaků
           </div>
         )}
