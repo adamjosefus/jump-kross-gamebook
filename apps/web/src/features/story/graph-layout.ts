@@ -35,10 +35,22 @@ export interface BoxLayout {
   readonly groups: ReadonlyMap<string, Box>;
 }
 
+/** A fixed point on a node's border where its edges start or end, e.g. at a choice's button. */
+export interface LayoutPort {
+  /** Unique among all ports of the layout. */
+  readonly id: string;
+  /** From the node's top left corner. */
+  readonly x: number;
+  readonly y: number;
+  readonly side: 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
+}
+
 export interface LayoutNode {
   readonly id: string;
   readonly width: number;
   readonly height: number;
+  /** Where the node's edges attach; without ports ELK picks the points itself. */
+  readonly ports?: readonly LayoutPort[];
 }
 
 export interface LayoutEdge {
@@ -47,6 +59,9 @@ export interface LayoutEdge {
   readonly target: string;
   /** Text the edge reserves room for, broken into lines by `labelLines`. */
   readonly label?: string;
+  /** Ports of `source` and `target` the edge attaches to. */
+  readonly sourcePort?: string;
+  readonly targetPort?: string;
 }
 
 /** Nodes laid out together inside a box of their own. */
@@ -65,6 +80,10 @@ export interface LayoutInput {
   readonly initial?: readonly string[];
   /** Node ids leading into the end ring; the ring is laid out only when some are given. */
   readonly final?: readonly string[];
+  /** Where the layers follow each other; down by default. */
+  readonly direction?: 'DOWN' | 'RIGHT';
+  /** ELK options of this layout over `LAYOUT_OPTIONS`. */
+  readonly options?: Readonly<Record<string, string>>;
 }
 
 export const elk = new ELK();
@@ -151,10 +170,35 @@ export const layoutBoxes = async ({
   groups = [],
   initial,
   final = [],
+  direction = 'DOWN',
+  options: extra = {},
 }: LayoutInput): Promise<BoxLayout> => {
   const known = new Map(nodes.map((node) => [node.id, node]));
   const grouped = new Set(groups.flatMap((group) => group.members));
-  const box = ({ id, width, height }: LayoutNode) => ({ id, width, height });
+  const options = { ...LAYOUT_OPTIONS, 'elk.direction': direction, ...extra };
+  const box = ({ id, width, height, ports }: LayoutNode): ElkNode => {
+    if (ports === undefined) {
+      return { id, width, height };
+    }
+
+    return {
+      id,
+      width,
+      height,
+      layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
+      ports: ports.map((port) => {
+        return {
+          id: port.id,
+          x: port.x,
+          y: port.y,
+          width: 0,
+          height: 0,
+          layoutOptions: { 'elk.port.side': port.side },
+        };
+      }),
+    };
+  };
+
   const members = (group: LayoutGroup) =>
     group.members.flatMap((id) => {
       const node = known.get(id);
@@ -173,14 +217,14 @@ export const layoutBoxes = async ({
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       'elk.json.shapeCoords': 'ROOT',
       'elk.json.edgeCoords': 'ROOT',
-      ...LAYOUT_OPTIONS,
+      ...options,
     },
     children: [
       ...nodes.filter((node) => !grouped.has(node.id)).map(box),
       ...boxes.map(({ id, children }) => ({
         id,
         layoutOptions: {
-          ...LAYOUT_OPTIONS,
+          ...options,
           'elk.padding': `[top=${GROUP_PADDING.top},left=${GROUP_PADDING.side},bottom=${GROUP_PADDING.bottom},right=${GROUP_PADDING.side}]`,
         },
         children,
@@ -194,8 +238,8 @@ export const layoutBoxes = async ({
       ...starts.map((id) => ({ id: initialEdgeId(id), sources: [INITIAL_ID], targets: [id] })),
       ...edges.filter(linked).map((edge) => ({
         id: edge.id,
-        sources: [edge.source],
-        targets: [edge.target],
+        sources: [edge.sourcePort ?? edge.source],
+        targets: [edge.targetPort ?? edge.target],
         ...(edge.label === undefined
           ? {}
           : { labels: [{ text: edge.label, ...labelSize(edge.label) }] }),
