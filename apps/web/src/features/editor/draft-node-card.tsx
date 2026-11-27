@@ -94,7 +94,7 @@ export const DOT_GREY = 'bg-muted-foreground text-card';
  * edge, and shown only while the pointer is over the card or a new edge is dragged out of it.
  */
 export const NEW_DOT_LOOK =
-  "relative flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100 before:pointer-events-none before:absolute before:inset-px before:rounded-full before:border before:border-dashed before:border-muted-foreground before:content-[''] hover:text-foreground hover:before:border-yellow-500";
+  "relative flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100 before:pointer-events-none before:absolute before:inset-px before:rounded-full before:border before:border-dashed before:border-muted-foreground before:content-[''] hover:text-yellow-500 hover:before:border-yellow-500";
 
 /**
  * A plain dot: a choice's one in its pill, or the plus on the bottom edge at `x`; the canvas puts
