@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 
 import type { DraftChoice, DraftNode, DraftSegment } from './draft';
 import { SegmentEditor } from './segment-editor';
+import type { TagColor } from './tag-colors';
 
 /** The card's width; its height follows the text, up to `maxHeight`. */
 export const CARD_WIDTH = 320;
@@ -59,10 +60,19 @@ export const NEW_DOT_LOOK =
   "relative flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100 before:pointer-events-none before:absolute before:inset-px before:rounded-full before:border before:border-dashed before:border-muted-foreground before:content-[''] hover:text-foreground hover:before:border-yellow-500";
 
 /** A plain dot on the card's bottom edge. */
-const PlainDot = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => (
+const PlainDot = ({
+  dot,
+  x,
+  color,
+}: {
+  readonly dot: DotKey;
+  readonly x: number;
+  readonly color: TagColor | undefined;
+}) => (
   <span
     className={cn(
       dot === 'new' ? NEW_DOT_LOOK : DOT_LOOK,
+      dot !== 'new' && color?.dot,
       'absolute bottom-0 -translate-x-1/2 translate-y-1/2',
     )}
     style={{ left: x }}
@@ -126,9 +136,11 @@ const GrowingField = ({
 const IdField = ({
   id,
   onId,
+  color,
 }: {
   readonly id: string;
   readonly onId: ((id: string) => void) | undefined;
+  readonly color: TagColor | undefined;
 }) => {
   const [typed, setTyped] = useState<string>();
   const cancelled = useRef(false);
@@ -158,7 +170,12 @@ const IdField = ({
           event.currentTarget.blur();
         }
       }}
-      className={cn(IN_CANVAS, 'min-w-0 flex-1 bg-transparent outline-none focus:text-foreground')}
+      // A tag in the node's color, as wide as the id.
+      className={cn(
+        IN_CANVAS,
+        'mr-auto [field-sizing:content] max-w-full min-w-8 rounded px-1.5 font-semibold outline-none focus:ring-1 focus:ring-current',
+        color?.tag ?? 'bg-muted',
+      )}
     />
   );
 };
@@ -339,7 +356,11 @@ export interface DraftNodeCardProps {
   /** What writing into the card changes; without it the card is only read. */
   readonly edit?: CardEdit;
   /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
-  readonly dot?: (key: DotKey, x: number) => ReactNode;
+  readonly dot?: (key: DotKey, x: number, color: TagColor | undefined) => ReactNode;
+  /** The node's color, of its id's tag. */
+  readonly color?: TagColor;
+  /** The colors of the nodes the choices lead to, of their dots, in the order of the choices. */
+  readonly choiceColors?: readonly (TagColor | undefined)[];
   readonly ref?: Ref<HTMLDivElement>;
   readonly className?: string;
 }
@@ -359,7 +380,9 @@ export const DraftNodeCard = ({
   maxHeight,
   onOpen,
   edit,
-  dot = (key, x) => <PlainDot dot={key} x={x} />,
+  dot = (key, x, dotColor) => <PlainDot dot={key} x={x} color={dotColor} />,
+  color,
+  choiceColors = [],
   ref,
   className,
 }: DraftNodeCardProps) => (
@@ -386,7 +409,7 @@ export const DraftNodeCard = ({
       )}
     >
       <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
-        <IdField id={node.id} onId={edit?.onId} />
+        <IdField id={node.id} onId={edit?.onId} color={color} />
         {start && <span className='rounded bg-muted px-1'>začátek</span>}
         {node.choices.length === 0 && <span className='rounded bg-muted px-1'>konec</span>}
         {onOpen !== undefined && (
@@ -450,7 +473,9 @@ export const DraftNodeCard = ({
     </div>
     {/* On the bottom edge, where the edges start; over the summary too. */}
     {[...node.choices.keys(), 'new' as const].map((key) => (
-      <Fragment key={key}>{dot(key, dotX(node.choices.length, key))}</Fragment>
+      <Fragment key={key}>
+        {dot(key, dotX(node.choices.length, key), key === 'new' ? undefined : choiceColors[key])}
+      </Fragment>
     ))}
   </div>
 );

@@ -78,6 +78,7 @@ import {
   type DotKey,
 } from './draft-node-card';
 import { differenceText } from './numbers';
+import { tagColor, type TagColor } from './tag-colors';
 
 /** How far the pointer may move on a dot, in pixels, and still make a click, not a drag. */
 const CLICK_DISTANCE = 4;
@@ -101,6 +102,9 @@ type DraftFlowNode = Node<
     readonly maxHeight: number;
     /** A new edge dragged now would lead here. */
     readonly dropTarget: boolean;
+    readonly color: TagColor;
+    /** The colors of the nodes the choices lead to. */
+    readonly choiceColors: readonly (TagColor | undefined)[];
   },
   'draft'
 >;
@@ -146,7 +150,15 @@ const dotOf = (handle: string | null | undefined): DotKey | undefined => {
 };
 
 /** A choice's dot as a handle to drag a new edge from, when the canvas lets the draft change. */
-const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => {
+const DotHandle = ({
+  dot,
+  x,
+  color,
+}: {
+  readonly dot: DotKey;
+  readonly x: number;
+  readonly color: TagColor | undefined;
+}) => {
   const { connectable, onAdd } = use(CardContext);
   const key = useNodeId();
   return (
@@ -169,7 +181,12 @@ const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => 
         'min-h-0! min-w-0! rounded-full!',
         dot === 'new'
           ? cn(NEW_DOT_LOOK, 'size-6! border-border! bg-card!')
-          : cn(DOT_LOOK, 'size-4! border-card! bg-muted-foreground! hover:bg-yellow-500!'),
+          : cn(
+              DOT_LOOK,
+              'size-4! border-card! hover:bg-yellow-500!',
+              // In the color of the node the choice leads to.
+              color?.dot ?? 'bg-muted-foreground!',
+            ),
         connectable && 'cursor-crosshair',
       )}
     >
@@ -178,7 +195,9 @@ const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => 
   );
 };
 
-const dotOfCard = (dot: DotKey, x: number) => <DotHandle dot={dot} x={x} />;
+const dotOfCard = (dot: DotKey, x: number, color: TagColor | undefined) => (
+  <DotHandle dot={dot} x={x} color={color} />
+);
 
 /** A card on the canvas: it reports its height and offers its choices' dots to drag from. */
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
@@ -218,6 +237,8 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         ref={card}
         node={data.node}
         start={data.start}
+        color={data.color}
+        choiceColors={data.choiceColors}
         dropTarget={data.dropTarget}
         far={far}
         selected={selected}
@@ -794,6 +815,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   const nodes = useMemo<(DraftFlowNode | InitialFlowNode | EndFlowNode)[]>(() => {
     const position = (key: string) => laidOut?.layout.nodes.get(key) ?? { x: 0, y: 0 };
     const starts = new Set(startsOf(keyed).map((node) => node.id));
+    const indexById = new Map(draft.nodes.map((node, index) => [node.id, index]));
     return [
       ...draft.nodes.map((node, index): DraftFlowNode => {
         const key = keyOf(index);
@@ -807,7 +829,17 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           // till it measures the node again.
           ...(height === undefined ? {} : { measured: { width: CARD_WIDTH, height } }),
           selected: key === selected,
-          data: { node, start: starts.has(key), maxHeight, dropTarget: key === dropTarget },
+          data: {
+            node,
+            start: starts.has(key),
+            maxHeight,
+            dropTarget: key === dropTarget,
+            color: tagColor(index),
+            choiceColors: node.choices.map((choice) => {
+              const target = indexById.get(choice.to);
+              return target === undefined ? undefined : tagColor(target);
+            }),
+          },
         };
       }),
       {
