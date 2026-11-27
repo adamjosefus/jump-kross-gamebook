@@ -2,6 +2,7 @@ import { THEMES } from '@gamebook/core';
 
 import {
   draftNodeId,
+  startsOf,
   type Draft,
   type DraftChoice,
   type DraftNode,
@@ -20,8 +21,34 @@ export const emptyNode = (id: string): DraftNode => ({
   choices: [],
 });
 
-/** Where a new draft starts: one empty node. */
-export const EMPTY_DRAFT: Draft = { version: 1, nodes: [emptyNode(draftNodeId(''))] };
+/** Where a new draft starts: one empty node, the start. */
+export const EMPTY_DRAFT: Draft = {
+  version: 1,
+  starts: [draftNodeId('')],
+  nodes: [emptyNode(draftNodeId(''))],
+};
+
+/** The draft with the start dot pointing at `ids`, written out. */
+const withStarts = (draft: Draft, ids: readonly string[]): Draft => ({ ...draft, starts: ids });
+
+/** The draft with the start dot pointing at the node `id` too; the same draft when it does. */
+export const addStart = (draft: Draft, id: string): Draft => {
+  const ids = startsOf(draft).map((node) => node.id);
+  if (ids.includes(id)) {
+    return draft;
+  }
+
+  return withStarts(draft, [...ids, id]);
+};
+
+/** The draft with the start dot no longer pointing at the node `id`. */
+export const removeStart = (draft: Draft, id: string): Draft =>
+  withStarts(
+    draft,
+    startsOf(draft).flatMap((node) => {
+      return node.id === id ? [] : [node.id];
+    }),
+  );
 
 /** The draft with the node `id` changed by `change`. */
 export const updateNode = (
@@ -47,6 +74,13 @@ export const renameNode = (draft: Draft, from: string, to: string): Draft => {
 
   return {
     ...draft,
+    ...(draft.starts === undefined
+      ? {}
+      : {
+          starts: draft.starts.map((id) => {
+            return id === from ? to : id;
+          }),
+        }),
     nodes: draft.nodes.map((node) => {
       return {
         ...node,
@@ -63,9 +97,30 @@ export const renameNode = (draft: Draft, from: string, to: string): Draft => {
   };
 };
 
-/** The draft without the node `id` and without the choices leading to it. */
+/** The node without its note when the note is empty. */
+export const withNote = (node: DraftNode, note: string): DraftNode => {
+  if (note !== '') {
+    return { ...node, note };
+  }
+
+  return {
+    id: node.id,
+    summary: node.summary,
+    segments: node.segments,
+    choices: node.choices,
+    ...(node.size === undefined ? {} : { size: node.size }),
+  };
+};
+
+/** The draft without the node `id`, the choices leading to it and the start's arrow to it. */
 export const removeNode = (draft: Draft, id: string): Draft => ({
-  ...draft,
+  // Written out, so the start does not move to another node on its own.
+  ...withStarts(
+    draft,
+    startsOf(draft).flatMap((node) => {
+      return node.id === id ? [] : [node.id];
+    }),
+  ),
   nodes: draft.nodes.flatMap((node) => {
     if (node.id === id) {
       return [];
@@ -117,6 +172,29 @@ export const linkChoice = (
   return { draft: { ...linked, nodes: [...linked.nodes, emptyNode(to)] }, target: to };
 };
 
+/**
+ * The draft with a new plain choice of `source` leading into `target`. Without a `source`, a new
+ * empty node is added with that choice; its id comes back as `source`.
+ */
+export const linkInto = (
+  draft: Draft,
+  target: string,
+  source?: string,
+): { readonly draft: Draft; readonly source: string } => {
+  if (source !== undefined) {
+    return { draft: linkChoice(draft, source, 'new', target).draft, source };
+  }
+
+  const id = draftNodeId('', new Set(draft.nodes.map((node) => node.id)));
+  return {
+    draft: {
+      ...draft,
+      nodes: [...draft.nodes, { ...emptyNode(id), choices: [{ label: '', to: target }] }],
+    },
+    source: id,
+  };
+};
+
 /** The draft with the card of `id` sized as the author set it; without a size it follows its text. */
 export const setSize = (draft: Draft, id: string, size: DraftSize | undefined): Draft =>
   updateNode(draft, id, (node) => {
@@ -132,6 +210,19 @@ export const setSize = (draft: Draft, id: string, size: DraftSize | undefined): 
       choices: node.choices,
     };
   });
+
+/**
+ * The draft with every card following its text again, as if each card's corner was double-clicked;
+ * the same draft when no card was sized by hand.
+ */
+export const fitAllSizes = (draft: Draft): Draft =>
+  draft.nodes.reduce((fitted, node) => {
+    if (node.size === undefined) {
+      return fitted;
+    }
+
+    return setSize(fitted, node.id, undefined);
+  }, draft);
 
 /** The draft with a choice of `id` moved by `offset` places, as far as the list goes. */
 export const moveChoice = (draft: Draft, id: string, index: number, offset: number): Draft =>
@@ -280,5 +371,37 @@ export const parseDraft = (value: unknown): Draft | undefined => {
     return undefined;
   }
 
-  return { version: 1, nodes };
+  const starts = value['starts'];
+  // A draft from before the start was kept gets it written out, so it stays where it is.
+  if (starts === undefined) {
+    return { version: 1, starts: startsOf({ version: 1, nodes }).map((node) => node.id), nodes };
+  }
+
+  if (!Array.isArray(starts) || !starts.every((id) => typeof id === 'string')) {
+    return undefined;
+  }
+
+  return { version: 1, starts: starts.filter((id: string) => ids.has(id)), nodes };
+};
+
+/** What is removed at once: nodes, choices by their node and index, the start's arrows by target. */
+export interface Removal {
+  readonly nodes: readonly string[];
+  readonly choices: readonly { readonly id: string; readonly index: number }[];
+  readonly starts: readonly string[];
+}
+
+/**
+ * The draft without all of `removal`: the choices first, the later ones of a node before the
+ * earlier ones so the indexes still hold, then the start's arrows, then the nodes.
+ */
+export const removeAll = (draft: Draft, removal: Removal): Draft => {
+  const withoutChoices = removal.choices
+    .toSorted((left, right) => right.index - left.index)
+    .reduce((current, { id, index }) => removeChoice(current, id, index), draft);
+  const withoutStarts = removal.starts.reduce(
+    (current, id) => removeStart(current, id),
+    withoutChoices,
+  );
+  return removal.nodes.reduce((current, id) => removeNode(current, id), withoutStarts);
 };

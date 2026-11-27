@@ -22,3 +22,11 @@ export const step = (trail: FocusTrail, by: -1 | 1): FocusTrail => ({
   ...trail,
   at: Math.max(0, Math.min(trail.ids.length - 1, trail.at + by)),
 });
+
+/** The trail with the node `from` renamed `to`, wherever it is on it. */
+export const renameInTrail = (trail: FocusTrail, from: string, to: string): FocusTrail => ({
+  ...trail,
+  ids: trail.ids.map((id) => {
+    return id === from ? to : id;
+  }),
+});

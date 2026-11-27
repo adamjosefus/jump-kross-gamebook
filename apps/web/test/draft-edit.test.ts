@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import type { Draft } from '@/features/editor/draft';
 import {
+  addStart,
   EMPTY_DRAFT,
+  fitAllSizes,
   linkChoice,
+  linkInto,
   moveChoice,
   parseDraft,
+  removeAll,
   removeChoice,
   removeNode,
+  removeStart,
   renameNode,
   setSize,
   updateNode,
@@ -16,6 +21,7 @@ import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
 
 const draft: Draft = {
   version: 1,
+  starts: ['a'],
   nodes: [
     {
       id: 'a',
@@ -38,10 +44,26 @@ const choicesOf = (from: Draft, id: string) =>
     ?.choices.map((choice) => `${choice.label}>${choice.to}`);
 
 describe('editing a draft', () => {
-  it('starts with one empty node', () => {
+  it('starts with one empty node, the start', () => {
     expect(EMPTY_DRAFT.nodes).toEqual([
       { id: 'uzel', summary: '', segments: [{ text: '' }], choices: [] },
     ]);
+    expect(EMPTY_DRAFT.starts).toEqual(['uzel']);
+  });
+
+  it('points the start at a node too, or no more', () => {
+    expect(addStart(draft, 'c').starts).toEqual(['a', 'c']);
+    expect(addStart(draft, 'a')).toBe(draft);
+    expect(removeStart(draft, 'a').starts).toEqual([]);
+  });
+
+  it('leads a new choice into a node, from a node or a new one', () => {
+    const existing = linkInto(draft, 'a', 'c');
+    expect(existing.source).toBe('c');
+    expect(choicesOf(existing.draft, 'c')).toEqual(['>a']);
+    const drawn = linkInto(draft, 'c');
+    expect(drawn.source).toBe('uzel');
+    expect(choicesOf(drawn.draft, 'uzel')).toEqual(['>c']);
   });
 
   it('changes one node', () => {
@@ -54,12 +76,14 @@ describe('editing a draft', () => {
     expect(renamed.nodes.map((node) => node.id)).toEqual(['a', 'pekarna', 'c']);
     expect(choicesOf(renamed, 'a')).toEqual(['Do B>pekarna', '>c', 'Zase B>pekarna']);
     expect(renameNode(draft, 'b', 'b')).toBe(draft);
+    expect(renameNode(draft, 'a', 'zacatek').starts).toEqual(['zacatek']);
   });
 
   it('removes a node with the choices leading to it', () => {
     const removed = removeNode(draft, 'b');
     expect(removed.nodes.map((node) => node.id)).toEqual(['a', 'c']);
     expect(choicesOf(removed, 'a')).toEqual(['>c']);
+    expect(removeNode(draft, 'a').starts).toEqual([]);
   });
 
   it('links a choice to a node, or to a new one it adds', () => {
@@ -91,6 +115,26 @@ describe('editing a draft', () => {
     expect(setSize(sized, 'b', {}).nodes[1]).toEqual(draft.nodes[1]);
   });
 
+  it('lets every card follow its text again', () => {
+    const sized = setSize(setSize(draft, 'a', { width: 400 }), 'b', { height: 300 });
+    expect(fitAllSizes(sized)).toEqual(draft);
+    expect(fitAllSizes(draft)).toBe(draft);
+  });
+
+  it('removes nodes, choices and arrows of the start at once', () => {
+    const removed = removeAll(draft, {
+      nodes: ['c'],
+      choices: [
+        { id: 'a', index: 0 },
+        { id: 'a', index: 2 },
+      ],
+      starts: ['a'],
+    });
+    expect(removed.nodes.map((node) => node.id)).toEqual(['a', 'b']);
+    expect(choicesOf(removed, 'a')).toEqual([]);
+    expect(removed.starts).toEqual([]);
+  });
+
   it('removes a choice', () => {
     expect(choicesOf(removeChoice(draft, 'a', 1), 'a')).toEqual(['Do B>b', 'Zase B>b']);
   });
@@ -101,6 +145,11 @@ describe('parseDraft', () => {
     expect(parseDraft(JSON.parse(JSON.stringify(SAMPLE_DRAFT)))).toEqual(SAMPLE_DRAFT);
     const sized = setSize(SAMPLE_DRAFT, 'vecere', { width: 420, height: 300 });
     expect(parseDraft(JSON.parse(JSON.stringify(sized)))).toEqual(sized);
+  });
+
+  it('writes out the start of a draft from before it was kept', () => {
+    const { starts: _starts, ...older } = SAMPLE_DRAFT;
+    expect(parseDraft(JSON.parse(JSON.stringify(older)))?.starts).toEqual(['patek_odpoledne_doma']);
   });
 
   it('turns down what is not a draft', () => {

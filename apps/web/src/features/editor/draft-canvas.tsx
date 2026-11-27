@@ -1,7 +1,9 @@
 import '@xyflow/react/dist/style.css';
+import { IconPlus } from '@tabler/icons-react';
 import {
   Background,
   Controls,
+  getBezierPath,
   Handle,
   Position,
   ReactFlow,
@@ -10,9 +12,13 @@ import {
   useConnection,
   useNodeId,
   useStore,
+  useUpdateNodeInternals,
+  useStoreApi,
+  type ConnectionLineComponentProps,
   type FinalConnectionState,
   type Node,
   type NodeProps,
+  type Viewport,
   type XYPosition,
 } from '@xyflow/react';
 import {
@@ -20,16 +26,27 @@ import {
   use,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type Ref,
 } from 'react';
 
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   ARROW_HEAD,
   FinalDot,
-  InitialDot,
   RouteEdgeView,
   type InitialFlowNode,
   type RouteEdge,
@@ -48,9 +65,10 @@ import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 import {
-  draftNodeId,
+  draftProblems,
   endsOf,
   meanCharactersOf,
+  NEXT_LABEL,
   routesTo,
   startsOf,
   type Draft,
@@ -58,15 +76,7 @@ import {
   type Range,
   type RoutesToEnd,
 } from './draft';
-import {
-  linkChoice,
-  moveChoice,
-  removeChoice,
-  removeNode,
-  renameNode,
-  setSize,
-  updateNode,
-} from './draft-edit';
+import { addStart, linkChoice, linkInto, removeAll, setSize } from './draft-edit';
 import {
   CARD_WIDTH,
   DOT_SHAPE,
@@ -74,11 +84,11 @@ import {
   dotPlaces,
   DraftNodeCard,
   NEW_DOT_LOOK,
-  NEXT_LABEL,
   widthOf,
   type CardEdit,
   type DotKey,
 } from './draft-node-card';
+import { readViewport, writeViewport } from './editor-view';
 import { differenceText } from './numbers';
 import { tagColor, type TagColor } from './tag-colors';
 
@@ -101,12 +111,20 @@ type DraftFlowNode = Node<
   {
     readonly node: DraftNode;
     readonly start: boolean;
+    /** The start points at other nodes too. */
+    readonly startClash: boolean;
+    /** Nothing leads here, and it is not the start. */
+    readonly loose: boolean;
+    /** Something is wrong with the node. */
+    readonly invalid: boolean;
     readonly maxHeight: number;
     /** A new edge dragged now would lead here. */
     readonly dropTarget: boolean;
     readonly color: TagColor;
     /** The colors of the nodes the choices lead to. */
     readonly choiceColors: readonly (TagColor | undefined)[];
+    /** The nodes the choices lead to, in the order of the dots the layout chose. */
+    readonly targetOrder: readonly string[] | undefined;
   },
   'draft'
 >;
@@ -122,21 +140,31 @@ const CardContext = createContext<{
   readonly editOf: ((key: string) => CardEdit) | undefined;
   /** A click on the plus of the card `key`: a choice leading to a new node. */
   readonly onAdd: ((key: string) => void) | undefined;
+  /** A click on the top plus of the card `key`: a new node with a choice leading here. */
+  readonly onAddInto: ((key: string) => void) | undefined;
 }>({
   onHeight: () => {},
   onOpen: undefined,
   connectable: false,
   editOf: undefined,
   onAdd: undefined,
+  onAddInto: undefined,
 });
 
-/** Handle id of a choice's dot, or of „+ volba“. */
-const dotHandle = (key: DotKey) => (key === 'new' ? 'choice-new' : `choice-${key}`);
+/** Handle id of a choice's dot, or of a plus. */
+const dotHandle = (key: DotKey) => `choice-${key}`;
+
+/** The handle of the start dot, to drag the start's arrow from. */
+const START_HANDLE = 'start';
 
 /** The choice a handle stands for, the inverse of `dotHandle`. */
 const dotOf = (handle: string | null | undefined): DotKey | undefined => {
   if (handle === 'choice-new') {
     return 'new';
+  }
+
+  if (handle === 'choice-in') {
+    return 'in';
   }
 
   if (handle === null || handle === undefined || !handle.startsWith('choice-')) {
@@ -151,7 +179,11 @@ const dotOf = (handle: string | null | undefined): DotKey | undefined => {
   return index;
 };
 
-/** A choice's dot as a handle to drag a new edge from, when the canvas lets the draft change. */
+/**
+ * A dot on the card's edge as a handle. Only a plus starts a new edge, when the canvas lets the
+ * draft change: the one on the bottom edge a choice of this node, the one on the top edge a choice
+ * of another node into this one. A choice's dot only marks where its edge leaves.
+ */
 const DotHandle = ({
   dot,
   x,
@@ -161,36 +193,51 @@ const DotHandle = ({
   readonly x: number | undefined;
   readonly color: TagColor | undefined;
 }) => {
-  const { connectable, onAdd } = use(CardContext);
+  const { connectable, onAdd, onAddInto } = use(CardContext);
   const key = useNodeId();
+  const plus = typeof dot !== 'number';
+  const onClick = dot === 'new' ? onAdd : onAddInto;
   return (
     <Handle
       type='source'
       id={dotHandle(dot)}
-      position={Position.Bottom}
-      isConnectable={connectable}
-      style={x === undefined ? {} : { left: x }}
-      {...(dot === 'new' && onAdd !== undefined && key !== null
+      position={dot === 'in' ? Position.Top : Position.Bottom}
+      isConnectable={connectable && plus}
+      style={{
+        ...(x === undefined ? {} : { left: x }),
+        // A plus keeps its size on the screen at any zoom, as its pill does for a choice's dot.
+        ...(plus ? { scale: 'var(--zoom-out, 1)' } : {}),
+      }}
+      {...(plus && onClick !== undefined && key !== null
         ? {
-            title: 'Přidat volbu: klikněte, nebo táhněte na uzel',
+            title:
+              dot === 'new'
+                ? 'Přidat volbu: klikněte, nebo táhněte na uzel'
+                : 'Přidat volbu sem: klikněte, nebo táhněte na uzel, odkud má vést',
             onClick: () => {
-              onAdd(key);
+              onClick(key);
             },
           }
         : {})}
       className={cn(
         // React Flow's own handle look gives way to the dot's.
         'min-h-0! min-w-0!',
-        dot === 'new'
-          ? cn(NEW_DOT_LOOK, 'size-6! rounded-full! border-border! bg-card!')
+        plus
+          ? cn(
+              NEW_DOT_LOOK,
+              'size-8! rounded-full! border-0! bg-transparent!',
+              // Placed by `translate`, not React Flow's `transform`, so the scale keeps it there.
+              '-translate-x-1/2 transform-none!',
+              dot === 'in' ? '-translate-y-1/2' : 'translate-y-1/2',
+            )
           : cn(
               // A square in its pill, which rounds the ends, not placed by React Flow.
               DOT_SHAPE,
-              'static! size-4! transform-none! rounded-none! border-0! hover:brightness-110',
+              'static! size-4! transform-none! cursor-default! rounded-none! border-0!',
               // In the color of the node the choice leads to, as that node's id tag.
               color?.dot ?? 'bg-muted-foreground! text-card!',
             ),
-        connectable && 'cursor-crosshair',
+        connectable && plus && 'cursor-crosshair',
       )}
     >
       <DotContent dot={dot} />
@@ -228,6 +275,27 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
     };
   }, [id, onHeight]);
 
+  // React Flow knows where the dots are only from its last measuring of the card, which comes with
+  // a change of its size. A choice added, removed or led elsewhere changes the dots but not the
+  // size, and an edge from a dot it does not know is not drawn at all; so the dots are measured
+  // again whenever they change.
+  const updateNodeInternals = useUpdateNodeInternals();
+  const dots = JSON.stringify([
+    data.node.choices.map((choice) => choice.to),
+    data.targetOrder,
+    data.node.size,
+  ]);
+  /** The dots as React Flow measured them last. */
+  const measuredDots = useRef<string>(undefined);
+  useLayoutEffect(() => {
+    if (measuredDots.current === dots) {
+      return;
+    }
+
+    measuredDots.current = dots;
+    updateNodeInternals(id);
+  }, [id, dots, updateNodeInternals]);
+
   return (
     <>
       <Handle
@@ -240,9 +308,13 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         ref={card}
         node={data.node}
         start={data.start}
+        startClash={data.startClash}
+        loose={data.loose}
+        invalid={data.invalid}
         color={data.color}
         choiceColors={data.choiceColors}
         dropTarget={data.dropTarget}
+        {...(data.targetOrder === undefined ? {} : { targetOrder: data.targetOrder })}
         far={far}
         selected={selected}
         maxHeight={data.maxHeight}
@@ -328,10 +400,210 @@ const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => {
   );
 };
 
-const nodeTypes = { draft: DraftFlowCard, initial: InitialDot, final: EndRing } as const;
+/**
+ * The start dot, where the story begins, as a handle: its arrows are dragged out of it onto the
+ * nodes to begin at. One arrow is right; none or more are a problem the editor shows.
+ */
+const StartDot = () => {
+  const { connectable } = use(CardContext);
+  return (
+    // As large as the layout made room for; the handle fills it and is the dot itself.
+    <div className='relative' style={{ width: INITIAL_SIZE, height: INITIAL_SIZE }}>
+      <Handle
+        type='source'
+        id={START_HANDLE}
+        position={Position.Bottom}
+        isConnectable={connectable}
+        title={connectable ? 'Začátek příběhu: táhněte na uzel, kde začíná' : 'Začátek příběhu'}
+        className={cn(
+          'inset-0! size-full! min-h-0! min-w-0! transform-none! rounded-full! border-0! bg-foreground!',
+          // A larger target than the dot itself.
+          "before:absolute before:-inset-2 before:rounded-full before:content-['']",
+          connectable && 'cursor-crosshair hover:ring-4 hover:ring-yellow-500/50',
+        )}
+      />
+    </div>
+  );
+};
+
+const nodeTypes = { draft: DraftFlowCard, initial: StartDot, final: EndRing } as const;
+
+/** Whether the edge being dragged points at a card it can be dropped on. */
+const OverCardContext = createContext(false);
+
+/**
+ * The hint of a new node at the end of an edge being dragged, in screen pixels: its square box,
+ * its gap from the pointer, and where its text ends, so the text and the plus after it, about 74
+ * pixels together, sit in the middle.
+ */
+const NEW_NODE_HINT = { width: 96, height: 96, gap: 6, textEnd: 21 } as const;
+
+/** The pill under the pointer that says how to call the drag off, in screen pixels. */
+const CANCEL_HINT = { width: 172, height: 20 } as const;
+
+/** The edge being dragged and its hint: the light blue a card it can be dropped on is outlined in. */
+const DRAG_COLOR = 'var(--color-sky-500)';
+
+/**
+ * The edge being dragged out of a dot. Out of a plus and over no card it ends at a dashed box: let
+ * go there, it draws out a new node, below for a choice of this node, above for one into it. Under
+ * the pointer it says how to call the drag off. Its hints keep their size on the screen at any
+ * zoom.
+ */
+const DragLine = ({
+  fromX,
+  fromY,
+  toX,
+  toY,
+  fromPosition,
+  toPosition,
+  fromHandle,
+}: ConnectionLineComponentProps) => {
+  const overCard = use(OverCardContext);
+  const [path] = getBezierPath({
+    sourceX: fromX,
+    sourceY: fromY,
+    sourcePosition: fromPosition,
+    targetX: toX,
+    targetY: toY,
+    targetPosition: toPosition,
+  });
+  const dot = dotOf(fromHandle.id);
+  const hint = (dot === 'new' || dot === 'in') && !overCard;
+  const { width, height, gap } = NEW_NODE_HINT;
+  // The new node of a choice comes below the pointer, the node of a choice into this one above.
+  const top = dot === 'in' ? -height - gap : gap;
+  // How to call the drag off, under the pointer, or under the box when the box is there.
+  const cancelAt = hint && dot === 'new' ? top + height + gap : gap;
+  return (
+    <g>
+      <path
+        d={path}
+        fill='none'
+        className='react-flow__connection-path'
+        style={{ stroke: DRAG_COLOR }}
+      />
+      <g
+        className='pointer-events-none'
+        style={{ transform: `translate(${toX}px, ${toY}px) scale(var(--zoom-out, 1))` }}
+      >
+        {/* On a pill of its own, so it reads over the canvas and over a card alike. */}
+        <rect
+          x={-CANCEL_HINT.width / 2}
+          y={cancelAt}
+          width={CANCEL_HINT.width}
+          height={CANCEL_HINT.height}
+          rx={CANCEL_HINT.height / 2}
+          fill='var(--popover)'
+          stroke='var(--border)'
+        />
+        <text
+          x={0}
+          y={cancelAt + CANCEL_HINT.height / 2}
+          textAnchor='middle'
+          dominantBaseline='central'
+          fill='var(--muted-foreground)'
+          fontSize={11}
+        >
+          Esc nebo pravé tlačítko zruší
+        </text>
+      </g>
+      {hint && (
+        <g
+          className='pointer-events-none'
+          style={{ transform: `translate(${toX}px, ${toY}px) scale(var(--zoom-out, 1))` }}
+        >
+          <rect
+            x={-width / 2}
+            y={top}
+            width={width}
+            height={height}
+            rx={8}
+            fill='var(--card)'
+            stroke={DRAG_COLOR}
+            strokeDasharray='4 3'
+          />
+          {/* The text and the plus after it, together in the middle of the box. */}
+          <text
+            x={NEW_NODE_HINT.textEnd}
+            y={top + height / 2}
+            textAnchor='end'
+            dominantBaseline='central'
+            fill={DRAG_COLOR}
+            fontSize={12}
+          >
+            Nový uzel
+          </text>
+          <IconPlus
+            x={NEW_NODE_HINT.textEnd + 4}
+            y={top + height / 2 - 6}
+            width={12}
+            height={12}
+            color={DRAG_COLOR}
+            stroke={2.25}
+          />
+        </g>
+      )}
+    </g>
+  );
+};
+
 const edgeTypes = { route: RouteEdgeView } as const;
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
+
+/** The cards and edges selected, by flow id. */
+interface Selection {
+  readonly nodes: readonly string[];
+  readonly edges: readonly string[];
+}
+
+const NO_SELECTION: Selection = { nodes: [], edges: [] };
+
+/** The list with `item` added, or taken away when it is there. */
+const toggled = (items: readonly string[], item: string): readonly string[] =>
+  items.includes(item)
+    ? items.filter((other) => {
+        return other !== item;
+      })
+    : [...items, item];
+
+/** What a selectable edge stands for: a choice by its card and index, or the start's arrow. */
+type EdgePick =
+  | { readonly kind: 'choice'; readonly source: string; readonly index: number }
+  | { readonly kind: 'start'; readonly target: string };
+
+/** What the edge `id` stands for; none for the ends' edges, which cannot be selected. */
+const pickOfEdge = (id: string): EdgePick | undefined => {
+  const choice = /^(n\d+)-(\d+)$/.exec(id);
+  if (choice !== null) {
+    return { kind: 'choice', source: choice[1]!, index: Number(choice[2]) };
+  }
+
+  const start = /^(n\d+)$/.exec(id.slice(initialEdgeId('').length));
+  if (id.startsWith(initialEdgeId('')) && start !== null) {
+    return { kind: 'start', target: start[1]! };
+  }
+
+  return undefined;
+};
+
+/**
+ * The yellow line around the selected card, `outline-offset` of 3 and a width of 2 screen pixels
+ * off its ring of 1: the arrows into the card clear a gap in it, as large on the screen at any zoom.
+ */
+const SELECTED_CARD_LINE = { distance: 4, gap: 9, width: 4, scale: 'var(--zoom-out, 1)' } as const;
+
+/** Above the nodes, the selected one too, so an arrow is drawn over the yellow line of its card. */
+const INTO_SELECTED_Z_INDEX = 1001;
+
+/** The labels of the raised edges, above the edges themselves, so no line strikes them through. */
+const RAISED_LABEL_Z_INDEX = 1002;
+
+/** The selected edge: yellow like a selected card, twice as thick, over the other edges. */
+const SELECTED_COLOR = 'var(--color-yellow-500)';
+const SELECTED_STROKE = 'calc(2 * var(--xy-edge-stroke-width, 1))';
+const SELECTED_EDGE_Z_INDEX = 1000;
 const portId = (source: string, key: DotKey) => `port:${source}:${key}`;
 /** Every edge enters its card at a point of its own, so the arrows never end on each other. */
 const entryId = (edge: string) => `entry:${edge}`;
@@ -341,14 +613,15 @@ const edgeText = (label: string) => (label === '' ? NEXT_LABEL : label);
 
 /** What the layout depends on: the nodes, their heights, and where and with what text they lead. */
 const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
-  JSON.stringify(
+  JSON.stringify([
+    draft.starts,
     draft.nodes.map((node) => [
       node.id,
       widthOf(node),
       heights.get(node.id),
       node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
     ]),
-  );
+  ]);
 
 /** The flow id of the node at `index`: by position, so a node keeps its card while renamed. */
 const keyOf = (index: number) => `n${index}`;
@@ -361,6 +634,7 @@ const keyedDraft = (draft: Draft): Draft => {
   const keys = new Map(draft.nodes.map((node, index) => [node.id, keyOf(index)]));
   return {
     ...draft,
+    starts: startsOf(draft).map((node) => keys.get(node.id)!),
     nodes: draft.nodes.map((node, index) => {
       return {
         ...node,
@@ -378,24 +652,16 @@ const keyedDraft = (draft: Draft): Draft => {
   };
 };
 
-/** The node without its note when the note is empty. */
-const withNote = (node: DraftNode, note: string): DraftNode => {
-  if (note !== '') {
-    return { ...node, note };
-  }
-
-  return {
-    id: node.id,
-    summary: node.summary,
-    segments: node.segments,
-    choices: node.choices,
-    ...(node.size === undefined ? {} : { size: node.size }),
-  };
-};
-
 /** Whether an element takes text, so the canvas leaves clicks and keys in it alone. */
 const isWritable = (target: EventTarget | null) =>
-  target instanceof Element && target.closest('input, textarea, [contenteditable]') !== null;
+  target instanceof Element &&
+  target.closest(
+    'input:not([readonly]), textarea:not([readonly]), [contenteditable]:not([contenteditable="false"])',
+  ) !== null;
+
+/** Whether an event is in the room around a card, which only shows its dots sooner. */
+const onHalo = (target: EventTarget | null) =>
+  target instanceof Element && target.closest('[data-card-halo]') !== null;
 
 /** Room between the points where the edges enter a card; less when many lead in. */
 const ENTRY_GAP = 16;
@@ -430,19 +696,39 @@ const entryXs = (count: number, width: number): readonly number[] => {
  * next card's top edge, each at a point of its own; `into` gives their order from the left. A
  * node is laid out as early as the nodes leading to it allow.
  */
+/** The gaps of the layout that grow with the spacing chosen, as `LAYOUT_OPTIONS` has them. */
+const SPACED_GAPS = {
+  'elk.spacing.nodeNode': 48,
+  'elk.layered.spacing.nodeNodeBetweenLayers': 64,
+  'elk.layered.spacing.edgeNodeBetweenLayers': 24,
+} as const;
+
+/** What a layout of the draft is made with besides the draft. */
+interface LayoutRequest {
+  readonly heights: ReadonlyMap<string, number>;
+  /** How many times the gaps grow. */
+  readonly spacing: number;
+}
+
 const layoutPass = (
   draft: Draft,
-  heights: ReadonlyMap<string, number>,
+  { heights, spacing }: LayoutRequest,
   into: ReadonlyMap<string, readonly string[]>,
+  out: ReadonlyMap<string, readonly string[]>,
 ) =>
   layoutBoxes({
     direction: 'DOWN',
-    options: { 'elk.layered.layering.strategy': 'LONGEST_PATH_SOURCE' },
+    options: {
+      'elk.layered.layering.strategy': 'LONGEST_PATH_SOURCE',
+      ...Object.fromEntries(
+        Object.entries(SPACED_GAPS).map(([option, gap]) => [option, String(gap * spacing)]),
+      ),
+    },
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
       const entries = into.get(node.id) ?? [];
       const width = widthOf(node);
-      const places = dotPlaces(node.choices, width);
+      const places = dotPlaces(node.choices, width, out.get(node.id));
       const xs = entryXs(entries.length, width);
       return {
         id: node.id,
@@ -452,11 +738,11 @@ const layoutPass = (
           ...entries.map((edge, index) => {
             return { id: entryId(edge), x: xs[index]!, y: 0, side: 'NORTH' as const };
           }),
-          // The dot of „+ volba“ too: the edge to the end ring leaves an end node there.
+          // The edge to the end ring leaves an end node in the middle of its bottom edge.
           ...[...node.choices.keys(), 'new' as const].map((key) => {
             return {
               id: portId(node.id, key),
-              x: key === 'new' ? places.add : places.choices[key]!,
+              x: key === 'new' ? places.end : places.choices[key]!,
               y: height,
               side: 'SOUTH' as const,
             };
@@ -474,9 +760,12 @@ const layoutPass = (
           sourcePort: portId(node.id, index),
           targetPort: entryId(id),
           label: edgeText(choice.label),
+          // What a choice becomes, a button or a QR code, is decided later: no icon yet.
+          labelIcon: false,
         };
       }),
     ),
+    // A loose node hangs with no edge in: the start dot leads only to the starts.
     initial: startsOf(draft).map((node) => node.id),
     final: endsOf(draft).map((node) => node.id),
     initialPorts: new Map(
@@ -489,11 +778,14 @@ const layoutPass = (
 
 /**
  * Laid out twice: the second time the edges enter each card in the order their routes came in
- * the first time, from the left, so they do not cross right above the card.
+ * the first time, from the left, and leave it in the order their nodes lay the first time, from
+ * the left, so they are short and do not cross right above or below the card. The order of the
+ * choices is the story's, not the drawing's: the dots go where the edges cross the least. The
+ * order of the dots comes back with the layout, by flow id, for the cards to draw them there.
  */
-const layoutDraft = async (draft: Draft, heights: ReadonlyMap<string, number>) => {
+const layoutDraft = async (draft: Draft, request: LayoutRequest) => {
   const into = incomingEdges(draft);
-  const first = await layoutPass(draft, heights, into);
+  const first = await layoutPass(draft, request, into, new Map());
   // Where a route comes from sideways: the last route ends straight down into the card, so the
   // point before its last bend; its start when it has no bends.
   const comesFrom = (edge: string) => {
@@ -511,7 +803,21 @@ const layoutDraft = async (draft: Draft, heights: ReadonlyMap<string, number>) =
       ] as const;
     }),
   );
-  return layoutPass(draft, heights, sorted);
+  // Where a node lies across: the middle of its card.
+  const across = (id: string) => {
+    const node = draft.nodes.find((candidate) => {
+      return candidate.id === id;
+    });
+    return (first.nodes.get(id)?.x ?? 0) + (node === undefined ? 0 : widthOf(node) / 2);
+  };
+
+  const out = new Map(
+    draft.nodes.map((node) => {
+      const targets = [...new Set(node.choices.map((choice) => choice.to))];
+      return [node.id, targets.toSorted((left, right) => across(left) - across(right))] as const;
+    }),
+  );
+  return { layout: await layoutPass(draft, request, sorted, out), out };
 };
 
 export interface DraftCanvasProps {
@@ -521,12 +827,34 @@ export interface DraftCanvasProps {
    * into one field can make one step of the history.
    */
   readonly onChange?: (draft: Draft, field?: string) => void;
-  /** Opens a node in the focus mode. */
+  /** Opens a node in the detail. */
   readonly onOpen?: (id: string) => void;
+  /** How many times the gaps between the cards grow; 1 by default. */
+  readonly spacing?: number;
+  /** The arrows as smooth curves along their routes, not with right angles. */
+  readonly smoothEdges?: boolean;
+  /** Keeps the zoom and the position in this browser, and starts from them. */
+  readonly rememberView?: boolean;
+  readonly ref?: Ref<DraftCanvasHandle>;
   readonly className?: string;
 }
 
-const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
+/** What the page around can ask of the canvas. */
+export interface DraftCanvasHandle {
+  /** Selects the node `id` and brings it to the middle, close enough to read. */
+  readonly reveal: (id: string) => void;
+}
+
+const Canvas = ({
+  draft,
+  onChange,
+  onOpen,
+  spacing = 1,
+  smoothEdges = false,
+  rememberView = false,
+  ref,
+  className,
+}: DraftCanvasProps) => {
   const { resolved } = useTheme();
   const wrapper = useRef<HTMLDivElement>(null);
   // React Flow skips every wheel over a `nowheel` field, a pinch too; this hands the pinch to the
@@ -555,27 +883,56 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     };
   }, []);
   const flow = useReactFlow();
+  const store = useStoreApi();
+  // The lines keep their width on the screen at any zoom: `--line` is one screen pixel in the
+  // canvas's units, for the cards' outlines, and the edges are as wide. `--zoom-out` is one over
+  // the zoom, for what should shrink less than the canvas. The arrowheads follow the
+  // edges' width. Set on the element, so zooming does not render the canvas again.
+  useEffect(() => {
+    const element = wrapper.current;
+    if (element === null) {
+      return undefined;
+    }
+
+    const apply = (zoom: number) => {
+      element.style.setProperty('--line', `${1 / zoom}px`);
+      element.style.setProperty('--zoom-out', `${1 / zoom}`);
+      element.style.setProperty('--xy-edge-stroke-width', `${1 / zoom}`);
+      element.style.setProperty('--xy-connectionline-stroke-width', `${1 / zoom}`);
+    };
+
+    apply(store.getState().transform[2]);
+    return store.subscribe((state) => {
+      apply(state.transform[2]);
+    });
+  }, [store]);
   const canvasHeight = useStore((state) => state.height);
   const maxHeight = Math.max(200, canvasHeight - 2 * VIEWPORT_MARGIN);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
-  const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: BoxLayout }>();
-  /** The card clicked last; the nodes are not changed by React Flow, so it is kept here. */
-  const [selected, setSelected] = useState<string>();
+  const [laidOut, setLaidOut] = useState<{
+    readonly key: string;
+    readonly layout: BoxLayout;
+    /** The nodes each card's choices lead to, in the order of its dots, by flow id. */
+    readonly out: ReadonlyMap<string, readonly string[]>;
+  }>();
+  /**
+   * The cards and edges selected, by flow id; a click selects one, Shift adds or takes away. The
+   * nodes are not changed by React Flow, so it is kept here.
+   */
+  const [selection, setSelection] = useState<Selection>(NO_SELECTION);
+  /** The card selected when it is the only thing selected: the one Enter opens, the view follows. */
+  const selected =
+    selection.nodes.length === 1 && selection.edges.length === 0 ? selection.nodes[0] : undefined;
+  const selectOne = (key: string | undefined) => {
+    setSelection(key === undefined ? NO_SELECTION : { nodes: [key], edges: [] });
+  };
+
   /** The card being brought to the middle, till when, and how close. */
   const centering = useRef<{ readonly key: string; readonly until: number; readonly zoom: number }>(
     undefined,
   );
   /** A card to bring to the middle once it is laid out, e.g. one just drawn out. */
   const pending = useRef<string>(undefined);
-  /** The ids that still follow their node's summary: of new nodes, till the summary is left. */
-  const [following, setFollowing] = useState<ReadonlySet<string>>(
-    () =>
-      new Set(
-        draft.nodes.flatMap((node) => {
-          return node.summary === '' ? [node.id] : [];
-        }),
-      ),
-  );
 
   const keyed = useMemo(() => keyedDraft(draft), [draft]);
   /** The cards' widths, by flow id. */
@@ -626,81 +983,15 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     });
   }, []);
 
-  /** The changes of the card `key` as changes of the draft. */
+  /**
+   * What a card on the canvas can change: the order of its choices and its size. Its text is
+   * written in the detail.
+   */
   const editOf = (key: string): CardEdit => {
-    const change = (next: Draft, field?: string) => {
-      onChange?.(next, field === undefined ? undefined : `${key}:${field}`);
-    };
-
     const id = draft.nodes[indexOf(key)]?.id ?? '';
-    const others = new Set(
-      draft.nodes.flatMap((node) => {
-        return node.id === id ? [] : [node.id];
-      }),
-    );
-    const stopFollowing = (...ids: readonly string[]) => {
-      setFollowing((current) => {
-        return new Set([...current].filter((followed) => !ids.includes(followed)));
-      });
-    };
-
     return {
-      onSummary: (summary) => {
-        const next = updateNode(draft, id, (node) => ({ ...node, summary }));
-        if (!following.has(id)) {
-          change(next, 'summary');
-          return;
-        }
-
-        const derived = draftNodeId(summary, others);
-        setFollowing((current) => {
-          return new Set([...current].map((followed) => (followed === id ? derived : followed)));
-        });
-        change(renameNode(next, id, derived), 'summary');
-      },
-      onSummaryDone: () => {
-        stopFollowing(id);
-      },
-      onId: (typed) => {
-        const renamed = draftNodeId(typed, others);
-        stopFollowing(id, renamed);
-        change(renameNode(draft, id, renamed));
-      },
-      onNote: (note) => {
-        change(
-          updateNode(draft, id, (node) => withNote(node, note)),
-          'note',
-        );
-      },
-      onSegments: (segments) => {
-        change(
-          updateNode(draft, id, (node) => ({ ...node, segments })),
-          'segments',
-        );
-      },
-      onLabel: (index, label) => {
-        change(
-          updateNode(draft, id, (node) => ({
-            ...node,
-            choices: node.choices.map((choice, at) =>
-              at === index ? { ...choice, label } : choice,
-            ),
-          })),
-          `choice:${index}`,
-        );
-      },
-      onMove: (index, offset) => {
-        change(moveChoice(draft, id, index, offset));
-      },
-      onRemoveChoice: (index) => {
-        change(removeChoice(draft, id, index));
-      },
-      onRemove: () => {
-        setSelected(undefined);
-        change(removeNode(draft, id));
-      },
       onResize: (size) => {
-        change(setSize(draft, id, size));
+        onChange?.(setSize(draft, id, size));
       },
     };
   };
@@ -727,6 +1018,15 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
               link(node.id, 'new', undefined);
             }
           },
+    onAddInto:
+      onChange === undefined
+        ? undefined
+        : (key: string) => {
+            const node = draft.nodes[indexOf(key)];
+            if (node !== undefined) {
+              linkIn(node.id, undefined);
+            }
+          },
   };
 
   const measured = keyed.nodes.every((node) => {
@@ -747,15 +1047,17 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
 
     // Flipped by the cleanup so a layout finishing after the draft changed is not applied.
     let current = true;
-    void layoutDraft(latest.current.keyed, latest.current.heights).then((layout) => {
-      if (current) {
-        setLaidOut({ key: structure, layout });
-      }
-    });
+    void layoutDraft(latest.current.keyed, { heights: latest.current.heights, spacing }).then(
+      ({ layout, out }) => {
+        if (current) {
+          setLaidOut({ key: structure, layout, out });
+        }
+      },
+    );
     return () => {
       current = false;
     };
-  }, [structure, measured]);
+  }, [structure, measured, spacing]);
 
   /** The card at a point of the canvas, if any: where a dragged edge points or is dropped. */
   const keyAt = useCallback(
@@ -772,15 +1074,23 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       })?.[0],
     [heights, widths, laidOut],
   );
-  const dropTarget = dragging === undefined ? undefined : keyAt(dragging);
-  /** The card outlined last in the drag going on, where the edge is dropped. */
+  /** The card a new edge is dragged out of; it is no place to drop it. */
+  const draggedFrom = useConnection((connection) =>
+    connection.inProgress ? connection.fromNode.id : undefined,
+  );
+  const pointed = dragging === undefined ? undefined : keyAt(dragging);
+  const dropTarget = pointed === draggedFrom ? undefined : pointed;
+  /**
+   * The card pointed at last in the drag going on, where the edge is dropped; the card dragged out
+   * of too, so a drop there is told from a drop on the empty canvas.
+   */
   const lastTarget = useRef<string>(undefined);
 
   useEffect(() => {
     if (dragging !== undefined) {
-      lastTarget.current = dropTarget;
+      lastTarget.current = pointed;
     }
-  }, [dragging, dropTarget]);
+  }, [dragging, pointed]);
 
   const center = useCallback(
     (key: string, zoom?: number) => {
@@ -833,14 +1143,23 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     void flow.setViewport({ x: x - (to.x - from.x) * zoom, y: y - (to.y - from.y) * zoom, zoom });
   }, [laidOut, selected, center, flow]);
 
-  // The first layout fits the whole draft in; later ones keep the view where the author is.
+  // The first layout shows the view kept from the last time, or fits the whole draft in; later
+  // ones keep the view where the author is.
   const shown = laidOut !== undefined;
   useEffect(() => {
-    if (shown) {
-      // No closer than the cards' own size: a draft of one node would fill the screen.
-      void flow.fitView({ maxZoom: 1 });
+    if (!shown) {
+      return;
     }
-  }, [shown, flow]);
+
+    const kept = rememberView ? readViewport() : undefined;
+    if (kept !== undefined) {
+      void flow.setViewport(kept);
+      return;
+    }
+
+    // No closer than the cards' own size: a draft of one node would fill the screen.
+    void flow.fitView({ maxZoom: 1 });
+  }, [shown, flow, rememberView]);
 
   useEffect(() => {
     const key = pending.current;
@@ -850,10 +1169,40 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
     }
   }, [laidOut, center, flow]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      reveal: (id) => {
+        const index = draft.nodes.findIndex((node) => {
+          return node.id === id;
+        });
+        if (index < 0) {
+          return;
+        }
+
+        const key = keyOf(index);
+        selectOne(key);
+        center(key, Math.max(flow.getZoom(), FAR_ZOOM));
+      },
+    }),
+    [draft, center, flow],
+  );
+
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
   const nodes = useMemo<(DraftFlowNode | InitialFlowNode | EndFlowNode)[]>(() => {
     const position = (key: string) => laidOut?.layout.nodes.get(key) ?? { x: 0, y: 0 };
     const starts = new Set(startsOf(keyed).map((node) => node.id));
+    const problems = draftProblems(keyed);
+    const loose = new Set(
+      problems.flatMap(({ id, problems: kinds }) => {
+        return id !== undefined && kinds.includes('loose') ? [id] : [];
+      }),
+    );
+    const invalid = new Set(
+      problems.flatMap(({ id }) => {
+        return id === undefined ? [] : [id];
+      }),
+    );
     const indexById = new Map(draft.nodes.map((node, index) => [node.id, index]));
     return [
       ...draft.nodes.map((node, index): DraftFlowNode => {
@@ -867,13 +1216,19 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           // the node changes, so a field in it keeps the focus; without it, it hides the node
           // till it measures the node again.
           ...(height === undefined ? {} : { measured: { width: widthOf(node), height } }),
-          selected: key === selected,
+          selected: selection.nodes.includes(key),
           data: {
             node,
             start: starts.has(key),
+            startClash: starts.has(key) && starts.size > 1,
+            loose: loose.has(key),
+            invalid: invalid.has(key),
             maxHeight,
             dropTarget: key === dropTarget,
             color: tagColor(index),
+            targetOrder: laidOut?.out.get(key)?.map((target) => {
+              return draft.nodes[indexOf(target)]?.id ?? target;
+            }),
             choiceColors: node.choices.map((choice) => {
               const target = indexById.get(choice.to);
               return target === undefined ? undefined : tagColor(target);
@@ -901,7 +1256,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         selectable: false,
       })),
     ];
-  }, [draft, keyed, routes, differences, laidOut, selected, maxHeight, heights, dropTarget]);
+  }, [draft, keyed, routes, differences, laidOut, selection.nodes, maxHeight, heights, dropTarget]);
 
   const edges = useMemo<RouteEdge[]>(() => {
     const route = (id: string) => laidOut?.layout.edges.get(id);
@@ -911,8 +1266,38 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       source,
       target,
       markerEnd: ARROW_HEAD,
-      data: { points: route(id)?.points ?? [], dimmed: false },
+      data: { points: route(id)?.points ?? [], dimmed: false, smooth: smoothEdges },
     });
+    /** The selected edges in yellow, and every edge into a selected card over its line. */
+    const marked = (edge: RouteEdge): RouteEdge => {
+      const data = edge.data ?? { points: [], dimmed: false };
+      const into = selection.nodes.includes(edge.target);
+      if (selection.edges.includes(edge.id)) {
+        return {
+          ...edge,
+          markerEnd: { ...ARROW_HEAD, color: SELECTED_COLOR },
+          style: { stroke: SELECTED_COLOR, strokeWidth: SELECTED_STROKE },
+          zIndex: SELECTED_EDGE_Z_INDEX,
+          data: { ...data, color: SELECTED_COLOR, labelZIndex: RAISED_LABEL_Z_INDEX },
+        };
+      }
+
+      if (into) {
+        return {
+          ...edge,
+          zIndex: INTO_SELECTED_Z_INDEX,
+          data: {
+            ...data,
+            focusTarget: true,
+            focusLine: SELECTED_CARD_LINE,
+            labelZIndex: RAISED_LABEL_Z_INDEX,
+          },
+        };
+      }
+
+      return edge;
+    };
+
     return [
       ...startsOf(keyed).map((node) => plain(initialEdgeId(node.id), INITIAL_ID, node.id)),
       ...keyed.nodes.flatMap((node) =>
@@ -929,6 +1314,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
               // The plain arrow is no decision, so its label stays in the background.
               ...(choice.label === '' ? { color: 'var(--muted-foreground)' } : {}),
               dimmed: false,
+              smooth: smoothEdges,
             },
           };
         }),
@@ -937,22 +1323,229 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         ...plain(finalEdgeId(node.id), node.id, finalRingId(node.id)),
         sourceHandle: dotHandle('new'),
       })),
-    ];
-  }, [keyed, laidOut]);
+    ].map(marked);
+  }, [keyed, laidOut, selection, smoothEdges]);
 
   /**
    * Leads a choice of `source` to `target`, or to a new node without one, and brings that node to
    * the middle, selected.
    */
-  const link = (source: string, dot: DotKey, target: string | undefined) => {
+  /** The card whose removal waits for a yes, by flow id. */
+  /** What waits for a yes to be removed: the cards and edges selected when it was asked. */
+  const [removing, setRemoving] = useState<Selection>();
+
+  /** Set when the new edge being dragged is called off, so its end changes nothing. */
+  const aborted = useRef(false);
+  /** Calls off the new edge being dragged: it ends as if let go, and its end is ignored. */
+  const abortConnection = useCallback(() => {
+    if (!store.getState().connection.inProgress) {
+      return false;
+    }
+
+    aborted.current = true;
+    // React Flow ends a drag on the document's `mouseup`.
+    wrapper.current?.ownerDocument.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return true;
+  }, [store]);
+
+  // A right click calls off the new edge being dragged too, and shows no menu then.
+  useEffect(() => {
+    let menuless = false;
+    const onDown = (event: MouseEvent) => {
+      if (event.button === 2 && abortConnection()) {
+        event.preventDefault();
+        menuless = true;
+      }
+    };
+
+    const onMenu = (event: MouseEvent) => {
+      if (menuless) {
+        event.preventDefault();
+        menuless = false;
+      }
+    };
+
+    window.addEventListener('mousedown', onDown, { capture: true });
+    window.addEventListener('contextmenu', onMenu, { capture: true });
+    return () => {
+      window.removeEventListener('mousedown', onDown, { capture: true });
+      window.removeEventListener('contextmenu', onMenu, { capture: true });
+    };
+  }, [abortConnection]);
+
+  // Keys on the canvas. Esc calls off a new edge being dragged. On the selected card, Enter or
+  // Space opens it in the detail, ⌘⌫ or Delete asks to remove it; on the selected edge, ⌘⌫ or
+  // Delete removes its choice. Only on the canvas or nowhere in particular: in a text the keys
+  // write, on a button Enter and Space press it, and in a dialog they are the dialog's.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && abortConnection()) {
+        event.preventDefault();
+        return;
+      }
+
+      const plainKey = !event.metaKey && !event.ctrlKey && !event.altKey && !event.repeat;
+      const open = (event.key === ' ' || event.key === 'Enter') && plainKey;
+      const remove =
+        (event.key === 'Backspace' && (event.metaKey || event.ctrlKey)) ||
+        (event.key === 'Delete' && !event.metaKey && !event.ctrlKey && !event.altKey);
+      if ((!open && !remove) || event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target;
+      const onCanvas =
+        target === document.body ||
+        (target instanceof Node && wrapper.current?.contains(target) === true);
+      if (
+        !onCanvas ||
+        isWritable(target) ||
+        (target instanceof Element && target.closest('button, a, [role="button"]') !== null)
+      ) {
+        return;
+      }
+
+      if (
+        remove &&
+        onChange !== undefined &&
+        (selection.nodes.length > 0 || selection.edges.length > 0)
+      ) {
+        event.preventDefault();
+        setRemoving(selection);
+        return;
+      }
+
+      const node = selected === undefined ? undefined : draft.nodes[indexOf(selected)];
+      if (node === undefined || selected === undefined) {
+        return;
+      }
+
+      if (open && onOpen !== undefined) {
+        event.preventDefault();
+        onOpen(node.id);
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [draft, selected, selection, onOpen, onChange, abortConnection]);
+
+  /** The question and the change of a removal waiting for a yes. */
+  const removal = (() => {
+    if (removing === undefined) {
+      return undefined;
+    }
+
+    const removedNodes = removing.nodes.flatMap((key) => {
+      const node = draft.nodes[indexOf(key)];
+      return node === undefined ? [] : [node];
+    });
+    const picks = removing.edges.flatMap((edge) => {
+      const pick = pickOfEdge(edge);
+      return pick === undefined ? [] : [pick];
+    });
+    const choices = picks.flatMap((pick) => {
+      const node = pick.kind === 'choice' ? draft.nodes[indexOf(pick.source)] : undefined;
+      const choice = pick.kind === 'choice' ? node?.choices[pick.index] : undefined;
+      return node === undefined || choice === undefined || pick.kind !== 'choice'
+        ? []
+        : [{ node, choice, index: pick.index }];
+    });
+    const starts = picks.flatMap((pick) => {
+      const node = pick.kind === 'start' ? draft.nodes[indexOf(pick.target)] : undefined;
+      return node === undefined ? [] : [node];
+    });
+    const apply = () => {
+      selectOne(undefined);
+      onChange?.(
+        removeAll(draft, {
+          nodes: removedNodes.map((node) => node.id),
+          choices: choices.map(({ node, index }) => ({ id: node.id, index })),
+          starts: starts.map((node) => node.id),
+        }),
+      );
+    };
+
+    const [node] = removedNodes;
+    const [choice] = choices;
+    const [start] = starts;
+    const count = removedNodes.length + choices.length + starts.length;
+    if (count === 0) {
+      return undefined;
+    }
+
+    if (count === 1 && node !== undefined) {
+      return {
+        question: `Smazat uzel ${node.id}?`,
+        detail: 'Volby, které do něj vedou, se smažou taky. Vrátit to jde tlačítkem Zpět.',
+        apply,
+      };
+    }
+
+    if (count === 1 && start !== undefined) {
+      return {
+        question: `Smazat šipku začátku do uzlu ${start.id}?`,
+        detail: 'Uzel zůstane. Vrátit to jde tlačítkem Zpět.',
+        apply,
+      };
+    }
+
+    if (count === 1 && choice !== undefined) {
+      return {
+        question: `Smazat volbu „${edgeText(choice.choice.label)}“ uzlu ${choice.node.id}?`,
+        detail: `Vede do uzlu ${choice.choice.to}; ten zůstane. Vrátit to jde tlačítkem Zpět.`,
+        apply,
+      };
+    }
+
+    const arrows = choices.length + starts.length;
+    const parts = [
+      ...(removedNodes.length > 0
+        ? [`${removedNodes.length} ${counted(removedNodes.length, 'uzel', 'uzly', 'uzlů')}`]
+        : []),
+      ...(arrows > 0 ? [`${arrows} ${counted(arrows, 'šipku', 'šipky', 'šipek')}`] : []),
+    ];
+    return {
+      question: `Smazat ${parts.join(' a ')}?`,
+      detail:
+        removedNodes.length > 0
+          ? 'Volby, které do smazaných uzlů vedou, se smažou taky. Vrátit to jde tlačítkem Zpět.'
+          : 'Uzly zůstanou. Vrátit to jde tlačítkem Zpět.',
+      apply,
+    };
+  })();
+  /** The yes of the removal dialog, focused when it opens, so Enter removes. */
+  const confirmRemoval = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Leads a new choice of `source`, or of a new node without one, into `target`, and brings the
+   * node the choice is on to the middle, selected.
+   */
+  const linkIn = (target: string, source: string | undefined) => {
+    if (onChange === undefined) {
+      return;
+    }
+
+    const next = linkInto(draft, target, source);
+
+    const key = keyOf(
+      next.draft.nodes.findIndex((node) => {
+        return node.id === next.source;
+      }),
+    );
+    onChange(next.draft);
+    selectOne(key);
+    pending.current = key;
+  };
+
+  const link = (source: string, dot: number | 'new', target: string | undefined) => {
     if (onChange === undefined) {
       return;
     }
 
     const next = linkChoice(draft, source, dot, target);
-    if (target === undefined) {
-      setFollowing((current) => new Set([...current, next.target]));
-    }
 
     const key = keyOf(
       next.draft.nodes.findIndex((node) => {
@@ -960,73 +1553,186 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       }),
     );
     onChange(next.draft);
-    setSelected(key);
+    selectOne(key);
     pending.current = key;
   };
 
   /** A drag from a dot: dropped on a node it leads there, elsewhere it draws out a new node. */
   const onConnectEnd = (_event: MouseEvent | TouchEvent, connection: FinalConnectionState) => {
-    const from = connection.fromNode?.id;
-    const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
-    const dot = dotOf(connection.fromHandle?.id);
-    if (source === undefined || dot === undefined) {
+    if (aborted.current) {
+      aborted.current = false;
       return;
     }
 
-    // The card outlined last while dragging; React Flow's final `to` is not always the last one.
+    const from = connection.fromNode?.id;
+    // The card pointed at last while dragging; React Flow's final `to` is not always the last one.
     const over = connection.toNode?.id ?? lastTarget.current;
-    link(source, dot, over === undefined ? undefined : draft.nodes[indexOf(over)]?.id);
+    const overNode = over === undefined ? undefined : draft.nodes[indexOf(over)]?.id;
+    // The start's arrow points at a node dropped on; dropped elsewhere, nothing changes.
+    if (from === INITIAL_ID) {
+      if (overNode !== undefined && onChange !== undefined) {
+        onChange(addStart(draft, overNode));
+      }
+
+      return;
+    }
+
+    const source = from === undefined ? undefined : draft.nodes[indexOf(from)]?.id;
+    const dot = dotOf(connection.fromHandle?.id);
+    // A choice does not lead back into its own node: dropped there, nothing changes.
+    if (source === undefined || dot === undefined || over === from) {
+      return;
+    }
+
+    // From the top plus the choice leads the other way: from the node dropped on into this one.
+    if (dot === 'in') {
+      linkIn(source, overNode);
+      return;
+    }
+
+    link(source, dot, overNode);
   };
 
   return (
     <CardContext value={cards}>
-      <div
-        ref={wrapper}
-        className={cn(
-          'story-graph size-full transition-opacity duration-200',
-          laidOut === undefined && 'opacity-0',
-          className,
-        )}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onNodeClick={(_event, node) => {
-            // A click into the card being written in only places the cursor.
-            if (node.type === 'draft' && node.id !== selected) {
-              setSelected(node.id);
-              center(node.id);
-            }
-          }}
-          onNodeDoubleClick={(event, node) => {
-            // A double click into a text selects a word there.
-            if (node.type === 'draft' && !isWritable(event.target)) {
-              setSelected(node.id);
-              center(node.id, CLOSE_ZOOM);
-            }
-          }}
-          onPaneClick={() => {
-            setSelected(undefined);
-          }}
-          onConnectEnd={onConnectEnd}
-          // A click on a dot is no way to connect, and a move this small still a click: on the
-          // plus it adds a choice.
-          connectOnClick={false}
-          connectionDragThreshold={CLICK_DISTANCE}
-          colorMode={resolved}
-          minZoom={0.1}
-          nodesDraggable={false}
-          nodesConnectable={onChange !== undefined}
-          zoomOnDoubleClick={false}
-          deleteKeyCode={null}
-          proOptions={{ hideAttribution: true }}
+      <OverCardContext value={dropTarget !== undefined}>
+        <div
+          ref={wrapper}
+          className={cn(
+            'story-graph size-full transition-opacity duration-200',
+            laidOut === undefined && 'opacity-0',
+            className,
+          )}
         >
-          <Background />
-          <Controls showInteractive={false} />
-        </ReactFlow>
-      </div>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodeClick={(event, node) => {
+              // The room around a card only shows its dots sooner: a click there is on the pane.
+              if (onHalo(event.target)) {
+                if (!event.shiftKey) {
+                  selectOne(undefined);
+                }
+
+                return;
+              }
+
+              if (node.type !== 'draft') {
+                return;
+              }
+
+              // With Shift the card joins the selection, or leaves it, and the view stays.
+              if (event.shiftKey) {
+                setSelection((current) => ({ ...current, nodes: toggled(current.nodes, node.id) }));
+                return;
+              }
+
+              if (node.id !== selected) {
+                selectOne(node.id);
+                center(node.id);
+              }
+            }}
+            onNodeDoubleClick={(event, node) => {
+              // Not on a dot or a plus, which have their own clicks, nor in the room around.
+              const onDot =
+                event.target instanceof Element &&
+                event.target.closest('.react-flow__handle') !== null;
+              if (node.type !== 'draft' || onDot || onHalo(event.target)) {
+                return;
+              }
+
+              selectOne(node.id);
+              // A double click opens the node in the detail; a canvas only shown brings it close.
+              const opened = draft.nodes[indexOf(node.id)];
+              if (onOpen !== undefined && opened !== undefined) {
+                onOpen(opened.id);
+                return;
+              }
+
+              center(node.id, CLOSE_ZOOM);
+            }}
+            onPaneClick={(event) => {
+              if (!event.shiftKey) {
+                selectOne(undefined);
+              }
+            }}
+            onEdgeClick={(event, edge) => {
+              // A choice's edge can be selected, and the start's, not an end's.
+              if (pickOfEdge(edge.id) === undefined) {
+                return;
+              }
+
+              setSelection((current) =>
+                event.shiftKey
+                  ? { ...current, edges: toggled(current.edges, edge.id) }
+                  : { nodes: [], edges: [edge.id] },
+              );
+            }}
+            onConnectEnd={onConnectEnd}
+            connectionLineComponent={DragLine}
+            // A click on a dot is no way to connect, and a move this small still a click: on the
+            // plus it adds a choice.
+            connectOnClick={false}
+            isValidConnection={(connection) => connection.source !== connection.target}
+            connectionDragThreshold={CLICK_DISTANCE}
+            colorMode={resolved}
+            minZoom={0.1}
+            nodesDraggable={false}
+            nodesConnectable={onChange !== undefined}
+            zoomOnDoubleClick={false}
+            // Space opens the selected node; the canvas pans by dragging anyway.
+            panActivationKeyCode={null}
+            // Shift selects more cards and edges by clicks, not by a box.
+            selectionKeyCode={null}
+            deleteKeyCode={null}
+            proOptions={{ hideAttribution: true }}
+            {...(rememberView
+              ? {
+                  onMoveEnd: (_event: unknown, viewport: Viewport) => {
+                    writeViewport(viewport);
+                  },
+                }
+              : {})}
+          >
+            <Background />
+            <Controls showInteractive={false} />
+          </ReactFlow>
+          <AlertDialog
+            open={removal !== undefined}
+            onOpenChange={(open) => {
+              if (!open) {
+                setRemoving(undefined);
+              }
+            }}
+          >
+            <AlertDialogContent
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                confirmRemoval.current?.focus();
+              }}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>{removal?.question}</AlertDialogTitle>
+                <AlertDialogDescription>{removal?.detail}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Zrušit</AlertDialogCancel>
+                <AlertDialogAction
+                  ref={confirmRemoval}
+                  variant='destructive'
+                  onClick={() => {
+                    removal?.apply();
+                  }}
+                >
+                  Smazat
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </OverCardContext>
     </CardContext>
   );
 };

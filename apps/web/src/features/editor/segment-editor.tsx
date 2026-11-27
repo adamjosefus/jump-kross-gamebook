@@ -9,6 +9,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import {
   EditorState,
+  Facet,
   Prec,
   RangeSetBuilder,
   StateEffect,
@@ -28,6 +29,8 @@ import { THEMES, type Theme } from '@gamebook/core';
 import { tags } from '@lezer/highlight';
 import { useEffect, useRef } from 'react';
 
+import { cn } from '@/lib/utils';
+
 import type { DraftSegment } from './draft';
 import {
   dividerLine,
@@ -37,6 +40,14 @@ import {
   isNoteLine,
   segmentsToDoc,
 } from './segment-doc';
+
+/**
+ * Whether the segments' themes are shown and set here. Without them a divider is a plain rule, the
+ * first one is not drawn at all, and `/` offers no themes; the themes stay as they were.
+ */
+const withThemes = Facet.define<boolean, boolean>({
+  combine: (values) => values.at(0) ?? true,
+});
 
 /** Marks the editor focused or not; the divider under the cursor shows its text only while it is. */
 const setFocused = StateEffect.define<boolean>();
@@ -74,6 +85,13 @@ class DividerWidget extends WidgetType {
   override toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('div');
     dom.className = 'cm-divider';
+    if (!view.state.facet(withThemes)) {
+      const rule = document.createElement('span');
+      rule.className = 'cm-divider-rule';
+      dom.append(rule);
+      return dom;
+    }
+
     const select = document.createElement('select');
     select.className = 'cm-divider-theme';
     select.title = 'Téma segmentu';
@@ -104,7 +122,34 @@ class DividerWidget extends WidgetType {
   }
 }
 
+/** Nothing in place of the first divider, when the themes are not shown: no segment is above it. */
+class HiddenDividerWidget extends WidgetType {
+  override eq(): boolean {
+    return true;
+  }
+
+  override toDOM(): HTMLElement {
+    return document.createElement('div');
+  }
+}
+
 const NOTE_LINE = Decoration.line({ class: 'cm-note' });
+
+/** A hint in an empty segment, where its text goes; it is no part of the text. */
+class PlaceholderWidget extends WidgetType {
+  override eq(): boolean {
+    return true;
+  }
+
+  override toDOM(): HTMLElement {
+    const hint = document.createElement('span');
+    hint.className = 'cm-segment-placeholder';
+    hint.textContent = 'Text segmentu… / nabídne příkazy';
+    return hint;
+  }
+}
+
+const PLACEHOLDER = Decoration.widget({ widget: new PlaceholderWidget(), side: 1 });
 
 /**
  * Dividers drawn as widgets, except the one under the cursor, which shows its text to edit; note
@@ -112,8 +157,10 @@ const NOTE_LINE = Decoration.line({ class: 'cm-note' });
  */
 const decorate = (state: EditorState): DecorationSet => {
   const builder = new RangeSetBuilder<Decoration>();
+  const themes = state.facet(withThemes);
+  // Without the themes a divider has nothing to edit: it stays a rule even under the cursor.
   const editing = new Set(
-    state.field(focused)
+    themes && state.field(focused)
       ? state.selection.ranges.map((range) => {
           return state.doc.lineAt(range.head).number;
         })
@@ -123,11 +170,11 @@ const decorate = (state: EditorState): DecorationSet => {
     const line = state.doc.line(number);
     if (isDivider(line.text)) {
       if (!editing.has(number)) {
-        builder.add(
-          line.from,
-          line.to,
-          Decoration.replace({ widget: new DividerWidget(dividerTheme(line.text)), block: true }),
-        );
+        const widget =
+          !themes && number === 1
+            ? new HiddenDividerWidget()
+            : new DividerWidget(dividerTheme(line.text));
+        builder.add(line.from, line.to, Decoration.replace({ widget, block: true }));
       }
 
       continue;
@@ -135,6 +182,19 @@ const decorate = (state: EditorState): DecorationSet => {
 
     if (isNoteLine(line.text)) {
       builder.add(line.from, line.from, NOTE_LINE);
+    }
+
+    // An empty segment, a lone empty line between dividers, shows where its text goes.
+    const above = number > 1 ? state.doc.line(number - 1).text : undefined;
+    const below = number < state.doc.lines ? state.doc.line(number + 1).text : undefined;
+    if (
+      !state.readOnly &&
+      line.text === '' &&
+      above !== undefined &&
+      isDivider(above) &&
+      (below === undefined || isDivider(below))
+    ) {
+      builder.add(line.from, line.from, PLACEHOLDER);
     }
   }
 
@@ -286,6 +346,11 @@ const SLASH_COMMANDS: readonly Completion[] = [
   }),
 ];
 
+/** The commands without the themes, for an editor that does not show them. */
+const PLAIN_SLASH_COMMANDS = SLASH_COMMANDS.filter((completion) => {
+  return completion.detail !== 'Téma segmentu';
+});
+
 /** Offers the slash commands while a line holds only `/` and what follows it. */
 const slashCommands = (context: CompletionContext): CompletionResult | null => {
   const line = context.state.doc.lineAt(context.pos);
@@ -294,7 +359,8 @@ const slashCommands = (context: CompletionContext): CompletionResult | null => {
     return null;
   }
 
-  return { from: line.from + 1, options: [...SLASH_COMMANDS], validFor: /^[\p{L}\p{N} ]*$/u };
+  const options = context.state.facet(withThemes) ? SLASH_COMMANDS : PLAIN_SLASH_COMMANDS;
+  return { from: line.from + 1, options: [...options], validFor: /^[\p{L}\p{N} ]*$/u };
 };
 
 /** Markdown with its marks left in place and dimmed: `**bold**` is bold with grey asterisks. */
@@ -309,7 +375,13 @@ const MARKDOWN_LOOK = HighlightStyle.define([
 
 const LOOK = EditorView.theme({
   // The size comes from the element around, `fontSize` of the component.
-  '&': { fontSize: 'inherit', color: 'var(--foreground)', backgroundColor: 'transparent' },
+  // It fills the element around when that is taller, so a click anywhere there writes.
+  '&': {
+    fontSize: 'inherit',
+    color: 'var(--foreground)',
+    backgroundColor: 'transparent',
+    flex: '1 1 auto',
+  },
   '&.cm-focused': { outline: 'none' },
   '.cm-scroller': {
     fontFamily: 'var(--font-mono, ui-monospace, monospace)',
@@ -318,6 +390,11 @@ const LOOK = EditorView.theme({
   '.cm-content': { padding: '0', caretColor: 'var(--foreground)' },
   '.cm-line': { padding: '0' },
   '.cm-note': { color: 'var(--muted-foreground)', fontStyle: 'italic' },
+  '.cm-segment-placeholder': {
+    color: 'var(--muted-foreground)',
+    opacity: '0.7',
+    pointerEvents: 'none',
+  },
   '.cm-divider': {
     display: 'flex',
     alignItems: 'center',
@@ -354,7 +431,8 @@ const LOOK = EditorView.theme({
   '.cm-completionDetail': { marginLeft: '12px', fontStyle: 'normal', opacity: '0.6' },
 });
 
-const extensions = (onDoc: (doc: string) => void): Extension => [
+const extensions = (onDoc: (doc: string) => void, themes: boolean): Extension => [
+  withThemes.of(themes),
   focused,
   segmentLines,
   keepFirstDivider,
@@ -389,6 +467,8 @@ export interface SegmentEditorProps {
   readonly readOnly?: boolean;
   /** Of the text, in pixels. */
   readonly fontSize?: number;
+  /** Off, the dividers are plain rules without the themes, which cannot be set here then. */
+  readonly themes?: boolean;
   /** Replaces the default minimum height. */
   readonly className?: string;
 }
@@ -404,6 +484,7 @@ export const SegmentEditor = ({
   autoFocus,
   readOnly = false,
   fontSize = 14,
+  themes = true,
   className,
 }: SegmentEditorProps) => {
   const host = useRef<HTMLDivElement>(null);
@@ -430,7 +511,7 @@ export const SegmentEditor = ({
           extensions((next) => {
             doc.current = next;
             change.current?.(docToSegments(next));
-          }),
+          }, themes),
           EditorState.readOnly.of(readOnly),
           EditorView.editable.of(!readOnly),
         ],
@@ -445,7 +526,7 @@ export const SegmentEditor = ({
       created.destroy();
       view.current = null;
     };
-  }, [autoFocus, readOnly]);
+  }, [autoFocus, readOnly, themes]);
 
   useEffect(() => {
     const next = segmentsToDoc(value);
@@ -458,5 +539,7 @@ export const SegmentEditor = ({
     current.dispatch({ changes: { from: 0, to: current.state.doc.length, insert: next } });
   }, [value]);
 
-  return <div ref={host} className={className ?? 'min-h-24'} style={{ fontSize }} />;
+  return (
+    <div ref={host} className={cn('flex flex-col', className ?? 'min-h-24')} style={{ fontSize }} />
+  );
 };

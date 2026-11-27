@@ -61,6 +61,8 @@ export interface LayoutEdge {
   readonly target: string;
   /** Text the edge reserves room for, broken into lines by `labelLines`. */
   readonly label?: string;
+  /** Off, the label is drawn without an icon, so it takes less room. On by default. */
+  readonly labelIcon?: boolean;
   /** Ports of `source` and `target` the edge attaches to. */
   readonly sourcePort?: string;
   readonly targetPort?: string;
@@ -112,11 +114,17 @@ export const labelLines = (text: string): readonly string[] =>
       : [...lines, word];
   }, []);
 
-/** Rough size of a label with its icon; ELK only needs it to reserve space. */
-export const labelSize = (text: string) => {
+/** Room of a label's padding, and of its icon with the padding. */
+const LABEL_PADDING = 10;
+const LABEL_ICON_ROOM = 24;
+
+/** Rough size of a label, with its icon or without; ELK only needs it to reserve space. */
+export const labelSize = (text: string, icon = true) => {
   const lines = labelLines(text);
   return {
-    width: Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) + 24,
+    width:
+      Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) +
+      (icon ? LABEL_ICON_ROOM : LABEL_PADDING),
     height: LABEL_LINE_HEIGHT * lines.length,
   };
 };
@@ -261,7 +269,7 @@ export const layoutBoxes = async ({
         targets: [edge.targetPort ?? edge.target],
         ...(edge.label === undefined
           ? {}
-          : { labels: [{ text: edge.label, ...labelSize(edge.label) }] }),
+          : { labels: [{ text: edge.label, ...labelSize(edge.label, edge.labelIcon ?? true) }] }),
       })),
       ...ends.map((id) => ({
         id: finalEdgeId(id),

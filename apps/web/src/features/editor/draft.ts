@@ -6,6 +6,12 @@ import type { Theme } from '@gamebook/core';
  */
 export interface Draft {
   readonly version: 1;
+  /**
+   * The ids of the nodes the start dot points at, where the story begins. One in a draft in
+   * order; none or more are a problem the editor shows, but keeps. Missing in a draft written
+   * before the editor had it: the start is the first node no other node leads into.
+   */
+  readonly starts?: readonly string[];
   /** In the order they were written; the canvas lays them out on its own. */
   readonly nodes: readonly DraftNode[];
 }
@@ -49,6 +55,44 @@ export interface DraftChoice {
   /** The `id` of the node it leads to. */
   readonly to: string;
 }
+
+/** How the plain arrow is named on the card, the edges and the buttons. */
+export const NEXT_LABEL = 'Další';
+
+/** A choice's text as the players read it: trimmed, the plain arrow for an empty one. */
+const shownLabel = (choice: DraftChoice) => {
+  const label = choice.label.trim();
+  if (label === '') {
+    return NEXT_LABEL;
+  }
+
+  return label;
+};
+
+/**
+ * The indexes of the choices whose text another choice of the same list has too, case aside. The
+ * draft allows it, but the players cannot tell such buttons apart.
+ */
+export const sameLabelChoices = (choices: readonly DraftChoice[]): ReadonlySet<number> => {
+  const counts = new Map<string, number>();
+  const keys = choices.map((choice) => {
+    const key = shownLabel(choice).toLocaleLowerCase('cs');
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+    return key;
+  });
+  return new Set(
+    keys.flatMap((key, index) => {
+      if ((counts.get(key) ?? 0) < 2) {
+        return [];
+      }
+
+      return [index];
+    }),
+  );
+};
+
+/** Why a choice is marked by `sameLabelChoices`, for its title. */
+export const SAME_LABEL_WARNING = 'Stejný text má i jiná volba, hráči tlačítka nerozliší.';
 
 /** Longest id `draftNodeId` derives, cut after a whole word. */
 export const MAX_ID_LENGTH = 24;
@@ -122,11 +166,84 @@ export const incoming = (draft: Draft, id: string): readonly IncomingChoice[] =>
     });
   });
 
-/** The nodes no other node leads into: where the story begins. */
-export const startsOf = (draft: Draft): readonly DraftNode[] =>
+/** The nodes no other node leads into; the start is one of them, or should be. */
+export const rootsOf = (draft: Draft): readonly DraftNode[] =>
   draft.nodes.filter((node) => {
     return incoming(draft, node.id).length === 0;
   });
+
+/**
+ * The nodes the start dot points at, in its order: those in `starts`, or, in a draft without it,
+ * the first node no other node leads into.
+ */
+export const startsOf = (draft: Draft): readonly DraftNode[] => {
+  if (draft.starts === undefined) {
+    return rootsOf(draft).slice(0, 1);
+  }
+
+  return draft.starts.flatMap((id) => {
+    const node = draft.nodes.find((candidate) => {
+      return candidate.id === id;
+    });
+    return node === undefined ? [] : [node];
+  });
+};
+
+/** What can be wrong with a node; the editor keeps such a draft, and shows what is wrong. */
+export type DraftProblem = 'sameLabels' | 'loose' | 'manyStarts' | 'noStart';
+
+/** How a problem is named to the author. */
+export const PROBLEM_TEXT: Readonly<Record<DraftProblem, string>> = {
+  sameLabels: 'Volby se stejným textem',
+  loose: 'Nic sem nevede',
+  manyStarts: 'Víc začátků',
+  noStart: 'Příběh nemá začátek',
+};
+
+/** A node with what is wrong with it; without a node, what is wrong with the whole draft. */
+export interface NodeProblems {
+  readonly id: string | undefined;
+  readonly problems: readonly DraftProblem[];
+}
+
+/**
+ * The nodes with something wrong, in the order of the nodes: choices of the same text, no way in
+ * and not the start, or a start besides another one. A draft with no start at all comes first,
+ * without a node.
+ */
+export const draftProblems = (draft: Draft): readonly NodeProblems[] => {
+  const starts = new Set(startsOf(draft).map((node) => node.id));
+  const loose = new Set(
+    rootsOf(draft).flatMap((node) => {
+      return starts.has(node.id) ? [] : [node.id];
+    }),
+  );
+  const nodes = draft.nodes.flatMap((node) => {
+    const problems: DraftProblem[] = [];
+    if (sameLabelChoices(node.choices).size > 0) {
+      problems.push('sameLabels');
+    }
+
+    if (loose.has(node.id)) {
+      problems.push('loose');
+    }
+
+    if (starts.size > 1 && starts.has(node.id)) {
+      problems.push('manyStarts');
+    }
+
+    if (problems.length === 0) {
+      return [];
+    }
+
+    return [{ id: node.id, problems }];
+  });
+  if (starts.size === 0 && draft.nodes.length > 0) {
+    return [{ id: undefined, problems: ['noStart'] }, ...nodes];
+  }
+
+  return nodes;
+};
 
 /** The nodes without a choice: where the story ends. */
 export const endsOf = (draft: Draft): readonly DraftNode[] =>
@@ -206,6 +323,7 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
     }
   };
 
+  // Only from the starts: a loose node is no beginning of the story.
   for (const start of startsOf(draft)) {
     if (leading.has(start.id)) {
       walk(start, new Set([start.id]), 1, characters(start));
@@ -240,4 +358,64 @@ export const meanCharactersOf = (routes: readonly RoutesToEnd[]): number | undef
       return sum + route.meanCharacters * route.ways;
     }, 0) / ways
   );
+};
+
+/**
+ * Words Mermaid reads as its own at the start of a line; a node with such an id gets `_` added,
+ * so the diagram still reads.
+ */
+const MERMAID_WORDS: ReadonlySet<string> = new Set([
+  'end',
+  'graph',
+  'subgraph',
+  'flowchart',
+  'direction',
+  'style',
+  'class',
+  'classdef',
+  'click',
+  'linkstyle',
+  'default',
+]);
+
+const mermaidId = (id: string) => (MERMAID_WORDS.has(id) ? `${id}_` : id);
+
+/** A text in a Mermaid label's quotes: its own quotes and brackets as entities, on one line. */
+const mermaidText = (text: string) =>
+  text
+    .replaceAll('"', '#quot;')
+    .replaceAll('<', '#lt;')
+    .replaceAll('>', '#gt;')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
+
+/** Id of the start in the diagram, which no node id can be: node ids do not start with `_`. */
+const MERMAID_START = '_start';
+
+/**
+ * The shape of the story as a Mermaid flowchart, top to bottom: the start, the nodes by their
+ * summaries, or ids without one, and the choices by their texts; the segments are left out.
+ */
+export const toMermaid = (draft: Draft): string => {
+  const ids = new Set(draft.nodes.map((node) => node.id));
+  const starts = startsOf(draft);
+  return [
+    'flowchart TD',
+    ...(starts.length > 0 ? [`  ${MERMAID_START}([Začátek])`] : []),
+    ...draft.nodes.map((node) => {
+      const label = node.summary.trim() === '' ? node.id : node.summary;
+      return `  ${mermaidId(node.id)}["${mermaidText(label)}"]`;
+    }),
+    ...starts.map((node) => `  ${MERMAID_START} --> ${mermaidId(node.id)}`),
+    ...draft.nodes.flatMap((node) =>
+      node.choices.flatMap((choice) => {
+        if (!ids.has(choice.to)) {
+          return [];
+        }
+
+        const label = mermaidText(choice.label === '' ? NEXT_LABEL : choice.label);
+        return [`  ${mermaidId(node.id)} -->|"${label}"| ${mermaidId(choice.to)}`];
+      }),
+    ),
+  ].join('\n');
 };

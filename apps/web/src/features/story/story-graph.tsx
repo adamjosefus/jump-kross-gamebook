@@ -592,7 +592,7 @@ export const StoryGraph = ({
             ? {
                 ...edge,
                 zIndex: FOCUSED_EDGE_Z_INDEX,
-                data: { ...edge.data, focusTarget: true },
+                data: { ...edge.data, focusTarget: true, labelZIndex: FOCUSED_EDGE_Z_INDEX + 1 },
               }
             : edge,
         ),

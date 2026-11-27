@@ -1,4 +1,4 @@
-import { IconArrowLeft, IconArrowRight, IconX } from '@tabler/icons-react';
+import { IconArrowLeft, IconArrowRight, IconTrash, IconX } from '@tabler/icons-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -9,8 +9,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-import type { Draft, DraftNode } from './draft';
-import { goTo, step, type FocusTrail } from './focus-trail';
+import type { Draft } from './draft';
+import { removeNode } from './draft-edit';
+import { RemoveButton } from './draft-node-card';
+import { goTo, renameInTrail, step, type FocusTrail } from './focus-trail';
 import { FocusView } from './focus-view';
 
 export interface FocusDialogProps {
@@ -18,7 +20,8 @@ export interface FocusDialogProps {
   /** Closed without a trail. */
   readonly trail: FocusTrail | undefined;
   readonly onTrail: (trail: FocusTrail | undefined) => void;
-  readonly onChange: (node: DraftNode) => void;
+  /** `field` names what was typed into, so the keystrokes into one field make one step. */
+  readonly onChange: (draft: Draft, field?: string) => void;
 }
 
 /**
@@ -92,6 +95,20 @@ export const FocusDialog = ({ draft, trail, onTrail, onChange }: FocusDialogProp
           <DialogDescription className='sr-only'>
             Uzel konceptu: odkud se do něj přijde, jeho text a kam vede.
           </DialogDescription>
+          {node !== undefined && (
+            <RemoveButton
+              title='Smazat uzel'
+              question={`Smazat uzel ${node.id}?`}
+              detail='Volby, které do něj vedou, se smažou taky. Vrátit to jde tlačítkem Zpět.'
+              onConfirm={() => {
+                // Closed first: an undo brings the node back, and the dialog would open again.
+                onTrail(undefined);
+                onChange(removeNode(draft, node.id));
+              }}
+            >
+              <IconTrash className='size-4' />
+            </RemoveButton>
+          )}
           <DialogClose asChild>
             <Button variant='ghost' size='icon-sm' title='Zavřít (Esc)' aria-label='Zavřít'>
               <IconX />
@@ -107,6 +124,10 @@ export const FocusDialog = ({ draft, trail, onTrail, onChange }: FocusDialogProp
               onTrail(goTo(trail, next));
             }}
             onChange={onChange}
+            opening={trail.at}
+            onRename={(from, to) => {
+              onTrail(renameInTrail(trail, from, to));
+            }}
           />
         )}
       </DialogContent>

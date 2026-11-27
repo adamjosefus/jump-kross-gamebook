@@ -6,6 +6,7 @@ import type { Draft } from './draft';
  */
 export const SAMPLE_DRAFT = {
   version: 1,
+  starts: ['patek_odpoledne_doma'],
   nodes: [
     {
       id: 'patek_odpoledne_doma',
