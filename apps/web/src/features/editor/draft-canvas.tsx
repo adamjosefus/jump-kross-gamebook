@@ -68,9 +68,9 @@ import {
 } from './draft-edit';
 import {
   CARD_WIDTH,
-  DOT_LOOK,
+  DOT_SHAPE,
   DotContent,
-  dotX,
+  dotPlaces,
   DraftNodeCard,
   NEW_DOT_LOOK,
   NEXT_LABEL,
@@ -156,7 +156,7 @@ const DotHandle = ({
   color,
 }: {
   readonly dot: DotKey;
-  readonly x: number;
+  readonly x: number | undefined;
   readonly color: TagColor | undefined;
 }) => {
   const { connectable, onAdd } = use(CardContext);
@@ -167,7 +167,7 @@ const DotHandle = ({
       id={dotHandle(dot)}
       position={Position.Bottom}
       isConnectable={connectable}
-      style={{ left: x }}
+      style={x === undefined ? {} : { left: x }}
       {...(dot === 'new' && onAdd !== undefined && key !== null
         ? {
             title: 'Přidat volbu: klikněte, nebo táhněte na uzel',
@@ -178,14 +178,15 @@ const DotHandle = ({
         : {})}
       className={cn(
         // React Flow's own handle look gives way to the dot's.
-        'min-h-0! min-w-0! rounded-full!',
+        'min-h-0! min-w-0!',
         dot === 'new'
-          ? cn(NEW_DOT_LOOK, 'size-6! border-border! bg-card!')
+          ? cn(NEW_DOT_LOOK, 'size-6! rounded-full! border-border! bg-card!')
           : cn(
-              DOT_LOOK,
-              'size-4! border-card! hover:bg-yellow-500!',
+              // A square in its pill, which rounds the ends, not placed by React Flow.
+              DOT_SHAPE,
+              'static! size-4! transform-none! rounded-none! border-0! hover:brightness-110',
               // In the color of the node the choice leads to, as that node's id tag.
-              color?.dot ?? 'bg-muted-foreground!',
+              color?.dot ?? 'bg-muted-foreground! text-card!',
             ),
         connectable && 'cursor-crosshair',
       )}
@@ -195,7 +196,7 @@ const DotHandle = ({
   );
 };
 
-const dotOfCard = (dot: DotKey, x: number, color: TagColor | undefined) => (
+const dotOfCard = (dot: DotKey, x: number | undefined, color: TagColor | undefined) => (
   <DotHandle dot={dot} x={x} color={color} />
 );
 
@@ -431,6 +432,7 @@ const layoutPass = (
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
       const entries = into.get(node.id) ?? [];
+      const places = dotPlaces(node.choices);
       const xs = entryXs(entries.length);
       return {
         id: node.id,
@@ -444,7 +446,7 @@ const layoutPass = (
           ...[...node.choices.keys(), 'new' as const].map((key) => {
             return {
               id: portId(node.id, key),
-              x: dotX(node.choices.length, key),
+              x: key === 'new' ? places.add : places.choices[key]!,
               y: height,
               side: 'SOUTH' as const,
             };

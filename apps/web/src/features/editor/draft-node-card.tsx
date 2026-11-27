@@ -26,12 +26,46 @@ const CHOICE_ROW = 28;
 export type DotKey = number | 'new';
 
 /**
- * Where a dot sits on the card's bottom edge, from its left: the choices' dots in their order,
- * then the one of „+ volba“, spread evenly. The layout attaches the edges there without measuring.
+ * The card's border: the dots are placed inside it, the layout counts from its outer edge, so the
+ * dots move back by it to sit where the edges start.
  */
-export const dotX = (count: number, key: DotKey) => {
-  const slot = key === 'new' ? count : key;
-  return (CARD_WIDTH * (slot + 1)) / (count + 2);
+const CARD_BORDER = 1;
+
+/** How far apart the dots in one pill are: a dot and the gap after it, in pixels. */
+const SEGMENT = 17;
+
+/** Where the dots sit on the card's bottom edge, from its left. */
+export interface DotPlaces {
+  /** The choices leading to one node, in one pill each, left to right, with its center. */
+  readonly groups: readonly { readonly members: readonly number[]; readonly center: number }[];
+  /** Where each choice's dot is, by the choice's index. */
+  readonly choices: readonly number[];
+  /** Where the plus is, right of the pills. */
+  readonly add: number;
+}
+
+/**
+ * Where the dots sit: the choices leading to the same node side by side in one pill, the pills
+ * spread evenly in the order their nodes first come among the choices, then the plus. The layout
+ * attaches the edges there without measuring.
+ */
+export const dotPlaces = (choices: readonly DraftChoice[]): DotPlaces => {
+  const byTarget = new Map<string, number[]>();
+  for (const [index, choice] of choices.entries()) {
+    byTarget.set(choice.to, [...(byTarget.get(choice.to) ?? []), index]);
+  }
+
+  const slots = byTarget.size + 1;
+  const xs = choices.map(() => 0);
+  const groups = [...byTarget.values()].map((members, slot) => {
+    const center = (CARD_WIDTH * (slot + 1)) / (slots + 1);
+    for (const [place, index] of members.entries()) {
+      xs[index] = center + (place - (members.length - 1) / 2) * SEGMENT;
+    }
+
+    return { members, center };
+  });
+  return { groups, choices: xs, add: (CARD_WIDTH * slots) / (slots + 1) };
 };
 
 /** The text of a choice's dot: its number, as beside its button. */
@@ -48,9 +82,12 @@ export const DotContent = ({ dot }: { readonly dot: DotKey }) =>
     <span className='pointer-events-none [text-box:trim-both_cap_alphabetic]'>{dotText(dot)}</span>
   );
 
-/** The look of a choice's dot; the canvas puts a handle with it to drag from. */
-export const DOT_LOOK =
-  'flex size-4 items-center justify-center rounded-full border border-card bg-muted-foreground font-sans text-[9px] leading-none font-semibold text-card';
+/** The shape of a choice's dot and number, without its colors. */
+export const DOT_SHAPE =
+  'flex size-4 shrink-0 items-center justify-center font-sans text-[9px] leading-none font-semibold';
+
+/** The colors of a choice's dot leading to no node of the draft. */
+export const DOT_GREY = 'bg-muted-foreground text-card';
 
 /**
  * The dot of „+ volba“: larger than the choices' ones, light, with a dashed ring 2 px inside its
@@ -59,25 +96,47 @@ export const DOT_LOOK =
 export const NEW_DOT_LOOK =
   "relative flex size-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100 before:pointer-events-none before:absolute before:inset-px before:rounded-full before:border before:border-dashed before:border-muted-foreground before:content-[''] hover:text-foreground hover:before:border-yellow-500";
 
-/** A plain dot on the card's bottom edge. */
+/**
+ * A plain dot: a choice's one in its pill, or the plus on the bottom edge at `x`; the canvas puts
+ * handles there instead.
+ */
 const PlainDot = ({
   dot,
   x,
   color,
 }: {
   readonly dot: DotKey;
-  readonly x: number;
+  readonly x: number | undefined;
   readonly color: TagColor | undefined;
 }) => (
   <span
     className={cn(
-      dot === 'new' ? NEW_DOT_LOOK : DOT_LOOK,
-      dot !== 'new' && color?.dot,
-      'absolute bottom-0 -translate-x-1/2 translate-y-1/2',
+      dot === 'new'
+        ? cn(NEW_DOT_LOOK, 'absolute bottom-0 -translate-x-1/2 translate-y-1/2')
+        : cn(DOT_SHAPE, color?.tag ?? DOT_GREY),
     )}
-    style={{ left: x }}
+    style={x === undefined ? {} : { left: x }}
   >
     <DotContent dot={dot} />
+  </span>
+);
+
+/**
+ * The dots of the choices leading to one node, side by side in one pill on the bottom edge; a
+ * single choice's pill is a circle.
+ */
+const DotPill = ({
+  center,
+  children,
+}: {
+  readonly center: number;
+  readonly children: ReactNode;
+}) => (
+  <span
+    className='absolute bottom-0 flex -translate-x-1/2 translate-y-1/2 gap-px overflow-hidden rounded-full bg-card ring-1 ring-card'
+    style={{ left: center - CARD_BORDER }}
+  >
+    {children}
   </span>
 );
 
@@ -223,9 +282,12 @@ const dropIndex = (event: DragEvent<HTMLElement>, index: number) => {
  */
 const ChoiceList = ({
   choices,
+  colors,
   edit,
 }: {
   readonly choices: readonly DraftChoice[];
+  /** The colors of the nodes the choices lead to. */
+  readonly colors: readonly (TagColor | undefined)[];
   readonly edit: CardEdit | undefined;
 }) => {
   /** The choice dragged now, and where it would land. */
@@ -313,8 +375,9 @@ const ChoiceList = ({
           >
             <IconGripVertical className='size-3.5' />
           </span>
-          <span className='w-3 text-center font-mono text-[10px] text-muted-foreground'>
-            {dotText(index)}
+          {/* In the color of the node it leads to, as its dot on the bottom edge. */}
+          <span className={cn(DOT_SHAPE, 'rounded-full', colors[index]?.tag ?? DOT_GREY)}>
+            <DotContent dot={index} />
           </span>
           <input
             value={choice.label}
@@ -365,7 +428,8 @@ export interface DraftNodeCardProps {
   /** What writing into the card changes; without it the card is only read. */
   readonly edit?: CardEdit;
   /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
-  readonly dot?: (key: DotKey, x: number, color: TagColor | undefined) => ReactNode;
+  /** `x` only for the plus: a choice's dot sits in its pill. */
+  readonly dot?: (key: DotKey, x: number | undefined, color: TagColor | undefined) => ReactNode;
   /** The node's color, of its id's tag. */
   readonly color?: TagColor;
   /** The colors of the nodes the choices lead to, of their dots, in the order of the choices. */
@@ -394,97 +458,103 @@ export const DraftNodeCard = ({
   choiceColors = [],
   ref,
   className,
-}: DraftNodeCardProps) => (
-  <div
-    ref={ref}
-    // Only the choices' handles drag: text selected in a field is not dragged to another one.
-    onDragStartCapture={(event) => {
-      if (!(event.target instanceof Element && event.target.closest('[data-drag-handle]'))) {
-        event.preventDefault();
-      }
-    }}
-    className={cn(
-      'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
-      selected && 'outline-2 outline-offset-2 outline-yellow-500',
-      dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
-      className,
-    )}
-    style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
-  >
+}: DraftNodeCardProps) => {
+  const places = dotPlaces(node.choices);
+  return (
     <div
+      ref={ref}
+      // Only the choices' handles drag: text selected in a field is not dragged to another one.
+      onDragStartCapture={(event) => {
+        if (!(event.target instanceof Element && event.target.closest('[data-drag-handle]'))) {
+          event.preventDefault();
+        }
+      }}
       className={cn(
-        'flex min-h-0 flex-1 flex-col transition-opacity duration-300',
-        far && 'opacity-0',
+        'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
+        selected && 'outline-2 outline-offset-2 outline-yellow-500',
+        dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
+        className,
       )}
+      style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
     >
-      <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
-        <IdField id={node.id} onId={edit?.onId} color={color} />
-        {start && <span className='rounded bg-muted px-1'>začátek</span>}
-        {node.choices.length === 0 && <span className='rounded bg-muted px-1'>konec</span>}
-        {onOpen !== undefined && (
-          <CardButton title='Otevřít v režimu soustředění' onClick={onOpen}>
-            <IconArrowsMaximize className='size-3.5' />
-          </CardButton>
-        )}
-        {edit !== undefined && (
-          <CardButton title='Smazat uzel' onClick={edit.onRemove}>
-            <IconTrash className='size-3.5' />
-          </CardButton>
-        )}
-      </div>
-      <div className='flex flex-col gap-1 px-3 pt-1'>
-        <GrowingField
-          value={node.summary}
-          placeholder='Shrnutí: co se v uzlu stane'
-          onChange={edit?.onSummary}
-          onBlur={edit?.onSummaryDone}
-          className='text-sm leading-snug font-medium'
-        />
-        {/* Always there, so writing a note does not change the card's height; its hint only
-            shows over the card. */}
-        <GrowingField
-          value={node.note ?? ''}
-          placeholder='Poznámka pro převod: podmínky, stav, QR…'
-          onChange={edit?.onNote}
-          className='text-xs text-muted-foreground italic placeholder:opacity-0 group-hover/card:placeholder:opacity-100 focus:placeholder:opacity-100'
-        />
-      </div>
-      {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
       <div
         className={cn(
-          'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3 leading-relaxed',
-          selected && 'nowheel',
+          'flex min-h-0 flex-1 flex-col transition-opacity duration-300',
+          far && 'opacity-0',
         )}
       >
-        <SegmentEditor
-          value={node.segments}
-          {...(edit === undefined ? { readOnly: true } : { onChange: edit.onSegments })}
-          fontSize={11}
-          className={cn(IN_CANVAS, 'min-h-6 cursor-text')}
-        />
+        <div className='flex h-6 items-center gap-2 px-3 pt-2 font-mono text-[11px] text-muted-foreground'>
+          <IdField id={node.id} onId={edit?.onId} color={color} />
+          {start && <span className='rounded bg-muted px-1'>začátek</span>}
+          {node.choices.length === 0 && <span className='rounded bg-muted px-1'>konec</span>}
+          {onOpen !== undefined && (
+            <CardButton title='Otevřít v režimu soustředění' onClick={onOpen}>
+              <IconArrowsMaximize className='size-3.5' />
+            </CardButton>
+          )}
+          {edit !== undefined && (
+            <CardButton title='Smazat uzel' onClick={edit.onRemove}>
+              <IconTrash className='size-3.5' />
+            </CardButton>
+          )}
+        </div>
+        <div className='flex flex-col gap-1 px-3 pt-1'>
+          <GrowingField
+            value={node.summary}
+            placeholder='Shrnutí: co se v uzlu stane'
+            onChange={edit?.onSummary}
+            onBlur={edit?.onSummaryDone}
+            className='text-sm leading-snug font-medium'
+          />
+          {/* Always there, so writing a note does not change the card's height; its hint only
+            shows over the card. */}
+          <GrowingField
+            value={node.note ?? ''}
+            placeholder='Poznámka pro převod: podmínky, stav, QR…'
+            onChange={edit?.onNote}
+            className='text-xs text-muted-foreground italic placeholder:opacity-0 group-hover/card:placeholder:opacity-100 focus:placeholder:opacity-100'
+          />
+        </div>
+        {/* Scrolls when the card would be taller than the viewport; with the wheel once selected. */}
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3 leading-relaxed',
+            selected && 'nowheel',
+          )}
+        >
+          <SegmentEditor
+            value={node.segments}
+            {...(edit === undefined ? { readOnly: true } : { onChange: edit.onSegments })}
+            fontSize={11}
+            className={cn(IN_CANVAS, 'min-h-6 cursor-text')}
+          />
+        </div>
       </div>
-    </div>
-    <ChoiceList choices={node.choices} edit={edit} />
-    {/* From afar the summary covers the card, and takes the clicks meant for the node. */}
-    <div
-      className={cn(
-        'absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
-        !far && 'pointer-events-none opacity-0',
-      )}
-    >
-      <p className='text-[28px] leading-tight font-semibold'>
-        {node.summary === '' ? (
-          <span className='text-muted-foreground'>Bez shrnutí</span>
-        ) : (
-          node.summary
+      <ChoiceList choices={node.choices} colors={choiceColors} edit={edit} />
+      {/* From afar the summary covers the card, and takes the clicks meant for the node. */}
+      <div
+        className={cn(
+          'absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
+          !far && 'pointer-events-none opacity-0',
         )}
-      </p>
+      >
+        <p className='text-[28px] leading-tight font-semibold'>
+          {node.summary === '' ? (
+            <span className='text-muted-foreground'>Bez shrnutí</span>
+          ) : (
+            node.summary
+          )}
+        </p>
+      </div>
+      {/* On the bottom edge, where the edges start; over the summary too. */}
+      {places.groups.map((group) => (
+        <DotPill key={group.members[0]} center={group.center}>
+          {group.members.map((index) => (
+            <Fragment key={index}>{dot(index, undefined, choiceColors[index])}</Fragment>
+          ))}
+        </DotPill>
+      ))}
+      {dot('new', places.add - CARD_BORDER, undefined)}
     </div>
-    {/* On the bottom edge, where the edges start; over the summary too. */}
-    {[...node.choices.keys(), 'new' as const].map((key) => (
-      <Fragment key={key}>
-        {dot(key, dotX(node.choices.length, key), key === 'new' ? undefined : choiceColors[key])}
-      </Fragment>
-    ))}
-  </div>
-);
+  );
+};
