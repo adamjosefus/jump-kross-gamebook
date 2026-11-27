@@ -1,14 +1,58 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconLoader2, IconX } from '@tabler/icons-react';
+import {
+  IconAlertTriangle,
+  IconArrowsDiagonalMinimize2,
+  IconArrowBackUp,
+  IconArrowForwardUp,
+  IconChevronDown,
+  IconBraces,
+  IconDownload,
+  IconFileText,
+  IconSchema,
+  IconLoader2,
+} from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { saveBlob } from '@/features/admin/download';
 
-import type { Draft } from './draft';
-import { DraftCanvas } from './draft-canvas';
-import { EMPTY_DRAFT, parseDraft, updateNode } from './draft-edit';
+import { draftProblems, PROBLEM_TEXT, toMermaid, type Draft, type NodeProblems } from './draft';
+import { DraftCanvas, type DraftCanvasHandle } from './draft-canvas';
+import {
+  draftFileText,
+  draftForFile,
+  EMPTY_DRAFT,
+  fitAllSizes,
+  parseDraft,
+  stampChanges,
+} from './draft-edit';
 import { historyReducer, startHistory } from './draft-history';
-import { FocusView } from './focus-view';
+import {
+  EDGE_STYLE_TEXT,
+  EDGE_STYLES,
+  parseEdgeStyle,
+  parseSpacing,
+  readEdgeStyle,
+  readSpacing,
+  SPACING_FACTOR,
+  SPACING_TEXT,
+  SPACINGS,
+  writeEdgeStyle,
+  writeSpacing,
+  type EdgeStyle,
+  type Spacing,
+} from './editor-view';
+import { FocusDialog } from './focus-dialog';
+import { startTrail, type FocusTrail } from './focus-trail';
 
 /** Where the dev server keeps the draft; the deployed app has no such address. */
 const DRAFT_URL = '/__editor/draft';
@@ -42,7 +86,7 @@ const saveDraft = async (draft: Draft, keepalive = false) => {
   const response = await fetch(DRAFT_URL, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(draft),
+    body: JSON.stringify(draftForFile(draft)),
     keepalive,
   });
   if (!response.ok) {
@@ -115,16 +159,177 @@ const useAutosave = (draft: Draft) => {
   return state;
 };
 
-/** The editor over a loaded draft: the canvas, undo and redo, saving and the focus mode. */
+/**
+ * One of a few ways, as one small button with the name and the way chosen, which opens the list
+ * of the ways.
+ */
+const Picker = <T extends string>({
+  name,
+  options,
+  texts,
+  value,
+  parse,
+  onChange,
+}: {
+  readonly name: string;
+  readonly options: readonly T[];
+  readonly texts: Readonly<Record<T, string>>;
+  readonly value: T;
+  /** The way a list item's value stands for. */
+  readonly parse: (value: string) => T;
+  readonly onChange: (value: T) => void;
+}) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant='ghost' size='sm' aria-label={`${name}: ${texts[value]}`}>
+        {name}: <span className='text-foreground'>{texts[value]}</span>
+        <IconChevronDown className='opacity-60' />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align='end'>
+      <DropdownMenuRadioGroup
+        value={value}
+        onValueChange={(next) => {
+          onChange(parse(next));
+        }}
+      >
+        {options.map((option) => (
+          <DropdownMenuRadioItem key={option} value={option}>
+            {texts[option]}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
+/** Downloads a text file. */
+const download = (text: string, name: string, type: string) => {
+  saveBlob(new Blob([text], { type }), name);
+};
+
+/**
+ * The draft for use outside the editor: as Mermaid diagrams, of the summaries only or of the whole
+ * text, or as its own file, the one the editor saves.
+ */
+const ExportMenu = ({ draft }: { readonly draft: Draft }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant='ghost' size='sm'>
+        <IconDownload /> Export <IconChevronDown className='opacity-60' />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align='end' className='w-72'>
+      <DropdownMenuItem
+        onSelect={() => {
+          download(toMermaid(draft, 'summaries'), 'story-draft.mmd', 'text/vnd.mermaid');
+        }}
+      >
+        <IconSchema />
+        <span className='flex flex-col'>
+          Mermaid: shrnutí
+          <span className='text-xs text-muted-foreground'>Uzly jen se shrnutím, volby s texty</span>
+        </span>
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onSelect={() => {
+          download(toMermaid(draft, 'full'), 'story-draft-full.mmd', 'text/vnd.mermaid');
+        }}
+      >
+        <IconFileText />
+        <span className='flex flex-col'>
+          Mermaid: celý obsah
+          <span className='text-xs text-muted-foreground'>
+            Uzly se shrnutím, poznámkou a textem segmentů
+          </span>
+        </span>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onSelect={() => {
+          download(draftFileText(draft), 'story-draft.json', 'application/json');
+        }}
+      >
+        <IconBraces />
+        <span className='flex flex-col'>
+          Koncept (JSON)
+          <span className='text-xs text-muted-foreground'>
+            Jako {DRAFT_PATH.split('/').at(-1)}, s časem změny každého uzlu
+          </span>
+        </span>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
+
+/** „1 problém“, „3 problémy“, „5 problémů“. */
+const problemsText = (count: number) => {
+  if (count === 1) {
+    return '1 problém';
+  }
+
+  return count >= 2 && count <= 4 ? `${count} problémy` : `${count} problémů`;
+};
+
+/**
+ * How many problems the draft has, as a button that brings the first node with one to the middle
+ * of the canvas; nothing when the draft is in order.
+ */
+const ProblemsIndicator = ({
+  problems,
+  onReveal,
+}: {
+  readonly problems: readonly NodeProblems[];
+  readonly onReveal: (id: string) => void;
+}) => {
+  // A draft in order needs no word about it.
+  if (problems.length === 0) {
+    return null;
+  }
+
+  const list = problems
+    .map(({ id, problems: kinds }) => {
+      const text = kinds.map((kind) => PROBLEM_TEXT[kind]).join(', ');
+      return id === undefined ? text : `${id}: ${text}`;
+    })
+    .join('\n');
+  return (
+    // Solid red, so a problem is not missed among the quiet tools around.
+    <Button
+      size='sm'
+      className='bg-destructive font-semibold text-white hover:bg-destructive/85'
+      title={`Ukázat první uzel s problémem.\n\n${list}`}
+      onClick={() => {
+        // A problem of the whole draft has no node to show.
+        const first = problems.find((problem) => problem.id !== undefined)?.id;
+        if (first !== undefined) {
+          onReveal(first);
+        }
+      }}
+    >
+      <IconAlertTriangle /> {problemsText(problems.length)}
+    </Button>
+  );
+};
+
+/** The editor over a loaded draft: the canvas, undo and redo, saving and the detail of a node. */
 const Editor = ({ initial }: { readonly initial: Draft }) => {
   const [history, dispatch] = useReducer(historyReducer, initial, startHistory);
-  const [focused, setFocused] = useState<string>();
+  /** The nodes walked in the focus dialog; closed without one. */
+  const [trail, setTrail] = useState<FocusTrail>();
   const draft = history.present;
   const saving = useAutosave(draft);
+  const canvas = useRef<DraftCanvasHandle>(null);
+  /** How far apart the cards are; kept in this browser, it is no part of the draft. */
+  const [spacing, setSpacing] = useState<Spacing>(readSpacing);
+  /** How the arrows are drawn; kept in this browser too. */
+  const [edgeStyle, setEdgeStyle] = useState<EdgeStyle>(readEdgeStyle);
+  const problems = useMemo(() => draftProblems(draft), [draft]);
   const change = (next: Draft, field?: string) => {
     dispatch({
       type: 'change',
-      draft: next,
+      // Each node changed keeps when; a redo or an undo brings back the times it had.
+      draft: stampChanges(draft, next, new Date().toISOString()),
       ...(field === undefined ? {} : { field }),
       at: Date.now(),
     });
@@ -133,12 +338,6 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented) {
-        return;
-      }
-
-      // Esc closes the focus mode from its text too; an open slash menu takes it first.
-      if (event.key === 'Escape') {
-        setFocused(undefined);
         return;
       }
 
@@ -160,7 +359,6 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
     };
   }, []);
 
-  const open = draft.nodes.some((node) => node.id === focused) ? focused : undefined;
   return (
     <div className='flex h-full flex-col'>
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
@@ -168,7 +366,54 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
           {nodesText(draft.nodes.length)} v <code className='text-foreground'>{DRAFT_PATH}</code>
         </span>
         <span className={saving === 'failed' ? 'text-destructive' : ''}>{SAVE_TEXT[saving]}</span>
-        <span className='ml-auto flex gap-1'>
+        <span
+          role='toolbar'
+          aria-label='Nástroje editoru'
+          className='ml-auto flex items-center gap-1'
+        >
+          <ProblemsIndicator
+            problems={problems}
+            onReveal={(id) => {
+              canvas.current?.reveal(id);
+            }}
+          />
+          <Picker
+            name='Rozestupy'
+            options={SPACINGS}
+            texts={SPACING_TEXT}
+            value={spacing}
+            parse={parseSpacing}
+            onChange={(next) => {
+              setSpacing(next);
+              writeSpacing(next);
+            }}
+          />
+          <Picker
+            name='Šipky'
+            options={EDGE_STYLES}
+            texts={EDGE_STYLE_TEXT}
+            value={edgeStyle}
+            parse={parseEdgeStyle}
+            onChange={(next) => {
+              setEdgeStyle(next);
+              writeEdgeStyle(next);
+            }}
+          />
+          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
+          <ExportMenu draft={draft} />
+          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
+          <Button
+            variant='ghost'
+            size='sm'
+            disabled={draft.nodes.every((node) => node.size === undefined)}
+            onClick={() => {
+              change(fitAllSizes(draft));
+            }}
+            title='Vrátit všem kartám velikost podle obsahu, jako dvojklik na roh každé karty'
+          >
+            <IconArrowsDiagonalMinimize2 /> Reset velikosti karet
+          </Button>
+          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
           <Button
             variant='ghost'
             size='sm'
@@ -190,29 +435,18 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
         </span>
       </div>
       <div className='relative min-h-0 flex-1'>
-        <DraftCanvas draft={draft} onChange={change} onOpen={setFocused} />
-        {/* Over the canvas, which stays laid out underneath for the way back. */}
-        {open !== undefined && (
-          <div className='absolute inset-0 z-10 flex flex-col gap-4 bg-background p-6'>
-            <div className='flex justify-end'>
-              <Button variant='ghost' size='sm' onClick={() => setFocused(undefined)}>
-                <IconX /> Zpět na graf (Esc)
-              </Button>
-            </div>
-            <FocusView
-              className='min-h-0 flex-1'
-              draft={draft}
-              id={open}
-              onOpen={setFocused}
-              onChange={(node) => {
-                change(
-                  updateNode(draft, node.id, () => node),
-                  `focus:${node.id}`,
-                );
-              }}
-            />
-          </div>
-        )}
+        <DraftCanvas
+          ref={canvas}
+          draft={draft}
+          spacing={SPACING_FACTOR[spacing]}
+          smoothEdges={edgeStyle === 'smooth'}
+          rememberView
+          onChange={change}
+          onOpen={(id) => {
+            setTrail(startTrail(id));
+          }}
+        />
+        <FocusDialog draft={draft} trail={trail} onTrail={setTrail} onChange={change} />
       </div>
     </div>
   );

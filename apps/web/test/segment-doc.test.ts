@@ -35,7 +35,13 @@ describe('segmentsToDoc and docToSegments', () => {
     { theme: 'letter', text: '' },
   ];
 
-  it('write a divider, then the notes, then the text of every segment', () => {
+  /** The notes of the segments, in their order, as the editor keeps them apart from the text. */
+  const notesOf = (list: readonly DraftSegment[]) =>
+    list.map((segment) => {
+      return segment.note;
+    });
+
+  it('write a divider, then the text of every segment, without the notes', () => {
     expect(segmentsToDoc(segments)).toBe(
       [
         '===',
@@ -43,8 +49,6 @@ describe('segmentsToDoc and docToSegments', () => {
         '',
         'Pekařka se usměje.',
         '=== red',
-        '// The baker is angry.',
-        '// She shouts.',
         '**„Ven!“**',
         '=== letter',
         '',
@@ -52,16 +56,18 @@ describe('segmentsToDoc and docToSegments', () => {
     );
   });
 
-  it('read back the same segments', () => {
-    expect(docToSegments(segmentsToDoc(segments))).toEqual(segments);
+  it('read back the same segments with their notes', () => {
+    expect(docToSegments(segmentsToDoc(segments), notesOf(segments))).toEqual(segments);
     for (const node of SAMPLE_DRAFT.nodes) {
-      expect(docToSegments(segmentsToDoc(node.segments))).toEqual(node.segments);
+      expect(docToSegments(segmentsToDoc(node.segments), notesOf(node.segments))).toEqual(
+        node.segments,
+      );
     }
   });
 
-  it('gather the notes wherever they are and trim blank lines around the text', () => {
-    expect(docToSegments('=== green\n\nJedna\n// pozn\n\nDvě\n\n')).toEqual([
-      { theme: 'green', text: 'Jedna\n\nDvě', note: 'pozn' },
+  it('keep a line starting with // as text and trim blank lines around the text', () => {
+    expect(docToSegments('=== green\n\nJedna\n// pozn\n\nDvě\n\n', ['  ', undefined])).toEqual([
+      { theme: 'green', text: 'Jedna\n// pozn\n\nDvě' },
     ]);
   });
 

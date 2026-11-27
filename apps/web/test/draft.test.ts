@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { draftNodeId, endsOf, incoming, startsOf, type Draft } from '@/features/editor/draft';
+import {
+  draftNodeId,
+  draftProblems,
+  endsOf,
+  incoming,
+  meanCharactersOf,
+  rootsOf,
+  routesTo,
+  sameLabelChoices,
+  startsOf,
+  toMermaid,
+  type Draft,
+} from '@/features/editor/draft';
 import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
 
 describe('draftNodeId', () => {
@@ -47,8 +59,53 @@ describe('the shape of a draft', () => {
     ],
   };
 
-  it('starts where no other node leads, a choice back to the node itself aside', () => {
-    expect(startsOf(draft).map((node) => node.id)).toEqual(['a', 'd']);
+  it('finds the nodes no other node leads into, a choice back to the node itself aside', () => {
+    expect(rootsOf(draft).map((node) => node.id)).toEqual(['a', 'd']);
+  });
+
+  it('begins at the first of them without starts written; the others hang loose', () => {
+    expect(startsOf(draft).map((node) => node.id)).toEqual(['a']);
+    expect(draftProblems(draft)).toEqual([{ id: 'd', problems: ['loose'] }]);
+  });
+
+  it('begins where the starts point, and reports none or more than one', () => {
+    expect(startsOf({ ...draft, starts: ['d', 'gone'] }).map((node) => node.id)).toEqual(['d']);
+    expect(draftProblems({ ...draft, starts: ['a', 'd'] })).toEqual([
+      { id: 'a', problems: ['manyStarts'] },
+      { id: 'd', problems: ['manyStarts'] },
+    ]);
+    expect(draftProblems({ ...draft, starts: [] })).toEqual([
+      { id: undefined, problems: ['noStart'] },
+      { id: 'a', problems: ['loose'] },
+      { id: 'd', problems: ['loose'] },
+    ]);
+  });
+
+  it('reports choices of the same text with the other problems of their node', () => {
+    const same: Draft = {
+      ...draft,
+      nodes: draft.nodes.map((node) => {
+        if (node.id !== 'd') {
+          return node;
+        }
+
+        return { ...node, choices: [...node.choices, { label: 'taky', to: 'b' }] };
+      }),
+    };
+    expect(draftProblems(same)).toEqual([{ id: 'd', problems: ['sameLabels', 'loose'] }]);
+    expect(draftProblems(SAMPLE_DRAFT)).toEqual([]);
+  });
+
+  it('tells a choice to no node of the draft', () => {
+    const lost: Draft = {
+      ...draft,
+      nodes: draft.nodes.map((node) => {
+        return node.id === 'a'
+          ? { ...node, choices: [...node.choices, { label: 'Pryč', to: 'zmizely' }] }
+          : node;
+      }),
+    };
+    expect(draftProblems(lost)).toContainEqual({ id: 'a', problems: ['nowhere'] });
   });
 
   it('ends where a node has no choice', () => {
@@ -70,5 +127,221 @@ describe('the shape of a draft', () => {
     const ids = new Set(SAMPLE_DRAFT.nodes.map((node) => node.id));
     const targets = SAMPLE_DRAFT.nodes.flatMap((node) => node.choices.map((choice) => choice.to));
     expect(targets.filter((target) => !ids.has(target))).toEqual([]);
+  });
+});
+
+describe('routesTo on a draft of many choices back and forth', () => {
+  it('measures it within a bounded walk', () => {
+    const places = Array.from({ length: 12 }, (_, index) => `misto_${index}`);
+    const square = {
+      id: 'namesti',
+      summary: 'Náměstí',
+      segments: [{ text: 'x' }],
+      choices: [
+        ...places.map((place) => ({ label: place, to: place })),
+        { label: 'Konec', to: 'konec' },
+      ],
+    };
+    const nodes = [
+      square,
+      ...places.map((place) => ({
+        id: place,
+        summary: place,
+        segments: [{ text: 'x' }],
+        choices: [
+          { label: 'Zpět', to: 'namesti' },
+          ...places.flatMap((other) => (other === place ? [] : [{ label: other, to: other }])),
+        ],
+      })),
+      { id: 'konec', summary: 'Konec', segments: [{ text: '' }], choices: [] },
+    ];
+    const started = performance.now();
+    expect(routesTo({ version: 1, starts: ['namesti'], nodes }, 'konec')).toBeDefined();
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+});
+
+describe('routesTo', () => {
+  const text = (length: number) => [{ text: 'x'.repeat(length) }];
+  const draft: Draft = {
+    version: 1,
+    nodes: [
+      {
+        id: 'a',
+        summary: '',
+        segments: text(10),
+        choices: [
+          { label: 'Krátce', to: 'end' },
+          { label: 'Oklikou', to: 'b' },
+        ],
+      },
+      {
+        id: 'b',
+        summary: '',
+        segments: [{ text: 'xx' }, { text: 'yyy' }],
+        choices: [
+          { label: 'Znovu', to: 'b' },
+          { label: 'Dál', to: 'end' },
+        ],
+      },
+      { id: 'end', summary: '', segments: text(1), choices: [] },
+      { id: 'lost', summary: '', segments: text(1), choices: [] },
+      { id: 'island', summary: '', segments: text(1), choices: [{ label: '', to: 'island_2' }] },
+      { id: 'island_2', summary: '', segments: text(1), choices: [{ label: '', to: 'island' }] },
+    ],
+  };
+
+  it('measures the shortest and the longest way, each node once, in nodes and text', () => {
+    // a → end, or a → b → end; going round b again does not make a way of its own.
+    expect(routesTo(draft, 'end')).toEqual({
+      steps: { min: 2, max: 3 },
+      ways: 2,
+      meanCharacters: (11 + 16) / 2,
+    });
+  });
+
+  it('counts two choices to one node as one way', () => {
+    const twice: Draft = {
+      version: 1,
+      nodes: [
+        {
+          id: 'start',
+          summary: '',
+          segments: text(4),
+          choices: [
+            { label: 'Vzít 20 mincí', to: 'shop' },
+            { label: 'Vzít 30 mincí', to: 'shop' },
+            { label: 'Zůstat doma', to: 'home' },
+          ],
+        },
+        { id: 'shop', summary: '', segments: text(20), choices: [{ label: '', to: 'home' }] },
+        { id: 'home', summary: '', segments: text(1), choices: [] },
+      ],
+    };
+    // start → home and start → shop → home, not start → shop → home twice.
+    expect(routesTo(twice, 'home')).toEqual({
+      steps: { min: 2, max: 3 },
+      ways: 2,
+      meanCharacters: (5 + 25) / 2,
+    });
+  });
+
+  it('counts the start when it is an end too', () => {
+    const alone: Draft = {
+      version: 1,
+      nodes: [{ id: 'one', summary: '', segments: text(1), choices: [] }],
+    };
+    expect(routesTo(alone, 'one')).toEqual({
+      steps: { min: 1, max: 1 },
+      ways: 1,
+      meanCharacters: 1,
+    });
+  });
+
+  it('walks only from the start: a loose node begins no way', () => {
+    expect(routesTo(draft, 'lost')).toBeUndefined();
+  });
+
+  it('averages the characters over all the ways to all the ends', () => {
+    const ends = [routesTo(draft, 'end')!, routesTo(draft, 'end')!];
+    // The ways have 11 and 16 characters, counted twice here.
+    expect(meanCharactersOf(ends)).toBe((11 + 16) / 2);
+    expect(meanCharactersOf([])).toBeUndefined();
+  });
+
+  it('gives nothing for a node no start leads to', () => {
+    expect(routesTo(draft, 'island')).toBeUndefined();
+  });
+
+  it('holds for the sample draft: through either shop, with or without the neighbours', () => {
+    expect(routesTo(SAMPLE_DRAFT, 'konec_hry')?.steps).toEqual({ min: 6, max: 8 });
+  });
+});
+
+describe('sameLabelChoices', () => {
+  it('marks every choice whose text another one has, trimmed and case aside', () => {
+    const choices = [
+      { label: 'Autobus', to: 'a' },
+      { label: 'Park', to: 'b' },
+      { label: ' autobus ', to: 'c' },
+    ];
+    expect([...sameLabelChoices(choices)]).toEqual([0, 2]);
+  });
+
+  it('takes an empty text for the plain arrow „Další“', () => {
+    const choices = [
+      { label: '', to: 'a' },
+      { label: 'Další', to: 'b' },
+      { label: 'Park', to: 'c' },
+    ];
+    expect([...sameLabelChoices(choices)]).toEqual([0, 1]);
+  });
+
+  it('marks nothing when every text differs', () => {
+    expect(
+      sameLabelChoices(SAMPLE_DRAFT.nodes.find((node) => node.id === 'cesta_domu')!.choices).size,
+    ).toBe(0);
+  });
+});
+
+describe('toMermaid', () => {
+  it('draws the start, the nodes by their summaries and the choices by their texts', () => {
+    const draft: Draft = {
+      version: 1,
+      starts: ['a'],
+      nodes: [
+        {
+          id: 'a',
+          summary: 'Řekne „ahoj“',
+          segments: [{ text: '' }],
+          choices: [
+            { label: '', to: 'end' },
+            { label: 'Pryč', to: 'gone' },
+          ],
+        },
+        { id: 'end', summary: '', segments: [{ text: '' }], choices: [] },
+      ],
+    };
+    expect(toMermaid(draft)).toBe(
+      [
+        'flowchart TD',
+        '  _start([Začátek])',
+        '  a["Řekne „ahoj“"]',
+        '  end_["end"]',
+        '  _start --> a',
+        '  a -->|"Další"| end_',
+      ].join('\n'),
+    );
+  });
+
+  it('shows the note and the segments too with the full detail', () => {
+    const draft: Draft = {
+      version: 1,
+      nodes: [
+        {
+          id: 'a',
+          summary: 'Pekárna',
+          note: 'QR: 6',
+          segments: [
+            { text: 'Voní to.\nPekařka čeká.' },
+            { text: ' ' },
+            { text: 'Co si koupíte?' },
+          ],
+          choices: [],
+        },
+      ],
+    };
+    expect(toMermaid(draft, 'full')).toContain(
+      'a["<b>Pekárna</b><br><br><i>QR: 6</i><br><br>Voní to.<br>Pekařka čeká.<br><br>Co si koupíte?"]',
+    );
+    expect(toMermaid(draft)).toContain('a["Pekárna"]');
+  });
+
+  it('keeps the quotes inside a label from closing it', () => {
+    const draft: Draft = {
+      version: 1,
+      nodes: [{ id: 'a', summary: 'Pak "dál"', segments: [{ text: '' }], choices: [] }],
+    };
+    expect(toMermaid(draft)).toContain('a["Pak #quot;dál#quot;"]');
   });
 });

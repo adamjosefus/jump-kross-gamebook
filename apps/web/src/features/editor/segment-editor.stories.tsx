@@ -28,7 +28,7 @@ const meta = {
     docs: {
       description: {
         component:
-          '`===` a Enter rozdělí segment, `/` na začátku řádku nabídne příkazy, `//` je poznámka, Backspace na začátku segmentu ho spojí s předchozím.',
+          '`===` a Enter rozdělí segment, `/` na začátku řádku nabídne příkazy, poznámka je v popoveru oddělovače, Backspace na začátku segmentu ho spojí s předchozím.',
       },
     },
   },
@@ -57,6 +57,34 @@ export const ManyThemes: Story = {
       { theme: 'red', text: '„Stůjte!“ ozve se za vámi.' },
       { theme: 'letter', text: 'Milý Matěji,\n\npoklad je tam, kde voda nepadá.' },
       { theme: 'description', text: 'Dopis najdete u mlýnského kola.' },
+    ],
+  },
+};
+
+/** Everything of markdown the player renders, its marks hidden away from the cursor. */
+export const Markdown: Story = {
+  name: 'Markdown',
+  args: {
+    initial: [
+      {
+        text: [
+          '# Poklad starého mlýna',
+          '',
+          '## Kapitola první',
+          '',
+          '### U mlýnského kola',
+          '',
+          'Text s **tučným slovem**, *kurzívou* a `kódem 1234`.',
+          '',
+          '> Kdo hledá, najde.',
+          '',
+          '- chleba',
+          '- rohlíky',
+          '',
+          '1. Jít ke mlýnu',
+          '2. Najít kolo',
+        ].join('\n'),
+      },
     ],
   },
 };

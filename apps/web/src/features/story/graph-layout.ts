@@ -12,6 +12,8 @@ export const INITIAL_ID = 'graph:initial';
 export const FINAL_ID = 'graph:final';
 export const initialEdgeId = (target: string) => `graph:initial:${target}`;
 export const finalEdgeId = (source: string) => `graph:final:${source}`;
+/** The end ring of one node, when every end has its own. */
+export const finalRingId = (source: string) => `graph:final-ring:${source}`;
 
 /** Room in a group's frame around its nodes; a title, if any, goes outside. */
 export const GROUP_PADDING = { top: 20, side: 20, bottom: 20 } as const;
@@ -59,6 +61,8 @@ export interface LayoutEdge {
   readonly target: string;
   /** Text the edge reserves room for, broken into lines by `labelLines`. */
   readonly label?: string;
+  /** Off, the label is drawn without an icon, so it takes less room. On by default. */
+  readonly labelIcon?: boolean;
   /** Ports of `source` and `target` the edge attaches to. */
   readonly sourcePort?: string;
   readonly targetPort?: string;
@@ -83,6 +87,8 @@ export interface LayoutInput {
   /** Ports of the nodes the start dot's edges enter and the end ring's edges leave, by node id. */
   readonly initialPorts?: ReadonlyMap<string, string>;
   readonly finalPorts?: ReadonlyMap<string, string>;
+  /** Every node in `final` leads into a ring of its own (`finalRingId`), not into a shared one. */
+  readonly finalRings?: 'shared' | 'each';
   /** Where the layers follow each other; down by default. */
   readonly direction?: 'DOWN' | 'RIGHT';
   /** ELK options of this layout over `LAYOUT_OPTIONS`. */
@@ -108,11 +114,17 @@ export const labelLines = (text: string): readonly string[] =>
       : [...lines, word];
   }, []);
 
-/** Rough size of a label with its icon; ELK only needs it to reserve space. */
-export const labelSize = (text: string) => {
+/** Room of a label's padding, and of its icon with the padding. */
+const LABEL_PADDING = 10;
+const LABEL_ICON_ROOM = 24;
+
+/** Rough size of a label, with its icon or without; ELK only needs it to reserve space. */
+export const labelSize = (text: string, icon = true) => {
   const lines = labelLines(text);
   return {
-    width: Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) + 24,
+    width:
+      Math.ceil(Math.max(...lines.map((line) => line.length)) * 7) +
+      (icon ? LABEL_ICON_ROOM : LABEL_PADDING),
     height: LABEL_LINE_HEIGHT * lines.length,
   };
 };
@@ -175,6 +187,7 @@ export const layoutBoxes = async ({
   final = [],
   initialPorts = new Map(),
   finalPorts = new Map(),
+  finalRings = 'shared',
   direction = 'DOWN',
   options: extra = {},
 }: LayoutInput): Promise<BoxLayout> => {
@@ -237,7 +250,12 @@ export const layoutBoxes = async ({
       ...(initial === undefined
         ? []
         : [{ id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE }]),
-      ...(ends.length > 0 ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }] : []),
+      ...(finalRings === 'each'
+        ? ends.map((id) => ({ id: finalRingId(id), width: FINAL_SIZE, height: FINAL_SIZE }))
+        : []),
+      ...(finalRings === 'shared' && ends.length > 0
+        ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }]
+        : []),
     ],
     edges: [
       ...starts.map((id) => ({
@@ -251,12 +269,12 @@ export const layoutBoxes = async ({
         targets: [edge.targetPort ?? edge.target],
         ...(edge.label === undefined
           ? {}
-          : { labels: [{ text: edge.label, ...labelSize(edge.label) }] }),
+          : { labels: [{ text: edge.label, ...labelSize(edge.label, edge.labelIcon ?? true) }] }),
       })),
       ...ends.map((id) => ({
         id: finalEdgeId(id),
         sources: [finalPorts.get(id) ?? id],
-        targets: [FINAL_ID],
+        targets: [finalRings === 'each' ? finalRingId(id) : FINAL_ID],
       })),
     ],
   };

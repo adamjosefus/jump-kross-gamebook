@@ -39,7 +39,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Klik uzel vycentruje, dvojklik ho i přiblíží. Tečku volby nebo „+ volba“ přetáhněte na uzel, nebo do prázdna pro nový uzel.',
+          'Klik uzel vybere a vycentruje, dvojklik, Enter nebo mezerník ho otevře v detailu. Kolečko v rohu karty přetáhněte na uzel, nebo do prázdna pro nový uzel; Esc nebo pravé tlačítko tažení zruší.',
       },
     },
   },
@@ -61,4 +61,35 @@ export const OneNode: Story = {
       nodes: [{ id: 'uzel', summary: 'První uzel', segments: [{ text: '' }], choices: [] }],
     },
   },
+};
+
+export const Problems: Story = {
+  name: 'Uzly s problémy',
+  args: {
+    initial: {
+      version: 1,
+      starts: ['domov'],
+      nodes: [
+        {
+          id: 'domov',
+          summary: 'Tým stojí doma a rozhoduje se',
+          segments: [{ text: 'Kam dál?' }],
+          // Two choices of the same text: a problem of this node.
+          choices: [
+            { label: 'Ven', to: 'park' },
+            { label: 'Ven', to: 'obchod' },
+          ],
+        },
+        { id: 'park', summary: 'Procházka parkem', segments: [{ text: '' }], choices: [] },
+        { id: 'obchod', summary: 'Nákup v obchodě', segments: [{ text: '' }], choices: [] },
+        // Nothing leads here and it is not the start: it hangs loose.
+        { id: 'sklep', summary: 'Zapomenutý sklep', segments: [{ text: '' }], choices: [] },
+      ],
+    },
+  },
+};
+
+export const Empty: Story = {
+  name: 'Prázdný koncept',
+  args: { initial: { version: 1, starts: [], nodes: [] } },
 };

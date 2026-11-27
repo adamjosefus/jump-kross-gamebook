@@ -43,7 +43,7 @@ export const TeamAvatar = ({ id, name, className }: TeamAvatarProps) => (
   <span
     title={name}
     className={cn(
-      'inline-flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold text-white ring-2 ring-background',
+      'inline-flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-2xs font-semibold text-white ring-2 ring-background',
       className,
     )}
     style={{ backgroundColor: teamColor(id) }}
