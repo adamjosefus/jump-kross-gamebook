@@ -80,6 +80,9 @@ export interface LayoutInput {
   readonly initial?: readonly string[];
   /** Node ids leading into the end ring; the ring is laid out only when some are given. */
   readonly final?: readonly string[];
+  /** Ports of the nodes the start dot's edges enter and the end ring's edges leave, by node id. */
+  readonly initialPorts?: ReadonlyMap<string, string>;
+  readonly finalPorts?: ReadonlyMap<string, string>;
   /** Where the layers follow each other; down by default. */
   readonly direction?: 'DOWN' | 'RIGHT';
   /** ELK options of this layout over `LAYOUT_OPTIONS`. */
@@ -170,6 +173,8 @@ export const layoutBoxes = async ({
   groups = [],
   initial,
   final = [],
+  initialPorts = new Map(),
+  finalPorts = new Map(),
   direction = 'DOWN',
   options: extra = {},
 }: LayoutInput): Promise<BoxLayout> => {
@@ -235,7 +240,11 @@ export const layoutBoxes = async ({
       ...(ends.length > 0 ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }] : []),
     ],
     edges: [
-      ...starts.map((id) => ({ id: initialEdgeId(id), sources: [INITIAL_ID], targets: [id] })),
+      ...starts.map((id) => ({
+        id: initialEdgeId(id),
+        sources: [INITIAL_ID],
+        targets: [initialPorts.get(id) ?? id],
+      })),
       ...edges.filter(linked).map((edge) => ({
         id: edge.id,
         sources: [edge.sourcePort ?? edge.source],
@@ -244,7 +253,11 @@ export const layoutBoxes = async ({
           ? {}
           : { labels: [{ text: edge.label, ...labelSize(edge.label) }] }),
       })),
-      ...ends.map((id) => ({ id: finalEdgeId(id), sources: [id], targets: [FINAL_ID] })),
+      ...ends.map((id) => ({
+        id: finalEdgeId(id),
+        sources: [finalPorts.get(id) ?? id],
+        targets: [FINAL_ID],
+      })),
     ],
   };
   const result = await elk.layout(input);

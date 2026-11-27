@@ -185,7 +185,7 @@ const nodeTypes = { draft: DraftFlowCard, initial: InitialDot, final: FinalDot }
 const edgeTypes = { route: RouteEdgeView } as const;
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
-const portId = (source: string, index: number) => `port:${source}:${index}`;
+const portId = (source: string, key: DotKey) => `port:${source}:${key}`;
 /** Every edge enters its card at a point of its own, so the arrows never end on each other. */
 const entryId = (edge: string) => `entry:${edge}`;
 
@@ -205,9 +205,14 @@ const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
 /** Room between the points where the edges enter a card; less when many lead in. */
 const ENTRY_GAP = 16;
 
-/** The ids of the edges into each node, in the order of the nodes and their choices. */
+/**
+ * The ids of the edges into each node: the start dot's first, then the choices' in the order of
+ * the nodes and their choices.
+ */
 const incomingEdges = (draft: Draft) => {
-  const into = new Map<string, string[]>();
+  const into = new Map<string, string[]>(
+    startsOf(draft).map((node) => [node.id, [initialEdgeId(node.id)]]),
+  );
   for (const node of draft.nodes) {
     for (const [index, choice] of node.choices.entries()) {
       into.set(choice.to, [...(into.get(choice.to) ?? []), edgeId(node.id, index)]);
@@ -250,10 +255,11 @@ const layoutPass = (
           ...entries.map((edge, index) => {
             return { id: entryId(edge), x: xs[index]!, y: 0, side: 'NORTH' as const };
           }),
-          ...node.choices.map((_choice, index) => {
+          // The dot of „+ volba“ too: the edge to the end ring leaves an end node there.
+          ...[...node.choices.keys(), 'new' as const].map((key) => {
             return {
-              id: portId(node.id, index),
-              x: dotX(node.choices.length, index),
+              id: portId(node.id, key),
+              x: dotX(node.choices.length, key),
               y: height,
               side: 'SOUTH' as const,
             };
@@ -276,6 +282,10 @@ const layoutPass = (
     ),
     initial: startsOf(draft).map((node) => node.id),
     final: endsOf(draft).map((node) => node.id),
+    initialPorts: new Map(
+      startsOf(draft).map((node) => [node.id, entryId(initialEdgeId(node.id))]),
+    ),
+    finalPorts: new Map(endsOf(draft).map((node) => [node.id, portId(node.id, 'new')])),
   });
 
 /**
