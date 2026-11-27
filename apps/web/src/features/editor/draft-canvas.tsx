@@ -128,7 +128,7 @@ type DraftFlowNode = Node<
 
 /**
  * What the cards need from the canvas: where to report their heights, whether to offer drags, and
- * what a card written in can change. The cards are told apart by their flow ids.
+ * what a card can change, its size. The cards are told apart by their flow ids.
  */
 const CardContext = createContext<{
   readonly onHeight: (key: string, height: number) => void;
@@ -251,7 +251,7 @@ const dotOfCard = (dot: DotKey, x: number | undefined, color: TagColor | undefin
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
   const far = useStore((state) => state.transform[2] < FAR_ZOOM);
   const { onHeight, connectable, editOf } = use(CardContext);
-  // Written in right away; from afar the summary covers the card and takes the clicks.
+  // Only its size changes on the canvas; the node is written in the detail.
   const edit = editOf?.(id);
   const card = useRef<HTMLDivElement>(null);
 
@@ -327,7 +327,7 @@ const rangeText = ({ min, max }: Range) => {
   return min === max ? number(min) : `${number(min)}–${number(max)}`;
 };
 
-/** The Czech word after a number, e.g. „1 krok“, „3 kroky“, „5 kroků“. */
+/** The Czech word after a number, e.g. „1 uzel“, „3 uzly“, „5 uzlů“. */
 const counted = (count: number, one: string, few: string, many: string) => {
   if (count === 1) {
     return one;
@@ -369,7 +369,7 @@ const EndRing = ({ data: { routes, difference } }: NodeProps<EndFlowNode>) => {
           style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
         >
           <div>
-            {rangeText(routes.steps)} {counted(routes.steps.max, 'krok', 'kroky', 'kroků')}
+            {rangeText(routes.steps)} {counted(routes.steps.max, 'uzel', 'uzly', 'uzlů')}
           </div>
           {difference !== undefined && (
             <div
@@ -570,6 +570,47 @@ type EdgePick =
   | { readonly kind: 'start'; readonly target: string };
 
 /** What the edge `id` stands for; none for the ends' edges, which cannot be selected. */
+/**
+ * What of the selection still points at the same thing after the draft changed from `before` to
+ * `after`, as by an undo or a node removed in the detail: the selection is by position, and a
+ * position may hold another node now. A node just drawn out, at a position empty before, stays.
+ */
+const keptSelection = (selection: Selection, before: Draft, after: Draft): Selection => {
+  const sameNode = (key: string) => {
+    const was = before.nodes[indexOf(key)];
+    const is = after.nodes[indexOf(key)];
+    return is !== undefined && (was === undefined || was.id === is.id);
+  };
+
+  const nodes = selection.nodes.filter(sameNode);
+  const edges = selection.edges.filter((edge) => {
+    const pick = pickOfEdge(edge);
+    if (pick === undefined) {
+      return false;
+    }
+
+    if (pick.kind === 'start') {
+      const node = after.nodes[indexOf(pick.target)];
+      return (
+        sameNode(pick.target) &&
+        node !== undefined &&
+        startsOf(after).some((start) => {
+          return start.id === node.id;
+        })
+      );
+    }
+
+    const was = before.nodes[indexOf(pick.source)]?.choices[pick.index];
+    const is = after.nodes[indexOf(pick.source)]?.choices[pick.index];
+    return sameNode(pick.source) && is !== undefined && was?.to === is.to;
+  });
+  if (nodes.length === selection.nodes.length && edges.length === selection.edges.length) {
+    return selection;
+  }
+
+  return { nodes, edges };
+};
+
 const pickOfEdge = (id: string): EdgePick | undefined => {
   const choice = /^(n\d+)-(\d+)$/.exec(id);
   if (choice !== null) {
@@ -639,7 +680,13 @@ const keyOf = (index: number) => `n${index}`;
 /** The index of the node with the flow id `key`. */
 const indexOf = (key: string) => Number(key.slice(1));
 
-/** The draft with the flow ids for node ids; a choice to no node leads nowhere and is left out. */
+/**
+ * Where a choice to no node of the draft leads in the keyed draft: nowhere, though it keeps its
+ * place among the choices, so its edge id and dot stay those of its index.
+ */
+const NOWHERE = '';
+
+/** The draft with the flow ids for node ids; a choice to no node leads `NOWHERE`. */
 const keyedDraft = (draft: Draft): Draft => {
   const keys = new Map(draft.nodes.map((node, index) => [node.id, keyOf(index)]));
   return {
@@ -649,13 +696,8 @@ const keyedDraft = (draft: Draft): Draft => {
       return {
         ...node,
         id: keyOf(index),
-        choices: node.choices.flatMap((choice) => {
-          const to = keys.get(choice.to);
-          if (to === undefined) {
-            return [];
-          }
-
-          return [{ ...choice, to }];
+        choices: node.choices.map((choice) => {
+          return { ...choice, to: keys.get(choice.to) ?? NOWHERE };
         }),
       };
     }),
@@ -686,7 +728,9 @@ const incomingEdges = (draft: Draft) => {
   );
   for (const node of draft.nodes) {
     for (const [index, choice] of node.choices.entries()) {
-      into.set(choice.to, [...(into.get(choice.to) ?? []), edgeId(node.id, index)]);
+      if (choice.to !== NOWHERE) {
+        into.set(choice.to, [...(into.get(choice.to) ?? []), edgeId(node.id, index)]);
+      }
     }
   }
 
@@ -701,11 +745,6 @@ const entryXs = (count: number, width: number): readonly number[] => {
   });
 };
 
-/**
- * Top to bottom, with the edges leaving at the choices' dots on the bottom edge and entering the
- * next card's top edge, each at a point of its own; `into` gives their order from the left. A
- * node is laid out as early as the nodes leading to it allow.
- */
 /** The gaps of the layout that grow with the spacing chosen, as `LAYOUT_OPTIONS` has them. */
 const SPACED_GAPS = {
   'elk.spacing.nodeNode': 48,
@@ -720,6 +759,11 @@ interface LayoutRequest {
   readonly spacing: number;
 }
 
+/**
+ * Top to bottom, with the edges leaving at the choices' dots on the bottom edge and entering the
+ * next card's top edge, each at a point of its own; `into` gives their order from the left. A
+ * node is laid out as early as the nodes leading to it allow.
+ */
 const layoutPass = (
   draft: Draft,
   { heights, spacing }: LayoutRequest,
@@ -761,18 +805,24 @@ const layoutPass = (
       };
     }),
     edges: draft.nodes.flatMap((node) =>
-      node.choices.map((choice, index) => {
+      node.choices.flatMap((choice, index) => {
+        if (choice.to === NOWHERE) {
+          return [];
+        }
+
         const id = edgeId(node.id, index);
-        return {
-          id,
-          source: node.id,
-          target: choice.to,
-          sourcePort: portId(node.id, index),
-          targetPort: entryId(id),
-          label: edgeText(choice.label),
-          // What a choice becomes, a button or a QR code, is decided later: no icon yet.
-          labelIcon: false,
-        };
+        return [
+          {
+            id,
+            source: node.id,
+            target: choice.to,
+            sourcePort: portId(node.id, index),
+            targetPort: entryId(id),
+            label: edgeText(choice.label),
+            // What a choice becomes, a button or a QR code, is decided later: no icon yet.
+            labelIcon: false,
+          },
+        ];
       }),
     ),
     // A loose node hangs with no edge in: the start dot leads only to the starts.
@@ -823,7 +873,14 @@ const layoutDraft = async (draft: Draft, request: LayoutRequest) => {
 
   const out = new Map(
     draft.nodes.map((node) => {
-      const targets = [...new Set(node.choices.map((choice) => choice.to))];
+      // A choice to no node has no place to lie in: its dot comes last.
+      const targets = [
+        ...new Set(
+          node.choices.flatMap((choice) => {
+            return choice.to === NOWHERE ? [] : [choice.to];
+          }),
+        ),
+      ];
       return [node.id, targets.toSorted((left, right) => across(left) - across(right))] as const;
     }),
   );
@@ -930,6 +987,16 @@ const Canvas = ({
    * nodes are not changed by React Flow, so it is kept here.
    */
   const [selection, setSelection] = useState<Selection>(NO_SELECTION);
+  /** The draft the selection was last checked against; see `keptSelection`. */
+  const [selectedIn, setSelectedIn] = useState(draft);
+  if (selectedIn !== draft) {
+    setSelectedIn(draft);
+    const kept = keptSelection(selection, selectedIn, draft);
+    if (kept !== selection) {
+      setSelection(kept);
+    }
+  }
+
   /** The card selected when it is the only thing selected: the one Enter opens, the view follows. */
   const selected =
     selection.nodes.length === 1 && selection.edges.length === 0 ? selection.nodes[0] : undefined;
@@ -1118,7 +1185,7 @@ const Canvas = ({
   /** The layout shown before the last one, to see how far the selected card moved. */
   const previous = useRef<BoxLayout>(undefined);
 
-  // A card that grows, as it opens to write in or takes a new choice, lays the graph out anew, so
+  // A card that grows, as its text is written in the detail or it is resized, lays the graph anew, so
   // nothing hides under it. The view follows the selected card so it stays put on the screen, or,
   // still on its way to the middle, it is brought there anew.
   useLayoutEffect(() => {
@@ -1322,10 +1389,15 @@ const Canvas = ({
     return [
       ...startsOf(keyed).map((node) => plain(initialEdgeId(node.id), INITIAL_ID, node.id)),
       ...keyed.nodes.flatMap((node) =>
-        node.choices.map((choice, index): RouteEdge => {
+        node.choices.flatMap((choice, index): RouteEdge[] => {
+          // A choice to no node has its dot, but no edge.
+          if (choice.to === NOWHERE) {
+            return [];
+          }
+
           const id = edgeId(node.id, index);
           const label = route(id)?.label;
-          return {
+          const edge: RouteEdge = {
             ...plain(id, node.id, choice.to),
             sourceHandle: dotHandle(index),
             data: {
@@ -1338,6 +1410,7 @@ const Canvas = ({
               smooth: smoothEdges,
             },
           };
+          return [edge];
         }),
       ),
       ...endsOf(keyed).map((node) => ({
@@ -1347,11 +1420,6 @@ const Canvas = ({
     ].map(marked);
   }, [keyed, laidOut, selection, smoothEdges]);
 
-  /**
-   * Leads a choice of `source` to `target`, or to a new node without one, and brings that node to
-   * the middle, selected.
-   */
-  /** The card whose removal waits for a yes, by flow id. */
   /** What waits for a yes to be removed: the cards and edges selected when it was asked. */
   const [removing, setRemoving] = useState<Selection>();
 
@@ -1537,6 +1605,11 @@ const Canvas = ({
       apply,
     };
   })();
+  // Nothing left of what was to be removed: no question waits, so no later one comes up by it.
+  if (removing !== undefined && removal === undefined) {
+    setRemoving(undefined);
+  }
+
   /** The yes of the removal dialog, focused when it opens, so Enter removes. */
   const confirmRemoval = useRef<HTMLButtonElement>(null);
 
@@ -1783,9 +1856,9 @@ const Canvas = ({
 
 /**
  * The draft as a graph laid out by ELK from top to bottom. Each card is as high as its text, up to
- * the canvas's height; zoomed out, it shows only its summary. A click brings a node to the middle
- * and opens it to write in, a double click brings it closer too; a choice's dot dragged onto a node
- * leads there, and dragged elsewhere draws out a new node.
+ * the canvas's height; zoomed out, it shows only its summary. A click selects a node and brings it
+ * to the middle, a double click, Enter or Space opens it in the detail; a drag from the circles in
+ * a card's corners onto a node leads a choice there, and dragged elsewhere draws out a new node.
  */
 export const DraftCanvas = (props: DraftCanvasProps) => (
   <ReactFlowProvider>

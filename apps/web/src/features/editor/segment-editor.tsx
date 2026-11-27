@@ -1,10 +1,12 @@
 import {
   autocompletion,
+  closeCompletion,
+  completionStatus,
   type Completion,
   type CompletionContext,
   type CompletionResult,
 } from '@codemirror/autocomplete';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, invertedEffects } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import {
@@ -18,6 +20,7 @@ import {
   type Extension,
   type Range,
   Text,
+  Transaction,
 } from '@codemirror/state';
 import {
   Decoration,
@@ -111,8 +114,10 @@ const joined = (notes: readonly SegmentNote[]): readonly SegmentNote[] => {
 };
 
 /**
- * The segments' notes, which move with their dividers as the text around changes. A divider taken
- * away hands its note to the segment above, as its text goes there too.
+ * The segments' notes, which move with their dividers as the text around changes. A divider's line
+ * changed into no divider keeps its note, to take it back when it divides again, as when a `=` is
+ * typed over; only a divider's line taken away hands its note to the segment above, as its text
+ * goes there too.
  */
 const segmentNotes = StateField.define<readonly SegmentNote[]>({
   create: () => [],
@@ -122,8 +127,13 @@ const segmentNotes = StateField.define<readonly SegmentNote[]>({
       const doc = transaction.newDoc;
       next = joined(
         notes.flatMap((note) => {
-          const kept = transaction.changes.mapPos(note.at, 1, MapMode.TrackDel);
-          const at = kept ?? transaction.changes.mapPos(note.at, -1);
+          // Gone with the divider's first character: the divider is taken away, not typed over.
+          const kept = transaction.changes.mapPos(note.at, 1, MapMode.TrackAfter);
+          if (kept !== null) {
+            return [{ at: doc.lineAt(kept).from, text: note.text }];
+          }
+
+          const at = transaction.changes.mapPos(note.at, -1);
           const divider = dividerAbove(doc, doc.lineAt(at).number);
           return divider === undefined ? [] : [{ at: divider.from, text: note.text }];
         }),
@@ -145,6 +155,15 @@ const segmentNotes = StateField.define<readonly SegmentNote[]>({
 
     return next;
   },
+});
+
+/**
+ * Undo and redo take the notes back as they were, as they do the text: the notes are no part of
+ * the text, so the history keeps them as an effect.
+ */
+const notesInHistory = invertedEffects.of((transaction) => {
+  const before = transaction.startState.field(segmentNotes);
+  return before === transaction.state.field(segmentNotes) ? [] : [setNotes.of(before)];
 });
 
 /** The note of the segment whose divider starts `at`. */
@@ -750,7 +769,6 @@ const MARKDOWN_LOOK = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.heading, fontWeight: '700' },
   { tag: tags.link, textDecoration: 'underline' },
-  { tag: tags.quote, fontStyle: 'italic' },
   { tag: tags.processingInstruction, color: 'var(--muted-foreground)', fontWeight: '400' },
 ]);
 
@@ -993,6 +1011,7 @@ const extensions = (
   focused,
   // The notes of the segments the editor starts with, by their dividers.
   segmentNotes.init((state) => notesOfSegments(state.doc, initial)),
+  notesInHistory,
   segmentLines,
   keepFirstDivider,
   EditorView.focusChangeEffect.of((_state, focusing) => setFocused.of(focusing)),
@@ -1007,7 +1026,13 @@ const extensions = (
       { key: 'Mod-i', run: toggling('*') },
     ]),
   ),
-  keymap.of([...defaultKeymap, ...historyKeymap]),
+  keymap.of([
+    // ⌘[ and ⌘] go back and forth along the nodes opened, not indent the line.
+    ...defaultKeymap.filter((binding) => {
+      return binding.key !== 'Mod-[' && binding.key !== 'Mod-]';
+    }),
+    ...historyKeymap,
+  ]),
   // A `===` line under text would read as a heading underline; here it divides segments.
   markdown({ extensions: [{ remove: ['SetextHeading'] }] }),
   syntaxHighlighting(MARKDOWN_LOOK),
@@ -1115,7 +1140,19 @@ export const SegmentEditor = ({
       created.focus();
     }
 
+    // Esc in the open commands closes them, and goes no further: a dialog around would take it at
+    // the document first and close as well.
+    const closeCommands = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && completionStatus(created.state) !== null) {
+        event.stopPropagation();
+        event.preventDefault();
+        closeCompletion(created);
+      }
+    };
+
+    window.addEventListener('keydown', closeCommands, { capture: true });
     return () => {
+      window.removeEventListener('keydown', closeCommands, { capture: true });
       created.destroy();
       view.current = null;
     };
@@ -1132,13 +1169,38 @@ export const SegmentEditor = ({
     known.current = json;
     const next = segmentsToDoc(value);
     if (next === current.state.doc.toString()) {
-      current.dispatch({ effects: setNotes.of(notesOfSegments(current.state.doc, value)) });
+      current.dispatch({
+        effects: setNotes.of(notesOfSegments(current.state.doc, value)),
+        annotations: Transaction.addToHistory.of(false),
+      });
       return;
     }
 
+    // Only what differs, and out of the editor's own history: an undo here takes back what was
+    // written here, not what came from outside.
+    const before = current.state.doc.toString();
+    let start = 0;
+    while (start < before.length && start < next.length && before[start] === next[start]) {
+      start += 1;
+    }
+
+    let end = 0;
+    while (
+      end < before.length - start &&
+      end < next.length - start &&
+      before[before.length - 1 - end] === next[next.length - 1 - end]
+    ) {
+      end += 1;
+    }
+
     current.dispatch({
-      changes: { from: 0, to: current.state.doc.length, insert: next },
+      changes: {
+        from: start,
+        to: before.length - end,
+        insert: next.slice(start, next.length - end),
+      },
       effects: setNotes.of(notesOfSegments(Text.of(next.split('\n')), value)),
+      annotations: Transaction.addToHistory.of(false),
     });
   }, [value]);
 

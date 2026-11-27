@@ -116,13 +116,9 @@ export const withNote = (node: DraftNode, note: string): DraftNode => {
     return { ...node, note };
   }
 
-  return {
-    id: node.id,
-    summary: node.summary,
-    segments: node.segments,
-    choices: node.choices,
-    ...(node.size === undefined ? {} : { size: node.size }),
-  };
+  // Everything else kept as it was, the time of the last change too.
+  const { note: _note, ...rest } = node;
+  return rest;
 };
 
 /** The draft without the node `id`, the choices leading to it and the start's arrow to it. */
@@ -215,13 +211,9 @@ export const setSize = (draft: Draft, id: string, size: DraftSize | undefined): 
       return { ...node, size };
     }
 
-    return {
-      id: node.id,
-      summary: node.summary,
-      ...(node.note === undefined ? {} : { note: node.note }),
-      segments: node.segments,
-      choices: node.choices,
-    };
+    // Everything else kept as it was, the time of the last change too.
+    const { size: _size, ...rest } = node;
+    return rest;
   });
 
 /**
@@ -444,8 +436,15 @@ export const draftForFile = (draft: Draft): Draft => ({
 export const draftFileText = (draft: Draft) => `${JSON.stringify(draftForFile(draft), null, 2)}\n`;
 
 /** What of a node counts as a change of it: all but the size of its card and the time itself. */
-const contentOf = ({ size: _size, updatedAt: _updatedAt, ...content }: DraftNode) =>
-  JSON.stringify(content);
+const contentOf = ({ id, summary, note, segments, choices }: DraftNode) =>
+  // In a fixed order: the same content written by other edits in another order is the same.
+  JSON.stringify([
+    id,
+    summary,
+    note ?? null,
+    segments.map((segment) => [segment.theme ?? null, segment.text, segment.note ?? null]),
+    choices.map((choice) => [choice.label, choice.to]),
+  ]);
 
 /**
  * The draft `next` with `at` as the time of the last change of every node changed since

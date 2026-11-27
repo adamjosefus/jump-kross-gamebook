@@ -844,7 +844,7 @@ export const FocusView = ({
                 })
               }
               // Three lines at least, so it reads as a place for more than a word.
-              className='min-h-[3lh] whitespace-pre-line'
+              className='min-h-[3lh]'
             />
           </div>
         </Section>
@@ -936,7 +936,7 @@ export const FocusView = ({
               onTheme={
                 edit &&
                 ((theme) => {
-                  edit('segments', (current) => ({
+                  edit('segments:first-theme', (current) => ({
                     ...current,
                     segments: current.segments.map((segment, index) => {
                       if (index !== 0) {

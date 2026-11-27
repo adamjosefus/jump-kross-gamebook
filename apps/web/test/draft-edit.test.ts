@@ -19,6 +19,7 @@ import {
   setSize,
   stampChanges,
   updateNode,
+  withNote,
 } from '@/features/editor/draft-edit';
 import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
 
@@ -211,6 +212,35 @@ describe('parseDraft', () => {
     expect(parseDraft({ version: 1, nodes: [node, node] })).toBeUndefined();
     expect(parseDraft({ version: 1, nodes: [{ ...node, size: { width: -1 } }] })).toBeUndefined();
     expect(parseDraft({ version: 1, nodes: [{ ...node, size: 'big' }] })).toBeUndefined();
+  });
+});
+
+describe('setSize and stampChanges', () => {
+  const at = '2027-01-01T00:00:00.000Z';
+  const sized: Draft = {
+    version: 1,
+    starts: ['a'],
+    nodes: [
+      {
+        id: 'a',
+        summary: 'Začátek',
+        segments: [{ text: '' }],
+        choices: [],
+        size: { width: 300 },
+        updatedAt: at,
+      },
+    ],
+  };
+
+  it('keeps the time of the last change when the size follows the text again', () => {
+    expect(setSize(sized, 'a', undefined).nodes[0]?.updatedAt).toBe(at);
+    expect(fitAllSizes(sized).nodes[0]?.updatedAt).toBe(at);
+  });
+
+  it('takes no new time for a size reset after a note was added', () => {
+    const noted = updateNode(sized, 'a', (node) => withNote(node, 'Poznámka'));
+    const reset = setSize(noted, 'a', undefined);
+    expect(stampChanges(noted, reset, 'later').nodes[0]?.updatedAt).toBe(at);
   });
 });
 

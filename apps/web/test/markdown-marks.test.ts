@@ -35,6 +35,14 @@ describe('toggleMark', () => {
     });
   });
 
+  it('takes away italic and bold written with underscores', () => {
+    expect(toggled('_V lese je ticho._', 0, 18, '*')).toEqual({
+      text: 'V lese je ticho.',
+      selected: 'V lese je ticho.',
+    });
+    expect(toggled('__Pozor__', 2, 7, '**').text).toBe('Pozor');
+  });
+
   it('tells italic from bold', () => {
     // A star of bold is no italic: italic goes in.
     expect(toggled('**světe**', 2, 7, '*').text).toBe('***světe***');

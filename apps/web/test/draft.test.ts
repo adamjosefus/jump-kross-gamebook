@@ -96,6 +96,18 @@ describe('the shape of a draft', () => {
     expect(draftProblems(SAMPLE_DRAFT)).toEqual([]);
   });
 
+  it('tells a choice to no node of the draft', () => {
+    const lost: Draft = {
+      ...draft,
+      nodes: draft.nodes.map((node) => {
+        return node.id === 'a'
+          ? { ...node, choices: [...node.choices, { label: 'Pryč', to: 'zmizely' }] }
+          : node;
+      }),
+    };
+    expect(draftProblems(lost)).toContainEqual({ id: 'a', problems: ['nowhere'] });
+  });
+
   it('ends where a node has no choice', () => {
     expect(endsOf(draft).map((node) => node.id)).toEqual(['c']);
   });
@@ -115,6 +127,37 @@ describe('the shape of a draft', () => {
     const ids = new Set(SAMPLE_DRAFT.nodes.map((node) => node.id));
     const targets = SAMPLE_DRAFT.nodes.flatMap((node) => node.choices.map((choice) => choice.to));
     expect(targets.filter((target) => !ids.has(target))).toEqual([]);
+  });
+});
+
+describe('routesTo on a draft of many choices back and forth', () => {
+  it('measures it within a bounded walk', () => {
+    const places = Array.from({ length: 12 }, (_, index) => `misto_${index}`);
+    const square = {
+      id: 'namesti',
+      summary: 'Náměstí',
+      segments: [{ text: 'x' }],
+      choices: [
+        ...places.map((place) => ({ label: place, to: place })),
+        { label: 'Konec', to: 'konec' },
+      ],
+    };
+    const nodes = [
+      square,
+      ...places.map((place) => ({
+        id: place,
+        summary: place,
+        segments: [{ text: 'x' }],
+        choices: [
+          { label: 'Zpět', to: 'namesti' },
+          ...places.flatMap((other) => (other === place ? [] : [{ label: other, to: other }])),
+        ],
+      })),
+      { id: 'konec', summary: 'Konec', segments: [{ text: '' }], choices: [] },
+    ];
+    const started = performance.now();
+    expect(routesTo({ version: 1, starts: ['namesti'], nodes }, 'konec')).toBeDefined();
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 });
 

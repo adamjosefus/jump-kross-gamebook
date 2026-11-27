@@ -195,11 +195,13 @@ export const startsOf = (draft: Draft): readonly DraftNode[] => {
 };
 
 /** What can be wrong with a node; the editor keeps such a draft, and shows what is wrong. */
-export type DraftProblem = 'sameLabels' | 'loose' | 'manyStarts' | 'noStart';
+export type DraftProblem = 'sameLabels' | 'nowhere' | 'loose' | 'manyStarts' | 'noStart';
 
 /** What the author can do about a problem of a node, after its name. */
 export const PROBLEM_HINT: Readonly<Record<DraftProblem, string>> = {
   sameLabels: 'Hráči tlačítka nerozliší. Přepište v detailu text jedné z voleb.',
+  nowhere:
+    'Volba vede na id, které v konceptu není, nejspíš po ruční úpravě souboru. Smažte ji v detailu a přidejte znovu.',
   loose: 'Do uzlu nevede žádná volba a není to začátek. Přetáhněte do něj šipku, nebo ho smažte.',
   manyStarts: 'Začátek vede do víc uzlů. Nechte jen jednu šipku ze začátku.',
   noStart: 'Přetáhněte šipku ze začátku na uzel, kde příběh začíná.',
@@ -208,6 +210,7 @@ export const PROBLEM_HINT: Readonly<Record<DraftProblem, string>> = {
 /** How a problem is named to the author. */
 export const PROBLEM_TEXT: Readonly<Record<DraftProblem, string>> = {
   sameLabels: 'Volby se stejným textem',
+  nowhere: 'Volba nikam nevede',
   loose: 'Nic sem nevede',
   manyStarts: 'Víc začátků',
   noStart: 'Příběh nemá začátek',
@@ -231,10 +234,19 @@ export const draftProblems = (draft: Draft): readonly NodeProblems[] => {
       return starts.has(node.id) ? [] : [node.id];
     }),
   );
+  const ids = new Set(draft.nodes.map((node) => node.id));
   const nodes = draft.nodes.flatMap((node) => {
     const problems: DraftProblem[] = [];
     if (sameLabelChoices(node.choices).size > 0) {
       problems.push('sameLabels');
+    }
+
+    if (
+      node.choices.some((choice) => {
+        return !ids.has(choice.to);
+      })
+    ) {
+      problems.push('nowhere');
     }
 
     if (loose.has(node.id)) {
@@ -286,24 +298,31 @@ export interface RoutesToEnd {
 const ROUTE_LIMIT = 10_000;
 
 /**
+ * How many steps the walk through the ways takes at most: a draft of many choices back and forth
+ * has ways without number, and they are counted again with each change of its text.
+ */
+const WALK_LIMIT = 50_000;
+
+/**
  * How long the ways from the starts to the node `end` are, each node at most once on a way, so a
  * choice back does not make a way endless. A way is a run of nodes: choices leading to the same
  * node make one way, not one each. `undefined` when no start leads there.
  */
 export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => {
   const nodes = new Map(draft.nodes.map((node) => [node.id, node]));
-  // Only the nodes the end can be reached from are worth walking through.
-  const leading = new Set([end]);
+  // Only the nodes the end can be reached from are worth walking through, each with the fewest
+  // choices to the end from it, so the walk takes the near ways first.
+  const distance = new Map([[end, 0]]);
   for (let grown = true; grown;) {
     grown = false;
     for (const node of draft.nodes) {
-      if (
-        !leading.has(node.id) &&
-        node.choices.some((choice) => {
-          return leading.has(choice.to);
-        })
-      ) {
-        leading.add(node.id);
+      const near = Math.min(
+        ...node.choices.map((choice) => {
+          return distance.get(choice.to) ?? Number.POSITIVE_INFINITY;
+        }),
+      );
+      if (near + 1 < (distance.get(node.id) ?? Number.POSITIVE_INFINITY)) {
+        distance.set(node.id, near + 1);
         grown = true;
       }
     }
@@ -315,8 +334,10 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
     }, 0);
   const steps: number[] = [];
   const texts: number[] = [];
+  let walked = 0;
   const walk = (node: DraftNode, on: ReadonlySet<string>, length: number, text: number) => {
-    if (steps.length >= ROUTE_LIMIT) {
+    walked += 1;
+    if (steps.length >= ROUTE_LIMIT || walked > WALK_LIMIT) {
       return;
     }
 
@@ -328,9 +349,14 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
 
     // Two choices to one node make one way: a way is the nodes the players read, not the
     // buttons they pressed.
-    for (const to of new Set(node.choices.map((choice) => choice.to))) {
+    const targets = [...new Set(node.choices.map((choice) => choice.to))].toSorted(
+      (left, right) =>
+        (distance.get(left) ?? Number.POSITIVE_INFINITY) -
+        (distance.get(right) ?? Number.POSITIVE_INFINITY),
+    );
+    for (const to of targets) {
       const next = nodes.get(to);
-      if (next !== undefined && leading.has(next.id) && !on.has(next.id)) {
+      if (next !== undefined && distance.has(next.id) && !on.has(next.id)) {
         walk(next, new Set([...on, next.id]), length + 1, text + characters(next));
       }
     }
@@ -338,7 +364,7 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
 
   // Only from the starts: a loose node is no beginning of the story.
   for (const start of startsOf(draft)) {
-    if (leading.has(start.id)) {
+    if (distance.has(start.id)) {
       walk(start, new Set([start.id]), 1, characters(start));
     }
   }

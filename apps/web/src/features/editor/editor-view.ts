@@ -47,21 +47,21 @@ export const parseViewport = (text: string | null): Viewport | undefined => {
       return undefined;
     }
 
-    const x: unknown = Reflect.get(value, 'x');
-    const y: unknown = Reflect.get(value, 'y');
+    const left: unknown = Reflect.get(value, 'x');
+    const top: unknown = Reflect.get(value, 'y');
     const zoom: unknown = Reflect.get(value, 'zoom');
     if (
-      typeof x !== 'number' ||
-      typeof y !== 'number' ||
+      typeof left !== 'number' ||
+      typeof top !== 'number' ||
       typeof zoom !== 'number' ||
-      !Number.isFinite(x) ||
-      !Number.isFinite(y) ||
+      !Number.isFinite(left) ||
+      !Number.isFinite(top) ||
       !(zoom > 0)
     ) {
       return undefined;
     }
 
-    return { x, y, zoom };
+    return { x: left, y: top, zoom };
   } catch {
     return undefined;
   }

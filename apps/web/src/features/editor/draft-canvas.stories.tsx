@@ -39,7 +39,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Klik uzel vycentruje, dvojklik ho i přiblíží. Tečku volby nebo „+ volba“ přetáhněte na uzel, nebo do prázdna pro nový uzel.',
+          'Klik uzel vybere a vycentruje, dvojklik, Enter nebo mezerník ho otevře v detailu. Kolečko v rohu karty přetáhněte na uzel, nebo do prázdna pro nový uzel; Esc nebo pravé tlačítko tažení zruší.',
       },
     },
   },

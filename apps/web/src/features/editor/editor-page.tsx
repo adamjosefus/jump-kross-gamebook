@@ -312,7 +312,7 @@ const ProblemsIndicator = ({
   );
 };
 
-/** The editor over a loaded draft: the canvas, undo and redo, saving and the focus mode. */
+/** The editor over a loaded draft: the canvas, undo and redo, saving and the detail of a node. */
 const Editor = ({ initial }: { readonly initial: Draft }) => {
   const [history, dispatch] = useReducer(historyReducer, initial, startHistory);
   /** The nodes walked in the focus dialog; closed without one. */
@@ -411,7 +411,7 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
             }}
             title='Vrátit všem kartám velikost podle obsahu, jako dvojklik na roh každé karty'
           >
-            <IconArrowsDiagonalMinimize2 /> Reset velikosti bodů
+            <IconArrowsDiagonalMinimize2 /> Reset velikosti karet
           </Button>
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
           <Button

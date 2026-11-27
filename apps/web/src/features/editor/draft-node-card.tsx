@@ -197,58 +197,6 @@ export interface CardEdit {
 const IN_CANVAS = 'nodrag nopan nokey nowheel';
 
 /**
- * The node's id as a tag in its color, written over by hand in the detail; it takes effect when
- * the field is left or on Enter, and Esc takes it back.
- */
-export const IdField = ({
-  id,
-  onId,
-  color,
-  className,
-}: {
-  readonly id: string;
-  readonly onId: (id: string) => void;
-  readonly color: TagColor | undefined;
-  readonly className?: string;
-}) => {
-  const [typed, setTyped] = useState<string>();
-  const cancelled = useRef(false);
-  return (
-    <input
-      value={typed ?? id}
-      title='Id uzlu, jeho název ve skriptu'
-      aria-label='Id uzlu'
-      onFocus={() => {
-        cancelled.current = false;
-        setTyped(id);
-      }}
-      onChange={(event) => {
-        setTyped(event.target.value);
-      }}
-      onBlur={() => {
-        if (!cancelled.current && typed !== undefined && typed.trim() !== '' && typed !== id) {
-          onId(typed);
-        }
-
-        setTyped(undefined);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === 'Escape') {
-          cancelled.current = event.key === 'Escape';
-          event.currentTarget.blur();
-        }
-      }}
-      // A tag in the node's color, as wide as the id.
-      className={cn(
-        '[field-sizing:content] max-w-full min-w-8 rounded px-1.5 font-semibold outline-none focus:ring-1 focus:ring-current',
-        color?.tag ?? 'bg-muted',
-        className,
-      )}
-    />
-  );
-};
-
-/**
  * A small button that removes something: it asks first, in a popover beside it, with the remove
  * button focused, so Enter confirms and Esc cancels.
  */
@@ -430,9 +378,13 @@ const ResizeHandle = ({
   readonly onResize: (size: DraftSize | undefined) => void;
 }) => {
   /** Where the drag began, the card's size then, and how much the canvas is zoomed. */
-  const start = useRef<{ x: number; y: number; width: number; height: number; scale: number }>(
-    undefined,
-  );
+  const start = useRef<{
+    readonly pointerX: number;
+    readonly pointerY: number;
+    readonly width: number;
+    readonly height: number;
+    readonly scale: number;
+  }>(undefined);
   const live = useRef<DraftSize>(undefined);
   const moved = (event: PointerEvent<HTMLSpanElement>): DraftSize | undefined => {
     const from = start.current;
@@ -448,11 +400,11 @@ const ResizeHandle = ({
     const width =
       sides.x === undefined
         ? undefined
-        : clamp(from.width + along(event.clientX, from.x, sides.x), SIZE_LIMITS.width);
+        : clamp(from.width + along(event.clientX, from.pointerX, sides.x), SIZE_LIMITS.width);
     const height =
       sides.y === undefined
         ? undefined
-        : clamp(from.height + along(event.clientY, from.y, sides.y), SIZE_LIMITS.height);
+        : clamp(from.height + along(event.clientY, from.pointerY, sides.y), SIZE_LIMITS.height);
     return {
       ...size,
       ...(width === undefined ? {} : { width }),
@@ -474,8 +426,8 @@ const ResizeHandle = ({
         event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);
         start.current = {
-          x: event.clientX,
-          y: event.clientY,
+          pointerX: event.clientX,
+          pointerY: event.clientY,
           width: element.offsetWidth,
           height: element.offsetHeight,
           scale: element.getBoundingClientRect().width / element.offsetWidth,
@@ -527,8 +479,10 @@ export interface DraftNodeCardProps {
   readonly maxHeight?: number;
   /** What writing into the card changes; without it the card is only read. */
   readonly edit?: CardEdit;
-  /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
-  /** `x` only for the plus: a choice's dot sits in its pill. */
+  /**
+   * The dot of a choice, or a plus, a plain dot by default; `x` from the card's left only for the
+   * plus, a choice's dot sits in its pill.
+   */
   readonly dot?: (key: DotKey, x: number | undefined, color: TagColor | undefined) => ReactNode;
   /** The node's color, of its id's tag. */
   readonly color?: TagColor;
@@ -576,11 +530,9 @@ export const DraftNodeCard = ({
           ref.current = element;
         }
       }}
-      // Only the choices' handles drag: text selected in a field is not dragged to another one.
+      // Nothing on the card drags as the browser's drag: selected text is not carried away.
       onDragStartCapture={(event) => {
-        if (!(event.target instanceof Element && event.target.closest('[data-drag-handle]'))) {
-          event.preventDefault();
-        }
+        event.preventDefault();
       }}
       className={cn(
         // The border only keeps its room; the outline is a ring around it, as wide on the screen at
@@ -733,7 +685,7 @@ export const DraftNodeCard = ({
       ))}
       {/* In the corners, on the edges' sides: out of the bottom right, into the top left. */}
       {dot('new', width - CARD_BORDER, undefined)}
-      {/* On the top edge, right of where the edges come in: a choice of another node into here. */}
+      {/* In the top left corner: a choice of another node into here. */}
       {dot('in', -CARD_BORDER, undefined)}
     </div>
   );

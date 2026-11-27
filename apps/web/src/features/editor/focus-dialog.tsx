@@ -1,4 +1,5 @@
 import { IconArrowLeft, IconX } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +35,20 @@ export const FocusDialog = ({ draft, trail, onTrail, onChange }: FocusDialogProp
   const node = draft.nodes.find((candidate) => {
     return candidate.id === id;
   });
+  /** The node shown last, still in the dialog while it closes, so its frame is not left empty. */
+  const [shown, setShown] = useState<{ readonly draft: Draft; readonly id: string }>();
+  if (node !== undefined && (shown?.draft !== draft || shown.id !== node.id)) {
+    setShown({ draft, id: node.id });
+  }
+
+  // The node gone from under the trail, as by an undo of the page: the trail is left, so it does
+  // not open the dialog again when the node comes back.
+  useEffect(() => {
+    if (trail !== undefined && node === undefined) {
+      onTrail(undefined);
+    }
+  }, [trail, node, onTrail]);
+
   /** The node opened before this one on the way walked, while it is still in the draft. */
   const previous =
     trail === undefined || trail.at === 0
@@ -54,8 +69,16 @@ export const FocusDialog = ({ draft, trail, onTrail, onChange }: FocusDialogProp
       <DialogContent
         showCloseButton={false}
         className='flex h-[min(90vh,960px)] w-[min(1280px,95vw)] max-w-none flex-col gap-0 overflow-hidden bg-background p-0 sm:max-w-none'
+        // Esc that a field inside takes, to give up the id written or close the note, leaves the
+        // dialog open; the editor's commands close before the dialog hears of it.
+        onEscapeKeyDown={(event) => {
+          const target = event.target instanceof Element ? event.target : undefined;
+          if (target?.closest('input[aria-label="Id uzlu"], .cm-divider-note-popover')) {
+            event.preventDefault();
+          }
+        }}
         onKeyDown={(event) => {
-          if (trail === undefined || !(event.metaKey || event.ctrlKey)) {
+          if (event.defaultPrevented || trail === undefined || !(event.metaKey || event.ctrlKey)) {
             return;
           }
 
@@ -95,6 +118,15 @@ export const FocusDialog = ({ draft, trail, onTrail, onChange }: FocusDialogProp
           >
             <IconArrowLeft />
           </Button>
+        )}
+        {node === undefined && shown !== undefined && (
+          // Read only while the dialog closes.
+          <FocusView
+            className='min-h-0 flex-1'
+            draft={shown.draft}
+            id={shown.id}
+            onOpen={() => {}}
+          />
         )}
         {node !== undefined && trail !== undefined && (
           <FocusView
