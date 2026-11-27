@@ -64,6 +64,7 @@ import {
   removeChoice,
   removeNode,
   renameNode,
+  setSize,
   updateNode,
 } from './draft-edit';
 import {
@@ -74,6 +75,7 @@ import {
   DraftNodeCard,
   NEW_DOT_LOOK,
   NEXT_LABEL,
+  widthOf,
   type CardEdit,
   type DotKey,
 } from './draft-node-card';
@@ -342,6 +344,7 @@ const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
   JSON.stringify(
     draft.nodes.map((node) => [
       node.id,
+      widthOf(node),
       heights.get(node.id),
       node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
     ]),
@@ -381,7 +384,13 @@ const withNote = (node: DraftNode, note: string): DraftNode => {
     return { ...node, note };
   }
 
-  return { id: node.id, summary: node.summary, segments: node.segments, choices: node.choices };
+  return {
+    id: node.id,
+    summary: node.summary,
+    segments: node.segments,
+    choices: node.choices,
+    ...(node.size === undefined ? {} : { size: node.size }),
+  };
 };
 
 /** Whether an element takes text, so the canvas leaves clicks and keys in it alone. */
@@ -409,10 +418,10 @@ const incomingEdges = (draft: Draft) => {
 };
 
 /** Where the edges into a card enter its top, from the left: side by side around its middle. */
-const entryXs = (count: number): readonly number[] => {
-  const gap = Math.min(ENTRY_GAP, (CARD_WIDTH - 2 * ENTRY_GAP) / Math.max(1, count - 1));
+const entryXs = (count: number, width: number): readonly number[] => {
+  const gap = Math.min(ENTRY_GAP, (width - 2 * ENTRY_GAP) / Math.max(1, count - 1));
   return Array.from({ length: count }, (_, index) => {
-    return CARD_WIDTH / 2 + (index - (count - 1) / 2) * gap;
+    return width / 2 + (index - (count - 1) / 2) * gap;
   });
 };
 
@@ -432,11 +441,12 @@ const layoutPass = (
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
       const entries = into.get(node.id) ?? [];
-      const places = dotPlaces(node.choices);
-      const xs = entryXs(entries.length);
+      const width = widthOf(node);
+      const places = dotPlaces(node.choices, width);
+      const xs = entryXs(entries.length, width);
       return {
         id: node.id,
-        width: CARD_WIDTH,
+        width,
         height,
         ports: [
           ...entries.map((edge, index) => {
@@ -568,6 +578,11 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
   );
 
   const keyed = useMemo(() => keyedDraft(draft), [draft]);
+  /** The cards' widths, by flow id. */
+  const widths = useMemo(
+    () => new Map(keyed.nodes.map((node) => [node.id, widthOf(node)])),
+    [keyed],
+  );
   /** How long the ways to each end are; measured again only when the draft changes. */
   const routes = useMemo(
     () => new Map(endsOf(keyed).map((node) => [node.id, routesTo(keyed, node.id)])),
@@ -684,6 +699,9 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         setSelected(undefined);
         change(removeNode(draft, id));
       },
+      onResize: (size) => {
+        change(setSize(draft, id, size));
+      },
     };
   };
 
@@ -747,12 +765,12 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         return (
           height !== undefined &&
           point.x >= position.x &&
-          point.x <= position.x + CARD_WIDTH &&
+          point.x <= position.x + (widths.get(key) ?? CARD_WIDTH) &&
           point.y >= position.y &&
           point.y <= position.y + height
         );
       })?.[0],
-    [heights, laidOut],
+    [heights, widths, laidOut],
   );
   const dropTarget = dragging === undefined ? undefined : keyAt(dragging);
   /** The card outlined last in the drag going on, where the edge is dropped. */
@@ -773,12 +791,16 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
       }
 
       centering.current = { key, until: Date.now() + MOVE_DURATION, zoom: zoom ?? flow.getZoom() };
-      void flow.setCenter(position.x + CARD_WIDTH / 2, position.y + height / 2, {
-        zoom: zoom ?? flow.getZoom(),
-        duration: MOVE_DURATION,
-      });
+      void flow.setCenter(
+        position.x + (widths.get(key) ?? CARD_WIDTH) / 2,
+        position.y + height / 2,
+        {
+          zoom: zoom ?? flow.getZoom(),
+          duration: MOVE_DURATION,
+        },
+      );
     },
-    [flow, heights, laidOut],
+    [flow, heights, widths, laidOut],
   );
 
   /** The layout shown before the last one, to see how far the selected card moved. */
@@ -844,7 +866,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
           // The size measured here: React Flow keeps a node it knows the size of visible while
           // the node changes, so a field in it keeps the focus; without it, it hides the node
           // till it measures the node again.
-          ...(height === undefined ? {} : { measured: { width: CARD_WIDTH, height } }),
+          ...(height === undefined ? {} : { measured: { width: widthOf(node), height } }),
           selected: key === selected,
           data: {
             node,

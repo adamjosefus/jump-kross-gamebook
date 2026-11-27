@@ -9,6 +9,7 @@ import {
   removeChoice,
   removeNode,
   renameNode,
+  setSize,
   updateNode,
 } from '@/features/editor/draft-edit';
 import { SAMPLE_DRAFT } from '@/features/editor/sample-draft';
@@ -83,6 +84,13 @@ describe('editing a draft', () => {
     expect(moveChoice(draft, 'a', 0, -1).nodes[0]).toBe(draft.nodes[0]);
   });
 
+  it('sizes a card, and lets it follow its text again', () => {
+    const sized = setSize(draft, 'b', { width: 400 });
+    expect(sized.nodes[1]!.size).toEqual({ width: 400 });
+    expect(setSize(sized, 'b', undefined).nodes[1]).toEqual(draft.nodes[1]);
+    expect(setSize(sized, 'b', {}).nodes[1]).toEqual(draft.nodes[1]);
+  });
+
   it('removes a choice', () => {
     expect(choicesOf(removeChoice(draft, 'a', 1), 'a')).toEqual(['Do B>b', 'Zase B>b']);
   });
@@ -91,6 +99,8 @@ describe('editing a draft', () => {
 describe('parseDraft', () => {
   it('reads back a draft written as JSON', () => {
     expect(parseDraft(JSON.parse(JSON.stringify(SAMPLE_DRAFT)))).toEqual(SAMPLE_DRAFT);
+    const sized = setSize(SAMPLE_DRAFT, 'vecere', { width: 420, height: 300 });
+    expect(parseDraft(JSON.parse(JSON.stringify(sized)))).toEqual(sized);
   });
 
   it('turns down what is not a draft', () => {
@@ -105,5 +115,7 @@ describe('parseDraft', () => {
       parseDraft({ version: 1, nodes: [{ ...node, choices: [{ to: 'b' }] }] }),
     ).toBeUndefined();
     expect(parseDraft({ version: 1, nodes: [node, node] })).toBeUndefined();
+    expect(parseDraft({ version: 1, nodes: [{ ...node, size: { width: -1 } }] })).toBeUndefined();
+    expect(parseDraft({ version: 1, nodes: [{ ...node, size: 'big' }] })).toBeUndefined();
   });
 });

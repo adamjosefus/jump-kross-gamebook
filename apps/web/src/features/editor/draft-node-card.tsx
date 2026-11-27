@@ -5,18 +5,33 @@ import {
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
-import { Fragment, useRef, useState, type DragEvent, type ReactNode, type Ref } from 'react';
+import {
+  Fragment,
+  useRef,
+  useState,
+  type DragEvent,
+  type PointerEvent,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-import type { DraftChoice, DraftNode, DraftSegment } from './draft';
+import type { DraftChoice, DraftNode, DraftSegment, DraftSize } from './draft';
 import { SegmentEditor } from './segment-editor';
 import type { TagColor } from './tag-colors';
 
 /** The card's width; its height follows the text, up to `maxHeight`. */
 export const CARD_WIDTH = 320;
+
+/** How far a card can be resized, in pixels. */
+const SIZE_LIMITS = { width: [240, 800], height: [120, 2000] } as const;
+
+/** The card's width: as the author set it, or the default one. */
+export const widthOf = (node: DraftNode) => node.size?.width ?? CARD_WIDTH;
 
 /** How the plain arrow is named on the card and the edges. */
 export const NEXT_LABEL = 'Další';
@@ -51,7 +66,7 @@ export interface DotPlaces {
  * spread evenly in the order their nodes first come among the choices, then the plus. The layout
  * attaches the edges there without measuring.
  */
-export const dotPlaces = (choices: readonly DraftChoice[]): DotPlaces => {
+export const dotPlaces = (choices: readonly DraftChoice[], width = CARD_WIDTH): DotPlaces => {
   const byTarget = new Map<string, number[]>();
   for (const [index, choice] of choices.entries()) {
     byTarget.set(choice.to, [...(byTarget.get(choice.to) ?? []), index]);
@@ -60,14 +75,14 @@ export const dotPlaces = (choices: readonly DraftChoice[]): DotPlaces => {
   const slots = byTarget.size + 1;
   const xs = choices.map(() => 0);
   const groups = [...byTarget.values()].map((members, slot) => {
-    const center = (CARD_WIDTH * (slot + 1)) / (slots + 1);
+    const center = (width * (slot + 1)) / (slots + 1);
     for (const [place, index] of members.entries()) {
       xs[index] = center + (place - (members.length - 1) / 2) * SEGMENT;
     }
 
     return { members, center };
   });
-  return { groups, choices: xs, add: (CARD_WIDTH * slots) / (slots + 1) };
+  return { groups, choices: xs, add: (width * slots) / (slots + 1) };
 };
 
 /** The text of a choice's dot: its number, as beside its button. */
@@ -154,6 +169,8 @@ export interface CardEdit {
   readonly onMove: (index: number, offset: number) => void;
   readonly onRemoveChoice: (index: number) => void;
   readonly onRemove: () => void;
+  /** Sizes the card as the author dragged it; `undefined` lets it follow its text again. */
+  readonly onResize: (size: DraftSize | undefined) => void;
 }
 
 /**
@@ -482,6 +499,110 @@ const ChoiceList = ({
   );
 };
 
+/** Which sides a resize handle moves: the right edge, the bottom edge, or both from the corner. */
+type ResizeAxis = 'x' | 'y' | 'xy';
+
+const clamp = (value: number, [min, max]: readonly [number, number]) =>
+  Math.round(Math.min(max, Math.max(min, value)));
+
+/**
+ * A handle on the card's right edge, bottom edge or corner to resize it with the pointer: the card
+ * follows the pointer, and the size is set when the pointer is let go. A double click lets the
+ * sides it moves follow the text again.
+ */
+const ResizeHandle = ({
+  axis,
+  card,
+  size,
+  onLive,
+  onResize,
+}: {
+  readonly axis: ResizeAxis;
+  readonly card: RefObject<HTMLDivElement | null>;
+  readonly size: DraftSize | undefined;
+  readonly onLive: (size: DraftSize | undefined) => void;
+  readonly onResize: (size: DraftSize | undefined) => void;
+}) => {
+  /** Where the drag began, the card's size then, and how much the canvas is zoomed. */
+  const start = useRef<{ x: number; y: number; width: number; height: number; scale: number }>(
+    undefined,
+  );
+  const live = useRef<DraftSize>(undefined);
+  const moved = (event: PointerEvent<HTMLSpanElement>): DraftSize | undefined => {
+    const from = start.current;
+    if (from === undefined) {
+      return undefined;
+    }
+
+    return {
+      ...size,
+      ...(axis === 'y'
+        ? {}
+        : { width: clamp(from.width + (event.clientX - from.x) / from.scale, SIZE_LIMITS.width) }),
+      ...(axis === 'x'
+        ? {}
+        : {
+            height: clamp(from.height + (event.clientY - from.y) / from.scale, SIZE_LIMITS.height),
+          }),
+    };
+  };
+
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        IN_CANVAS,
+        'absolute z-10 touch-none',
+        axis === 'x' && 'top-0 right-0 h-full w-2 translate-x-1/2 cursor-ew-resize',
+        axis === 'y' && 'bottom-0 left-0 h-2 w-full translate-y-1/2 cursor-ns-resize',
+        axis === 'xy' && 'right-0 bottom-0 size-3 translate-1/2 cursor-nwse-resize',
+      )}
+      onPointerDown={(event) => {
+        const element = card.current;
+        if (element === null) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        start.current = {
+          x: event.clientX,
+          y: event.clientY,
+          width: element.offsetWidth,
+          height: element.offsetHeight,
+          scale: element.getBoundingClientRect().width / element.offsetWidth,
+        };
+      }}
+      onPointerMove={(event) => {
+        const next = moved(event);
+        if (next !== undefined) {
+          live.current = next;
+          onLive(next);
+        }
+      }}
+      onPointerUp={() => {
+        const next = live.current;
+        start.current = undefined;
+        live.current = undefined;
+        onLive(undefined);
+        if (next !== undefined) {
+          onResize(next);
+        }
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+        const { width, height } = size ?? {};
+        const kept = {
+          ...(axis === 'y' && width !== undefined ? { width } : {}),
+          ...(axis === 'x' && height !== undefined ? { height } : {}),
+        };
+        onResize(Object.keys(kept).length === 0 ? undefined : kept);
+      }}
+    />
+  );
+};
+
 export interface DraftNodeCardProps {
   readonly node: DraftNode;
   /** Zoomed out: only the summary, large; the card keeps its size. */
@@ -529,10 +650,22 @@ export const DraftNodeCard = ({
   ref,
   className,
 }: DraftNodeCardProps) => {
-  const places = dotPlaces(node.choices);
+  const own = useRef<HTMLDivElement>(null);
+  /** The size while a handle is dragged, before it is set. */
+  const [live, setLive] = useState<DraftSize>();
+  const size = live ?? node.size;
+  const width = size?.width ?? CARD_WIDTH;
+  const places = dotPlaces(node.choices, width);
   return (
     <div
-      ref={ref}
+      ref={(element) => {
+        own.current = element;
+        if (typeof ref === 'function') {
+          ref(element);
+        } else if (ref !== null && ref !== undefined) {
+          ref.current = element;
+        }
+      }}
       // Only the choices' handles drag: text selected in a field is not dragged to another one.
       onDragStartCapture={(event) => {
         if (!(event.target instanceof Element && event.target.closest('[data-drag-handle]'))) {
@@ -545,7 +678,15 @@ export const DraftNodeCard = ({
         dropTarget && 'outline-2 outline-offset-4 outline-sky-500',
         className,
       )}
-      style={{ width: CARD_WIDTH, ...(maxHeight === undefined ? {} : { maxHeight }) }}
+      style={{
+        width,
+        // A height set by hand holds; else the card follows its text up to `maxHeight`.
+        ...(size?.height === undefined
+          ? maxHeight === undefined
+            ? {}
+            : { maxHeight }
+          : { height: size.height }),
+      }}
     >
       <div
         className={cn(
@@ -621,6 +762,17 @@ export const DraftNodeCard = ({
           )}
         </p>
       </div>
+      {edit !== undefined &&
+        (['x', 'y', 'xy'] as const).map((axis) => (
+          <ResizeHandle
+            key={axis}
+            axis={axis}
+            card={own}
+            size={node.size}
+            onLive={setLive}
+            onResize={edit.onResize}
+          />
+        ))}
       {/* On the bottom edge, where the edges start; over the summary too. */}
       {places.groups.map((group) => (
         <DotPill key={group.members[0]} center={group.center}>

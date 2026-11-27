@@ -11,6 +11,8 @@ Editor je v administraci pod „Editor“, ale jen při `pnpm dev`. Koncept ukl�
 - **Graf** se rozkládá sám, shora dolů. Při oddálení je na kartách vidět jen shrnutí. Každý uzel bez voleb je konec a má pod sebou vlastní kroužek konce; konců může být víc. Pod kroužkem je, kolik uzlů vede od začátku do tohoto konce (nejkratší a nejdelší cesta, každý uzel na cestě nejvýš jednou), a o kolik znaků textu segmentů je cesta sem delší nebo kratší než průměrná cesta do všech konců, např. „+35“ nebo „−1,2 k“.
 - **Psaní:** do karty se píše rovnou – id, shrnutí, poznámka, segmenty i volby; karta vypadá stejně, ať se do ní píše, nebo ne. **Klik** na uzel ho vycentruje, **dvojklik** ho i přiblíží. Když karta při psaní vyroste, graf se hned přeskládá, aby nic nezakrývala, a pohled ji při tom drží na místě. Při oddálení je karta jen shrnutím a psát se do ní nedá.
 - **Segmenty** se píší jako jeden text: řádek `===` (s tématem `=== red`) a Enter je oddělí, `/` na začátku řádku nabídne příkazy a řádek `//` je poznámka.
+- **Velikost karty** se mění tažením za pravý okraj, spodní okraj nebo pravý dolní roh; uloží se do konceptu jako `size`. Dvojklik na úchyt vrátí rozměry, které úchyt mění, zpět podle obsahu.
+- **Mazání** uzlu i volby se nejdřív zeptá v malém okně u tlačítka.
 - **Barvy:** id uzlu je barevný štítek; barvy se střídají po devíti podle pořadí uzlů. Tečka volby má barvu uzlu, do kterého volba vede.
 - **Volby:** očíslovaná tečka na spodní hraně karty patří k volbě se stejným číslem a má barvu uzlu, kam volba vede, stejně jako číslo u volby. Volby do stejného uzlu jsou vedle sebe v jedné pilulce. Tažením tečky na jiný uzel vede volba tam, tažením do prázdna vznikne nový uzel. Kulaté tlačítko „+“ na spodní hraně (při najetí na kartu) přidá kliknutím novou volbu do nového uzlu, tažením volbu do uzlu, na který ji pustíte. Pořadí voleb se mění přetažením za úchyt vlevo od jejich čísla; nic jiného v kartě táhnout nejde.
 - **Id** nového uzlu se odvozuje ze shrnutí, dokud pole shrnutí poprvé neopustíte. Pak už se mění jen ručně v poli id. Volby, které do uzlu vedou, se přejmenují s ním.
@@ -49,6 +51,7 @@ Uzel (`nodes[]`) má tyto části:
 - `note`: všechno, pro co editor nemá pole. Patří sem podmínky, změny stavu, kapitola a to, že se jde dál QR kódem místo tlačítek.
 - `segments`: aspoň jeden segment, každý s `text` (markdown), volitelným `theme` (bez něj výchozí vzhled) a volitelnou `note` pro autora.
 - `choices`: volby v pořadí tlačítek. `label` je text tlačítka, prázdný znamená šipku „Další“. `to` je `id` cílového uzlu.
+- `size`: velikost karty nastavená v editoru (`width`, `height`), jen pro editor; do skriptu se nepřevádí.
 
 Začátek a konec si koncept nepamatuje, plynou z grafu. Uzel, do kterého nevede žádná volba z jiného uzlu, je začátek. Uzel bez voleb je konec.
 

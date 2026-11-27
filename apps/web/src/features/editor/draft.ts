@@ -22,6 +22,14 @@ export interface DraftNode {
   readonly segments: readonly DraftSegment[];
   /** In the order of the buttons; none makes the node an end of the story. */
   readonly choices: readonly DraftChoice[];
+  /** The card's size as the author set it, for the editor only; it follows the text when missing. */
+  readonly size?: DraftSize;
+}
+
+/** A card's size in pixels; a side not given follows the card's content. */
+export interface DraftSize {
+  readonly width?: number;
+  readonly height?: number;
 }
 
 /** One part of a node's text the players page through. */

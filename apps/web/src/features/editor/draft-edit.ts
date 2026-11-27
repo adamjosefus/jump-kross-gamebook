@@ -6,6 +6,7 @@ import {
   type DraftChoice,
   type DraftNode,
   type DraftSegment,
+  type DraftSize,
 } from './draft';
 
 /** A choice of a node by its index, or a new one added after the others. */
@@ -116,6 +117,22 @@ export const linkChoice = (
   return { draft: { ...linked, nodes: [...linked.nodes, emptyNode(to)] }, target: to };
 };
 
+/** The draft with the card of `id` sized as the author set it; without a size it follows its text. */
+export const setSize = (draft: Draft, id: string, size: DraftSize | undefined): Draft =>
+  updateNode(draft, id, (node) => {
+    if (size !== undefined && (size.width !== undefined || size.height !== undefined)) {
+      return { ...node, size };
+    }
+
+    return {
+      id: node.id,
+      summary: node.summary,
+      ...(node.note === undefined ? {} : { note: node.note }),
+      segments: node.segments,
+      choices: node.choices,
+    };
+  });
+
 /** The draft with a choice of `id` moved by `offset` places, as far as the list goes. */
 export const moveChoice = (draft: Draft, id: string, index: number, offset: number): Draft =>
   updateNode(draft, id, (node) => {
@@ -188,6 +205,31 @@ const parseAll = <T>(
   });
 };
 
+/** A length of a card's side: a positive number of pixels. */
+const isLength = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+/** A card's size, `undefined` without one, `null` when it is not one. */
+const parseSize = (value: unknown): DraftSize | undefined | null => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const { width, height } = value;
+  if ((width !== undefined && !isLength(width)) || (height !== undefined && !isLength(height))) {
+    return null;
+  }
+
+  return {
+    ...(width === undefined ? {} : { width }),
+    ...(height === undefined ? {} : { height }),
+  };
+};
+
 const parseNode = (value: unknown): DraftNode | undefined => {
   if (!isRecord(value) || typeof value['id'] !== 'string' || typeof value['summary'] !== 'string') {
     return undefined;
@@ -204,12 +246,18 @@ const parseNode = (value: unknown): DraftNode | undefined => {
     return undefined;
   }
 
+  const size = parseSize(value['size']);
+  if (size === null) {
+    return undefined;
+  }
+
   return {
     id: value['id'],
     summary: value['summary'],
     ...(note === undefined ? {} : { note }),
     segments,
     choices,
+    ...(size === undefined ? {} : { size }),
   };
 };
 
