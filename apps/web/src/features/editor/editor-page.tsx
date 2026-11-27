@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconLoader2, IconX } from '@tabler/icons-react';
+import { IconArrowBackUp, IconArrowForwardUp, IconLoader2 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useReducer, useRef, useState } from 'react';
 
@@ -8,7 +8,8 @@ import type { Draft } from './draft';
 import { DraftCanvas } from './draft-canvas';
 import { EMPTY_DRAFT, parseDraft, updateNode } from './draft-edit';
 import { historyReducer, startHistory } from './draft-history';
-import { FocusView } from './focus-view';
+import { FocusDialog } from './focus-dialog';
+import { startTrail, type FocusTrail } from './focus-trail';
 
 /** Where the dev server keeps the draft; the deployed app has no such address. */
 const DRAFT_URL = '/__editor/draft';
@@ -118,7 +119,8 @@ const useAutosave = (draft: Draft) => {
 /** The editor over a loaded draft: the canvas, undo and redo, saving and the focus mode. */
 const Editor = ({ initial }: { readonly initial: Draft }) => {
   const [history, dispatch] = useReducer(historyReducer, initial, startHistory);
-  const [focused, setFocused] = useState<string>();
+  /** The nodes walked in the focus dialog; closed without one. */
+  const [trail, setTrail] = useState<FocusTrail>();
   const draft = history.present;
   const saving = useAutosave(draft);
   const change = (next: Draft, field?: string) => {
@@ -133,12 +135,6 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented) {
-        return;
-      }
-
-      // Esc closes the focus mode from its text too; an open slash menu takes it first.
-      if (event.key === 'Escape') {
-        setFocused(undefined);
         return;
       }
 
@@ -160,7 +156,6 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
     };
   }, []);
 
-  const open = draft.nodes.some((node) => node.id === focused) ? focused : undefined;
   return (
     <div className='flex h-full flex-col'>
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
@@ -190,29 +185,24 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
         </span>
       </div>
       <div className='relative min-h-0 flex-1'>
-        <DraftCanvas draft={draft} onChange={change} onOpen={setFocused} />
-        {/* Over the canvas, which stays laid out underneath for the way back. */}
-        {open !== undefined && (
-          <div className='absolute inset-0 z-10 flex flex-col gap-4 bg-background p-6'>
-            <div className='flex justify-end'>
-              <Button variant='ghost' size='sm' onClick={() => setFocused(undefined)}>
-                <IconX /> Zpět na graf (Esc)
-              </Button>
-            </div>
-            <FocusView
-              className='min-h-0 flex-1'
-              draft={draft}
-              id={open}
-              onOpen={setFocused}
-              onChange={(node) => {
-                change(
-                  updateNode(draft, node.id, () => node),
-                  `focus:${node.id}`,
-                );
-              }}
-            />
-          </div>
-        )}
+        <DraftCanvas
+          draft={draft}
+          onChange={change}
+          onOpen={(id) => {
+            setTrail(startTrail(id));
+          }}
+        />
+        <FocusDialog
+          draft={draft}
+          trail={trail}
+          onTrail={setTrail}
+          onChange={(node) => {
+            change(
+              updateNode(draft, node.id, () => node),
+              `focus:${node.id}`,
+            );
+          }}
+        />
       </div>
     </div>
   );

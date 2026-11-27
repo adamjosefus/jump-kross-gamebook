@@ -15,7 +15,7 @@ Editor je v administraci pod „Editor“, ale jen při `pnpm dev`. Koncept ukl�
 - **Volby:** očíslovaná tečka na spodní hraně karty patří k volbě se stejným číslem a má barvu uzlu, kam volba vede, stejně jako číslo u volby. Volby do stejného uzlu jsou vedle sebe v jedné pilulce. Tažením tečky na jiný uzel vede volba tam, tažením do prázdna vznikne nový uzel. Kulaté tlačítko „+“ na spodní hraně (při najetí na kartu) přidá kliknutím novou volbu do nového uzlu, tažením volbu do uzlu, na který ji pustíte. Pořadí voleb se mění přetažením za úchyt vlevo od jejich čísla; nic jiného v kartě táhnout nejde.
 - **Id** nového uzlu se odvozuje ze shrnutí, dokud pole shrnutí poprvé neopustíte. Pak už se mění jen ručně v poli id. Volby, které do uzlu vedou, se přejmenují s ním.
 - **Zpět a Znovu** jsou v liště nahoře, nebo ⌘Z a ⇧⌘Z mimo textová pole. V textu platí jeho vlastní Zpět.
-- **Režim soustředění** otevře ikona v rohu karty a zavře ho Esc.
+- **Režim soustředění** otevře ikona v rohu karty jako velký dialog nad grafem: vlevo odkud se do uzlu přijde, uprostřed jeho text, vpravo kam vede. Klik na souseda ho otevře; šipky v hlavičce, nebo ⌘[ a ⌘], vedou zpět a vpřed po cestě, kterou jste prošli. Esc dialog zavře.
 
 ## Tvar konceptu
 
