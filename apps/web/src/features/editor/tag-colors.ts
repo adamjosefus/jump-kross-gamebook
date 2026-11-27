@@ -55,5 +55,13 @@ export const TAG_COLORS: readonly TagColor[] = [
   },
 ];
 
+/**
+ * How far apart in the palette two neighbouring nodes' colors are. The palette goes round the
+ * hues, so neighbours in it look alike; a stride of 4 of 9 takes colors from nearly opposite
+ * sides, and, having no common divisor with 9, still takes every color in turn.
+ */
+const STRIDE = 4;
+
 /** The color of the node at `index` in the draft. */
-export const tagColor = (index: number): TagColor => TAG_COLORS[index % TAG_COLORS.length]!;
+export const tagColor = (index: number): TagColor =>
+  TAG_COLORS[(index * STRIDE) % TAG_COLORS.length]!;
