@@ -22,7 +22,7 @@ const WithText = ({ initial }: { readonly initial: readonly DraftSegment[] }) =>
 };
 
 const meta = {
-  title: 'Editor/Segment editor',
+  title: 'Editor/Segmenty',
   component: WithText,
   parameters: {
     docs: {
@@ -37,11 +37,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Empty: Story = { args: { initial: [{ text: '' }] } };
+export const Empty: Story = {
+  name: 'Prázdný',
+  args: { initial: [{ text: '' }] },
+};
 
-export const Node: Story = { args: { initial: SAMPLE_DRAFT.nodes[0].segments } };
+export const Node: Story = {
+  name: 'Uzel',
+  args: { initial: SAMPLE_DRAFT.nodes[0].segments },
+};
 
 export const ManyThemes: Story = {
+  name: 'Hodně témat',
   args: {
     initial: [
       { theme: 'intro', text: '# Poklad starého mlýna' },
