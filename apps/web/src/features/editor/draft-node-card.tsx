@@ -1,4 +1,10 @@
-import { IconArrowsMaximize, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+import {
+  IconArrowsMaximize,
+  IconGripVertical,
+  IconPlus,
+  IconTrash,
+  IconX,
+} from '@tabler/icons-react';
 import { Fragment, useRef, useState, type DragEvent, type ReactNode, type Ref } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -191,9 +197,9 @@ const dropIndex = (event: DragEvent<HTMLElement>, index: number) => {
 };
 
 /**
- * The choices in a grid, so their texts and targets line up: the number, as on the dot on the
- * bottom edge, the text of the button, where it leads, and a button to remove it. The number is
- * the handle to drag a choice to another place in the order.
+ * The choices in a grid, so their texts and targets line up: a handle to drag the choice to
+ * another place in the order, its number, as on the dot on the bottom edge, the text of the
+ * button, where it leads, and a button to remove it.
  */
 const ChoiceList = ({
   choices,
@@ -209,13 +215,13 @@ const ChoiceList = ({
   }
 
   return (
-    <div className='grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-1.5 rounded-b-lg border-t bg-muted/40 px-3 py-1.5'>
+    <div className='grid shrink-0 grid-cols-[auto_auto_minmax(0,1fr)_auto_auto] gap-x-1.5 rounded-b-lg border-t bg-muted/40 px-3 py-1.5'>
       {choices.map((choice, index) => (
         <div
           // The choices have no ids; their order is all there is.
           key={index}
           className={cn(
-            'group/row relative col-span-4 grid grid-cols-subgrid items-center',
+            'group/row relative col-span-5 grid grid-cols-subgrid items-center',
             drag?.from === index && 'opacity-40',
           )}
           style={{ height: CHOICE_ROW }}
@@ -252,9 +258,13 @@ const ChoiceList = ({
           {drag !== undefined && drag.to === index + 1 && index === choices.length - 1 && (
             <span className='pointer-events-none absolute inset-x-0 bottom-0 h-0.5 translate-y-1/2 rounded bg-sky-500' />
           )}
+          {/* The handle to drag the choice by: the only thing in a card that can be dragged. */}
           <span
+            data-drag-handle
             draggable={edit !== undefined && choices.length > 1}
-            title={edit === undefined ? undefined : 'Přetažením změníte pořadí'}
+            title={
+              edit !== undefined && choices.length > 1 ? 'Přetažením změníte pořadí' : undefined
+            }
             onDragStart={(event) => {
               const row = event.currentTarget.parentElement;
               if (row !== null) {
@@ -269,10 +279,15 @@ const ChoiceList = ({
             }}
             className={cn(
               IN_CANVAS,
-              'w-3 text-center font-mono text-[10px] text-muted-foreground',
-              edit !== undefined && choices.length > 1 && 'cursor-grab active:cursor-grabbing',
+              'flex w-3.5 justify-center text-muted-foreground',
+              edit !== undefined && choices.length > 1
+                ? 'cursor-grab opacity-40 group-hover/row:opacity-100 hover:text-foreground active:cursor-grabbing'
+                : 'invisible',
             )}
           >
+            <IconGripVertical className='size-3.5' />
+          </span>
+          <span className='w-3 text-center font-mono text-[10px] text-muted-foreground'>
             {dotText(index)}
           </span>
           <input
@@ -350,6 +365,12 @@ export const DraftNodeCard = ({
 }: DraftNodeCardProps) => (
   <div
     ref={ref}
+    // Only the choices' handles drag: text selected in a field is not dragged to another one.
+    onDragStartCapture={(event) => {
+      if (!(event.target instanceof Element && event.target.closest('[data-drag-handle]'))) {
+        event.preventDefault();
+      }
+    }}
     className={cn(
       'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
       selected && 'outline-2 outline-offset-2 outline-yellow-500',
