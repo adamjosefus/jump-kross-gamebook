@@ -120,6 +120,32 @@ describe('routesTo', () => {
     });
   });
 
+  it('counts two choices to one node as one way', () => {
+    const twice: Draft = {
+      version: 1,
+      nodes: [
+        {
+          id: 'start',
+          summary: '',
+          segments: text(4),
+          choices: [
+            { label: 'Vzít 20 mincí', to: 'shop' },
+            { label: 'Vzít 30 mincí', to: 'shop' },
+            { label: 'Zůstat doma', to: 'home' },
+          ],
+        },
+        { id: 'shop', summary: '', segments: text(20), choices: [{ label: '', to: 'home' }] },
+        { id: 'home', summary: '', segments: text(1), choices: [] },
+      ],
+    };
+    // start → home and start → shop → home, not start → shop → home twice.
+    expect(routesTo(twice, 'home')).toEqual({
+      steps: { min: 2, max: 3 },
+      ways: 2,
+      meanCharacters: (5 + 25) / 2,
+    });
+  });
+
   it('counts a start that is an end too', () => {
     expect(routesTo(draft, 'lost')).toEqual({
       steps: { min: 1, max: 1 },

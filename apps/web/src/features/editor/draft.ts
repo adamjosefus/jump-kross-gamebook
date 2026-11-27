@@ -149,7 +149,8 @@ const ROUTE_LIMIT = 10_000;
 
 /**
  * How long the ways from the starts to the node `end` are, each node at most once on a way, so a
- * choice back does not make a way endless. `undefined` when no start leads there.
+ * choice back does not make a way endless. A way is a run of nodes: choices leading to the same
+ * node make one way, not one each. `undefined` when no start leads there.
  */
 export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => {
   const nodes = new Map(draft.nodes.map((node) => [node.id, node]));
@@ -187,8 +188,10 @@ export const routesTo = (draft: Draft, end: string): RoutesToEnd | undefined => 
       return;
     }
 
-    for (const choice of node.choices) {
-      const next = nodes.get(choice.to);
+    // Two choices to one node make one way: a way is the nodes the players read, not the
+    // buttons they pressed.
+    for (const to of new Set(node.choices.map((choice) => choice.to))) {
+      const next = nodes.get(to);
       if (next !== undefined && leading.has(next.id) && !on.has(next.id)) {
         walk(next, new Set([...on, next.id]), length + 1, text + characters(next));
       }
