@@ -35,9 +35,9 @@ import {
   type RouteEdge,
 } from '@/features/story/graph-edges';
 import {
-  FINAL_ID,
   FINAL_SIZE,
   finalEdgeId,
+  finalRingId,
   INITIAL_ID,
   INITIAL_SIZE,
   initialEdgeId,
@@ -361,6 +361,8 @@ const layoutPass = (
       startsOf(draft).map((node) => [node.id, entryId(initialEdgeId(node.id))]),
     ),
     finalPorts: new Map(endsOf(draft).map((node) => [node.id, portId(node.id, 'new')])),
+    // Every end has its own ring: a story can end in several places, and they need not meet.
+    finalRings: 'each',
   });
 
 /**
@@ -651,18 +653,14 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         data: {},
         selectable: false,
       },
-      ...(endsOf(keyed).length > 0
-        ? [
-            {
-              id: FINAL_ID,
-              type: 'final' as const,
-              position: position(FINAL_ID),
-              measured: { width: FINAL_SIZE, height: FINAL_SIZE },
-              data: {},
-              selectable: false,
-            },
-          ]
-        : []),
+      ...endsOf(keyed).map((node): FinalFlowNode => ({
+        id: finalRingId(node.id),
+        type: 'final',
+        position: position(finalRingId(node.id)),
+        measured: { width: FINAL_SIZE, height: FINAL_SIZE },
+        data: {},
+        selectable: false,
+      })),
     ];
   }, [draft, keyed, laidOut, selected, maxHeight, heights, dropTarget]);
 
@@ -697,7 +695,7 @@ const Canvas = ({ draft, onChange, onOpen, className }: DraftCanvasProps) => {
         }),
       ),
       ...endsOf(keyed).map((node) => ({
-        ...plain(finalEdgeId(node.id), node.id, FINAL_ID),
+        ...plain(finalEdgeId(node.id), node.id, finalRingId(node.id)),
         sourceHandle: dotHandle('new'),
       })),
     ];
