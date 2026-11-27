@@ -52,6 +52,7 @@ const apiDevServer = (): Plugin => {
         if (!file.startsWith(`${packages}${path.sep}`) || api === undefined) {
           return;
         }
+
         // The old one lets go of its database connections.
         void api.then((old) => old.dispose()).catch(() => undefined);
         api = undefined;
@@ -62,6 +63,7 @@ const apiDevServer = (): Plugin => {
         if (!req.url?.startsWith('/api/')) {
           return next();
         }
+
         api ??= load(server);
         api
           .then(({ handle }) => handle(req, res))
@@ -71,6 +73,7 @@ const apiDevServer = (): Plugin => {
             if (req.socket.destroyed) {
               return;
             }
+
             api = undefined;
             next(error);
           });
@@ -85,6 +88,7 @@ const commitHash = () => {
   if (vercel !== undefined && vercel !== '') {
     return vercel.slice(0, 7);
   }
+
   try {
     return execSync('git rev-parse --short=7 HEAD', { encoding: 'utf8' }).trim();
   } catch {

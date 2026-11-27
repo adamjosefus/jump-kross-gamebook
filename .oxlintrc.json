@@ -35,7 +35,15 @@
         "allow": ["**/*.css"]
       }
     ],
-    "curly": ["warn", "all"]
+    "curly": ["warn", "all"],
+    "@stylistic/padding-line-between-statements": [
+      "warn",
+      {
+        "blankLine": "always",
+        "prev": "block-like",
+        "next": "*"
+      }
+    ]
   },
   "ignorePatterns": [
     "**/dist",
@@ -64,5 +72,6 @@
         "no-console": "off"
       }
     }
-  ]
+  ],
+  "jsPlugins": ["@stylistic/eslint-plugin"]
 }

@@ -49,6 +49,7 @@ const nextCheck = (state: PollState<unknown>, delay: number | false): NextCheck 
   if (delay === false) {
     return undefined;
   }
+
   const from = pollSeed(state);
   return { from, at: from + delay };
 };
@@ -103,6 +104,7 @@ export const PlayerPage = () => {
         if (isApiError(error, 'Unauthorized')) {
           return null;
         }
+
         throw error;
       }),
     refetchInterval: (query) => statePoll(query.state),
@@ -127,6 +129,7 @@ export const PlayerPage = () => {
     await queryClient.cancelQueries({ queryKey: STATE_KEY });
     queryClient.setQueryData(STATE_KEY, next);
   };
+
   const onError = (error: unknown) => {
     playerToast.error(errorMessage(error));
     if (
@@ -136,6 +139,7 @@ export const PlayerPage = () => {
     ) {
       void queryClient.invalidateQueries({ queryKey: STATE_KEY });
     }
+
     // The intro shows a game not started or closed in place of the scanner.
     if (isApiError(error, 'GameClosed') || isApiError(error, 'GameNotStarted')) {
       void queryClient.invalidateQueries({ queryKey: INTRO_KEY });
@@ -146,6 +150,7 @@ export const PlayerPage = () => {
     void onResult(next);
     playerToast.success(next.loginMessages.loggedIn);
   };
+
   const login = useMutation({
     mutationFn: (code: string) => api((client) => client.player.login({ payload: { code } })),
     onError,
@@ -183,6 +188,7 @@ export const PlayerPage = () => {
     if (view == null) {
       return answer(login.mutateAsync(code), onLogin);
     }
+
     const parsed = parseQr(code);
     if (parsed?.kind !== 'T') {
       return answer(
@@ -190,12 +196,14 @@ export const PlayerPage = () => {
         (next) => void onResult(next),
       );
     }
+
     // A login code switches the device to that team, but only after asking: a stray card of
     // another team must not move a player over by accident.
     if (parsed.id === view.team.id) {
       playerToast.info(view.loginMessages.sameTeam);
       return 'rejected';
     }
+
     setSwitchCode(code);
     setSwitchOpen(true);
     return undefined;
@@ -372,6 +380,7 @@ const Intro = ({
       </PlayerFrame>
     );
   }
+
   const { started, closed, ...content } = intro.data;
   // Until the teams can log in, the waiting screen comes first, before the intro.
   if (!started || closed) {
@@ -383,6 +392,7 @@ const Intro = ({
       />
     );
   }
+
   return (
     <NodeSegments
       node={{

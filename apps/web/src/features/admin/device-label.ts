@@ -31,6 +31,7 @@ export const deviceLabel = (userAgent: string | undefined): string => {
   if (userAgent === undefined || userAgent === '') {
     return 'Neznámé zařízení';
   }
+
   const parts = [firstMatch(SYSTEMS, userAgent), firstMatch(BROWSERS, userAgent)].filter(
     (part) => part !== undefined,
   );

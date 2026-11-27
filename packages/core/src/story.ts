@@ -169,6 +169,7 @@ export const loginMessages = (story: Story, team: Team) => {
     const value = set?.[key] ?? DEFAULT_LOGIN_MESSAGES[key];
     return typeof value === 'function' ? value(team) : value;
   };
+
   return {
     loggedIn: text('loggedIn'),
     sameTeam: text('sameTeam'),

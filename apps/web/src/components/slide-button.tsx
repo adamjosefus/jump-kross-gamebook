@@ -64,6 +64,7 @@ export const SlideButton = ({
   if (stage === 'confirmed' && disabled) {
     setStage('pending');
   }
+
   if (stage === 'pending' && !disabled) {
     setStage('idle');
   }
@@ -80,6 +81,7 @@ export const SlideButton = ({
     if (disabled || stage !== 'idle' || track.current === null) {
       return;
     }
+
     event.currentTarget.setPointerCapture(event.pointerId);
     const max = track.current.clientWidth - event.currentTarget.offsetWidth - 8;
     // The pressed thumb overlaps the border, so it is as high as the track with it.
@@ -87,27 +89,33 @@ export const SlideButton = ({
     atEnd.current = false;
     hapticLight();
   };
+
   const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
     if (drag === undefined) {
       return;
     }
+
     const offset = Math.min(Math.max(event.clientX - drag.from, 0), drag.max);
     setDrag({ ...drag, offset });
     const arrived = offset >= drag.max * THRESHOLD;
     if (arrived && !atEnd.current) {
       hapticStrong();
     }
+
     atEnd.current = arrived;
   };
+
   const onPointerUp = () => {
     if (drag === undefined) {
       return;
     }
+
     setDrag(undefined);
     if (drag.offset >= drag.max * THRESHOLD) {
       confirm();
     }
   };
+
   // Keyboards cannot slide; the right arrow or End is the deliberate equivalent.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if ((event.key === 'ArrowRight' || event.key === 'End') && !disabled && stage === 'idle') {

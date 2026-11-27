@@ -63,15 +63,18 @@ export const handlerFromEnv = (
   if (missing.length > 0) {
     return misconfiguredHandler(missingMessage(missing));
   }
+
   const url = env['DATABASE_URL'];
   if (url === undefined || url === '') {
     return makeHandler(configFromEnv(env), MemoryStoreLayer(memory));
   }
+
   // The driver would report a malformed URL with the password in it; this message names only the variable.
   if (!isDatabaseUrl(url)) {
     return misconfiguredHandler(
       'DATABASE_URL is not a postgres:// URL (a password with special characters has to be percent-encoded). Fix it in the Vercel project settings and redeploy.',
     );
   }
+
   return makeHandler(configFromEnv(env), PostgresStoreLayer(url));
 };

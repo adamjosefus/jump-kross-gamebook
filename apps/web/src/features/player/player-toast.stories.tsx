@@ -24,6 +24,7 @@ const Demo = ({ lasting }: { readonly lasting: boolean }) => {
     for (const show of SAMPLES) {
       show();
     }
+
     return () => {
       toast.dismiss();
     };

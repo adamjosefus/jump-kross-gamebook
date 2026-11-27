@@ -25,6 +25,7 @@ const toRequest = async (req: IncomingMessage): Promise<Request> => {
   for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
   }
+
   const body = chunks.length === 0 ? undefined : Buffer.concat(chunks);
   return new Request(`${protocolOf(req)}://${req.headers.host ?? 'localhost'}${req.url ?? '/'}`, {
     method: req.method ?? 'GET',
@@ -45,6 +46,7 @@ const send = async (response: Response, res: ServerResponse) => {
   if (cookies.length > 0) {
     res.setHeader('set-cookie', cookies);
   }
+
   res.end(Buffer.from(await response.arrayBuffer()));
 };
 
@@ -58,5 +60,6 @@ export const toNodeHandler =
       await send(new Response('Bad Request', { status: 400 }), res);
       return;
     }
+
     await send(await handler(request), res);
   };

@@ -24,35 +24,46 @@ const detectPlatform = (): Platform => {
     if (/CriOS/.test(ua)) {
       return 'ios-chrome';
     }
+
     if (/FxiOS|EdgiOS|OPiOS|GSA\//.test(ua)) {
       return 'ios-other';
     }
+
     return 'ios-safari';
   }
+
   if (/Android/.test(ua)) {
     if (/SamsungBrowser/.test(ua)) {
       return 'android-samsung';
     }
+
     if (/Firefox/.test(ua)) {
       return 'android-firefox';
     }
+
     if (/Chrome/.test(ua) && !/EdgA|OPR|YaBrowser|wv\)/.test(ua)) {
       return 'android-chrome';
     }
+
     return 'android-other';
   }
+
   if (/Edg\//.test(ua)) {
     return 'desktop-edge';
   }
+
   if (/Firefox/.test(ua)) {
     return 'desktop-firefox';
   }
+
   if (/Chrome|Chromium/.test(ua)) {
     return 'desktop-chrome';
   }
+
   if (/Safari/.test(ua) && /Macintosh/.test(ua)) {
     return 'desktop-safari';
   }
+
   return 'other';
 };
 
@@ -62,15 +73,19 @@ const iosAppName = (): string => {
   if (/FxiOS/.test(ua)) {
     return 'Firefox';
   }
+
   if (/EdgiOS/.test(ua)) {
     return 'Edge';
   }
+
   if (/OPiOS/.test(ua)) {
     return 'Opera';
   }
+
   if (/GSA\//.test(ua)) {
     return 'Google';
   }
+
   return 'svého prohlížeče';
 };
 
@@ -175,6 +190,7 @@ const helpFor = (platform: Platform): Help => {
         note: desktopNote(app === 'Edge' ? 'Microsoft Edge' : 'Google Chrome'),
       };
     }
+
     case 'desktop-safari':
       return {
         title: 'Jak povolit kameru v Safari',

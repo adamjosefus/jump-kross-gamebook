@@ -68,6 +68,7 @@ export const qrOutlines = (
     if (visited.has(first)) {
       return [];
     }
+
     const corners: GridPoint[] = [];
     let edge = first;
     do {
@@ -76,8 +77,10 @@ export const qrOutlines = (
       if (following.direction !== edge.direction) {
         corners.push(endOf(edge));
       }
+
       edge = following;
     } while (edge !== first);
+
     return [corners];
   });
 };

@@ -68,26 +68,32 @@ const understandable = async (error: unknown): Promise<unknown> => {
   if (isApiError(error) && DECLARED.has(error._tag)) {
     return error;
   }
+
   console.error(error);
   if (Cause.isTimeoutError(error)) {
     return { _tag: 'Offline', message: TIMED_OUT } satisfies ApiError;
   }
+
   if (!HttpClientError.isHttpClientError(error)) {
     return { _tag: 'UnexpectedResponse', message: UNEXPECTED } satisfies ApiError;
   }
+
   // The request never got an answer: no network, or the server did not respond at all.
   if (error.reason._tag === 'TransportError') {
     return { _tag: 'Offline', message: OFFLINE } satisfies ApiError;
   }
+
   const response = error.response;
   if (response === undefined || response.status < 500) {
     return { _tag: 'UnexpectedResponse', message: UNEXPECTED } satisfies ApiError;
   }
+
   const body: unknown = await Effect.runPromise(response.json).catch(() => undefined);
   if (isMisconfigured(body)) {
     console.error(body);
     return { _tag: 'ServerMisconfigured', message: MISCONFIGURED } satisfies ApiError;
   }
+
   return { _tag: 'ServerError', message: SERVER_DOWN } satisfies ApiError;
 };
 
@@ -112,6 +118,7 @@ export const api = <A, E>(
       if (options?.signal?.aborted === true) {
         throw error;
       }
+
       throw await understandable(error);
     });
 

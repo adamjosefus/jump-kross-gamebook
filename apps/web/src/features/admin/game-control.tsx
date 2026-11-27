@@ -99,6 +99,7 @@ export const GameControl = ({
     setPause(phase === 'running');
     setConfirming(true);
   };
+
   const refresh = () => invalidateGame(queryClient);
 
   const start = useMutation({
@@ -109,6 +110,7 @@ export const GameControl = ({
       if (!started.closed) {
         return;
       }
+
       try {
         await api((client) => client.admin.setClosed({ payload: { closed: false } }));
       } catch (error) {

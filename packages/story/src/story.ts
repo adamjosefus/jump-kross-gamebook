@@ -10,6 +10,7 @@ const coinsText = (count: number): string => {
   if (count >= 1 && count <= 4) {
     return `${count} mince`;
   }
+
   return `${count} mincí`;
 };
 
@@ -264,6 +265,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
             },
           ];
         }
+
         return [
           {
             code: 5,
@@ -299,6 +301,7 @@ Co bude k večeři?
             },
           ];
         }
+
         return [{ goto: 'OUTRO', label: 'Topinky s česnekem' }];
       },
     },
@@ -376,6 +379,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
             },
           ];
         }
+
         return [
           {
             code: 5,
@@ -419,6 +423,7 @@ Co bude k večeři?
             },
           ];
         }
+
         return [
           { goto: 'OUTRO', label: 'Bramboračka' },
           {
@@ -505,6 +510,7 @@ Autobus stojí 2 mince a jste doma hned. Parkem je to zadarmo a déle, ale p
             },
           ];
         }
+
         return [
           {
             code: 5,
@@ -540,6 +546,7 @@ Co bude k večeři?
             },
           ];
         }
+
         return [{ goto: 'OUTRO', label: 'Kuře na paprice' }];
       },
     },

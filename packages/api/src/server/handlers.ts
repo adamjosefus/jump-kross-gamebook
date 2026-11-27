@@ -67,12 +67,14 @@ const PlayerAuthLive = Layer.effect(
         if (sessionId === '') {
           return yield* new Unauthorized({ message: 'Nejste přihlášeni.' });
         }
+
         const teamId = yield* orDie(
           store.touchSession(sessionId, new Date(Date.now() - PLAYER_SESSION_TTL_MS)),
         );
         if (teamId === undefined) {
           return yield* new Unauthorized({ message: 'Přihlášení vypršelo.' });
         }
+
         return yield* Effect.provideService(httpEffect, CurrentTeam, { sessionId, teamId });
       }),
     });
@@ -91,6 +93,7 @@ const AdminAuthLive = Layer.effect(
         if (!valid) {
           return yield* new Unauthorized({ message: 'Přihlaste se heslem tvůrce.' });
         }
+
         return yield* httpEffect;
       }),
     });
@@ -173,14 +176,17 @@ const AdminHandlers = HttpApiBuilder.group(
             message: `Příliš mnoho pokusů. Zkuste to za ${Math.ceil(lockedFor / 1000)} s.`,
           });
         }
+
         if (!secretsEqual(config.adminPassword, payload.password)) {
           yield* orDie(store.recordAdminFailure(key));
           yield* Effect.sleep('600 millis');
           yield* new Unauthorized({ message: 'Špatné heslo.' });
         }
+
         if (previous !== undefined) {
           yield* orDie(store.clearAdminFailures(key));
         }
+
         const token = yield* Effect.promise(() => createAdminToken(config));
         yield* HttpApiBuilder.securitySetCookie(AdminSessionCookie, token, {
           ...cookie,

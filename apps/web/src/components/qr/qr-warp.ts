@@ -150,6 +150,7 @@ export const warpedQr = (
     );
     return [sheetX * unit, -sheetY * unit];
   };
+
   const box = (from: number, to: number) => {
     const corners = [map(from, from), map(to, from), map(to, to), map(from, to)];
     const xs = corners.map(([cornerX]) => cornerX);
@@ -161,6 +162,7 @@ export const warpedQr = (
       bottom: Math.max(...ys),
     };
   };
+
   // The far side of the quiet zone stretches more than the near one, so the dark modules would sit
   // off centre. The quiet zone is widened on the short sides until the modules are centred; it never
   // gets narrower than the projected one.
@@ -182,6 +184,7 @@ export const warpedQr = (
     const [placedX, placedY] = place(sheetPoint);
     return `${round(placedX)} ${round(placedY)}`;
   };
+
   const path = outlinePath(qrOutlines(size, runs), ([column, row]) => point(map(column, row)));
   return {
     width: right - left,

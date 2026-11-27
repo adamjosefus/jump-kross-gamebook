@@ -668,6 +668,7 @@ describe('validateStory', () => {
             if (state.n < 2) {
               return [again];
             }
+
             return state.n < 5 ? [again, aside] : [{ label: 'Konec', goto: 'OUTRO' }, aside];
           },
         },

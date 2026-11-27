@@ -37,6 +37,7 @@ const hmac = async (secret: string, message: string): Promise<Uint8Array> => {
   if (secret === '') {
     throw new Error('QR kódy potřebují tajemství (QR_SECRET), prázdné nestačí.');
   }
+
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -64,6 +65,7 @@ export const encodeQr = async (secret: string, payload: QrPayload): Promise<stri
   if (!isQrId(payload.id)) {
     throw new RangeError(`Číslo ${payload.id} se do QR kódu nevejde.`);
   }
+
   return `${payload.kind}-${payload.id}-${await checkOf(secret, payload)}`;
 };
 
@@ -73,10 +75,12 @@ export const parseQr = (text: string): (QrPayload & { readonly check: string }) 
   if (!match) {
     return undefined;
   }
+
   const kind = match[1];
   if (!isQrKind(kind)) {
     return undefined;
   }
+
   return { kind, id: Number(match[2]), check: match[3]! };
 };
 
@@ -86,6 +90,7 @@ export const verifyQr = async (secret: string, text: string): Promise<QrPayload 
   if (parsed === undefined) {
     return undefined;
   }
+
   const expected = await checkOf(secret, parsed);
   return expected === parsed.check ? { kind: parsed.kind, id: parsed.id } : undefined;
 };

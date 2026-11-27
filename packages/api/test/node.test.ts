@@ -21,6 +21,7 @@ const send = (
     if (address === null || typeof address === 'string') {
       throw new Error('Server not listening.');
     }
+
     const req = request({ host: '127.0.0.1', port: address.port, method, path, headers }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -82,6 +83,7 @@ describe('toNodeHandler', () => {
       });
       urls.push(seen.at(-1)!.url);
     }
+
     expect(urls).toEqual(['http://h/', 'https://h/', 'http://h/', 'http://h/']);
   });
 

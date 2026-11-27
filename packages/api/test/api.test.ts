@@ -48,9 +48,11 @@ const device = (
       const [name, value] = pair!.split('=');
       jar.set(name!, value!);
     }
+
     const text = await response.text();
     return { status: response.status, body: text === '' ? undefined : JSON.parse(text) };
   };
+
   return Object.assign(call, { jar });
 };
 
@@ -745,6 +747,7 @@ describe('devices from the admin', () => {
     for (const [id, session] of data.sessions) {
       data.sessions.set(id, { ...session, deviceId: undefined });
     }
+
     const [listed] = (await admin('GET', '/api/admin/devices')).body.devices;
     expect(listed.bannable).toBe(false);
     const refused = await admin('POST', `/api/admin/devices/${listed.id}/ban`);
@@ -762,6 +765,7 @@ describe('admin password', () => {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       statuses.push((await wrong()).body.message);
     }
+
     expect(statuses.slice(0, 3)).toEqual(['Špatné heslo.', 'Špatné heslo.', 'Špatné heslo.']);
     expect(statuses[3]).toMatch(/^Příliš mnoho pokusů/);
     // Even the right password waits while the address is locked.
@@ -804,6 +808,7 @@ describe('memory data', () => {
         }),
       );
     };
+
     const before = makeHandler(config, MemoryStoreLayer(memory), SAMPLE);
     const response = await login(before.handler);
     const cookie = response.headers

@@ -62,6 +62,7 @@ const revealDelay = (index: number, words: number, pace: RevealPace) => {
   if (words <= 1) {
     return pace.firstWordDelayMs;
   }
+
   const curve = Math.min(words * pace.wordStepMs, pace.maxRevealMs);
   const progress = index / (words - 1);
   // The inverse of the ease-in-out: the time at which this share of the words is shown.
@@ -110,6 +111,7 @@ const loadFont = async (
   if (retry >= FACE_RETRIES || isCancelled()) {
     return;
   }
+
   try {
     const faces = await document.fonts.load(font, sample);
     if (faces.length > 0) {
@@ -119,6 +121,7 @@ const loadFont = async (
   } catch {
     return;
   }
+
   await new Promise((resolve) => setTimeout(resolve, FACE_RETRY_MS));
   return loadFont(font, sample, isCancelled, retry + 1);
 };
@@ -141,6 +144,7 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
     if (ready) {
       return undefined;
     }
+
     // Loading cannot be aborted, so the cleanup flags the effect as over instead.
     let cancelled = false;
     const isCancelled = () => cancelled;
@@ -163,15 +167,19 @@ const useFontsLoaded = (fonts: readonly string[], sample: string) => {
     if (!ready || measurable) {
       return undefined;
     }
+
     const check = () => {
       if (!fonts.every((font) => document.fonts.check(font, sample))) {
         return;
       }
+
       for (const font of fonts) {
         loadedFonts.add(font);
       }
+
       setArrived((count) => count + 1);
     };
+
     document.fonts.addEventListener('loadingdone', check);
     return () => document.fonts.removeEventListener('loadingdone', check);
   }, [ready, measurable, fonts, sample]);
@@ -190,6 +198,7 @@ const useWidth = () => {
     if (element === null) {
       return undefined;
     }
+
     const observer = new ResizeObserver(([entry]) => {
       if (entry !== undefined) {
         setWidth(Math.floor(entry.contentRect.width * 4) / 4);
@@ -337,14 +346,17 @@ const balancedWidth = (inline: PreparedRichInline, maxWidth: number) => {
   if (lines <= 1) {
     return maxWidth;
   }
+
   // Halves the range between a width with more lines and one with as many, down to a pixel.
   const narrow = (tooNarrow: number, wide: number): number => {
     if (wide - tooNarrow <= 1) {
       return wide;
     }
+
     const middle = (wide + tooNarrow) / 2;
     return countLines(middle) === lines ? narrow(tooNarrow, middle) : narrow(middle, wide);
   };
+
   return narrow(0, maxWidth);
 };
 
@@ -358,25 +370,31 @@ const prettyWidth = (inline: PreparedRichInline, maxWidth: number) => {
     });
     return { lines, lastLine };
   };
+
   const wide = measure(maxWidth);
   const longEnough = maxWidth / 3;
   if (wide.lines <= 1 || wide.lastLine >= longEnough) {
     return maxWidth;
   }
+
   // Four pixels narrower at a time, until the last line is long enough or a line is added.
   const narrowed = (width: number): number => {
     if (width <= 0) {
       return maxWidth;
     }
+
     const narrower = measure(width);
     if (narrower.lines > wide.lines) {
       return maxWidth;
     }
+
     if (narrower.lastLine >= longEnough) {
       return width;
     }
+
     return narrowed(width - 4);
   };
+
   return narrowed(maxWidth - 4);
 };
 
@@ -384,9 +402,11 @@ const wrapWidth = (item: Prepared, available: number) => {
   if (item.type.wrap === 'balance') {
     return balancedWidth(item.inline, available);
   }
+
   if (item.type.wrap === 'pretty') {
     return prettyWidth(item.inline, available);
   }
+
   return available;
 };
 
@@ -504,10 +524,12 @@ export const StoryText = ({
     if (!laidOut) {
       return undefined;
     }
+
     if (instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       reportRevealed();
       return undefined;
     }
+
     const timer = setTimeout(reportRevealed, revealMs);
     return () => clearTimeout(timer);
   }, [laidOut, instant, revealMs]);

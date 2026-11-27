@@ -161,6 +161,7 @@ const explore = (story: Story, start: string, teams: readonly Team[]): Explorati
   if (initial === undefined) {
     return { states: new Map(), edges: new Map() };
   }
+
   // Breadth-first search: the maps, the set and the queue are filled in place, an immutable version
   // would copy them on every step.
   const states = new Map([[start, initial]]);
@@ -172,6 +173,7 @@ const explore = (story: Story, start: string, teams: readonly Team[]): Explorati
     if (visited >= MAX_VISITS) {
       break;
     }
+
     const node = story.nodes[id]!;
     const fromFunction = edgesFromFunction(story, node, state, teams);
     for (const { edge, index } of fromFunction) {
@@ -180,30 +182,37 @@ const explore = (story: Story, start: string, teams: readonly Team[]): Explorati
       if (!known.has(key)) {
         known.set(key, edge);
       }
+
       edges.set(id, known);
     }
+
     const transitions = [...transitionsOf(story, node), ...fromFunction.map(({ edge }) => edge)];
     for (const { goto, nextState } of transitions) {
       if (!Object.hasOwn(story.nodes, goto)) {
         continue;
       }
+
       let next: State;
       try {
         next = mergeState(state, nextState?.(state));
       } catch {
         continue;
       }
+
       if (!states.has(goto)) {
         states.set(goto, next);
       }
+
       const key = JSON.stringify([goto, stateKey(next)]);
       if (seen.has(key)) {
         continue;
       }
+
       seen.add(key);
       queue.push({ node: goto, state: next });
     }
   }
+
   return { states, edges };
 };
 
@@ -215,6 +224,7 @@ const previewOf = (
   if (typeof node.segments === 'function' && state === undefined) {
     return undefined;
   }
+
   try {
     const segments = segmentsOf(node, state ?? {}, team);
     return {
@@ -287,6 +297,7 @@ export const graphProblems = (graph: GameGraph): readonly string[] => {
   if (starts.length === 0) {
     return ['Příběh nemá start (uzel s initialState).'];
   }
+
   // Breadth-first search: the set and the queue are filled in place, an immutable version would
   // copy both on every step.
   const reached = new Set(starts);
@@ -297,10 +308,12 @@ export const graphProblems = (graph: GameGraph): readonly string[] => {
       if (reached.has(target)) {
         continue;
       }
+
       reached.add(target);
       queue.push(target);
     }
   }
+
   return [
     ...(starts.length > 1
       ? [`Příběh má víc startů (${starts.join(', ')}), smí mít jen jeden.`]

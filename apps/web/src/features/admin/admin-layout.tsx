@@ -52,6 +52,7 @@ const PausedBar = ({ pathname }: { readonly pathname: string }) => {
   if (game?.startedAt === undefined || !game.closed) {
     return null;
   }
+
   return (
     <div
       role='status'
@@ -87,6 +88,7 @@ export const AdminLayout = () => {
           if (isApiError(error, 'Unauthorized')) {
             return false;
           }
+
           throw error;
         },
       ),
@@ -107,6 +109,7 @@ export const AdminLayout = () => {
       </div>
     );
   }
+
   if (me.data !== true) {
     return <AdminLogin />;
   }

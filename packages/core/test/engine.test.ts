@@ -199,6 +199,7 @@ describe('engine', () => {
     if (!moved.ok) {
       throw new Error(moved.error);
     }
+
     const atWell = moved.position;
     expect(atWell.state).toEqual({ gold: 80, hatColor: 'green' });
 
@@ -395,6 +396,7 @@ describe('`choices` as a function', () => {
           if (team.id === 2) {
             return state.gold > 5 ? [onward, foxes, rich] : [onward, foxes];
           }
+
           return state.gold > 5 ? [onward, rich] : [onward];
         },
       },
@@ -486,8 +488,10 @@ describe('`choices` as a function', () => {
       } catch (error) {
         return error;
       }
+
       return undefined;
     };
+
     for (const id of ['EMPTY', 'NONE', 'FALSY']) {
       const node = broken.nodes[id]!;
       expect(errorOf(() => choicesOf(node, state, VLCI))).toMatchObject({
@@ -497,6 +501,7 @@ describe('`choices` as a function', () => {
       expect(() => renderNode(broken, { node: id, state }, VLCI)).toThrow(EmptyActionsError);
       expect(() => applyChoice(broken, { node: id, state }, VLCI, 0)).toThrow(EmptyActionsError);
     }
+
     const scanNode = broken.nodes['SCAN']!;
     expect(errorOf(() => scansOf(scanNode, state, VLCI))).toBeInstanceOf(EmptyActionsError);
     expect(errorOf(() => scansOf(scanNode, state, VLCI))).toMatchObject({ list: 'scans' });
@@ -569,6 +574,7 @@ describe('graph', () => {
               if (state.key) {
                 return [{ code: 2, goto: 'B' }];
               }
+
               return [{ code: 1, goto: 'B' }];
             },
           },
@@ -654,6 +660,7 @@ describe('graph', () => {
               if (state.n > 0) {
                 return [{ label: 'Konec', goto: 'B' }];
               }
+
               const again = { label: 'Znovu', goto: 'A', nextState: () => ({ n: 1 }) } as const;
               return team.id === 2 ? [again, { label: 'Lišky', goto: 'B' }] : [again];
             },

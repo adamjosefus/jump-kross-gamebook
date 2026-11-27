@@ -117,6 +117,7 @@ const actionsOf = <T>(
   if (actions === undefined) {
     return [];
   }
+
   const list: unknown = typeof actions === 'function' ? actions(state, team) : actions;
   if (
     !Array.isArray(list) ||
@@ -125,6 +126,7 @@ const actionsOf = <T>(
   ) {
     throw new EmptyActionsError(what);
   }
+
   // Checked above: a non-empty list of objects, as the story's type promises.
   return list as readonly T[];
 };
@@ -215,6 +217,7 @@ export const renderNode = (
   if (node === undefined) {
     return undefined;
   }
+
   return {
     id: position.node,
     type: nodeType(story, position.node),
@@ -253,18 +256,22 @@ export const applyChoice = (
   if (node === undefined) {
     return { ok: false, error: 'unknown-node' };
   }
+
   if (position.node === story.outroNode) {
     return { ok: false, error: 'finished' };
   }
+
   if (node.scans !== undefined) {
     return { ok: false, error: 'scan-required' };
   }
+
   const available = availableChoices(node, position.state, team).find(
     (candidate) => candidate.index === index,
   );
   if (available === undefined) {
     return { ok: false, error: 'unavailable-choice' };
   }
+
   return take(story, position, available.choice);
 };
 
@@ -279,17 +286,21 @@ export const applyScan = (
   if (node === undefined) {
     return { ok: false, error: 'unknown-node' };
   }
+
   if (position.node === story.outroNode) {
     return { ok: false, error: 'finished' };
   }
+
   if (node.scans === undefined) {
     return { ok: false, error: 'no-scan' };
   }
+
   const available = availableScans(node, position.state, team).find(
     ({ scan }) => scan.code === codeId,
   );
   if (available === undefined) {
     return { ok: false, error: 'wrong-code' };
   }
+
   return take(story, position, available.scan);
 };

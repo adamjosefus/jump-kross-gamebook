@@ -95,12 +95,14 @@ export const qrRuns = (value: string, style: QrStyle = {}): QrRuns => {
         Boolean(modules.get(moduleRow, moduleColumn))
       );
     }
+
     if (
       noise?.shape === 'circle' &&
       Math.hypot(column + 0.5 - centre, row + 0.5 - centre) > radius
     ) {
       return false;
     }
+
     return random() < NOISE_DENSITY;
   };
 
@@ -111,6 +113,7 @@ export const qrRuns = (value: string, style: QrStyle = {}): QrRuns => {
       if (!dark(row, column)) {
         return runs;
       }
+
       const last = runs.at(-1);
       return last !== undefined && last.column + last.length === column
         ? [...runs.slice(0, -1), { ...last, length: last.length + 1 }]

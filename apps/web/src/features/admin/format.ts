@@ -30,8 +30,10 @@ export const timeAgo = (iso: string, now = new Date()) => {
   if (seconds < 60) {
     return `před ${seconds} s`;
   }
+
   if (seconds < 3600) {
     return `před ${Math.round(seconds / 60)} min`;
   }
+
   return isToday(new Date(iso), now) ? formatTime(iso) : formatDateTime(iso);
 };

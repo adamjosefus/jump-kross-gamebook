@@ -55,6 +55,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
     if (existing !== undefined) {
       return existing;
     }
+
     const team: TeamRow = {
       id,
       node: undefined,
@@ -103,9 +104,11 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         if (team === undefined) {
           return undefined;
         }
+
         if (expectedRevision !== undefined && team.revision !== expectedRevision) {
           return undefined;
         }
+
         return move(team, next, new Date());
       }),
     resetTeams: (ids, start) =>
@@ -122,6 +125,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             sessions.delete(sessionId);
           }
         }
+
         data.gameStartedAt = undefined;
         data.pauses = data.pauses.filter(({ endedAt }) => endedAt === undefined);
         return reset;
@@ -143,6 +147,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         if (team !== undefined) {
           teams.set(id, { ...team, startedAt: undefined });
         }
+
         for (const [sessionId, session] of sessions) {
           if (session.teamId === id) {
             sessions.delete(sessionId);
@@ -155,6 +160,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         if (team === undefined || team.finishedAt !== undefined) {
           return false;
         }
+
         teams.set(id, { ...team, startedAt: undefined });
         data.log = [
           ...data.log,
@@ -172,6 +178,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             sessions.delete(sessionId);
           }
         }
+
         return true;
       }),
 
@@ -186,13 +193,16 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         if (session === undefined || !teams.has(session.teamId)) {
           return undefined;
         }
+
         if (session.createdAt <= createdAfter) {
           return undefined;
         }
+
         // A session that slipped in while its device was being banned is refused too.
         if (session.deviceId !== undefined && bans.has(session.deviceId)) {
           return undefined;
         }
+
         sessions.set(id, { ...session, lastSeenAt: new Date() });
         return session.teamId;
       }),
@@ -217,6 +227,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
         if (!bans.has(ban.deviceId)) {
           bans.set(ban.deviceId, { ...ban, bannedAt: new Date() });
         }
+
         for (const [id, session] of sessions) {
           if (session.deviceId === ban.deviceId) {
             sessions.delete(id);
@@ -266,6 +277,7 @@ export const makeMemoryStore = (data: MemoryData = emptyMemoryData()) => {
             lastStart.set(row.teamId, index);
           }
         }
+
         return data.log.filter(
           (row, index) =>
             (teamId === undefined || row.teamId === teamId) &&

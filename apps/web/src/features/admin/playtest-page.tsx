@@ -66,6 +66,7 @@ const useLogPanel = () => {
       // Storage may be blocked; the panel then keeps its state only until a reload.
     }
   };
+
   return [open, change] as const;
 };
 
@@ -90,6 +91,7 @@ const useAnimations = () => {
       // Storage may be blocked; the switch then holds only until a reload.
     }
   };
+
   return [animated, change] as const;
 };
 
@@ -110,11 +112,13 @@ const usePreviewScale = () => {
     if (page === null || block === null) {
       return undefined;
     }
+
     const measure = () => {
       // The offset sizes ignore the transform, so these are the block's natural size.
       if (block.offsetWidth === 0 || block.offsetHeight === 0) {
         return;
       }
+
       const height = (page.clientHeight - remPx(1) - remPx(8)) / block.offsetHeight;
       // On a phone a third of the width would be too small to read; the graph stays behind it.
       const available =
@@ -124,6 +128,7 @@ const usePreviewScale = () => {
       const width = available / block.offsetWidth;
       setScale(Math.min(1, height, width));
     };
+
     const observer = new ResizeObserver(measure);
     observer.observe(page);
     observer.observe(block);
@@ -162,15 +167,19 @@ const decodeMove = (token: string): Move | undefined | 'invalid' => {
   if (token === 'x') {
     return undefined;
   }
+
   if (token.startsWith('c') && /^\d+$/.test(rest)) {
     return { choice: Number(rest) };
   }
+
   if (token.startsWith('s') && /^\d+$/.test(rest)) {
     return { scan: Number(rest) };
   }
+
   if (token.startsWith('q') && rest !== '') {
     return { code: rest };
   }
+
   return 'invalid';
 };
 
@@ -179,16 +188,19 @@ const viaOf = (from: PlaytestVisit, move: Move | undefined) => {
   if (move === undefined) {
     return 'Přihlášení přeskočeno';
   }
+
   if ('choice' in move) {
     const label = from.view.choices.find((choice) => choice.index === move.choice)?.label;
     // An empty text is the plain arrow „Další“.
     return label === undefined ? `Volba ${move.choice}` : label === '' ? 'Další' : label;
   }
+
   const scanned = 'scan' in move ? move.scan : parseQr(move.code)?.id;
   const name = from.view.scans.find((qrCode) => qrCode.id === scanned)?.name;
   if ('scan' in move) {
     return `${name ?? `Kód ${move.scan}`} (přeskočeno)`;
   }
+
   return from.intro === true ? `Kód týmu ${move.code}` : `QR ${name ?? move.code}`;
 };
 
@@ -218,6 +230,7 @@ const replayVisits = async (
   if (token === undefined) {
     return [];
   }
+
   const move = decodeMove(token);
   // A mistyped token, or a skipped login after the intro, would otherwise replay as a skipped
   // login and the rest of the path would go on from a wrong place.
@@ -225,6 +238,7 @@ const replayVisits = async (
     toast.error(`Cestu z adresy nešlo celou přehrát: část „${token}“ není tah.`);
     return [];
   }
+
   const next = await playFrom(from, move).catch((error: unknown) => {
     toast.error(`Cestu z adresy nešlo celou přehrát: ${errorMessage(error)}`);
     return undefined;
@@ -292,6 +306,7 @@ const CodeEntry = ({
       send(code);
     }
   };
+
   return (
     <Popover open={open && !disabled} onOpenChange={setOpen}>
       <Hint text='Kód'>
@@ -428,6 +443,7 @@ export const PlaytestPage = () => {
     if (current === undefined) {
       return undefined;
     }
+
     try {
       const next = await play.mutateAsync({ from: current, move: { code } });
       setTimeout(() => advance(next), ACCEPTED_MS);
@@ -506,6 +522,7 @@ export const PlaytestPage = () => {
     if (!narrow) {
       return setLogOpen(true);
     }
+
     subpageBack.opened();
     void navigate({ to: '/admin/playtest', search: { ...search, panel: 'log' } });
   };
@@ -519,6 +536,7 @@ export const PlaytestPage = () => {
     if (moves === undefined || urlPath === pathParam) {
       return;
     }
+
     void navigate({
       to: '/admin/playtest',
       search: {
@@ -532,6 +550,7 @@ export const PlaytestPage = () => {
   if (intro.isPending || (opened !== '' && replay.isPending)) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
   }
+
   if (intro.isError) {
     return <p className='p-8 text-destructive'>{errorMessage(intro.error)}</p>;
   }

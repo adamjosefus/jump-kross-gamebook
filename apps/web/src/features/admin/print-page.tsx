@@ -112,6 +112,7 @@ export const CodeList = ({ codes }: { readonly codes: readonly PrintableCode[] }
         if (entries.length === 0) {
           return null;
         }
+
         return (
           <section key={section.kind} className='flex flex-col gap-4'>
             <header className='flex flex-col gap-1 print:hidden'>
@@ -147,8 +148,10 @@ export const PrintPage = () => {
   if (codes.isPending) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
   }
+
   if (codes.isError) {
     return <p className='p-8 text-destructive'>{errorMessage(codes.error)}</p>;
   }
+
   return <CodeList codes={codes.data} />;
 };

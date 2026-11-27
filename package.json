@@ -17,6 +17,7 @@
     "build:vercel": "pnpm build && node scripts/build-vercel.ts"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^6.0.1",
     "@types/node": "^26.6.6",
     "oxfmt": "0.79.0",
     "oxlint": "^1.94.0",

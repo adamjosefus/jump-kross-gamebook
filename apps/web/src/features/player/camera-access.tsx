@@ -30,15 +30,18 @@ const useCameraAccess = () => {
       if (cancelled || status === undefined) {
         return;
       }
+
       // A granted permission is checked by opening the camera only when the player asks.
       setState(
         status.state === 'granted' ? 'granted' : status.state === 'denied' ? 'denied' : 'prompt',
       );
     };
+
     const query = navigator.permissions?.query({ name: 'camera' });
     if (query === undefined) {
       return undefined;
     }
+
     query
       .then((result) => {
         status = result;
@@ -67,6 +70,7 @@ const useCameraAccess = () => {
       for (const track of stream.getTracks()) {
         track.stop();
       }
+
       // Some Android phones free the camera a moment after the track ends; the scanner opening
       // it right away would be told it is in use by another app.
       await new Promise((resolve) => setTimeout(resolve, CAMERA_RELEASE_MS));
@@ -102,6 +106,7 @@ export const CameraGate = ({ children }: { readonly children: ReactNode }) => {
   if (!insecure && state === 'granted') {
     return children;
   }
+
   if (!insecure && state === 'checking') {
     return (
       <div className='flex flex-1 items-center justify-center'>

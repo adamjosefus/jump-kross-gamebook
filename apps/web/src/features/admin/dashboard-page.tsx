@@ -114,6 +114,7 @@ const TeamTimes = ({
   if (playtimeMs === undefined) {
     return null;
   }
+
   const phase = team.phase;
   return (
     <>
@@ -163,6 +164,7 @@ const CopyResults = ({
       toast.error('Schránka není dostupná.');
     }
   };
+
   return (
     <div className='flex items-center gap-1'>
       <span className='text-xs text-muted-foreground'>Kopírovat výsledky:</span>
@@ -210,12 +212,15 @@ const actionLabel = (action: string, codes: readonly QrCode[]) => {
   if (label !== undefined) {
     return label;
   }
+
   if (action.startsWith('choice:')) {
     return 'volba';
   }
+
   if (!action.startsWith('scan:')) {
     return action;
   }
+
   const id = action.slice(5);
   const code = codes.find((qrCode) => String(qrCode.id) === id);
   return code === undefined ? `sken kódu ${id}` : `sken: ${code.name} (kód ${id})`;
@@ -250,6 +255,7 @@ const usePanels = () => {
     } catch {
       // Storage may be unavailable or hold something else; start with the graph alone.
     }
+
     return { teams: CLOSED, log: CLOSED };
   });
   const update = (next: PanelStates) => {
@@ -260,6 +266,7 @@ const usePanels = () => {
       // The choice then lasts for this visit only.
     }
   };
+
   return [value, update] as const;
 };
 
@@ -282,6 +289,7 @@ const useTeamSort = () => {
       // The choice then lasts for this visit only.
     }
   };
+
   return [value, update] as const;
 };
 
@@ -412,6 +420,7 @@ export const DashboardPage = () => {
     subpageBack.opened();
     void navigate({ to: '/admin/dashboard', search: { panel } });
   };
+
   /** The floating panel's state and its change; on a phone it is only the button to the subpage. */
   const panelProps = (panel: Panel) =>
     narrow
@@ -431,10 +440,12 @@ export const DashboardPage = () => {
   if (overview.isPending) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
   }
+
   // Without anything to show the error is the page; with the last data it is a bar above them.
   if (overview.data === undefined) {
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   }
+
   const { game, teams, log, codes } = overview.data;
   // The times come from the last poll; a closed game stops every clock.
   const clock: Clock = { now, measuredAt: overview.dataUpdatedAt, paused: game.closed };
@@ -624,6 +635,7 @@ const MoveDialog = ({
     if (current === undefined) {
       return;
     }
+
     setNode(current.node ?? graph.start ?? graph.order[0] ?? '');
     setStateText(JSON.stringify(current.state, null, 2));
     setFilledFrom(current.revision);
@@ -644,6 +656,7 @@ const MoveDialog = ({
     void invalidateGame(queryClient);
     onClose();
   };
+
   const move = useMutation({
     mutationFn: () =>
       api((client) =>

@@ -54,6 +54,7 @@ export const configFromEnv = (
   if (missing.length > 0) {
     throw new Error(`Missing environment variables ${missing.join(', ')}`);
   }
+
   const read = (name: SecretName) => (isUnset(env, name) ? DEV_FALLBACKS[name] : env[name]!);
   return {
     adminPassword: read('ADMIN_PASSWORD'),

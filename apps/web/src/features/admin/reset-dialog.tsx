@@ -63,6 +63,7 @@ export const ResetDialog = ({
     if (!next) {
       setTyped('');
     }
+
     onOpenChange(next);
   };
 

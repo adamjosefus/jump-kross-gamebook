@@ -68,6 +68,7 @@ export const teamTimeline = (
   if (team.startedAt === undefined) {
     return EMPTY;
   }
+
   const start = team.startedAt.getTime();
   const end = Math.max(team.finishedAt?.getTime() ?? now, start);
   const chapterOf = (node: string | undefined) =>
@@ -110,10 +111,12 @@ export const teamTimeline = (
       chapters.set(stretch.chapter, (chapters.get(stretch.chapter) ?? 0) + ms);
       continue;
     }
+
     // A moment on the outro, where the game ends, is no gap.
     if (ms <= 0) {
       continue;
     }
+
     const gap = {
       from: stretches[index - 1]?.chapter ?? '',
       to: stretches[index + 1]?.chapter ?? '',
@@ -122,6 +125,7 @@ export const teamTimeline = (
     if (!gaps.has(key)) {
       gapsSeen.push(gap);
     }
+
     gaps.set(key, (gaps.get(key) ?? 0) + ms);
   }
 

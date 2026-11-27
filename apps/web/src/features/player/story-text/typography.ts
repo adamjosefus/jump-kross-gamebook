@@ -160,6 +160,7 @@ export const runType = (paragraph: ParagraphType, marks: readonly Mark[]): RunTy
     const size = Math.round(paragraph.size * 0.9);
     return { font: `500 ${size}px ${MONO}`, padding: quarter(size * 0.3), letterSpacing: 0 };
   }
+
   const { heading } = paragraph;
   const weight =
     marks.includes('strong') && !heading ? 650 + paragraph.weightShift : paragraph.weight;

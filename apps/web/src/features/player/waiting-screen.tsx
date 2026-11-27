@@ -43,6 +43,7 @@ const CheckPie = ({ from, at }: NextCheck) => {
     if (element === null) {
       return;
     }
+
     const now = Date.now();
     const previous = running.current;
     // Where the arc stands right now, before the old animation is dropped.
@@ -58,6 +59,7 @@ const CheckPie = ({ from, at }: NextCheck) => {
       );
       return;
     }
+
     const split = Math.min(DRAIN_MS, remaining / 2) / remaining;
     running.current = element.animate(
       [

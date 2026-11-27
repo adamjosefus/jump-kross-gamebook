@@ -28,6 +28,7 @@ export const hapticStrong = () => {
     navigator.vibrate(40);
     return;
   }
+
   tapBySwitch();
   setTimeout(tapBySwitch, 80);
 };

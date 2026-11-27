@@ -135,6 +135,7 @@ const cell = (value: Value | null | undefined) => {
   if (value === null || value === undefined) {
     return '';
   }
+
   const text = String(value);
   return /[;"\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };

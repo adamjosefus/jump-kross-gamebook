@@ -234,6 +234,7 @@ describe('postgres store', () => {
         if (failing) {
           return Promise.reject(new Error('connection refused'));
         }
+
         return client.transaction(statements);
       },
     };
@@ -486,6 +487,7 @@ describe('the api on postgres', () => {
         const [name, value] = header.split(';')[0]!.split('=');
         jar.set(name!, value!);
       }
+
       const text = await response.text();
       return { status: response.status, body: text === '' ? undefined : JSON.parse(text) };
     };

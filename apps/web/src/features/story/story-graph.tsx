@@ -121,6 +121,7 @@ const labelLines = (text: string): readonly string[] =>
     if (last === undefined) {
       return [word];
     }
+
     return `${last} ${word}`.length <= LABEL_LINE_LENGTH
       ? [...lines.slice(0, -1), `${last} ${word}`]
       : [...lines, word];
@@ -306,9 +307,11 @@ const roundedPath = (points: readonly XYPosition[]) =>
       if (previous === undefined) {
         return `M ${point.x} ${point.y}`;
       }
+
       if (next === undefined) {
         return `L ${point.x} ${point.y}`;
       }
+
       const radius = Math.min(
         CORNER_RADIUS,
         Math.hypot(point.x - previous.x, point.y - previous.y) / 2,
@@ -321,6 +324,7 @@ const roundedPath = (points: readonly XYPosition[]) =>
           y: point.y + ((to.y - point.y) / length) * radius,
         };
       };
+
       const start = toward(previous);
       const end = toward(next);
       return `L ${start.x} ${start.y} Q ${point.x} ${point.y} ${end.x} ${end.y}`;
@@ -334,6 +338,7 @@ const focusLineGap = (points: readonly XYPosition[]) => {
   if (end === undefined || previous === undefined) {
     return undefined;
   }
+
   const length = Math.hypot(end.x - previous.x, end.y - previous.y) || 1;
   const along = { x: (end.x - previous.x) / length, y: (end.y - previous.y) / length };
   const middle = {
@@ -349,6 +354,7 @@ const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
   if (data === undefined || data.points.length === 0) {
     return null;
   }
+
   const path = roundedPath(data.points);
   const { label } = data;
   const gap = data.focusTarget === true ? focusLineGap(data.points) : undefined;
@@ -658,6 +664,7 @@ const FocusView = ({
     if (!initialized || x === undefined || y === undefined) {
       return;
     }
+
     const zoom = Math.max(flow.getZoom(), 0.75);
     void flow.setCenter(x - shift / zoom, y, { zoom, duration: 400 });
   }, [flow, initialized, x, y, shift]);
@@ -710,6 +717,7 @@ export const StoryGraph = ({
     if (cached === undefined) {
       layouts.set(structure, pending);
     }
+
     void pending.then((result) => {
       if (current) {
         setLaidOut({ key: structure, layout: result });
@@ -803,6 +811,7 @@ export const StoryGraph = ({
             if (!Object.hasOwn(graph.nodes, choice.target)) {
               return [];
             }
+
             const route = laidOut?.layout.edges.get(edgeId(id, index));
             return [
               {

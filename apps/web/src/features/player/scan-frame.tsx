@@ -64,6 +64,7 @@ const offset = (points: readonly ScanPoint[], by: number) => {
     const length = distance(from, to) || 1;
     return { x: (to.y - from.y) / length, y: -(to.x - from.x) / length };
   };
+
   return points.map((point, index) => {
     const before = normal(around(points, index - 1, point), point);
     const after = normal(point, around(points, index + 1, point));
@@ -95,6 +96,7 @@ const roundedPath = (points: readonly ScanPoint[], radius: number) => {
     const share = Math.min(length / (distance(point, other) || 1), 0.5);
     return { x: point.x + (other.x - point.x) * share, y: point.y + (other.y - point.y) * share };
   };
+
   const text = (point: ScanPoint) => `${point.x} ${point.y}`;
   const first = around(points, 0, REST[0] ?? { x: 0, y: 0 });
   const second = around(points, 1, first);
@@ -151,6 +153,7 @@ export const ScanFrame = ({
     if (shadeElement === null || lineElement === null || iconElement === null) {
       return undefined;
     }
+
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     // Where the aim is, where the dashes' centers are along it (a multiple of a quarter: on the
     // corners), how fast they run and how long they are.
@@ -183,6 +186,7 @@ export const ScanFrame = ({
         const corner = Math.ceil((phase + speed / SETTLE) / QUARTER) * QUARTER;
         speed += (SETTLE ** 2 * (corner - phase) - 2 * SETTLE * speed) * seconds;
       }
+
       phase += speed * seconds;
 
       if (current.state === 'arming') {
@@ -211,6 +215,7 @@ export const ScanFrame = ({
       lineElement.style.strokeDashoffset = `${dash / 2 - QUARTER / 2 - phase}`;
       frame = requestAnimationFrame(step);
     };
+
     let frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, []);

@@ -45,6 +45,7 @@ const ScreenButtons = ({
     if (!shown) {
       return undefined;
     }
+
     const timer = setTimeout(() => setEnabled(true), BUTTONS_ENABLE_MS);
     return () => clearTimeout(timer);
   }, [shown]);
@@ -78,6 +79,7 @@ const hash = (text: string) => {
     value ^= char.codePointAt(0)!;
     value = Math.imul(value, 0x01000193) >>> 0;
   }
+
   return value;
 };
 
@@ -150,11 +152,13 @@ export const NodeSegments = ({
   if (paging.node !== node.id || paging.revision !== revision) {
     setPaging(freshPaging(node, revision, initialIndex, visitScope));
   }
+
   const index = Math.max(Math.min(paging.index, count - 1), 0);
   const go = (to: number) => {
     setPaging({ ...paging, index: to });
     onIndexChange?.(to);
   };
+
   const segment: PlayerSegment | undefined = node.segments[index];
   const theme = segment?.theme ?? 'default';
   const last = index >= count - 1;

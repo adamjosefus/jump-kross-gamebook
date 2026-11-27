@@ -83,6 +83,7 @@ const introProblems = (story: Story): readonly string[] => {
   if (intro === undefined) {
     return [`Příběh nemá uzel úvodu ${id}.`];
   }
+
   return [
     ...problemIf(id === story.outroNode, `Úvod a konec je tentýž uzel ${id}.`),
     ...problemIf(intro.initialState !== undefined, `Úvod ${id} nesmí být start.`),
@@ -113,6 +114,7 @@ const outroProblems = (story: Story): readonly string[] => {
   if (outro === undefined) {
     return [`Příběh nemá uzel konce ${id}.`];
   }
+
   return [
     ...problemIf(outro.initialState !== undefined, `Konec ${id} nesmí být start.`),
     ...problemIf(
@@ -361,6 +363,7 @@ const step = (
       next: [],
     };
   }
+
   const available = offered.value;
   const codes = available.flatMap(({ transition }) =>
     'code' in transition ? [transition.code] : [],
@@ -435,11 +438,14 @@ const collapseStates = (problems: readonly string[]): readonly string[] => {
       firsts.set(problem, problem);
       continue;
     }
+
     if (!firsts.has(key)) {
       firsts.set(key, problem);
     }
+
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
+
   return [...firsts].map(([key, first]) => {
     const more = (counts.get(key) ?? 1) - 1;
     return more > 0 ? `${first} (a v dalších ${more} stavech)` : first;
@@ -477,12 +483,14 @@ const explore = (
       truncated = true;
       break;
     }
+
     const result = step(story, known, team, visit);
     reached.add(visit.node);
     problems.push(...result.problems);
     for (const code of result.scanned) {
       scanned.add(code);
     }
+
     const from = visitKey(visit);
     played.set(from, visit);
     edges.set(from, result.next.map(visitKey));
@@ -491,10 +499,12 @@ const explore = (
       if (seen.has(key)) {
         continue;
       }
+
       seen.add(key);
       queue.push(next);
     }
   }
+
   // Within the limit every pair was played, so what cannot reach the end from here never will.
   const traps = truncated ? [] : trappedVisits(story, played, edges);
   return {
@@ -527,11 +537,13 @@ const trappedVisits = (
       incoming.set(target, [...(incoming.get(target) ?? []), from]);
     }
   }
+
   // Breadth-first search backwards from the end: the set and the queue are filled in place.
   const finishing = [...played.keys()].filter((key) => played.get(key)!.node === story.outroNode);
   if (finishing.length === 0) {
     return [];
   }
+
   const canFinish = new Set(finishing);
   const queue = [...finishing];
   // for...of reads the array's length on every step, so keys pushed while iterating are visited too.
@@ -540,10 +552,12 @@ const trappedVisits = (
       if (canFinish.has(from)) {
         continue;
       }
+
       canFinish.add(from);
       queue.push(from);
     }
   }
+
   return [...played]
     .filter(([key]) => !canFinish.has(key) && (edges.get(key)?.length ?? 0) > 0)
     .map(([, visit]) => visit);
@@ -578,6 +592,7 @@ export const validateStory = (
   if (structure.length > 0) {
     return structure;
   }
+
   const starts = story.order.filter((id) => story.nodes[id]!.initialState !== undefined);
   const start = starts[0];
   if (start === undefined) {

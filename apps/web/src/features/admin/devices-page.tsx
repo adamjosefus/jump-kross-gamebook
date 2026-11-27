@@ -59,9 +59,11 @@ export const DevicesPage = () => {
   if (overview.isPending) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
   }
+
   if (overview.data === undefined) {
     return <p className='p-8 text-destructive'>{errorMessage(overview.error)}</p>;
   }
+
   const { devices, bans } = overview.data;
   // The teams that have a device, for the filter.
   const teams = [
@@ -73,6 +75,7 @@ export const DevicesPage = () => {
   if (selected !== team) {
     setTeam(ALL_TEAMS);
   }
+
   const shown =
     selected === ALL_TEAMS ? devices : devices.filter(({ teamId }) => String(teamId) === selected);
   const active = devices.filter((device) => device.active).length;

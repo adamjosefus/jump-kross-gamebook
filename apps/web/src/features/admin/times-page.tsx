@@ -122,6 +122,7 @@ export const TimesPage = () => {
   if (breakdown.isPending || overview.isPending) {
     return <IconLoader2 className='m-8 size-6 animate-spin' />;
   }
+
   if (breakdown.data === undefined || overview.data === undefined) {
     return (
       <p className='p-8 text-destructive'>{errorMessage(breakdown.error ?? overview.error)}</p>

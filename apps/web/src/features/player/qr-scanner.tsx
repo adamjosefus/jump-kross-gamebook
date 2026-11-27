@@ -14,6 +14,7 @@ const cameraProblem = async (error: unknown) => {
   if (!window.isSecureContext || navigator.mediaDevices === undefined) {
     return 'Kamera funguje jen na zabezpečené adrese (https).';
   }
+
   const permission = await navigator.permissions
     ?.query({ name: 'camera' })
     .then((status) => status.state)
@@ -22,12 +23,15 @@ const cameraProblem = async (error: unknown) => {
   if (permission === 'denied' || name === 'NotAllowedError') {
     return 'Prohlížeč nepovolil přístup ke kameře. Povolte ho v nastavení stránky.';
   }
+
   if (name === 'NotReadableError') {
     return 'Kameru právě používá jiná aplikace. Zavřete ji.';
   }
+
   if (name === 'NotFoundError' || error === 'Camera not found.') {
     return 'Nenašla se žádná kamera.';
   }
+
   return 'Kameru se nepodařilo spustit.';
 };
 
@@ -88,9 +92,11 @@ const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
     if (done) {
       return;
     }
+
     done = true;
     onSteady();
   };
+
   // Old iPhones (before iOS 15.4) have no frame callbacks; the types claim every browser does.
   const frameCallbacks = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
   if (frameCallbacks) {
@@ -106,17 +112,20 @@ const whenSteady = (video: HTMLVideoElement, onSteady: () => void) => {
         handle = video.requestVideoFrameCallback(frame);
       }
     };
+
     handle = video.requestVideoFrameCallback(frame);
     return () => {
       done = true;
       video.cancelVideoFrameCallback(handle);
     };
   }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const wait = () => {
     clearTimeout(timer);
     timer = setTimeout(finish, STEADY_MS);
   };
+
   video.addEventListener('playing', wait);
   video.addEventListener('resize', wait);
   return () => {
@@ -137,6 +146,7 @@ const coverSquare = (video: HTMLVideoElement) => {
   if (width === 0 || height === 0) {
     return;
   }
+
   video.style.width = width >= height ? `${(width / height) * 100}%` : '100%';
   video.style.height = width >= height ? '100%' : `${(height / width) * 100}%`;
 };
@@ -216,6 +226,7 @@ const QrScannerView = ({
       setSwitching(false);
     }
   };
+
   // A failed camera stays off until the player tries again.
   const failed = cameraError !== undefined;
 
@@ -237,12 +248,14 @@ const QrScannerView = ({
     if (disabled || answer !== undefined) {
       return;
     }
+
     if (
       last.current?.code === code &&
       (last.current.untilLost || now - last.current.at < REPEAT_MS)
     ) {
       return;
     }
+
     setArming(code);
   });
   const send = useEffectEvent(async (code: string) => {
@@ -260,6 +273,7 @@ const QrScannerView = ({
     if (answer !== 'rejected') {
       return undefined;
     }
+
     const timer = setTimeout(() => setAnswer(undefined), REJECTED_MS);
     return () => clearTimeout(timer);
   }, [answer]);
@@ -270,6 +284,7 @@ const QrScannerView = ({
       if (Date.now() - seenAt.current <= LOST_MS) {
         return;
       }
+
       setArming(undefined);
       setCorners(undefined);
       if (last.current?.untilLost === true) {
@@ -284,6 +299,7 @@ const QrScannerView = ({
     if (arming === undefined) {
       return undefined;
     }
+
     const timer = setTimeout(() => void send(arming), ARM_MS);
     return () => clearTimeout(timer);
   }, [arming]);
@@ -298,6 +314,7 @@ const QrScannerView = ({
     if (failed || container === null) {
       return undefined;
     }
+
     // Every scanner gets its own video: a destroyed scanner stops the stream in its video 300 ms
     // later, which in a shared one would be the next scanner's camera (React runs effects twice
     // in development, so that happens on every mount).
@@ -315,11 +332,13 @@ const QrScannerView = ({
     // The library stops the camera while the page is hidden and opens it anew when the player
     // comes back (`emptied` marks the stop), so the picture is hidden and settles again each time.
     let stopWaiting = () => {};
+
     const hideUntilSteady = () => {
       stopWaiting();
       video.classList.add('opacity-0');
       stopWaiting = whenSteady(video, () => video.classList.remove('opacity-0'));
     };
+
     hideUntilSteady();
     video.addEventListener('emptied', hideUntilSteady);
     container.append(video);
@@ -376,6 +395,7 @@ const QrScannerView = ({
       if (scanner.current === instance) {
         scanner.current = undefined;
       }
+
       container.replaceChildren();
     };
   }, [failed]);
