@@ -1,25 +1,18 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
-import { IconDirectionSign, IconFlag, IconQrcode, IconWalk } from '@tabler/icons-react';
+import { IconFlag, IconWalk } from '@tabler/icons-react';
 import {
   Background,
-  BaseEdge,
   Controls,
-  EdgeLabelRenderer,
   Handle,
-  MarkerType,
   Position,
   ReactFlow,
   useReactFlow,
   useStore,
-  type Edge,
-  type EdgeProps,
   type Node,
   type NodeProps,
   type XYPosition,
 } from '@xyflow/react';
-import type { ElkNode } from 'elkjs/lib/elk-api';
-import ELK from 'elkjs/lib/elk.bundled.js';
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
@@ -36,36 +29,28 @@ import { TeamAvatar } from '@/features/teams/team-avatar';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
+import {
+  ARROW_HEAD,
+  FinalDot,
+  InitialDot,
+  RouteEdgeView,
+  type FinalFlowNode,
+  type InitialFlowNode,
+  type RouteEdge,
+} from './graph-edges';
+import {
+  FINAL_ID,
+  finalEdgeId,
+  INITIAL_ID,
+  initialEdgeId,
+  layoutBoxes,
+  type BoxLayout,
+} from './graph-layout';
+
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 136;
-/** Filled dot with an arrow into the intro, like the initial state of a state machine. */
-const INITIAL_SIZE = 14;
-/** Ringed dot the end nodes lead into, like the final state of a state machine. */
-const FINAL_SIZE = 20;
 /** Delay in ms, so moving the pointer across the graph does not flash a tooltip on every node. */
 const STATE_TOOLTIP_DELAY = 300;
-/** Radius of the rounded corners where an edge turns. */
-const CORNER_RADIUS = 8;
-
-const elk = new ELK();
-
-interface Box extends XYPosition {
-  readonly width: number;
-  readonly height: number;
-}
-
-/** Orthogonal route and label box of an edge, so parallel edges and labels do not overlap. */
-interface EdgeRoute {
-  readonly points: readonly XYPosition[];
-  readonly label?: Box;
-}
-
-interface Layout {
-  readonly nodes: ReadonlyMap<string, XYPosition>;
-  readonly edges: ReadonlyMap<string, EdgeRoute>;
-  /** Boxes of the chapters laid out as groups, by chapter id; empty without grouping. */
-  readonly chapters: ReadonlyMap<string, Box>;
-}
 
 /** Hues of the chapters, in definition order; they repeat after the last one. */
 const CHAPTER_HUES = [250, 150, 40, 320, 95, 200] as const;
@@ -75,16 +60,13 @@ const chapterHue = (graph: GameGraph, chapter: string | undefined) => {
   return index < 0 ? undefined : CHAPTER_HUES[index % CHAPTER_HUES.length]!;
 };
 
-/** Room in a chapter's frame around its nodes; the title is outside, on the left. */
-const CHAPTER_PADDING = { top: 20, side: 20, bottom: 20 } as const;
-
 const chapterFrameId = (id: string) => `chapter:${id}`;
 
 /**
  * Layouts by graph structure, so choosing another start does not lay the graph out again. A
  * module-wide cache that fills up as graphs are shown; it is mutable by design.
  */
-const layouts = new Map<string, Promise<Layout>>();
+const layouts = new Map<string, Promise<BoxLayout>>();
 
 const structureOf = (graph: GameGraph) =>
   graph.order
@@ -98,11 +80,7 @@ const structureOf = (graph: GameGraph) =>
     .concat(`|${graph.chapters.map((chapter) => chapter.id).join(',')}`);
 
 const edgeId = (source: string, index: number) => `${source}-${index}`;
-const INITIAL_ID = 'graph:initial';
-const INITIAL_EDGE_ID = 'graph:initial-intro';
 const loginEdgeId = (start: string) => `graph:login:${start}`;
-const FINAL_ID = 'graph:final';
-const finalEdgeId = (end: string) => `graph:final:${end}`;
 
 /** Teams reach the start by scanning their login code after the intro. */
 const LOGIN_LABEL = 'Kód týmu';
@@ -110,290 +88,43 @@ const startsOf = (graph: GameGraph) =>
   graph.order.filter((id) => graph.nodes[id]!.type === 'start');
 const endsOf = (graph: GameGraph) => graph.order.filter((id) => graph.nodes[id]!.type === 'end');
 
-/** Longest line of a label, in characters; a longer word keeps its own line. */
-const LABEL_LINE_LENGTH = 14;
-const LABEL_LINE_HEIGHT = 14;
-
-/** Words of a label broken into lines, so a long choice stays compact. */
-const labelLines = (text: string): readonly string[] =>
-  text.split(' ').reduce<readonly string[]>((lines, word) => {
-    const last = lines.at(-1);
-    if (last === undefined) {
-      return [word];
-    }
-
-    return `${last} ${word}`.length <= LABEL_LINE_LENGTH
-      ? [...lines.slice(0, -1), `${last} ${word}`]
-      : [...lines, word];
-  }, []);
-
-/** Rough size of a label with its icon; ELK only needs it to reserve space. */
-const labelSize = (text: string) => {
-  const lines = labelLines(text);
-  return {
-    width: Math.ceil(Math.max(...lines.map((line) => line.length)) * 6.5) + 24,
-    height: LABEL_LINE_HEIGHT * lines.length,
-  };
-};
-
-/**
- * How nodes and edges are spaced and routed. ELK does not pass these down, so a chapter's group
- * gets them too; its nodes would otherwise sit closer together than those outside chapters.
- */
-const LAYOUT_OPTIONS = {
-  'elk.algorithm': 'layered',
-  'elk.direction': 'DOWN',
-  'elk.edgeRouting': 'ORTHOGONAL',
-  'elk.spacing.nodeNode': '48',
-  'elk.spacing.edgeEdge': '16',
-  'elk.spacing.edgeLabel': '4',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '64',
-  'elk.layered.spacing.edgeNodeBetweenLayers': '24',
-  'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-  'elk.edgeLabels.inline': 'true',
-} as const;
-
-/** Every node of the result, nested ones included; coordinates are absolute (`ROOT`). */
-const flatten = (node: ElkNode): readonly ElkNode[] =>
-  (node.children ?? []).flatMap((child) => [child, ...flatten(child)]);
-
 /**
  * Layered top-down layout; depends only on the nodes and edges, not on the previews. With
  * `grouped`, the nodes of each chapter are laid out inside a box of their own.
  */
-const layout = async (graph: GameGraph, grouped: boolean): Promise<Layout> => {
-  const nodeBox = (id: string) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT });
-  const inChapter = (id: string) =>
-    grouped && graph.chapters.some((chapter) => chapter.id === graph.nodes[id]!.chapter);
-  const input: ElkNode = {
-    id: 'root',
-    layoutOptions: {
-      'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-      'elk.json.shapeCoords': 'ROOT',
-      'elk.json.edgeCoords': 'ROOT',
-      ...LAYOUT_OPTIONS,
-    },
-    children: [
-      ...graph.order.filter((id) => !inChapter(id)).map(nodeBox),
-      ...(grouped
-        ? graph.chapters.flatMap((chapter) => {
-            const members = graph.order.filter((id) => graph.nodes[id]!.chapter === chapter.id);
-            return members.length === 0
-              ? []
-              : [
-                  {
-                    id: chapterFrameId(chapter.id),
-                    layoutOptions: {
-                      ...LAYOUT_OPTIONS,
-                      'elk.padding': `[top=${CHAPTER_PADDING.top},left=${CHAPTER_PADDING.side},bottom=${CHAPTER_PADDING.bottom},right=${CHAPTER_PADDING.side}]`,
-                    },
-                    children: members.map(nodeBox),
-                  },
-                ];
-          })
-        : []),
-      { id: INITIAL_ID, width: INITIAL_SIZE, height: INITIAL_SIZE },
-      ...(endsOf(graph).length > 0
-        ? [{ id: FINAL_ID, width: FINAL_SIZE, height: FINAL_SIZE }]
-        : []),
-    ],
+const layout = (graph: GameGraph, grouped: boolean): Promise<BoxLayout> => {
+  const hasIntro = Object.hasOwn(graph.nodes, graph.introNode);
+  return layoutBoxes({
+    nodes: graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
     edges: [
       ...graph.order.flatMap((id) =>
-        graph.nodes[id]!.choices.flatMap((choice, index) =>
-          Object.hasOwn(graph.nodes, choice.target)
-            ? [
-                {
-                  id: edgeId(id, index),
-                  sources: [id],
-                  targets: [choice.target],
-                  labels: [{ text: choice.label, ...labelSize(choice.label) }],
-                },
-              ]
-            : [],
-        ),
+        graph.nodes[id]!.choices.map((choice, index) => ({
+          id: edgeId(id, index),
+          source: id,
+          target: choice.target,
+          label: choice.label,
+        })),
       ),
-      ...(Object.hasOwn(graph.nodes, graph.introNode)
-        ? [
-            { id: INITIAL_EDGE_ID, sources: [INITIAL_ID], targets: [graph.introNode] },
-            ...startsOf(graph).map((id) => ({
-              id: loginEdgeId(id),
-              sources: [graph.introNode],
-              targets: [id],
-              labels: [{ text: LOGIN_LABEL, ...labelSize(LOGIN_LABEL) }],
-            })),
-          ]
+      ...(hasIntro
+        ? startsOf(graph).map((id) => ({
+            id: loginEdgeId(id),
+            source: graph.introNode,
+            target: id,
+            label: LOGIN_LABEL,
+          }))
         : []),
-      ...endsOf(graph).map((id) => ({ id: finalEdgeId(id), sources: [id], targets: [FINAL_ID] })),
     ],
-  };
-  const result = await elk.layout(input);
-  const all = flatten(result);
-  const frames = new Set(graph.chapters.map((chapter) => chapterFrameId(chapter.id)));
-  return {
-    nodes: new Map(
-      all
-        .filter((child) => !frames.has(child.id))
-        .map((child) => [child.id, { x: child.x ?? 0, y: child.y ?? 0 }]),
-    ),
-    chapters: new Map(
-      all
-        .filter((child) => frames.has(child.id))
-        .map((child) => [
-          child.id.slice(chapterFrameId('').length),
-          {
-            x: child.x ?? 0,
-            y: child.y ?? 0,
-            width: child.width ?? 0,
-            height: child.height ?? 0,
-          },
-        ]),
-    ),
-    // With the edges of the nested nodes too: ELK may move an edge into the box it stays in.
-    edges: new Map(
-      [result, ...all]
-        .flatMap((node) => node.edges ?? [])
-        .map((edge): readonly [string, EdgeRoute] => {
-          const section = edge.sections?.[0];
-          const label = edge.labels?.[0];
-          return [
-            edge.id,
-            {
-              points:
-                section === undefined
-                  ? []
-                  : [section.startPoint, ...(section.bendPoints ?? []), section.endPoint],
-              ...(label === undefined
-                ? {}
-                : {
-                    label: {
-                      x: label.x ?? 0,
-                      y: label.y ?? 0,
-                      width: label.width ?? 0,
-                      height: label.height ?? 0,
-                    },
-                  }),
-            },
-          ];
-        }),
-    ),
-  };
-};
-
-type RouteEdge = Edge<
-  {
-    readonly points: readonly XYPosition[];
-    readonly text?: string;
-    /** The edge is a QR choice. */
-    readonly qr?: boolean;
-    readonly label?: Box;
-    /** Of the label; the theme's text color when missing. */
-    readonly color?: string;
-    /** The edge leads to the focused node, so its arrow clears a gap in the yellow line. */
-    readonly focusTarget?: boolean;
-    readonly dimmed: boolean;
-  },
-  'route'
->;
-
-/**
- * SVG path through the points with every turn rounded by a quadratic curve; the radius shrinks to
- * half of a short segment, so two turns close together do not overlap.
- */
-const roundedPath = (points: readonly XYPosition[]) =>
-  points
-    .map((point, index) => {
-      const previous = points[index - 1];
-      const next = points[index + 1];
-      if (previous === undefined) {
-        return `M ${point.x} ${point.y}`;
-      }
-
-      if (next === undefined) {
-        return `L ${point.x} ${point.y}`;
-      }
-
-      const radius = Math.min(
-        CORNER_RADIUS,
-        Math.hypot(point.x - previous.x, point.y - previous.y) / 2,
-        Math.hypot(next.x - point.x, next.y - point.y) / 2,
-      );
-      const toward = (to: XYPosition) => {
-        const length = Math.hypot(to.x - point.x, to.y - point.y) || 1;
-        return {
-          x: point.x + ((to.x - point.x) / length) * radius,
-          y: point.y + ((to.y - point.y) / length) * radius,
-        };
-      };
-
-      const start = toward(previous);
-      const end = toward(next);
-      return `L ${start.x} ${start.y} Q ${point.x} ${point.y} ${end.x} ${end.y}`;
-    })
-    .join(' ');
-
-/** The short piece across the yellow line of the focused node, where the route's arrow ends. */
-const focusLineGap = (points: readonly XYPosition[]) => {
-  const end = points.at(-1);
-  const previous = points.at(-2);
-  if (end === undefined || previous === undefined) {
-    return undefined;
-  }
-
-  const length = Math.hypot(end.x - previous.x, end.y - previous.y) || 1;
-  const along = { x: (end.x - previous.x) / length, y: (end.y - previous.y) / length };
-  const middle = {
-    x: end.x - along.x * FOCUS_LINE_DISTANCE,
-    y: end.y - along.y * FOCUS_LINE_DISTANCE,
-  };
-  const across = { x: -along.y * FOCUS_LINE_GAP, y: along.x * FOCUS_LINE_GAP };
-  return `M ${middle.x - across.x} ${middle.y - across.y} L ${middle.x + across.x} ${middle.y + across.y}`;
-};
-
-/** Edge drawn along the route ELK computed, with its label where ELK placed it. */
-const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) => {
-  if (data === undefined || data.points.length === 0) {
-    return null;
-  }
-
-  const path = roundedPath(data.points);
-  const { label } = data;
-  const gap = data.focusTarget === true ? focusLineGap(data.points) : undefined;
-  return (
-    <>
-      {gap !== undefined && (
-        <path d={gap} fill='none' stroke='var(--graph-canvas)' strokeWidth={3} />
-      )}
-      <BaseEdge
-        path={path}
-        {...(markerEnd === undefined ? {} : { markerEnd })}
-        style={{ ...style, opacity: data.dimmed ? 0.3 : 1 }}
-      />
-      {label !== undefined && (
-        <EdgeLabelRenderer>
-          <div
-            className={cn(
-              'pointer-events-none absolute overflow-hidden rounded bg-(--graph-canvas) px-1 text-center text-[11px] whitespace-pre text-foreground',
-              data.dimmed && 'opacity-30',
-            )}
-            style={{
-              lineHeight: `${LABEL_LINE_HEIGHT}px`,
-              color: data.color,
-              transform: `translate(${label.x}px, ${label.y}px)`,
-              width: label.width,
-              height: label.height,
-            }}
-          >
-            {data.qr === true ? (
-              <IconQrcode className='mr-0.5 inline size-3 align-[-2px]' />
-            ) : (
-              <IconDirectionSign className='mr-0.5 inline size-3 align-[-2px]' />
-            )}
-            {labelLines(data.text ?? '').join('\n')}
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
-  );
+    ...(grouped
+      ? {
+          groups: graph.chapters.map((chapter) => ({
+            id: chapter.id,
+            members: graph.order.filter((id) => graph.nodes[id]!.chapter === chapter.id),
+          })),
+        }
+      : {}),
+    initial: hasIntro ? [graph.introNode] : [],
+    final: endsOf(graph),
+  });
 };
 
 const edgeTypes = { route: RouteEdgeView } as const;
@@ -464,33 +195,6 @@ const textOf = (segments: readonly string[]) =>
 
 const NO_PREVIEW = 'Obsah závisí na stavu a tento start sem nevede.';
 
-type InitialFlowNode = Node<Record<string, never>, 'initial'>;
-
-const InitialDot = () => (
-  <div
-    title='Start'
-    className='rounded-full bg-foreground'
-    style={{ width: INITIAL_SIZE, height: INITIAL_SIZE }}
-  >
-    <Handle type='source' position={Position.Bottom} className='opacity-0' />
-  </div>
-);
-
-type FinalFlowNode = Node<Record<string, never>, 'final'>;
-
-const FinalDot = () => (
-  <div
-    title='Konec'
-    className='flex items-center justify-center rounded-full border-2 border-foreground'
-    style={{ width: FINAL_SIZE, height: FINAL_SIZE }}
-  >
-    <div className='size-2.5 rounded-full bg-foreground' />
-    <Handle type='target' position={Position.Top} className='opacity-0' />
-  </div>
-);
-
-const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
-
 /** Tells the edges taken by scanning a QR code from the ones taken by a button. */
 const SCAN_EDGE_COLOR = {
   light: 'oklch(0.42 0.18 258)',
@@ -499,10 +203,6 @@ const SCAN_EDGE_COLOR = {
 
 /** The node a test run stands on: its own border stays, a yellow line goes around it. */
 const FOCUSED_CARD = 'outline-1 outline-offset-4 outline-yellow-500';
-
-/** Distance of that yellow line's middle from the card, and half of the gap an arrow makes in it. */
-const FOCUS_LINE_DISTANCE = 4.5;
-const FOCUS_LINE_GAP = 9;
 
 /** Above the nodes, so an arrow is drawn over the yellow line of its target. */
 const FOCUSED_EDGE_Z_INDEX = 1001;
@@ -702,7 +402,7 @@ export const StoryGraph = ({
   className,
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
-  const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: Layout }>();
+  const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: BoxLayout }>();
   const [opened, setOpened] = useState<string>();
 
   const structure = useMemo(
@@ -735,7 +435,7 @@ export const StoryGraph = ({
     const position = (id: string) => laidOut?.layout.nodes.get(id) ?? { x: 0, y: 0 };
     // Empty without grouping: the layout has no chapter boxes then.
     const frames = graph.chapters.flatMap((chapter): readonly ChapterFlowNode[] => {
-      const box = laidOut?.layout.chapters.get(chapter.id);
+      const box = laidOut?.layout.groups.get(chapter.id);
       const hue = chapterHue(graph, chapter.id);
       return box === undefined || hue === undefined
         ? []
@@ -836,13 +536,13 @@ export const StoryGraph = ({
         ...(Object.hasOwn(graph.nodes, graph.introNode)
           ? [
               {
-                id: INITIAL_EDGE_ID,
+                id: initialEdgeId(graph.introNode),
                 type: 'route',
                 source: INITIAL_ID,
                 target: graph.introNode,
                 markerEnd: ARROW_HEAD,
                 data: {
-                  points: laidOut?.layout.edges.get(INITIAL_EDGE_ID)?.points ?? [],
+                  points: laidOut?.layout.edges.get(initialEdgeId(graph.introNode))?.points ?? [],
                   dimmed: false,
                 },
               } satisfies RouteEdge,
