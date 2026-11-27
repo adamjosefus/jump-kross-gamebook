@@ -1,5 +1,6 @@
 import {
   availableChoices,
+  availableScans,
   mergeState,
   nodeType,
   sampleTeam,
@@ -12,6 +13,7 @@ import {
   type AnyNode,
   type Chapter,
   type Choice,
+  type ScanChoice,
   type Story,
   type Team,
 } from './story.ts';
@@ -23,9 +25,12 @@ export interface GraphChoice {
   /** Set on QR choices: the number of the code that takes the choice. */
   readonly code?: number;
   readonly target: string;
-  /** The choice has a `when` or comes from a `choices` function, so it may be hidden. */
+  /** The choice comes from a `choices` or `scans` function, so not every state offers it. */
   readonly conditional: boolean;
-  /** Whether any team is offered the choice in the node's preview state; unknown without one. */
+  /**
+   * For a choice from a function: whether the function offers it to any team in the node's preview
+   * state; unknown without one. A fixed choice is always offered.
+   */
   readonly available?: boolean;
 }
 
@@ -65,74 +70,113 @@ export interface GameGraph {
   readonly chapters: readonly Chapter[];
 }
 
+/** A button or a QR choice as an edge of the graph; `code` is set for a QR choice. */
+interface Edge {
+  readonly label: string;
+  readonly code: number | undefined;
+  readonly goto: string;
+  readonly nextState?: (state: State) => Partial<State>;
+}
+
+/** QR edges are labelled with the code's name, the team never sees a label for them. */
+const scanEdge = (story: Story, scan: ScanChoice<State, string>): Edge => ({
+  ...scan,
+  label: story.codes.find((qrCode) => qrCode.id === scan.code)?.name ?? `Kód ${scan.code}`,
+  code: scan.code,
+});
+
+const choiceEdge = (choice: Choice<State, string>): Edge => ({
+  ...choice,
+  label: choiceName(choice),
+  code: undefined,
+});
+
 /** Fixed buttons and QR choices of a node, in definition order, as one list of edges. */
-const transitionsOf = (story: Story, node: AnyNode) => [
-  ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).map((choice) => ({
-    ...choice,
-    code: undefined,
-  })),
-  ...(node.scans ?? []).map((scan) => ({
-    ...scan,
-    // QR edges are labelled with the code's name, the team never sees a label for them.
-    label: story.codes.find((qrCode) => qrCode.id === scan.code)?.name ?? `Kód ${scan.code}`,
-    code: scan.code,
-  })),
+const transitionsOf = (story: Story, node: AnyNode): readonly Edge[] => [
+  ...(typeof node.choices === 'function' ? [] : (node.choices ?? [])).map(choiceEdge),
+  ...(typeof node.scans === 'function' ? [] : (node.scans ?? [])).map((scan) =>
+    scanEdge(story, scan),
+  ),
 ];
 
 /** Upper bound on explored (node, state) pairs; stories with counters could otherwise explode. */
 const MAX_VISITS = 10_000;
 
-/** Choices a `choices` function gives in `state`, for every team; none when it throws. */
-const choicesFromFunction = (node: AnyNode, state: State, teams: readonly Team[]) =>
-  typeof node.choices !== 'function'
-    ? []
-    : teams.flatMap((team) => {
-        try {
-          return availableChoices(node, state, team);
-        } catch {
-          return [];
-        }
-      });
+/**
+ * Edges a `choices` or `scans` function gives in `state`, for every team, each with its position
+ * in the list; none when it throws, the validation reports that.
+ */
+const edgesFromFunction = (
+  story: Story,
+  node: AnyNode,
+  state: State,
+  teams: readonly Team[],
+): readonly { readonly edge: Edge; readonly index: number }[] =>
+  teams.flatMap((team) => {
+    try {
+      return [
+        ...(typeof node.choices === 'function'
+          ? availableChoices(node, state, team).map(({ choice, index }) => ({
+              edge: choiceEdge(choice),
+              index,
+            }))
+          : []),
+        ...(typeof node.scans === 'function'
+          ? availableScans(node, state, team).map(({ scan, index }) => ({
+              edge: scanEdge(story, scan),
+              index,
+            }))
+          : []),
+      ];
+    } catch {
+      return [];
+    }
+  });
+
+/**
+ * One edge per kind, position, code and target, so a label with the team's name draws one edge but
+ * two codes leading to the same node stay two.
+ */
+const edgeKey = (edge: Edge, index: number) =>
+  JSON.stringify([
+    edge.code === undefined ? 'choice' : 'scan',
+    index,
+    edge.code ?? null,
+    edge.goto,
+  ]);
 
 interface Exploration {
   /** State on arrival at every reachable node, along the shortest path. */
   readonly states: ReadonlyMap<string, State>;
-  /**
-   * Choices of `choices` functions per node, over all states and teams. One edge per position and
-   * target, so a label with the team's name does not draw one edge per team.
-   */
-  readonly choices: ReadonlyMap<string, ReadonlyMap<string, Choice<State, string>>>;
+  /** Edges of `choices` and `scans` functions per node, over all states and teams, by `edgeKey`. */
+  readonly edges: ReadonlyMap<string, ReadonlyMap<string, Edge>>;
 }
 
 /**
- * Walks the (node, state) pairs reachable from `start`, because what a `choices` function gives can
- * depend on the state. Fixed choices are followed even when their `when` is false, so a preview
- * exists for every node they lead to.
+ * Walks the (node, state) pairs reachable from `start`, because what a `choices` or `scans`
+ * function gives can depend on the state.
  */
 const explore = (story: Story, start: string, teams: readonly Team[]): Exploration => {
   const initial = story.nodes[start]?.initialState;
-  if (initial === undefined) return { states: new Map(), choices: new Map() };
+  if (initial === undefined) return { states: new Map(), edges: new Map() };
   // Breadth-first search: the maps, the set and the queue are filled in place, an immutable version
   // would copy them on every step.
   const states = new Map([[start, initial]]);
-  const choices = new Map<string, Map<string, Choice<State, string>>>();
+  const edges = new Map<string, Map<string, Edge>>();
   const queue = [{ node: start, state: initial }];
   const seen = new Set([JSON.stringify([start, stateKey(initial)])]);
   // for...of reads the array's length on every step, so pairs pushed while iterating are visited too.
   for (const [visited, { node: id, state }] of queue.entries()) {
     if (visited >= MAX_VISITS) break;
     const node = story.nodes[id]!;
-    const fromFunction = choicesFromFunction(node, state, teams);
-    for (const { choice, index } of fromFunction) {
-      const known = choices.get(id) ?? new Map<string, Choice<State, string>>();
-      const key = JSON.stringify([index, choice.goto]);
-      if (!known.has(key)) known.set(key, choice);
-      choices.set(id, known);
+    const fromFunction = edgesFromFunction(story, node, state, teams);
+    for (const { edge, index } of fromFunction) {
+      const known = edges.get(id) ?? new Map<string, Edge>();
+      const key = edgeKey(edge, index);
+      if (!known.has(key)) known.set(key, edge);
+      edges.set(id, known);
     }
-    const transitions = [
-      ...transitionsOf(story, node),
-      ...fromFunction.map(({ choice }) => choice),
-    ];
+    const transitions = [...transitionsOf(story, node), ...fromFunction.map(({ edge }) => edge)];
     for (const { goto, nextState } of transitions) {
       if (!Object.hasOwn(story.nodes, goto)) continue;
       let next: State;
@@ -148,7 +192,7 @@ const explore = (story: Story, start: string, teams: readonly Team[]): Explorati
       queue.push({ node: goto, state: next });
     }
   }
-  return { states, choices };
+  return { states, edges };
 };
 
 const previewOf = (
@@ -174,7 +218,7 @@ export const toGraph = (story: Story): GameGraph => {
   const teams = story.teams.length === 0 ? [sampleTeam(story)] : story.teams;
   const explored =
     from === undefined
-      ? { states: new Map<string, State>(), choices: new Map<string, never>() }
+      ? { states: new Map<string, State>(), edges: new Map<string, never>() }
       : explore(story, from, teams);
   const { states } = explored;
   return {
@@ -197,19 +241,16 @@ export const toGraph = (story: Story): GameGraph => {
           ...(node.chapter === undefined ? {} : { chapter: node.chapter }),
           ...(preview === undefined ? {} : { preview }),
           choices: [
-            ...transitionsOf(story, node).map((choice) => ({
-              label: choice.label ?? 'Další',
-              ...(choice.code === undefined ? {} : { code: choice.code }),
-              target: choice.goto,
-              conditional: choice.when !== undefined,
-              ...(state === undefined || choice.when === undefined
+            ...transitionsOf(story, node).map((edge) => graphChoice(edge, false)),
+            ...[...(explored.edges.get(id) ?? [])].map(([key, edge]) => ({
+              ...graphChoice(edge, true),
+              ...(state === undefined
                 ? {}
-                : { available: isAvailable(choice.when, state, teams) }),
-            })),
-            ...[...(explored.choices.get(id)?.values() ?? [])].map((choice) => ({
-              label: choiceName(choice),
-              target: choice.goto,
-              conditional: true,
+                : {
+                    available: edgesFromFunction(story, node, state, teams).some(
+                      (offered) => edgeKey(offered.edge, offered.index) === key,
+                    ),
+                  }),
             })),
           ],
         };
@@ -219,19 +260,12 @@ export const toGraph = (story: Story): GameGraph => {
   };
 };
 
-/** Whether some team is offered the choice; a `when` that throws offers it to nobody, the validation reports it. */
-const isAvailable = (
-  when: (state: State, team: Team) => boolean,
-  state: State,
-  teams: readonly Team[],
-) =>
-  teams.some((team) => {
-    try {
-      return when(state, team);
-    } catch {
-      return false;
-    }
-  });
+const graphChoice = (edge: Edge, conditional: boolean): GraphChoice => ({
+  label: edge.label,
+  ...(edge.code === undefined ? {} : { code: edge.code }),
+  target: edge.goto,
+  conditional,
+});
 
 /** Structural mistakes the type checker cannot see. */
 export const graphProblems = (graph: GameGraph): readonly string[] => {

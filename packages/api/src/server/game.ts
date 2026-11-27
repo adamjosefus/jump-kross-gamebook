@@ -794,15 +794,16 @@ export class Game extends Context.Service<Game>()('gamebook/Game', {
 
     /**
      * The scan texts, each once, of the nodes whose scan screen takes the code; `null` for those
-     * without a text of their own.
+     * without a text of their own. Which nodes take it comes from the graph, which also knows the
+     * codes `scans` functions give in the states the story reaches.
      */
     const scanTextsOf = (kind: PrintableCode['kind'], id: number): readonly (string | null)[] => {
       const nodes =
         kind === 'T'
           ? [story.nodes[story.introNode]]
-          : Object.values(story.nodes).filter((node) =>
-              node?.scans?.some((option) => option.code === id),
-            );
+          : Object.values(graph().nodes)
+              .filter((node) => node.choices.some((choice) => choice.code === id))
+              .map((node) => story.nodes[node.id]);
       return [
         ...new Set(nodes.flatMap((node) => (node === undefined ? [] : [node.scanText ?? null]))),
       ];

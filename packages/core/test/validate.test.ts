@@ -5,6 +5,9 @@ import { SAMPLE } from './fixtures.ts';
 
 const define = defineStory<{ n: number; bag?: Value }>();
 
+/** A value the type checker cannot see, as in a story checked without types. */
+const unchecked = (json: string): readonly [never, ...never[]] => JSON.parse(json);
+
 describe('validateStory', () => {
   it('accepts a sound story', () => {
     expect(validateStory(SAMPLE)).toEqual([]);
@@ -106,7 +109,7 @@ describe('validateStory', () => {
     ]);
   });
 
-  it('reports unreachable nodes and choices nobody can take', () => {
+  it('reports unreachable nodes, also behind a choice no reachable state gets', () => {
     const story = define({
       teams: { 1: 'Tým' },
       codes: {},
@@ -117,10 +120,13 @@ describe('validateStory', () => {
         A: {
           initialState: { n: 1 },
           segments: ['A'],
-          choices: [
-            { label: 'Dál', goto: 'B' },
-            { label: 'Nikdy', goto: 'C', when: (state) => state.n > 5 },
-          ],
+          choices: (state) =>
+            state.n > 5
+              ? [
+                  { label: 'Dál', goto: 'B' },
+                  { label: 'Nikdy', goto: 'C' },
+                ]
+              : [{ label: 'Dál', goto: 'B' }],
         },
         B: { segments: ['B'] },
         C: { segments: ['C'], choices: [{ label: 'Konec', goto: 'B' }] },
@@ -128,13 +134,12 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Volba „Nikdy“ v uzlu A není dostupná v žádném dosažitelném stavu.',
       'Uzel C je nedosažitelný ze startu.',
       'Uzel D je nedosažitelný ze startu.',
     ]);
   });
 
-  it('follows the state, so a choice used on one path is not unused', () => {
+  it('follows the state, so a choice given on one path leads on', () => {
     const story = define({
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
@@ -152,10 +157,13 @@ describe('validateStory', () => {
         },
         B: {
           segments: (state) => [`n = ${state.n}`],
-          choices: [
-            { label: 'Odměna', goto: 'C', when: (state) => state.n > 0 },
-            { label: 'Konec', goto: 'C' },
-          ],
+          choices: (state) =>
+            state.n > 0
+              ? [
+                  { label: 'Odměna', goto: 'C' },
+                  { label: 'Konec', goto: 'C' },
+                ]
+              : [{ label: 'Konec', goto: 'C' }],
         },
         C: { segments: ['C'] },
       },
@@ -163,30 +171,51 @@ describe('validateStory', () => {
     expect(validateStory(story)).toEqual([]);
   });
 
-  it('reports dead ends in a reachable state', () => {
+  it('reports a dead end: a node of an untyped story without choices that is not the end', () => {
+    const story: Story = {
+      teams: [{ id: 1, name: 'Tým' }],
+      codes: [],
+      chapters: [],
+      introNode: 'I',
+      outroNode: 'O',
+      order: ['I', 'A', 'B', 'O'],
+      nodes: {
+        I: { segments: ['Úvod'] },
+        A: { initialState: { n: 0 }, segments: ['A'], choices: [{ label: 'Dál', goto: 'B' }] },
+        B: { segments: ['B'] },
+        O: { segments: ['O'] },
+      },
+      timers: [],
+    };
+    expect(validateStory(story)).toEqual([
+      'Uzel B je ve stavu {"n":0} slepá ulička: žádná volba není dostupná.',
+      'Uzel O je nedosažitelný ze startu.',
+    ]);
+  });
+
+  it('reports a `choices` or `scans` function that gives an empty list', () => {
     const story = define({
-      teams: { 1: 'Tým' },
+      teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
-      outroNode: 'B',
-      codes: {},
+      outroNode: 'C',
+      codes: { 1: 'Studna' },
       nodes: {
         INTRO: { segments: ['Úvod'] },
         A: {
           initialState: { n: 0 },
           segments: ['A'],
-          choices: [
-            { label: 'Jen s jedničkou', goto: 'B', when: (state) => state.n === 1 },
-            { label: 'Jindy', goto: 'B', when: (state) => state.n === 2 },
-          ],
+          choices: (_state, team) =>
+            team.id === 1 ? [{ label: 'Dál', goto: 'B' }] : unchecked('[]'),
         },
-        B: { segments: ['B'] },
+        B: { segments: ['B'], scans: () => unchecked('[]') },
+        C: { segments: ['C'] },
       },
     });
     expect(validateStory(story)).toEqual([
-      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná.',
-      'Volba „Jen s jedničkou“ v uzlu A není dostupná v žádném dosažitelném stavu.',
-      'Volba „Jindy“ v uzlu A není dostupná v žádném dosažitelném stavu.',
-      'Uzel B je nedosažitelný ze startu.',
+      'Kód 1 („Studna“) nepoužívá žádná QR volba.',
+      'Volby uzlu B jsou ve stavu {"n":0} prázdné: scans musí dát aspoň jednu možnost. (týká se: Vlci)',
+      'Volby uzlu A jsou ve stavu {"n":0} prázdné: choices musí dát aspoň jednu možnost. (týká se: Lišky)',
+      'Uzel C je nedosažitelný ze startu.',
     ]);
   });
 
@@ -238,7 +267,7 @@ describe('validateStory', () => {
     ]);
   });
 
-  it('plays the story for every team, so `when` can depend on the team', () => {
+  it('plays the story for every team, so a function can depend on the team', () => {
     const story = define({
       teams: { 1: 'Vlci', 2: 'Lišky' },
       introNode: 'INTRO',
@@ -249,15 +278,13 @@ describe('validateStory', () => {
         A: {
           initialState: { n: 0 },
           segments: ['A'],
-          choices: [
-            { label: 'Vlci', goto: 'B', when: (_state, team) => team.id === 1 },
-            { label: 'Lišky', goto: 'C', when: (_state, team) => team.id === 2 },
-          ],
+          choices: (_state, team) =>
+            team.id === 1 ? [{ label: 'Vlci', goto: 'B' }] : [{ label: 'Lišky', goto: 'C' }],
         },
-        // Only the wolves get here, so the foxes' lack of a choice is no dead end.
+        // Only the wolves get here, so the foxes' lack of a text is no problem.
         B: {
-          segments: ['B'],
-          choices: [{ label: 'Dál', goto: 'C', when: (_state, team) => team.id === 1 }],
+          segments: (_state, team) => [team.id === 1 && 'B'],
+          choices: [{ label: 'Dál', goto: 'C' }],
         },
         C: { segments: ['C'] },
       },
@@ -276,13 +303,13 @@ describe('validateStory', () => {
         A: {
           initialState: { n: 0 },
           segments: ['A'],
-          choices: [{ label: 'Jen Vlci', goto: 'B', when: (_state, team) => team.id === 1 }],
+          choices: (_state, team) =>
+            team.id === 1 ? [{ label: 'Jen Vlci', goto: 'B' }] : [{ label: 'Dokola', goto: 'A' }],
         },
         B: { segments: ['B'] },
       },
     });
     expect(validateStory(story)).toEqual([
-      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
       'Konec B je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: Lišky)',
     ]);
   });
@@ -304,16 +331,12 @@ describe('validateStory', () => {
                   { label: 'Dál', goto: 'B' },
                   { label: 'Dál', goto: 'B' },
                 ]
-              : [],
+              : [{ label: 'Dál', goto: 'B' }],
         },
         B: { segments: ['B'] },
       },
     });
-    expect(validateStory(story)).toEqual([
-      'Uzel A má dvě volby „Dál“. (týká se: Vlci)',
-      'Uzel A je ve stavu {"n":0} slepá ulička: žádná volba není dostupná. (týká se: Lišky)',
-      'Konec B je ze startu nedosažitelný: tým nemůže hru dohrát. (týká se: Lišky)',
-    ]);
+    expect(validateStory(story)).toEqual(['Uzel A má dvě volby „Dál“. (týká se: Vlci)']);
   });
 
   it('reports a `choices` function that throws', () => {
@@ -335,7 +358,7 @@ describe('validateStory', () => {
       },
     });
     expect(validateStory(story)).toEqual([
-      'Podmínka volby v uzlu A ve stavu {"n":0} spadla: chyba',
+      'Volby uzlu A ve stavu {"n":0} spadly: chyba',
       'Uzel B je nedosažitelný ze startu.',
     ]);
   });
@@ -414,6 +437,77 @@ describe('validateStory', () => {
       'Uzel A má ve stavu {"n":0} dvě QR volby pro kód 3.',
       'Obsah uzlu B ve stavu {"n":0} spadl: chyba',
     ]);
+  });
+
+  it('checks `scans` functions when played: codes, targets and duplicates', () => {
+    const story = define({
+      teams: { 1: 'Tým' },
+      introNode: 'INTRO',
+      outroNode: 'C',
+      codes: { 1: 'Studna', 2: 'Brána', 3: 'Věž' },
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        A: {
+          initialState: { n: 0 },
+          segments: ['A'],
+          choices: [
+            { label: 'K bráně', goto: 'B' },
+            { label: 'K věži', goto: 'B', nextState: () => ({ n: 1 }) },
+          ],
+        },
+        // Code 3 is used only here, in the state „K věži“ sets.
+        B: {
+          segments: ['B'],
+          scans: (state) =>
+            state.n === 0
+              ? [
+                  { code: 1, goto: 'C' },
+                  { code: 2, goto: 'C' },
+                  { code: 2, goto: 'B' },
+                ]
+              : [
+                  { code: 1, goto: 'C' },
+                  { code: 3, goto: 'C' },
+                ],
+        },
+        C: { segments: ['C'] },
+      },
+    });
+    expect(validateStory(story)).toEqual(['Uzel B má ve stavu {"n":0} dvě QR volby pro kód 2.']);
+  });
+
+  it('reports an unknown code and a missing target of a `scans` function', () => {
+    const story: Story = {
+      teams: [{ id: 1, name: 'Tým' }],
+      codes: [{ id: 1, name: 'Studna' }],
+      chapters: [],
+      introNode: 'I',
+      outroNode: 'O',
+      order: ['I', 'A', 'O'],
+      nodes: {
+        I: { segments: ['Úvod'] },
+        A: {
+          initialState: { n: 0 },
+          segments: ['A'],
+          scans: () => [
+            { code: 1, goto: 'O' },
+            { code: 2, goto: 'O' },
+            { code: 1, goto: 'X' },
+            { code: 1, goto: 'I' },
+          ],
+        },
+        O: { segments: ['O'] },
+      },
+      timers: [],
+    };
+    expect(validateStory(story)).toEqual(
+      expect.arrayContaining([
+        'QR volba v uzlu A vede přes neznámý kód 2.',
+        'QR volba kódu 1 v uzlu A vede na neexistující uzel X.',
+        'QR volba kódu 1 v uzlu A vede na úvod.',
+      ]),
+    );
+    expect(validateStory(story)).not.toContain('Kód 1 („Studna“) nepoužívá žádná QR volba.');
   });
 
   it('reports a goto to a missing node in an untyped story', () => {
@@ -541,10 +635,8 @@ describe('validateStory', () => {
         START: {
           initialState: { n: 0 },
           segments: ['Start'],
-          choices: [
-            { label: 'Konec', goto: 'OUTRO', when: (_state, team) => team.id === 1 },
-            { label: 'Dokola', goto: 'B', when: (_state, team) => team.id === 2 },
-          ],
+          choices: (_state, team) =>
+            team.id === 1 ? [{ label: 'Konec', goto: 'OUTRO' }] : [{ label: 'Dokola', goto: 'B' }],
         },
         B: { segments: ['B'], choices: [{ label: 'Zpět', goto: 'START' }] },
         OUTRO: { segments: ['Konec'] },
@@ -566,24 +658,26 @@ describe('validateStory', () => {
         START: {
           initialState: { n: 0 },
           segments: ['Start'],
-          choices: [
-            {
+          choices: (state) => {
+            const again = {
               label: 'Dál',
               goto: 'START',
-              nextState: (state) => ({ n: state.n + 1 }),
-              when: (state) => state.n < 5,
-            },
-            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n >= 5 },
-            { label: 'Nikam', goto: 'C', when: (state) => state.n >= 2 },
-          ],
+              nextState: () => ({ n: state.n + 1 }),
+            } as const;
+            const aside = { label: 'Nikam', goto: 'C' } as const;
+            if (state.n < 2) return [again];
+            return state.n < 5 ? [again, aside] : [{ label: 'Konec', goto: 'OUTRO' }, aside];
+          },
         },
-        C: { segments: ['C'], choices: [{ label: 'Nic', goto: 'OUTRO', when: () => false }] },
+        C: {
+          segments: (state) => [state.n > 9 && 'C'],
+          choices: [{ label: 'Nic', goto: 'OUTRO' }],
+        },
         OUTRO: { segments: ['Konec'] },
       },
     });
     expect(validateStory(story)).toEqual([
-      'Uzel C je ve stavu {"n":2} slepá ulička: žádná volba není dostupná. (a v dalších 3 stavech)',
-      'Volba „Nic“ v uzlu C není dostupná v žádném dosažitelném stavu.',
+      'Uzel C nemá ve stavu {"n":2} žádný obsah. (a v dalších 3 stavech)',
     ]);
   });
 
@@ -632,10 +726,13 @@ describe('validateStory', () => {
         // With n = 1 the team walks between A and B forever: both always offer a way on.
         A: {
           segments: ['A'],
-          choices: [
-            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
-            { label: 'Do B', goto: 'B' },
-          ],
+          choices: (state) =>
+            state.n === 0
+              ? [
+                  { label: 'Konec', goto: 'OUTRO' },
+                  { label: 'Do B', goto: 'B' },
+                ]
+              : [{ label: 'Do B', goto: 'B' }],
         },
         B: { segments: ['B'], choices: [{ label: 'Do A', goto: 'A' }] },
         OUTRO: { segments: ['Konec'] },
@@ -658,10 +755,14 @@ describe('validateStory', () => {
         A: {
           initialState: { n: 0 },
           segments: ['A'],
-          choices: [
-            { label: 'Do B', goto: 'B', nextState: (state) => ({ n: Math.min(state.n + 1, 2) }) },
-            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n >= 2 },
-          ],
+          choices: (state) => {
+            const toB = {
+              label: 'Do B',
+              goto: 'B',
+              nextState: () => ({ n: Math.min(state.n + 1, 2) }),
+            } as const;
+            return state.n >= 2 ? [toB, { label: 'Konec', goto: 'OUTRO' }] : [toB];
+          },
         },
         B: { segments: ['B'], choices: [{ label: 'Zpět', goto: 'A' }] },
         OUTRO: { segments: ['Konec'] },
@@ -682,10 +783,14 @@ describe('validateStory', () => {
         A: {
           initialState: { n: 0 },
           segments: ['A'],
-          choices: [
-            { label: 'Dál', goto: 'A', nextState: (state) => ({ n: state.n + 1 }) },
-            { label: 'Konec', goto: 'OUTRO', when: (state) => state.n === 0 },
-          ],
+          choices: (state) => {
+            const again = {
+              label: 'Dál',
+              goto: 'A',
+              nextState: () => ({ n: state.n + 1 }),
+            } as const;
+            return state.n === 0 ? [again, { label: 'Konec', goto: 'OUTRO' }] : [again];
+          },
         },
         OUTRO: { segments: ['Konec'] },
       },

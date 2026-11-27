@@ -38,8 +38,30 @@ Každý uzel je ucelená část příběhu; pojmy popisuje [slovníček](story-g
 
 Uzel pokračuje buď **volbami**, nebo **skeny**, nikdy obojím:
 
-- **`choices`:** tlačítka `{ label, goto, when, nextState }`. `when` volbu ukáže jen při splněné podmínce, `nextState` vrátí změny stavu.
-- **`scans`:** `{ code, goto, when, nextState }`. Tým uvidí jen skener; kam který kód vede, neví. Víc kódů vedle sebe je volba. `scanTitle` a `scanText` nastaví nadpis a text skeneru.
+- **`choices`:** tlačítka `{ label, goto, nextState }`. `nextState` vrátí změny stavu. Bez `label` je to jediné tlačítko „Další“.
+- **`scans`:** `{ code, goto, nextState }`. Tým uvidí jen skener; kam který kód vede, neví. Víc kódů vedle sebe je volba. `scanTitle` a `scanText` nastaví nadpis a text skeneru.
+- **Možnosti podle stavu:** `choices` i `scans` můžou být místo pevného seznamu funkce stavu a týmu, `(state, team) => [...]`. Na jednom místě tak z jednoho stavu vznikne celý seznam možností. Funkce musí vrátit aspoň jednu možnost: prázdný seznam nebo `undefined` je chyba, kterou ohlásí už TypeScript, a kdyby ji něco obešlo, i kontrola příběhu. Pro stejný stav a tým musí vrátit stejný seznam ve stejném pořadí.
+
+```ts
+scans: (state) => {
+  if (state.coins >= 2)
+    return [
+      // the bus
+      {
+        code: 4,
+        goto: 'DOMA',
+        nextState: ({ coins }) => {
+          return { coins: coins - 2 };
+        },
+      },
+      // the park
+      { code: 5, goto: 'DOMA' },
+    ];
+  return [{ code: 5, goto: 'DOMA' }];
+},
+```
+
+Každá větev vrací celý seznam. Linter v příběhu (`packages/story/src`) nepustí podmínku `a ? b : c` a chce, aby každá arrow funkce měla tělo v `{ … }` s `return`; větvení se tak píše přes `if` a `return`.
 
 Úvod může mít `loginMessages`: texty hlášek kolem přihlášení (přihlášen, už hrajete, cizí kód, přepnutí týmu…). Co chybí, doplní se výchozím textem.
 

@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   applyChoice,
   applyScan,
+  choicesOf,
   dedent,
   defineStory,
+  EmptyActionsError,
   graphProblems,
   introSegments,
   renderNode,
+  scansOf,
   startPosition,
   toGraph,
 } from '../src/index.ts';
@@ -15,6 +18,9 @@ import { SAMPLE } from './fixtures.ts';
 
 const story = SAMPLE;
 const VLCI = { id: 1, name: 'Vlci' };
+
+/** A value the type checker cannot see, as in a story checked without types. */
+const unchecked = (json: string): readonly [never, ...never[]] => JSON.parse(json);
 
 describe('engine', () => {
   const start = startPosition(story)!;
@@ -221,7 +227,7 @@ describe('engine', () => {
     expect(applyScan(story, start, VLCI, 32)).toEqual({ ok: false, error: 'no-scan' });
   });
 
-  it('offers only QR choices whose condition holds', () => {
+  it('offers the QR choices a `scans` function gives for the state', () => {
     const gated = defineStory<{ key: boolean }>()({
       teams: { 1: 'Tým' },
       introNode: 'INTRO',
@@ -232,10 +238,13 @@ describe('engine', () => {
         A: {
           initialState: { key: false },
           segments: ['A'],
-          scans: [
-            { code: 1, goto: 'B' },
-            { code: 2, goto: 'B', when: (state) => state.key },
-          ],
+          scans: (state) =>
+            state.key
+              ? [
+                  { code: 1, goto: 'B' },
+                  { code: 2, goto: 'B' },
+                ]
+              : [{ code: 1, goto: 'B' }],
         },
         B: { segments: ['B'] },
       },
@@ -315,26 +324,29 @@ describe('dedent', () => {
   });
 });
 
-describe('`when` with a team', () => {
+describe('`choices` and `scans` functions with a team', () => {
   const LISKY = { id: 2, name: 'Lišky' };
   const teamStory = defineStory<{ n: number }>()({
     teams: { 1: 'Vlci', 2: 'Lišky' },
     introNode: 'INTRO',
     outroNode: 'B',
-    codes: { 1: 'Studna' },
+    codes: { 1: 'Studna', 2: 'Brána' },
     nodes: {
       INTRO: { segments: ['Úvod'] },
       A: {
         initialState: { n: 0 },
         segments: ['A'],
-        choices: [
-          { label: 'Všichni', goto: 'S' },
-          { label: 'Jen Lišky', goto: 'B', when: (_state, team) => team.name === 'Lišky' },
-        ],
+        choices: (_state, team) =>
+          team.name === 'Lišky'
+            ? [
+                { label: 'Všichni', goto: 'S' },
+                { label: 'Jen Lišky', goto: 'B' },
+              ]
+            : [{ label: 'Všichni', goto: 'S' }],
       },
       S: {
         segments: ['S'],
-        scans: [{ code: 1, goto: 'B', when: (_state, team) => team.id === 2 }],
+        scans: (_state, team) => [{ code: team.id === 2 ? 1 : 2, goto: 'B' }],
       },
       B: { segments: ['B'] },
     },
@@ -342,7 +354,7 @@ describe('`when` with a team', () => {
   const atStart = startPosition(teamStory)!;
   const atScan = { node: 'S', state: atStart.state };
 
-  it('shows a choice only to the teams that pass', () => {
+  it('shows a choice only to the teams the function gives it to', () => {
     const labelsFor = (team: { readonly id: number; readonly name: string }) =>
       renderNode(teamStory, atStart, team)!.choices.map((choice) => choice.label);
     expect(labelsFor(VLCI)).toEqual(['Všichni']);
@@ -357,6 +369,8 @@ describe('`when` with a team', () => {
     expect(applyChoice(teamStory, atStart, LISKY, 1)).toMatchObject({ ok: true });
     expect(applyScan(teamStory, atScan, VLCI, 1)).toEqual({ ok: false, error: 'wrong-code' });
     expect(applyScan(teamStory, atScan, LISKY, 1)).toMatchObject({ ok: true });
+    expect(applyScan(teamStory, atScan, VLCI, 2)).toMatchObject({ ok: true });
+    expect(applyScan(teamStory, atScan, LISKY, 2)).toEqual({ ok: false, error: 'wrong-code' });
   });
 });
 
@@ -372,12 +386,13 @@ describe('`choices` as a function', () => {
       A: {
         initialState: { gold: 1 },
         segments: ['A'],
-        choices: (state, team) => [
-          { label: `Dál, ${team.name}`, goto: 'B' },
-          team.id === 2 && { label: 'Lišky', goto: 'C' },
-          state.gold > 5 && { label: 'Bohatí', goto: 'D' },
-          { label: 'Zlato', goto: 'E', when: () => false },
-        ],
+        choices: (state, team) => {
+          const onward = { label: `Dál, ${team.name}`, goto: 'B' } as const;
+          const foxes = { label: 'Lišky', goto: 'C' } as const;
+          const rich = { label: 'Bohatí', goto: 'D' } as const;
+          if (team.id === 2) return state.gold > 5 ? [onward, foxes, rich] : [onward, foxes];
+          return state.gold > 5 ? [onward, rich] : [onward];
+        },
       },
       B: {
         segments: ['B'],
@@ -385,10 +400,10 @@ describe('`choices` as a function', () => {
       },
       C: { segments: ['C'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
       D: { segments: ['D'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
-      E: { segments: ['E'], choices: [{ label: 'Konec', goto: 'OUTRO' }] },
       F: {
         segments: ['F'],
-        choices: (state) => (state.gold > 5 ? [{ label: 'Konec', goto: 'D' }] : []),
+        choices: (state) =>
+          state.gold > 5 ? [{ label: 'Konec', goto: 'D' }] : [{ label: 'Chudí', goto: 'OUTRO' }],
       },
       OUTRO: { segments: ['Konec'] },
     },
@@ -415,7 +430,76 @@ describe('`choices` as a function', () => {
     expect(typed.order).toEqual(['INTRO', 'A', 'B']);
   });
 
-  it('renders the choices for the state and the team, skipping falsy ones', () => {
+  it('types a function that may give no choice as a mistake', () => {
+    const typed = defineStory<{ key: boolean }>()({
+      teams: { 1: 'Vlci' },
+      introNode: 'INTRO',
+      outroNode: 'D',
+      codes: { 1: 'Studna' },
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        A: {
+          initialState: { key: false },
+          segments: ['A'],
+          // @ts-expect-error a function has to give at least one choice
+          choices: () => [],
+        },
+        B: {
+          segments: ['B'],
+          // @ts-expect-error a function has to give a list
+          choices: () => undefined,
+        },
+        C: {
+          segments: ['C'],
+          // @ts-expect-error the list may be empty for some states
+          scans: (state) => (state.key ? [{ code: 1, goto: 'D' }] : []),
+        },
+        D: { segments: ['D'] },
+      },
+    });
+    expect(typed.order).toEqual(['INTRO', 'A', 'B', 'C', 'D']);
+  });
+
+  it('throws when a function gives no list, an empty one or an empty item', () => {
+    const broken = defineStory<{ gold: number }>()({
+      teams: { 1: 'Vlci' },
+      introNode: 'INTRO',
+      outroNode: 'OUTRO',
+      codes: { 1: 'Studna' },
+      nodes: {
+        INTRO: { segments: ['Úvod'] },
+        EMPTY: { initialState: { gold: 0 }, segments: ['A'], choices: () => unchecked('[]') },
+        NONE: { segments: ['B'], choices: () => unchecked('null') },
+        FALSY: { segments: ['C'], choices: () => unchecked('[false]') },
+        SCAN: { segments: ['D'], scans: () => unchecked('[]') },
+        OUTRO: { segments: ['Konec'] },
+      },
+    });
+    const state = { gold: 0 };
+    const errorOf = (run: () => unknown) => {
+      try {
+        run();
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    };
+    for (const id of ['EMPTY', 'NONE', 'FALSY']) {
+      const node = broken.nodes[id]!;
+      expect(errorOf(() => choicesOf(node, state, VLCI))).toMatchObject({
+        name: 'EmptyActionsError',
+        list: 'choices',
+      });
+      expect(() => renderNode(broken, { node: id, state }, VLCI)).toThrow(EmptyActionsError);
+      expect(() => applyChoice(broken, { node: id, state }, VLCI, 0)).toThrow(EmptyActionsError);
+    }
+    const scanNode = broken.nodes['SCAN']!;
+    expect(errorOf(() => scansOf(scanNode, state, VLCI))).toBeInstanceOf(EmptyActionsError);
+    expect(errorOf(() => scansOf(scanNode, state, VLCI))).toMatchObject({ list: 'scans' });
+    expect(() => applyScan(broken, { node: 'SCAN', state }, VLCI, 1)).toThrow(EmptyActionsError);
+  });
+
+  it('renders the list the function gives for the state and the team', () => {
     expect(renderNode(dynamic, at, VLCI)!.choices).toEqual([{ index: 0, label: 'Dál, Vlci' }]);
     expect(renderNode(dynamic, at, LISKY)!.choices).toEqual([
       { index: 0, label: 'Dál, Lišky' },
@@ -430,22 +514,69 @@ describe('`choices` as a function', () => {
   it('takes a choice by its position in the list of that team', () => {
     expect(applyChoice(dynamic, at, LISKY, 1)).toMatchObject({ ok: true, position: { node: 'C' } });
     expect(applyChoice(dynamic, at, VLCI, 1)).toEqual({ ok: false, error: 'unavailable-choice' });
+    // The same index means another choice for another team or state.
+    const rich = { ...at, state: { gold: 9 } };
+    expect(applyChoice(dynamic, rich, LISKY, 1)).toMatchObject({ position: { node: 'C' } });
+    expect(applyChoice(dynamic, rich, VLCI, 1)).toMatchObject({ position: { node: 'D' } });
+    expect(applyChoice(dynamic, rich, LISKY, 2)).toMatchObject({ position: { node: 'D' } });
   });
 
   it('draws the edges of all reachable states in the graph', () => {
     const graph = toGraph(dynamic);
     expect(graph.nodes['A']!.choices).toEqual([
-      { label: 'Dál, Vlci', target: 'B', conditional: true },
-      { label: 'Lišky', target: 'C', conditional: true },
+      { label: 'Dál, Vlci', target: 'B', conditional: true, available: true },
+      { label: 'Lišky', target: 'C', conditional: true, available: true },
     ]);
-    // F offers its only choice just in the state B sets.
-    expect(graph.nodes['F']!.choices).toEqual([{ label: 'Konec', target: 'D', conditional: true }]);
+    // F is reached only in the state B sets, so it draws just the choice of that state.
+    expect(graph.nodes['F']!.choices).toEqual([
+      { label: 'Konec', target: 'D', conditional: true, available: true },
+    ]);
     expect(graph.nodes['D']!.reached).toBe(true);
   });
 });
 
 describe('graph', () => {
-  it('survives a `when` that throws: the choice is offered to nobody', () => {
+  it('keeps two codes of a `scans` function leading to the same node apart', () => {
+    const graph = toGraph(
+      defineStory<{ key: boolean }>()({
+        teams: { 1: 'Vlci' },
+        codes: { 1: 'Studna', 2: 'Mlýn' },
+        introNode: 'INTRO',
+        outroNode: 'B',
+        nodes: {
+          INTRO: { segments: ['Úvod'] },
+          A: {
+            initialState: { key: false },
+            segments: ['A'],
+            choices: [
+              {
+                label: 'Klíč',
+                goto: 'S',
+                nextState: () => {
+                  return { key: true };
+                },
+              },
+              { label: 'Bez klíče', goto: 'S' },
+            ],
+          },
+          S: {
+            segments: ['S'],
+            scans: (state) => {
+              if (state.key) return [{ code: 2, goto: 'B' }];
+              return [{ code: 1, goto: 'B' }];
+            },
+          },
+          B: { segments: ['B'] },
+        },
+      }),
+    );
+    expect(graph.nodes['S']!.choices.map(({ code }) => code)).toEqual(
+      expect.arrayContaining([1, 2]),
+    );
+    expect(graph.nodes['S']!.choices).toHaveLength(2);
+  });
+
+  it('survives a `choices` function that throws: it draws no edge', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Tým' },
@@ -457,23 +588,16 @@ describe('graph', () => {
           START: {
             initialState: { n: 0 },
             segments: ['Start'],
-            choices: [
-              {
-                label: 'Dál',
-                goto: 'OUTRO',
-                when: () => {
-                  throw new Error('boom');
-                },
-              },
-            ],
+            choices: () => {
+              throw new Error('boom');
+            },
           },
           OUTRO: { segments: ['Konec'] },
         },
       }),
     );
-    expect(graph.nodes['START']!.choices).toEqual([
-      { label: 'Dál', target: 'OUTRO', conditional: true, available: false },
-    ]);
+    expect(graph.nodes['START']!.choices).toEqual([]);
+    expect(graph.nodes['OUTRO']!.reached).toBe(false);
   });
 
   it('describes nodes, edges and previews from the first start', () => {
@@ -493,7 +617,7 @@ describe('graph', () => {
         segments: ['Pohodlně si nosil svoji chudou pokrývku hlavy.'],
       },
       choices: [
-        { label: 'Bojovat', target: 'OUTRO', conditional: false },
+        { label: 'Bojovat', target: 'OUTRO', conditional: true, available: true },
         { label: 'Koupit meč', target: 'OUTRO', conditional: true, available: true },
       ],
     });
@@ -508,7 +632,7 @@ describe('graph', () => {
     expect(graphProblems(graph)).toEqual([]);
   });
 
-  it('offers a choice with `when` to any team that passes it', () => {
+  it('marks an edge of a function available when it is offered to any team in the preview state', () => {
     const graph = toGraph(
       defineStory<{ n: number }>()({
         teams: { 1: 'Vlci', 2: 'Lišky' },
@@ -520,16 +644,57 @@ describe('graph', () => {
           A: {
             initialState: { n: 0 },
             segments: ['A'],
-            choices: [
-              { label: 'Lišky', goto: 'B', when: (_state, team) => team.id === 2 },
-              { label: 'Nikdo', goto: 'B', when: (_state, team) => team.id === 3 },
-            ],
+            choices: (state, team) => {
+              if (state.n > 0) return [{ label: 'Konec', goto: 'B' }];
+              const again = { label: 'Znovu', goto: 'A', nextState: () => ({ n: 1 }) } as const;
+              return team.id === 2 ? [again, { label: 'Lišky', goto: 'B' }] : [again];
+            },
           },
           B: { segments: ['B'] },
         },
       }),
     );
-    expect(graph.nodes['A']!.choices.map((choice) => choice.available)).toEqual([true, false]);
+    // The preview state is the initial one; „Konec“ is offered only after „Znovu“.
+    expect(graph.nodes['A']!.choices).toEqual([
+      { label: 'Znovu', target: 'A', conditional: true, available: true },
+      { label: 'Lišky', target: 'B', conditional: true, available: true },
+      { label: 'Konec', target: 'B', conditional: true, available: false },
+    ]);
+  });
+
+  it('draws the QR choices of a `scans` function with their code', () => {
+    const graph = toGraph(
+      defineStory<{ key: boolean }>()({
+        teams: { 1: 'Vlci' },
+        introNode: 'INTRO',
+        outroNode: 'C',
+        codes: { 1: 'Studna', 2: 'Brána' },
+        nodes: {
+          INTRO: { segments: ['Úvod'] },
+          A: {
+            initialState: { key: false },
+            segments: ['A'],
+            choices: [
+              { label: 'Rovnou', goto: 'S' },
+              { label: 'Pro klíč', goto: 'S', nextState: () => ({ key: true }) },
+            ],
+          },
+          S: {
+            segments: ['S'],
+            scans: (state) => (state.key ? [{ code: 2, goto: 'C' }] : [{ code: 1, goto: 'B' }]),
+          },
+          B: { segments: ['B'], choices: [{ label: 'Konec', goto: 'C' }] },
+          C: { segments: ['C'] },
+        },
+      }),
+    );
+    // S is first reached through „Rovnou“, without the key.
+    expect(graph.nodes['S']!.preview?.state).toEqual({ key: false });
+    expect(graph.nodes['S']!.choices).toEqual([
+      { label: 'Studna', code: 1, target: 'B', conditional: true, available: true },
+      { label: 'Brána', code: 2, target: 'C', conditional: true, available: false },
+    ]);
+    expect(graphProblems(graph)).toEqual([]);
   });
 
   it('previews the intro by the text of all its segments', () => {

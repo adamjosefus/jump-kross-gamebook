@@ -38,8 +38,6 @@ type TeamFn<S, R> = { fn(state: S, team: Team): R }['fn'];
 
 interface Action<S, K extends string> {
   readonly goto: K;
-  /** Offered only when this returns true for the team's state and the team. */
-  readonly when?: TeamFn<S, boolean>;
   /** Merged into the state when taken. */
   readonly nextState?: StateFn<S, Partial<S>>;
 }
@@ -65,8 +63,15 @@ export interface ScanChoice<S, K extends string, C extends number = number> exte
   readonly code: C;
 }
 
-/** Falsy entries are skipped, so choices can be written as `condition && choice`. */
-export type MaybeChoice<S, K extends string> = Choice<S, K> | false | null | undefined;
+/** At least one item: a node always offers a way on. */
+type NonEmpty<T> = readonly [T, ...T[]];
+
+/**
+ * A node's actions: a fixed list, or a function of the team's state and the team that gives the
+ * list for them, so the options that depend on the state are written in one place. The function
+ * gives at least one; an empty list, `undefined` or an empty item is an error of the story.
+ */
+export type ActionList<S, T> = NonEmpty<T> | TeamFn<S, NonEmpty<T>>;
 
 interface NodeBase<S> {
   /** Makes the node the start, where every team begins with this state; a story has one. */
@@ -85,16 +90,15 @@ export type StoryNode<S, K extends string, C extends number = number> =
        * Evaluated once per render, like `segments`, so a function has to give the same list for the
        * same state and team: a chosen button is found by its position in the list.
        */
-      readonly choices:
-        | readonly [Choice<S, K>, ...Choice<S, K>[]]
-        | TeamFn<S, readonly MaybeChoice<S, K>[]>;
+      readonly choices: ActionList<S, Choice<S, K>>;
       readonly scans?: never;
       readonly scanTitle?: never;
       readonly scanText?: never;
     })
   | (NodeBase<S> & {
       readonly choices?: never;
-      readonly scans: readonly [ScanChoice<S, K, C>, ...ScanChoice<S, K, C>[]];
+      /** Like `choices`; the scanned code picks the one taken. */
+      readonly scans: ActionList<S, ScanChoice<S, K, C>>;
       /** The heading of the scan screen; the player's default one without it. */
       readonly scanTitle?: string;
       /** The text under that heading; the player's default one without it. */

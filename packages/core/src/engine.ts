@@ -93,11 +93,46 @@ export const segmentEntriesOf = (
       segment !== false && segment !== null && segment !== undefined,
   );
 
-/** The node's buttons for `team` in `state`, before their `when`. */
+/** A `choices` or `scans` function gave no list, an empty one or one with an empty item. */
+export class EmptyActionsError extends Error {
+  readonly list: 'choices' | 'scans';
+  constructor(list: 'choices' | 'scans') {
+    super(`Funkce ${list} nevrátila žádnou možnost.`);
+    this.name = 'EmptyActionsError';
+    this.list = list;
+  }
+}
+
+/**
+ * The list a node's `choices` or `scans` give for `team` in `state`; none when the node has no
+ * such list. A function that gives no list, an empty one or one with an empty item breaks the
+ * story's promise of a way on, so it is an error rather than a dead end.
+ */
+const actionsOf = <T>(
+  actions: readonly T[] | ((state: State, team: Team) => readonly T[]) | undefined,
+  what: 'choices' | 'scans',
+  state: State,
+  team: Team,
+): readonly T[] => {
+  if (actions === undefined) return [];
+  const list: unknown = typeof actions === 'function' ? actions(state, team) : actions;
+  if (
+    !Array.isArray(list) ||
+    list.length === 0 ||
+    list.some((item) => typeof item !== 'object' || item === null)
+  )
+    throw new EmptyActionsError(what);
+  // Checked above: a non-empty list of objects, as the story's type promises.
+  return list as readonly T[];
+};
+
+/** The node's buttons for `team` in `state`. */
 export const choicesOf = (node: AnyNode, state: State, team: Team): readonly AnyChoice[] =>
-  (typeof node.choices === 'function' ? node.choices(state, team) : (node.choices ?? [])).filter(
-    (choice): choice is AnyChoice => choice !== false && choice !== null && choice !== undefined,
-  );
+  actionsOf<AnyChoice>(node.choices, 'choices', state, team);
+
+/** The node's QR choices for `team` in `state`. */
+export const scansOf = (node: AnyNode, state: State, team: Team): readonly AnyScan[] =>
+  actionsOf<AnyScan>(node.scans, 'scans', state, team);
 
 /**
  * Keys of the state whose values are not a string, a boolean or a finite number. The type allows
@@ -152,36 +187,21 @@ export const startPosition = (story: Story): Position | undefined => {
   return id === undefined || state === undefined ? undefined : { node: id, state };
 };
 
-const offered = <T extends AnyChoice | AnyScan>(
-  transitions: readonly T[],
-  state: State,
-  team: Team,
-) =>
-  transitions.flatMap((transition, index) =>
-    transition.when === undefined || transition.when(state, team) ? [{ transition, index }] : [],
-  );
-
-/** Buttons offered to `team` in `state`, with their index among the node's choices. */
+/** Buttons offered to `team` in `state`, with their index in the list. */
 export const availableChoices = (
   node: AnyNode,
   state: State,
   team: Team,
 ): readonly { readonly choice: AnyChoice; readonly index: number }[] =>
-  offered(choicesOf(node, state, team), state, team).map(({ transition, index }) => ({
-    choice: transition,
-    index,
-  }));
+  choicesOf(node, state, team).map((choice, index) => ({ choice, index }));
 
-/** QR choices offered to `team` in `state`, with their index in `scans`. */
+/** QR choices offered to `team` in `state`, with their index in the list. */
 export const availableScans = (
   node: AnyNode,
   state: State,
   team: Team,
 ): readonly { readonly scan: AnyScan; readonly index: number }[] =>
-  offered(node.scans ?? [], state, team).map(({ transition, index }) => ({
-    scan: transition,
-    index,
-  }));
+  scansOf(node, state, team).map((scan, index) => ({ scan, index }));
 
 export const renderNode = (
   story: Story,
@@ -198,7 +218,8 @@ export const renderNode = (
       index,
       label: choice.label ?? '',
     })),
-    scan: node.scans !== undefined,
+    // Evaluated like the choices, so a `scans` function that gives nothing fails here already.
+    scan: scansOf(node, position.state, team).length > 0,
     ...(node.scanTitle === undefined ? {} : { scanTitle: node.scanTitle }),
     ...(node.scanText === undefined ? {} : { scanText: node.scanText }),
     timeStops: story.chapters.some((chapter) => chapter.id === node.chapter && !chapter.counts),

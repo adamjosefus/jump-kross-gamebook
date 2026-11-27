@@ -60,15 +60,18 @@ export const SAMPLE = defineStory<State>()({
           rich && { theme: 'letter', content: 'Drahý poutníku…' },
         ];
       },
-      choices: [
-        { label: 'Bojovat', goto: 'OUTRO' },
-        {
-          label: 'Koupit meč',
-          goto: 'OUTRO',
-          when: (state) => state.gold >= 90,
-          nextState: (state) => ({ gold: state.gold - 90 }),
-        },
-      ],
+      // The sword is for sale only to a team with enough gold.
+      choices: (state) =>
+        state.gold >= 90
+          ? [
+              { label: 'Bojovat', goto: 'OUTRO' },
+              {
+                label: 'Koupit meč',
+                goto: 'OUTRO',
+                nextState: (current) => ({ gold: current.gold - 90 }),
+              },
+            ]
+          : [{ label: 'Bojovat', goto: 'OUTRO' }],
     },
     // Whoever bought the sword has less than 50 left and won; fighting keeps the gold and loses.
     OUTRO: {
