@@ -204,6 +204,9 @@ const CardButton = ({
   </button>
 );
 
+/** How a choice's row looks while the browser draws it to drag: a piece of the card. */
+const DRAGGED_ROW = ['bg-card', 'rounded-md', 'shadow-md', 'ring-4', 'ring-card'] as const;
+
 /**
  * Where a dragged choice would land: before the row it is over, or after it in its lower half;
  * `count` is past the last row.
@@ -285,7 +288,13 @@ const ChoiceList = ({
             onDragStart={(event) => {
               const row = event.currentTarget.parentElement;
               if (row !== null) {
+                // The browser draws the dragged row on its own, without the card around; for that
+                // moment the row gets the card's background, and loses it right after.
+                row.classList.add(...DRAGGED_ROW);
                 event.dataTransfer.setDragImage(row, 8, CHOICE_ROW / 2);
+                requestAnimationFrame(() => {
+                  row.classList.remove(...DRAGGED_ROW);
+                });
               }
 
               event.dataTransfer.effectAllowed = 'move';
