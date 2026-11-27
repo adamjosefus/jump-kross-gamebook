@@ -29,20 +29,41 @@ export const dotX = (count: number, key: DotKey) => {
   return (CARD_WIDTH * (slot + 1)) / (count + 2);
 };
 
-/** The text of a dot: the choice's number, as beside its button, or „+“ for a new choice. */
+/** The text of a choice's dot: its number, as beside its button. */
 export const dotText = (key: DotKey) => (key === 'new' ? '+' : String(key + 1));
 
-/** The look of a dot; the canvas puts a handle with it to drag from. */
+/**
+ * What a dot shows: the choice's number, trimmed to the height of its digits so it sits in the
+ * middle of the circle, or a plus drawn as an icon, which centers exactly, for a new choice.
+ */
+export const DotContent = ({ dot }: { readonly dot: DotKey }) =>
+  dot === 'new' ? (
+    <IconPlus className='pointer-events-none size-2.5' stroke={3} />
+  ) : (
+    <span className='pointer-events-none [text-box:trim-both_cap_alphabetic]'>{dotText(dot)}</span>
+  );
+
+/** The look of a choice's dot; the canvas puts a handle with it to drag from. */
 export const DOT_LOOK =
   'flex size-4 items-center justify-center rounded-full border border-card bg-muted-foreground font-sans text-[9px] leading-none font-semibold text-card';
+
+/**
+ * The dot of „+ volba“ is outlined, unlike the choices' ones, and shows only while the pointer is
+ * over the card or a new edge is dragged out of it.
+ */
+export const NEW_DOT_LOOK =
+  'flex size-4 items-center justify-center rounded-full border border-dashed border-muted-foreground bg-card text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100 [&.connectingfrom]:opacity-100';
 
 /** A plain dot on the card's bottom edge. */
 const PlainDot = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => (
   <span
-    className={cn(DOT_LOOK, 'absolute bottom-0 -translate-x-1/2 translate-y-1/2')}
+    className={cn(
+      dot === 'new' ? NEW_DOT_LOOK : DOT_LOOK,
+      'absolute bottom-0 -translate-x-1/2 translate-y-1/2',
+    )}
     style={{ left: x }}
   >
-    {dotText(dot)}
+    <DotContent dot={dot} />
   </span>
 );
 
@@ -112,7 +133,7 @@ export const DraftNodeCard = ({
     <div
       ref={ref}
       className={cn(
-        'relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
+        'group/card relative flex flex-col rounded-lg border bg-card text-card-foreground shadow-xs',
         selected && 'outline-2 outline-offset-2 outline-yellow-500',
         className,
       )}

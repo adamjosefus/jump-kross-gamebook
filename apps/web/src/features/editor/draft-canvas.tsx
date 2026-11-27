@@ -47,9 +47,10 @@ import { draftNodeId, endsOf, startsOf, type Draft, type DraftNode } from './dra
 import {
   CARD_WIDTH,
   DOT_LOOK,
-  dotText,
+  DotContent,
   dotX,
   DraftNodeCard,
+  NEW_DOT_LOOK,
   NEXT_LABEL,
   type DotKey,
 } from './draft-node-card';
@@ -110,13 +111,18 @@ const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => 
       isConnectable={connectable}
       style={{ left: x }}
       className={cn(
-        DOT_LOOK,
         // React Flow's own handle look gives way to the dot's.
-        'size-4! min-h-0! min-w-0! rounded-full! border-card! bg-muted-foreground! hover:bg-yellow-500!',
+        'size-4! min-h-0! min-w-0! rounded-full!',
+        dot === 'new'
+          ? cn(
+              NEW_DOT_LOOK,
+              'border-dashed! border-muted-foreground! bg-card! hover:border-yellow-500!',
+            )
+          : cn(DOT_LOOK, 'border-card! bg-muted-foreground! hover:bg-yellow-500!'),
         connectable && 'cursor-crosshair',
       )}
     >
-      <span className='pointer-events-none'>{dotText(dot)}</span>
+      <DotContent dot={dot} />
     </Handle>
   );
 };
