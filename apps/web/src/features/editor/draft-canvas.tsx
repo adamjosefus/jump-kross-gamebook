@@ -46,9 +46,10 @@ import { cn } from '@/lib/utils';
 import { draftNodeId, endsOf, startsOf, type Draft, type DraftNode } from './draft';
 import {
   CARD_WIDTH,
-  choiceDotY,
+  DOT_LOOK,
+  dotText,
+  dotX,
   DraftNodeCard,
-  ENTRY_FROM_RIGHT,
   NEXT_LABEL,
   type DotKey,
 } from './draft-node-card';
@@ -99,23 +100,28 @@ const dotOf = (handle: string | null | undefined): DotKey | undefined => {
 };
 
 /** A choice's dot as a handle to drag a new edge from, when the canvas lets the draft change. */
-const DotHandle = ({ dot }: { readonly dot: DotKey }) => {
+const DotHandle = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => {
   const { connectable } = use(CardContext);
   return (
     <Handle
       type='source'
       id={dotHandle(dot)}
-      position={Position.Right}
+      position={Position.Bottom}
       isConnectable={connectable}
+      style={{ left: x }}
       className={cn(
-        'size-2.5! rounded-full! border-2! border-card! bg-muted-foreground! hover:bg-yellow-500!',
+        DOT_LOOK,
+        // React Flow's own handle look gives way to the dot's.
+        'size-4! min-h-0! min-w-0! rounded-full! border-card! bg-muted-foreground! hover:bg-yellow-500!',
         connectable && 'cursor-crosshair',
       )}
-    />
+    >
+      <span className='pointer-events-none'>{dotText(dot)}</span>
+    </Handle>
   );
 };
 
-const dotOfCard = (dot: DotKey) => <DotHandle dot={dot} />;
+const dotOfCard = (dot: DotKey, x: number) => <DotHandle dot={dot} x={x} />;
 
 /** A card on the canvas: it reports its height and offers its choices' dots to drag from. */
 const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
@@ -147,7 +153,6 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
         type='target'
         position={Position.Top}
         className='opacity-0'
-        style={{ left: CARD_WIDTH - ENTRY_FROM_RIGHT }}
         isConnectable={connectable}
       />
       <DraftNodeCard
@@ -206,21 +211,18 @@ const incomingEdges = (draft: Draft) => {
   return into;
 };
 
-/**
- * Where the edges into a card enter its top, from the left: they line up leftwards from near its
- * right corner, the side the choices leave from, as many as fit.
- */
+/** Where the edges into a card enter its top, from the left: side by side around its middle. */
 const entryXs = (count: number): readonly number[] => {
-  const gap = Math.min(ENTRY_GAP, (CARD_WIDTH - 2 * ENTRY_FROM_RIGHT) / Math.max(1, count - 1));
+  const gap = Math.min(ENTRY_GAP, (CARD_WIDTH - 2 * ENTRY_GAP) / Math.max(1, count - 1));
   return Array.from({ length: count }, (_, index) => {
-    return CARD_WIDTH - ENTRY_FROM_RIGHT - (count - 1 - index) * gap;
+    return CARD_WIDTH / 2 + (index - (count - 1) / 2) * gap;
   });
 };
 
 /**
- * Top to bottom, with the edges leaving at the choices' dots on the right and entering the next
- * card from above, each at a point of its own; `into` gives their order from the left. A node is
- * laid out as early as the nodes leading to it allow.
+ * Top to bottom, with the edges leaving at the choices' dots on the bottom edge and entering the
+ * next card's top edge, each at a point of its own; `into` gives their order from the left. A
+ * node is laid out as early as the nodes leading to it allow.
  */
 const layoutPass = (
   draft: Draft,
@@ -245,9 +247,9 @@ const layoutPass = (
           ...node.choices.map((_choice, index) => {
             return {
               id: portId(node.id, index),
-              x: CARD_WIDTH,
-              y: choiceDotY(height, node.choices.length, index),
-              side: 'EAST' as const,
+              x: dotX(node.choices.length, index),
+              y: height,
+              side: 'SOUTH' as const,
             };
           }),
         ],

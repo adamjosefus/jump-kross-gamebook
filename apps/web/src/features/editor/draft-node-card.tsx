@@ -1,5 +1,5 @@
 import { IconArrowRight, IconArrowsMaximize, IconNote, IconPlus } from '@tabler/icons-react';
-import type { ReactNode, Ref } from 'react';
+import { Fragment, type ReactNode, type Ref } from 'react';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -12,36 +12,51 @@ export const CARD_WIDTH = 320;
 /** How the plain arrow is named on the card and the edges. */
 export const NEXT_LABEL = 'Další';
 
-/**
- * Heights of the rows at the bottom of the card, in pixels, so the layout knows where a choice's
- * dot is without measuring it: the choices, then „+ volba“, then the padding and the border.
- */
+/** Heights of the rows at the bottom of the card, in pixels: the choices, then „+ volba“. */
 const CHOICE_ROW = 28;
 const ADD_ROW = 24;
 const FOOTER_PADDING = 8;
-const BORDER = 1;
-
-/** Where a choice's dot is from the card's top, for a card `height` high with `count` choices. */
-export const choiceDotY = (height: number, count: number, index: number) =>
-  height - BORDER - FOOTER_PADDING - ADD_ROW - (count - index) * CHOICE_ROW + CHOICE_ROW / 2;
-
-/**
- * Where the arrows into the card end on its top, from its right corner: above the side the choices
- * leave from, so a choice leads almost straight down and the layout does not drift sideways.
- */
-export const ENTRY_FROM_RIGHT = 24;
 
 /** What a dot stands for: a choice by its index, or a new choice. */
 export type DotKey = number | 'new';
 
-/** A plain dot on the card's right edge; the canvas puts a handle to drag from there instead. */
-const PlainDot = () => (
-  <span className='absolute top-1/2 -right-1 size-2 -translate-y-1/2 rounded-full bg-muted-foreground' />
+/**
+ * Where a dot sits on the card's bottom edge, from its left: the choices' dots in their order,
+ * then the one of „+ volba“, spread evenly. The layout attaches the edges there without measuring.
+ */
+export const dotX = (count: number, key: DotKey) => {
+  const slot = key === 'new' ? count : key;
+  return (CARD_WIDTH * (slot + 1)) / (count + 2);
+};
+
+/** The text of a dot: the choice's number, as beside its button, or „+“ for a new choice. */
+export const dotText = (key: DotKey) => (key === 'new' ? '+' : String(key + 1));
+
+/** The look of a dot; the canvas puts a handle with it to drag from. */
+export const DOT_LOOK =
+  'flex size-4 items-center justify-center rounded-full border border-card bg-muted-foreground font-sans text-[9px] leading-none font-semibold text-card';
+
+/** A plain dot on the card's bottom edge. */
+const PlainDot = ({ dot, x }: { readonly dot: DotKey; readonly x: number }) => (
+  <span
+    className={cn(DOT_LOOK, 'absolute bottom-0 -translate-x-1/2 translate-y-1/2')}
+    style={{ left: x }}
+  >
+    {dotText(dot)}
+  </span>
+);
+
+/** The number of a choice beside its button, matching its dot on the bottom edge. */
+const ChoiceNumber = ({ children }: { readonly children: ReactNode }) => (
+  <span className='w-3 shrink-0 text-center font-mono text-[10px] text-muted-foreground'>
+    {children}
+  </span>
 );
 
 /** A choice as a button the players see: its text, or the plain arrow. */
-const ChoiceRow = ({ choice, dot }: { readonly choice: DraftChoice; readonly dot: ReactNode }) => (
-  <div className='relative flex items-center pr-4 pl-3' style={{ height: CHOICE_ROW }}>
+const ChoiceRow = ({ choice, index }: { readonly choice: DraftChoice; readonly index: number }) => (
+  <div className='flex items-center gap-1.5 px-3' style={{ height: CHOICE_ROW }}>
+    <ChoiceNumber>{dotText(index)}</ChoiceNumber>
     <div
       className={cn(
         'min-w-0 flex-1 truncate rounded-md border bg-background px-2 py-0.5 text-xs',
@@ -56,7 +71,6 @@ const ChoiceRow = ({ choice, dot }: { readonly choice: DraftChoice; readonly dot
         choice.label
       )}
     </div>
-    {dot}
   </div>
 );
 
@@ -71,16 +85,16 @@ export interface DraftNodeCardProps {
   readonly maxHeight?: number;
   /** Shows a button to open the node in the focus mode. */
   readonly onOpen?: () => void;
-  /** The dot of a choice, or of a new one; a plain dot by default. */
-  readonly dot?: (key: DotKey) => ReactNode;
+  /** The dot of a choice, or of a new one, `x` from the card's left; a plain dot by default. */
+  readonly dot?: (key: DotKey, x: number) => ReactNode;
   readonly ref?: Ref<HTMLDivElement>;
   readonly className?: string;
 }
 
 /**
  * A node of the draft on the canvas, as high as its text. Close up: its id, summary, segments and
- * choices as buttons, each with a dot its edge starts from; from afar the summary covers it, so
- * the whole story reads as a list of events. The two cross-fade while zooming.
+ * choices as buttons, numbered like the dots on the bottom edge their edges start from; from afar
+ * the summary covers it, so the whole story reads as a list of events. The two cross-fade.
  */
 export const DraftNodeCard = ({
   node,
@@ -89,7 +103,7 @@ export const DraftNodeCard = ({
   start = false,
   maxHeight,
   onOpen,
-  dot = () => <PlainDot />,
+  dot = (key, x) => <PlainDot dot={key} x={x} />,
   ref,
   className,
 }: DraftNodeCardProps) => {
@@ -171,18 +185,19 @@ export const DraftNodeCard = ({
         style={{ paddingBottom: FOOTER_PADDING }}
       >
         {node.choices.map((choice, index) => (
-          <ChoiceRow key={index} choice={choice} dot={dot(index)} />
+          <ChoiceRow key={index} choice={choice} index={index} />
         ))}
         <div
-          className='relative flex items-center gap-1 pl-3 text-[11px] text-muted-foreground'
+          className='flex items-center gap-1.5 px-3 text-[11px] text-muted-foreground'
           style={{ height: ADD_ROW }}
         >
-          <IconPlus className='size-3' />
+          <ChoiceNumber>
+            <IconPlus className='mx-auto size-3' />
+          </ChoiceNumber>
           volba
-          {dot('new')}
         </div>
       </div>
-      {/* From afar the summary covers the card; the choices' dots stay where the edges start. */}
+      {/* From afar the summary covers the card. */}
       <div
         className={cn(
           'pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] bg-card p-5 transition-opacity duration-300',
@@ -197,6 +212,10 @@ export const DraftNodeCard = ({
           )}
         </p>
       </div>
+      {/* On the bottom edge, where the edges start; over the summary too. */}
+      {[...node.choices.keys(), 'new' as const].map((key) => (
+        <Fragment key={key}>{dot(key, dotX(node.choices.length, key))}</Fragment>
+      ))}
     </div>
   );
 };
