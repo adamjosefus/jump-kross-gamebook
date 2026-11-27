@@ -183,9 +183,9 @@ const DotHandle = ({
           ? cn(NEW_DOT_LOOK, 'size-6! border-border! bg-card!')
           : cn(
               DOT_LOOK,
-              'size-4! hover:bg-yellow-500!',
+              'size-4! border-card! hover:bg-yellow-500!',
               // In the color of the node the choice leads to, as that node's id tag.
-              color?.dot ?? 'border-card! bg-muted-foreground!',
+              color?.dot ?? 'bg-muted-foreground!',
             ),
         connectable && 'cursor-crosshair',
       )}

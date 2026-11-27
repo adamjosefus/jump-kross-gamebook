@@ -1,7 +1,4 @@
-/**
- * Looks of a node's color, the same in both places: a light background, dark text and an outline
- * in the full color, for contrast on the card and on the canvas alike.
- */
+/** Looks of a node's color, the same in both places: a full color, with black or white text. */
 export interface TagColor {
   /** The tag with the node's id. */
   readonly tag: string;
@@ -13,46 +10,19 @@ export interface TagColor {
 }
 
 /**
- * Nine colors far enough apart to tell the nodes from each other; the nodes take them in turn by
- * their order in the draft, so a node keeps its color while its id follows the summary.
+ * Nine strong colors far enough apart to tell the nodes from each other, each with the text that
+ * reads better on it, black or white; the same in the light and the dark mode.
  */
 export const TAG_COLORS: readonly TagColor[] = [
-  {
-    tag: 'border-red-500 bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200',
-    dot: 'border-red-500! bg-red-100! text-red-800! dark:bg-red-950! dark:text-red-200!',
-  },
-  {
-    tag: 'border-orange-500 bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200',
-    dot: 'border-orange-500! bg-orange-100! text-orange-800! dark:bg-orange-950! dark:text-orange-200!',
-  },
-  {
-    tag: 'border-amber-500 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200',
-    dot: 'border-amber-500! bg-amber-100! text-amber-800! dark:bg-amber-950! dark:text-amber-200!',
-  },
-  {
-    tag: 'border-lime-600 bg-lime-100 text-lime-800 dark:bg-lime-950 dark:text-lime-200',
-    dot: 'border-lime-600! bg-lime-100! text-lime-800! dark:bg-lime-950! dark:text-lime-200!',
-  },
-  {
-    tag: 'border-emerald-500 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200',
-    dot: 'border-emerald-500! bg-emerald-100! text-emerald-800! dark:bg-emerald-950! dark:text-emerald-200!',
-  },
-  {
-    tag: 'border-cyan-500 bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-200',
-    dot: 'border-cyan-500! bg-cyan-100! text-cyan-800! dark:bg-cyan-950! dark:text-cyan-200!',
-  },
-  {
-    tag: 'border-blue-500 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200',
-    dot: 'border-blue-500! bg-blue-100! text-blue-800! dark:bg-blue-950! dark:text-blue-200!',
-  },
-  {
-    tag: 'border-violet-500 bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-200',
-    dot: 'border-violet-500! bg-violet-100! text-violet-800! dark:bg-violet-950! dark:text-violet-200!',
-  },
-  {
-    tag: 'border-pink-500 bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-200',
-    dot: 'border-pink-500! bg-pink-100! text-pink-800! dark:bg-pink-950! dark:text-pink-200!',
-  },
+  { tag: 'bg-red-600 text-white', dot: 'bg-red-600! text-white!' },
+  { tag: 'bg-orange-500 text-black', dot: 'bg-orange-500! text-black!' },
+  { tag: 'bg-amber-400 text-black', dot: 'bg-amber-400! text-black!' },
+  { tag: 'bg-lime-400 text-black', dot: 'bg-lime-400! text-black!' },
+  { tag: 'bg-emerald-700 text-white', dot: 'bg-emerald-700! text-white!' },
+  { tag: 'bg-cyan-400 text-black', dot: 'bg-cyan-400! text-black!' },
+  { tag: 'bg-blue-600 text-white', dot: 'bg-blue-600! text-white!' },
+  { tag: 'bg-violet-600 text-white', dot: 'bg-violet-600! text-white!' },
+  { tag: 'bg-pink-700 text-white', dot: 'bg-pink-700! text-white!' },
 ];
 
 /**

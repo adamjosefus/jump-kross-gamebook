@@ -174,8 +174,7 @@ const IdField = ({
       className={cn(
         IN_CANVAS,
         'mr-auto [field-sizing:content] max-w-full min-w-8 rounded px-1.5 font-semibold outline-none focus:ring-1 focus:ring-current',
-        'border',
-        color?.tag ?? 'border-border bg-muted',
+        color?.tag ?? 'bg-muted',
       )}
     />
   );
