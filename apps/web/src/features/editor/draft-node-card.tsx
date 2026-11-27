@@ -7,6 +7,8 @@ import {
 } from '@tabler/icons-react';
 import { Fragment, useRef, useState, type DragEvent, type ReactNode, type Ref } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 import type { DraftChoice, DraftNode, DraftSegment } from './draft';
@@ -239,6 +241,69 @@ const IdField = ({
   );
 };
 
+/**
+ * A small button of a card that removes something: it asks first, in a popover beside it, with
+ * the cancel button focused, so Enter does not remove by mistake.
+ */
+const RemoveButton = ({
+  title,
+  question,
+  detail,
+  onConfirm,
+  children,
+}: {
+  readonly title: string;
+  readonly question: string;
+  readonly detail?: string;
+  readonly onConfirm: () => void;
+  readonly children: ReactNode;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type='button'
+          title={title}
+          aria-label={title}
+          className={cn(
+            IN_CANVAS,
+            'rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive',
+            open && 'bg-muted text-destructive',
+          )}
+        >
+          {children}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side='top' className='w-64 font-sans'>
+        <p className='text-sm font-medium'>{question}</p>
+        {detail !== undefined && <p className='mt-1 text-xs text-muted-foreground'>{detail}</p>}
+        <div className='mt-3 flex justify-end gap-2'>
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            Zrušit
+          </Button>
+          <Button
+            variant='destructive'
+            size='sm'
+            onClick={() => {
+              setOpen(false);
+              onConfirm();
+            }}
+          >
+            Smazat
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 /** A small button of a card. */
 const CardButton = ({
   title,
@@ -401,9 +466,14 @@ const ChoiceList = ({
           {/* Its place is kept, so the texts stay as wide in every row. */}
           <span className='size-[18px] opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'>
             {edit !== undefined && (
-              <CardButton title='Smazat volbu' onClick={() => edit.onRemoveChoice(index)}>
+              <RemoveButton
+                title='Smazat volbu'
+                question={`Smazat volbu ${index + 1}?`}
+                detail={`Vede do uzlu ${choice.to}; ten zůstane.`}
+                onConfirm={() => edit.onRemoveChoice(index)}
+              >
                 <IconX className='size-3.5' />
-              </CardButton>
+              </RemoveButton>
             )}
           </span>
         </div>
@@ -493,9 +563,14 @@ export const DraftNodeCard = ({
             </CardButton>
           )}
           {edit !== undefined && (
-            <CardButton title='Smazat uzel' onClick={edit.onRemove}>
+            <RemoveButton
+              title='Smazat uzel'
+              question={`Smazat uzel ${node.id}?`}
+              detail='Volby, které do něj vedou, se smažou taky. Vrátit to jde tlačítkem Zpět.'
+              onConfirm={edit.onRemove}
+            >
               <IconTrash className='size-3.5' />
-            </CardButton>
+            </RemoveButton>
           )}
         </div>
         <div className='flex flex-col gap-1 px-3 pt-1'>
