@@ -103,6 +103,17 @@ const devices = createRoute({
   path: '/devices',
   component: lazyRouteComponent(() => import('@/features/admin/devices-page'), 'DevicesPage'),
 });
+/**
+ * The story editor writes its draft through the dev server, so it is there only in development;
+ * a production build leaves out the route and the editor's code with it.
+ */
+const editor = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => admin,
+      path: '/editor',
+      component: lazyRouteComponent(() => import('@/features/editor/editor-page'), 'EditorPage'),
+    })
+  : undefined;
 const print = createRoute({
   getParentRoute: () => admin,
   path: '/qr-codes',
@@ -126,7 +137,17 @@ const Crashed = ({ error }: { readonly error: unknown }) => {
 export const router = createRouter({
   routeTree: root.addChildren([
     player,
-    admin.addChildren([adminIndex, story, playtest, game, dashboard, times, devices, print]),
+    admin.addChildren([
+      adminIndex,
+      story,
+      ...(editor === undefined ? [] : [editor]),
+      playtest,
+      game,
+      dashboard,
+      times,
+      devices,
+      print,
+    ]),
   ]),
   defaultErrorComponent: Crashed,
 });

@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
@@ -20,6 +21,10 @@ interface LoadedApi {
  * pages. Without `DATABASE_URL` the data lives in memory, kept here so that it survives that;
  * it is gone only when the dev server restarts.
  */
+/** Where the story editor keeps its draft; it is not part of the game, only of the repository. */
+const DRAFT_DIR = path.resolve(import.meta.dirname, '../../packages/story/draft');
+const DRAFT_FILE = path.join(DRAFT_DIR, 'story-draft.json');
+
 const apiDevServer = (): Plugin => {
   // Lazily loaded once and dropped again on failure or a code change so the next request loads it
   // anew; a cache like this has to be reassigned.
@@ -49,7 +54,12 @@ const apiDevServer = (): Plugin => {
       const packages = path.resolve(import.meta.dirname, '../../packages');
       server.watcher.add(packages);
       server.watcher.on('change', (file) => {
-        if (!file.startsWith(`${packages}${path.sep}`) || api === undefined) {
+        // The editor saving its draft changes nothing the game runs, so no page reloads for it.
+        if (
+          !file.startsWith(`${packages}${path.sep}`) ||
+          file.startsWith(`${DRAFT_DIR}${path.sep}`) ||
+          api === undefined
+        ) {
           return;
         }
 
@@ -81,6 +91,63 @@ const apiDevServer = (): Plugin => {
     },
   };
 };
+
+/** The whole body of a request, as text. */
+const bodyOf = async (request: AsyncIterable<Uint8Array>) => {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  return Buffer.concat(chunks).toString('utf8');
+};
+
+/**
+ * Reads and writes the story editor's draft, `GET` and `PUT /__editor/draft`, only in development:
+ * the deployed admin has no editor. The file is written whole and swapped in, so a save cut short
+ * never leaves half of it; the editor checks what it reads back.
+ */
+const storyDraftFile = (): Plugin => ({
+  name: 'gamebook-story-draft',
+  apply: 'serve',
+  configureServer(server) {
+    server.middlewares.use('/__editor/draft', (req, res, next) => {
+      const answer = async () => {
+        if (req.method === 'GET') {
+          try {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(await readFile(DRAFT_FILE, 'utf8'));
+          } catch (error) {
+            if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+              throw error;
+            }
+
+            res.statusCode = 404;
+            res.end();
+          }
+
+          return;
+        }
+
+        if (req.method === 'PUT') {
+          const draft: unknown = JSON.parse(await bodyOf(req));
+          await mkdir(DRAFT_DIR, { recursive: true });
+          const temporary = `${DRAFT_FILE}.tmp`;
+          await writeFile(temporary, `${JSON.stringify(draft, null, 2)}\n`);
+          await rename(temporary, DRAFT_FILE);
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        res.statusCode = 405;
+        res.end();
+      };
+
+      answer().catch(next);
+    });
+  },
+});
 
 /** The commit being built: Vercel names it, locally git does. */
 const commitHash = () => {
@@ -115,7 +182,7 @@ const appVersion = () => {
 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(appVersion()) },
-  plugins: [react(), tailwindcss(), apiDevServer()],
+  plugins: [react(), tailwindcss(), apiDevServer(), storyDraftFile()],
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },

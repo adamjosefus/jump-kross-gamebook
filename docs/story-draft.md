@@ -4,6 +4,18 @@ Editor v administraci slouží k rychlému psaní příběhu. Autor v něm napí
 
 Slova jako uzel, segment a akce jsou ve [slovníčku](story-glossary.md), skript popisuje [psaní příběhu](story-authoring.md).
 
+## Editor
+
+Editor je v administraci pod „Editor“, ale jen při `pnpm dev`. Koncept ukládá vývojový server do souboru `packages/story/draft/story-draft.json` v repozitáři. Nasazená administrace editor nemá a soubor nečte. Když soubor neexistuje, editor začne s jedním prázdným uzlem a soubor vytvoří při první změně.
+
+- **Graf** se rozkládá sám, shora dolů. Při oddálení je na kartách vidět jen shrnutí.
+- **Klik** na uzel ho vycentruje a otevře k psaní: id, shrnutí, poznámku, segmenty a volby. **Dvojklik** ho i přiblíží. Klik do prázdna psaní ukončí a graf se znovu rozloží.
+- **Segmenty** se píší jako jeden text: řádek `===` (s tématem `=== red`) a Enter je oddělí, `/` na začátku řádku nabídne příkazy a řádek `//` je poznámka.
+- **Volby:** očíslovaná tečka na spodní hraně karty patří k volbě se stejným číslem. Tažením tečky na jiný uzel vede volba tam, tažením do prázdna vznikne nový uzel. Tečka „+“ (při najetí na kartu) nebo „+ volba“ přidá novou volbu.
+- **Id** nového uzlu se odvozuje ze shrnutí, dokud pole shrnutí poprvé neopustíte. Pak už se mění jen ručně v poli id. Volby, které do uzlu vedou, se přejmenují s ním.
+- **Zpět a Znovu** jsou v liště nahoře, nebo ⌘Z a ⇧⌘Z mimo textová pole. V textu platí jeho vlastní Zpět.
+- **Režim soustředění** otevře ikona v rohu karty a zavře ho Esc.
+
 ## Tvar konceptu
 
 Typy jsou v `apps/web/src/features/editor/draft.ts`, ukázka v `sample-draft.ts` vedle něj.

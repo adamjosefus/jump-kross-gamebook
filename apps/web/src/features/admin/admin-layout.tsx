@@ -13,6 +13,8 @@ import { adminKeys, useOverview } from './queries';
 
 const NAV = [
   { to: '/admin/story', label: 'Příběh' },
+  // The editor writes to the repository through the dev server, so it is offered only there.
+  ...(import.meta.env.DEV ? [{ to: '/admin/editor', label: 'Editor' } as const] : []),
   { to: '/admin/playtest', label: 'Test' },
   { to: '/admin/game', label: 'Hra' },
   { to: '/admin/dashboard', label: 'Živě' },
