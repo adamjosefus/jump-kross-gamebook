@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 import {
   draftNodeId,
+  isNewNodeId,
   incoming,
   NEXT_LABEL,
   SAME_LABEL_WARNING,
@@ -700,9 +701,10 @@ export const FocusView = ({
 }: FocusViewProps) => {
   /**
    * The id follows the summary being written: in a new node, from when its empty summary is
-   * entered till it is left, as the id of a new node is made from its summary.
+   * entered till it is left, as the id of a new node is made from its summary. Holds the node's
+   * numbered id, which comes back when the summary is emptied again.
    */
-  const following = useRef(false);
+  const following = useRef<string | undefined>(undefined);
   /** The choice added last here, its text to be written first. */
   const [added, setAdded] = useState<{ readonly id: string; readonly index: number }>();
   const node = draft.nodes.find((candidate) => {
@@ -769,7 +771,7 @@ export const FocusView = ({
             onId={
               onChange &&
               ((typed) => {
-                following.current = false;
+                following.current = undefined;
                 rename(draft, draftNodeId(typed, others));
               })
             }
@@ -886,18 +888,19 @@ export const FocusView = ({
                 value={node.summary}
                 placeholder='Co se v uzlu stane, jednou větou'
                 onFocus={() => {
-                  following.current = node.summary === '' && node.id === draftNodeId('', others);
+                  following.current =
+                    node.summary === '' && isNewNodeId(node.id) ? node.id : undefined;
                 }}
                 onBlur={() => {
-                  following.current = false;
+                  following.current = undefined;
                 }}
                 onChange={
                   edit &&
                   ((summary) => {
-                    if (following.current) {
+                    if (following.current !== undefined) {
                       rename(
                         updateNode(draft, id, (current) => ({ ...current, summary })),
-                        draftNodeId(summary, others),
+                        draftNodeId(summary, others, following.current),
                         // One step of the history while the id follows, though it changes each time.
                         'focus:following-summary',
                       );

@@ -1,7 +1,7 @@
 import { THEMES } from '@gamebook/core';
 
 import {
-  draftNodeId,
+  newNodeId,
   startsOf,
   type Draft,
   type DraftChoice,
@@ -24,8 +24,8 @@ export const emptyNode = (id: string): DraftNode => ({
 /** Where a new draft starts: one empty node, the start. */
 export const EMPTY_DRAFT: Draft = {
   version: 1,
-  starts: [draftNodeId('')],
-  nodes: [emptyNode(draftNodeId(''))],
+  starts: [newNodeId(new Set())],
+  nodes: [emptyNode(newNodeId(new Set()))],
 };
 
 /** The draft with the start dot pointing at `ids`, written out. */
@@ -43,8 +43,7 @@ export const addStart = (draft: Draft, id: string): Draft => {
 
 /** The draft with a new empty node the start dot points at; the new node's id with it. */
 export const startInNew = (draft: Draft): { readonly draft: Draft; readonly target: string } => {
-  const id = draftNodeId(
-    '',
+  const id = newNodeId(
     new Set(
       draft.nodes.map((node) => {
         return node.id;
@@ -157,7 +156,7 @@ export const linkChoice = (
   target?: string,
 ): { readonly draft: Draft; readonly target: string } => {
   const taken = new Set(draft.nodes.map((node) => node.id));
-  const to = target ?? draftNodeId('', taken);
+  const to = target ?? newNodeId(taken);
   const linked = updateNode(draft, source, (node) => {
     if (slot === 'new') {
       return { ...node, choices: [...node.choices, { label: '', to }] };
@@ -194,7 +193,7 @@ export const linkInto = (
     return { draft: linkChoice(draft, source, 'new', target).draft, source };
   }
 
-  const id = draftNodeId('', new Set(draft.nodes.map((node) => node.id)));
+  const id = newNodeId(new Set(draft.nodes.map((node) => node.id)));
   return {
     draft: {
       ...draft,

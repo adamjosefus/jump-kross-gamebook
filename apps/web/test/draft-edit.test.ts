@@ -50,9 +50,9 @@ const choicesOf = (from: Draft, id: string) =>
 describe('editing a draft', () => {
   it('starts with one empty node, the start', () => {
     expect(EMPTY_DRAFT.nodes).toEqual([
-      { id: 'uzel', summary: '', segments: [{ text: '' }], choices: [] },
+      { id: '1', summary: '', segments: [{ text: '' }], choices: [] },
     ]);
-    expect(EMPTY_DRAFT.starts).toEqual(['uzel']);
+    expect(EMPTY_DRAFT.starts).toEqual(['1']);
   });
 
   it('points the start at a node too, or no more', () => {
@@ -66,8 +66,8 @@ describe('editing a draft', () => {
     expect(existing.source).toBe('c');
     expect(choicesOf(existing.draft, 'c')).toEqual(['>a']);
     const drawn = linkInto(draft, 'c');
-    expect(drawn.source).toBe('uzel');
-    expect(choicesOf(drawn.draft, 'uzel')).toEqual(['>c']);
+    expect(drawn.source).toBe('4');
+    expect(choicesOf(drawn.draft, '4')).toEqual(['>c']);
   });
 
   it('changes one node', () => {
@@ -95,15 +95,15 @@ describe('editing a draft', () => {
     expect(existing.target).toBe('a');
     expect(choicesOf(existing.draft, 'c')).toEqual(['>a']);
     const drawn = linkChoice(draft, 'a', 1);
-    expect(drawn.target).toBe('uzel');
-    expect(choicesOf(drawn.draft, 'a')).toEqual(['Do B>b', '>uzel', 'Zase B>b']);
+    expect(drawn.target).toBe('4');
+    expect(choicesOf(drawn.draft, 'a')).toEqual(['Do B>b', '>4', 'Zase B>b']);
     expect(drawn.draft.nodes.at(-1)).toEqual({
-      id: 'uzel',
+      id: '4',
       summary: '',
       segments: [{ text: '' }],
       choices: [],
     });
-    expect(linkChoice(drawn.draft, 'b', 'new').target).toBe('uzel_2');
+    expect(linkChoice(drawn.draft, 'b', 'new').target).toBe('5');
   });
 
   it('moves a choice within the list and no further', () => {

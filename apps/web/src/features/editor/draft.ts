@@ -108,9 +108,13 @@ const FALLBACK_ID = 'uzel';
 /**
  * An id for a node with this summary: without diacritics, lowercase, the words joined by `_` and
  * cut after the last whole word that fits `MAX_ID_LENGTH`. A number is added when the id is
- * `taken`, e.g. `pekarna_2`.
+ * `taken`, e.g. `pekarna_2`. A summary with no letters or digits gives `fallback`.
  */
-export const draftNodeId = (summary: string, taken: ReadonlySet<string> = new Set()): string => {
+export const draftNodeId = (
+  summary: string,
+  taken: ReadonlySet<string> = new Set(),
+  fallback: string = FALLBACK_ID,
+): string => {
   const words = summary
     .normalize('NFD')
     .replaceAll(/\p{M}/gu, '')
@@ -134,7 +138,7 @@ export const draftNodeId = (summary: string, taken: ReadonlySet<string> = new Se
     id = words[0]!.slice(0, MAX_ID_LENGTH);
   }
 
-  const base = id === '' ? FALLBACK_ID : id;
+  const base = id === '' ? fallback : id;
   if (!taken.has(base)) {
     return base;
   }
@@ -146,6 +150,22 @@ export const draftNodeId = (summary: string, taken: ReadonlySet<string> = new Se
 
   return `${base}_${number}`;
 };
+
+/**
+ * The id of a node added before anything is written in it: its order in the story, e.g. `5` for
+ * the fifth node. The next free number when that one is `taken`.
+ */
+export const newNodeId = (taken: ReadonlySet<string>): string => {
+  let number = taken.size + 1;
+  while (taken.has(String(number))) {
+    number += 1;
+  }
+
+  return String(number);
+};
+
+/** Whether `id` looks like one `newNodeId` gives, a bare number. */
+export const isNewNodeId = (id: string): boolean => /^[0-9]+$/.test(id);
 
 /** A choice that leads into a node, with the node it is on. */
 export interface IncomingChoice {

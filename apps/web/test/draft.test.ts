@@ -5,7 +5,9 @@ import {
   draftProblems,
   endsOf,
   incoming,
+  isNewNodeId,
   meanCharactersOf,
+  newNodeId,
   rootsOf,
   routesTo,
   sameLabelChoices,
@@ -37,6 +39,30 @@ describe('draftNodeId', () => {
     expect(draftNodeId('Pekárna', new Set(['pekarna']))).toBe('pekarna_2');
     expect(draftNodeId('Pekárna', new Set(['pekarna', 'pekarna_2']))).toBe('pekarna_3');
     expect(draftNodeId('', new Set(['uzel']))).toBe('uzel_2');
+  });
+
+  it('falls back to the given id, a number of a new node', () => {
+    expect(draftNodeId('', new Set(), '4')).toBe('4');
+    expect(draftNodeId('Pekárna', new Set(), '4')).toBe('pekarna');
+  });
+});
+
+describe('newNodeId', () => {
+  it('numbers a new node by its order in the story', () => {
+    expect(newNodeId(new Set())).toBe('1');
+    expect(newNodeId(new Set(['pekarna', 'trh']))).toBe('3');
+  });
+
+  it('takes the next free number when that one is taken', () => {
+    expect(newNodeId(new Set(['1', '2']))).toBe('3');
+    expect(newNodeId(new Set(['pekarna', '2']))).toBe('3');
+    expect(newNodeId(new Set(['3', '4', 'trh']))).toBe('5');
+  });
+
+  it('is recognised as a bare number', () => {
+    expect(isNewNodeId('12')).toBe(true);
+    expect(isNewNodeId('uzel')).toBe(false);
+    expect(isNewNodeId('kod_4')).toBe(false);
   });
 });
 
