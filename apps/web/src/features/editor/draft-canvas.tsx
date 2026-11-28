@@ -273,6 +273,46 @@ const DraftFlowCard = ({ id, data, selected }: NodeProps<DraftFlowNode>) => {
     };
   }, [id, onHeight]);
 
+  // With Alt held, a press anywhere on the card is a press on its bottom right plus: the drag
+  // draws a choice out of this node, dropped on a node it leads there, elsewhere to a new one.
+  useEffect(() => {
+    const element = card.current;
+    if (element === null || !connectable) {
+      return undefined;
+    }
+
+    const onMouseDown = (event: MouseEvent) => {
+      const plus = element.querySelector(
+        `.react-flow__handle[data-handleid="${dotHandle('new')}"]`,
+      );
+      if (!event.altKey || event.button !== 0 || plus === null) {
+        return;
+      }
+
+      // Neither a pan of the canvas, a resize of the card, nor a selection of its text.
+      event.preventDefault();
+      event.stopPropagation();
+      // Without Alt, so this listener lets it through to the plus, which starts the drag here.
+      plus.dispatchEvent(
+        new MouseEvent('mousedown', {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+          buttons: event.buttons,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          screenX: event.screenX,
+          screenY: event.screenY,
+        }),
+      );
+    };
+
+    element.addEventListener('mousedown', onMouseDown, { capture: true });
+    return () => {
+      element.removeEventListener('mousedown', onMouseDown, { capture: true });
+    };
+  }, [connectable]);
+
   // React Flow knows where the dots are only from its last measuring of the card, which comes with
   // a change of its size. A choice added, removed or led elsewhere changes the dots but not the
   // size, and an edge from a dot it does not know is not drawn at all; so the dots are measured
@@ -342,6 +382,9 @@ const counted = (count: number, one: string, few: string, many: string) => {
  * 11 px at 1, and 13 px at 2.
  */
 const LABEL_ZOOM_RESISTANCE = 0.75;
+
+/** How an end ring and the edge to it fade out and back while a choice is dragged out of its node. */
+const END_FADE = 'transition-opacity duration-200 ease-out';
 
 type EndFlowNode = Node<
   {
@@ -453,11 +496,28 @@ const DragLine = ({
   fromPosition,
   toPosition,
   fromHandle,
+  fromNode,
 }: ConnectionLineComponentProps) => {
   const overCard = use(OverCardContext);
+  const flow = useStore((state) => state.domNode);
+  const { screenToFlowPosition } = useReactFlow();
+  // React Flow measures a handle's place in its box as scaled at that moment's zoom, its size
+  // unscaled; a plus keeps its size on the screen, so the line would start off its middle at any
+  // other zoom. It starts where the dot is now instead.
+  const handle = flow?.querySelector(
+    `.react-flow__node[data-id="${CSS.escape(fromNode.id)}"] .react-flow__handle[data-handleid="${CSS.escape(fromHandle.id ?? '')}"]`,
+  );
+  const bounds = handle?.getBoundingClientRect();
+  const from =
+    bounds === undefined
+      ? { x: fromX, y: fromY }
+      : screenToFlowPosition(
+          { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 },
+          { snapToGrid: false },
+        );
   const [path] = getBezierPath({
-    sourceX: fromX,
-    sourceY: fromY,
+    sourceX: from.x,
+    sourceY: from.y,
     sourcePosition: fromPosition,
     targetX: toX,
     targetY: toY,
@@ -469,8 +529,8 @@ const DragLine = ({
   const { width, height, gap } = NEW_NODE_HINT;
   // The new node of a choice comes below the pointer, the node of a choice into this one above.
   const top = dot === 'in' ? -height - gap : gap;
-  // How to call the drag off, under the pointer, or under the box when the box is there.
-  const cancelAt = hint && dot === 'new' ? top + height + gap : gap;
+  // How to call the drag off, under the pointer, or under the box when the box is below it.
+  const cancelAt = hint && dot !== 'in' ? top + height + gap : gap;
   return (
     <g>
       <path
@@ -515,7 +575,8 @@ const DragLine = ({
             width={width}
             height={height}
             rx={8}
-            fill='var(--card)'
+            // A light wash of the drag's blue over the card's color.
+            fill={`color-mix(in oklab, ${DRAG_COLOR} 12%, var(--card))`}
             stroke={DRAG_COLOR}
             strokeDasharray='4 3'
           />
@@ -924,6 +985,33 @@ const Canvas = ({
 }: DraftCanvasProps) => {
   const { resolved } = useTheme();
   const wrapper = useRef<HTMLDivElement>(null);
+  /** Whether Alt is held, when a drag from a card draws a choice out of it. */
+  const [altHeld, setAltHeld] = useState(false);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      setAltHeld(event.altKey);
+    };
+
+    // A pointer that comes back with Alt pressed or let go elsewhere tells it too.
+    const onPointer = (event: PointerEvent) => {
+      setAltHeld(event.altKey);
+    };
+
+    const onBlur = () => {
+      setAltHeld(false);
+    };
+
+    globalThis.addEventListener('keydown', onKey);
+    globalThis.addEventListener('keyup', onKey);
+    globalThis.addEventListener('pointermove', onPointer);
+    globalThis.addEventListener('blur', onBlur);
+    return () => {
+      globalThis.removeEventListener('keydown', onKey);
+      globalThis.removeEventListener('keyup', onKey);
+      globalThis.removeEventListener('pointermove', onPointer);
+      globalThis.removeEventListener('blur', onBlur);
+    };
+  }, []);
   // React Flow skips every wheel over a `nowheel` field, a pinch too; this hands the pinch to the
   // pane, which zooms around the fingers, while the wheel alone still scrolls the field's text.
   useEffect(() => {
@@ -1147,6 +1235,15 @@ const Canvas = ({
   const draggedFrom = useConnection((connection) =>
     connection.inProgress ? connection.fromNode.id : undefined,
   );
+  /**
+   * The end node a new choice is dragged out of, from its bottom right plus: its end ring and the
+   * edge to it fade out meanwhile, as the node will not end here once the choice is made.
+   */
+  const endLeaving = useConnection((connection) =>
+    connection.inProgress && dotOf(connection.fromHandle.id) === 'new'
+      ? connection.fromNode.id
+      : undefined,
+  );
   const pointed = dragging === undefined ? undefined : keyAt(dragging);
   const dropTarget = pointed === draggedFrom ? undefined : pointed;
   /**
@@ -1326,6 +1423,7 @@ const Canvas = ({
         type: 'final',
         position: position(finalRingId(node.id)),
         measured: { width: FINAL_SIZE, height: FINAL_SIZE },
+        className: cn(END_FADE, node.id === endLeaving && 'opacity-0'),
         data: {
           routes: routes.get(node.id),
           difference: differences.get(node.id),
@@ -1344,6 +1442,7 @@ const Canvas = ({
     maxHeight,
     heights,
     dropTarget,
+    endLeaving,
   ]);
 
   const edges = useMemo<RouteEdge[]>(() => {
@@ -1416,9 +1515,10 @@ const Canvas = ({
       ...endsOf(keyed).map((node) => ({
         ...plain(finalEdgeId(node.id), node.id, finalRingId(node.id)),
         sourceHandle: dotHandle('new'),
+        className: cn(END_FADE, node.id === endLeaving && 'opacity-0'),
       })),
     ].map(marked);
-  }, [keyed, laidOut, selection, smoothEdges]);
+  }, [keyed, laidOut, selection, smoothEdges, endLeaving]);
 
   /** What waits for a yes to be removed: the cards and edges selected when it was asked. */
   const [removing, setRemoving] = useState<Selection>();
@@ -1707,6 +1807,7 @@ const Canvas = ({
       <OverCardContext value={dropTarget !== undefined}>
         <div
           ref={wrapper}
+          {...(altHeld && onChange !== undefined ? { 'data-alt-link': '' } : {})}
           className={cn(
             // The edges' labels larger than the story graph's, to read the choices easily.
             'story-graph relative size-full transition-opacity duration-200 [--edge-label-scale:1.4]',

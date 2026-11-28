@@ -533,3 +533,9 @@ html:has(.player-page) {
     font-weight: 650;
   }
 }
+
+/* With Alt held, a drag from anywhere on a card draws a choice out of it, as from its plus. */
+.story-graph[data-alt-link] .react-flow__node-draft,
+.story-graph[data-alt-link] .react-flow__node-draft * {
+  cursor: crosshair !important;
+}
