@@ -32,7 +32,9 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { NodeSegments } from '@/features/player/node-segments';
 import { ACCEPTED_MS, type ScanOutcome } from '@/features/player/qr-scanner';
-import { StoryGraph } from '@/features/story/story-graph';
+import { GraphToolbar } from '@/features/story/graph-toolbar';
+import { useGraphView } from '@/features/story/graph-view';
+import { GraphViewPickers, StoryGraph } from '@/features/story/story-graph';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -386,6 +388,7 @@ export const PlaytestPage = () => {
   const logOpen = !narrow && logPanelOpen;
   const [pageRef, blockRef, scale] = usePreviewScale();
   const graph = useStoryGraph();
+  const [view, setView] = useGraphView();
   const problems = useMemo(
     () => (graph.data === undefined ? [] : graphProblems(graph.data)),
     [graph.data],
@@ -565,6 +568,7 @@ export const PlaytestPage = () => {
       ) : (
         <StoryGraph
           graph={graph.data}
+          view={view}
           {...(current === undefined
             ? {}
             : { focus: current.intro === true ? graph.data.introNode : current.node })}
@@ -711,41 +715,48 @@ export const PlaytestPage = () => {
         </div>
       </aside>
 
-      {logOpen ? (
-        <aside className='absolute top-4 right-4 flex max-h-[calc(100%-2rem)] w-80 max-w-[calc(100%-2rem)] animate-in flex-col rounded-lg border bg-background/80 shadow-lg backdrop-blur-md fade-in slide-in-from-right-2'>
-          <header className='flex items-center gap-2 border-b py-2 pr-2 pl-4'>
-            <h2 className='flex-1 font-semibold'>Průběh testu</h2>
-            {play.isPending && (
-              <IconLoader2 className='size-4 animate-spin text-muted-foreground' />
-            )}
-            <Hint text='Skrýt průběh'>
-              <Button
-                variant='ghost'
-                size='icon-sm'
-                aria-label='Skrýt průběh'
-                onClick={() => setLogOpen(false)}
-              >
-                <IconChevronsRight />
-              </Button>
-            </Hint>
-          </header>
-          <div className='flex min-h-0 flex-col gap-6 overflow-y-auto p-4 text-sm'>
-            {logContent}
+      {/* The graph's tools and the run's log side by side in the top right corner; only they
+        catch the mouse, the graph goes on under the rest. */}
+      <div className='pointer-events-none absolute top-4 right-4 flex max-h-[calc(100%-2rem)] max-w-[calc(100%-2rem)] items-start gap-2'>
+        <GraphToolbar label='Nástroje grafu'>
+          <GraphViewPickers view={view} onChange={setView} />
+        </GraphToolbar>
+        {logOpen ? (
+          <aside className='pointer-events-auto flex max-h-full w-80 min-w-0 animate-in flex-col rounded-lg border bg-background/80 shadow-lg backdrop-blur-md fade-in slide-in-from-right-2'>
+            <header className='flex items-center gap-2 border-b py-2 pr-2 pl-4'>
+              <h2 className='flex-1 font-semibold'>Průběh testu</h2>
+              {play.isPending && (
+                <IconLoader2 className='size-4 animate-spin text-muted-foreground' />
+              )}
+              <Hint text='Skrýt průběh'>
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  aria-label='Skrýt průběh'
+                  onClick={() => setLogOpen(false)}
+                >
+                  <IconChevronsRight />
+                </Button>
+              </Hint>
+            </header>
+            <div className='flex min-h-0 flex-col gap-6 overflow-y-auto p-4 text-sm'>
+              {logContent}
+            </div>
+          </aside>
+        ) : (
+          <div className='pointer-events-auto shrink-0 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
+            <Button variant='ghost' size='sm' onClick={openLog}>
+              {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
+              <span className='text-muted-foreground'>{path.length}</span>
+              {problems.length > 0 && (
+                <span className='flex items-center gap-1 text-destructive'>
+                  <IconAlertTriangle /> {problems.length}
+                </span>
+              )}
+            </Button>
           </div>
-        </aside>
-      ) : (
-        <div className='absolute top-4 right-4 rounded-lg border bg-background/80 p-1 shadow-md backdrop-blur-md'>
-          <Button variant='ghost' size='sm' onClick={openLog}>
-            {play.isPending ? <IconLoader2 className='animate-spin' /> : <IconHistory />} Průběh
-            <span className='text-muted-foreground'>{path.length}</span>
-            {problems.length > 0 && (
-              <span className='flex items-center gap-1 text-destructive'>
-                <IconAlertTriangle /> {problems.length}
-              </span>
-            )}
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {narrow && search.panel === 'log' && (
         <Subpage

@@ -10,11 +10,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ToolbarMenu } from '@/features/story/graph-toolbar';
 
 import type { Draft } from './draft';
 import {
@@ -314,13 +314,13 @@ export const FileMenu = ({
   onOpen,
   onSaveAs,
 }: FileActions & { readonly name: string }) => (
-  <DropdownMenu>
+  <ToolbarMenu>
     <DropdownMenuTrigger asChild>
       <Button variant='ghost' size='sm'>
         <IconFile /> Soubor <IconChevronDown className='opacity-60' />
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align='end' className='w-72'>
+    <DropdownMenuContent align='start' className='w-72'>
       <DropdownMenuItem onSelect={onNew}>
         <IconFilePlus /> Nový koncept…
       </DropdownMenuItem>
@@ -337,7 +337,7 @@ export const FileMenu = ({
         </span>
       </DropdownMenuItem>
     </DropdownMenuContent>
-  </DropdownMenu>
+  </ToolbarMenu>
 );
 
 /** What to say and offer when saving waits for the author. */

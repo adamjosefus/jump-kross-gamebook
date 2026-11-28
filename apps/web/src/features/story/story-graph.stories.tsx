@@ -4,7 +4,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-import { StoryGraph } from './story-graph';
+import { GraphToolbar } from './graph-toolbar';
+import { useGraphView } from './graph-view';
+import { GraphViewPickers, StoryGraph } from './story-graph';
 
 /** The demo story, with its chapters; the introduction does not count towards the result. */
 const graph = toGraph(story);
@@ -33,3 +35,22 @@ export const Kapitoly: Story = {};
 
 /** Without the frames, laid out as if the story had no chapters. */
 export const BezKapitol: Story = { name: 'Bez kapitol', args: { chapters: false } };
+
+/** The graph with its floating toolbar in the top right corner, as on the story page. */
+const WithToolbar = (props: Parameters<typeof StoryGraph>[0]) => {
+  const [view, setView] = useGraphView();
+  return (
+    <div className='relative size-full'>
+      <StoryGraph {...props} view={view} />
+      <GraphToolbar label='Nástroje grafu' corner>
+        <GraphViewPickers view={view} onChange={setView} />
+      </GraphToolbar>
+    </div>
+  );
+};
+
+/** Spacing and arrows chosen in the toolbar, kept in this browser. */
+export const SNastroji: Story = {
+  name: 'S nástroji',
+  render: (args) => <WithToolbar {...args} />,
+};

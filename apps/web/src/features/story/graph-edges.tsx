@@ -7,9 +7,11 @@ import {
   Position,
   type Edge,
   type EdgeProps,
+  useStoreApi,
   type Node,
   type XYPosition,
 } from '@xyflow/react';
+import { useEffect } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -18,7 +20,7 @@ import { FINAL_SIZE, INITIAL_SIZE, LABEL_LINE_HEIGHT, labelLines, type Box } fro
 /** Radius of the rounded corners where an edge turns. */
 const CORNER_RADIUS = 8;
 
-/** Where the yellow line around a focused node is, and the gap an arrow makes in it. */
+/** Where the line around a focused node is, and the gap an arrow makes in it. */
 export interface FocusLine {
   /** Of the line's middle from the card. */
   readonly distance: number;
@@ -33,8 +35,46 @@ export interface FocusLine {
   readonly scale?: string;
 }
 
-/** The story graph's line: `outline-offset-4` of a 1 px outline. */
-const STORY_FOCUS_LINE: FocusLine = { distance: 4.5, gap: 9, width: 3 };
+/**
+ * The line around a selected or focused card, `outline-offset` of 3 and a width of 1 screen pixel
+ * off its ring of 1: the arrows into the card clear a gap in it, as large on the screen at any zoom.
+ */
+export const SCREEN_FOCUS_LINE: FocusLine = {
+  distance: 3.5,
+  gap: 9,
+  width: 3,
+  scale: 'var(--zoom-out, 1)',
+};
+
+/**
+ * The thin yellow line around a selected or focused card, off its own ring, as `SCREEN_FOCUS_LINE`.
+ * Deeper on the light canvas, where a light yellow would fade.
+ */
+export const SELECTED_OUTLINE =
+  'outline-[length:var(--line,1px)] outline-offset-[calc(3*var(--line,1px))] outline-yellow-500 dark:outline-yellow-400';
+
+/**
+ * Keeps the lines as wide on the screen at any zoom: `--line` is one screen pixel in the canvas's
+ * units, for the cards' outlines, and the edges are as wide. `--zoom-out` is one over the zoom, for
+ * what should shrink less than the canvas, like the edges' labels. The arrowheads follow the edges'
+ * width. Set on the graph's element, so zooming does not render it again; placed inside
+ * `ReactFlow`.
+ */
+export const ScreenLines = () => {
+  const store = useStoreApi();
+  useEffect(() => {
+    const apply = ({ domNode, transform: [, , zoom] }: ReturnType<typeof store.getState>) => {
+      domNode?.style.setProperty('--line', `${1 / zoom}px`);
+      domNode?.style.setProperty('--zoom-out', `${1 / zoom}`);
+      domNode?.style.setProperty('--xy-edge-stroke-width', `${1 / zoom}`);
+      domNode?.style.setProperty('--xy-connectionline-stroke-width', `${1 / zoom}`);
+    };
+
+    apply(store.getState());
+    return store.subscribe(apply);
+  }, [store]);
+  return null;
+};
 
 export const ARROW_HEAD = { type: MarkerType.Arrow, width: 22, height: 22 } as const;
 
@@ -47,9 +87,9 @@ export type RouteEdge = Edge<
     readonly label?: Box;
     /** Of the label; the theme's text color when missing. */
     readonly color?: string;
-    /** The edge leads to the focused node, so its arrow clears a gap in the yellow line. */
+    /** The edge leads to the focused node, so its arrow clears a gap in the line around it. */
     readonly focusTarget?: boolean;
-    /** That line, the story graph's by default. */
+    /** That line, `SCREEN_FOCUS_LINE` by default. */
     readonly focusLine?: FocusLine;
     /**
      * Of the label, for an edge raised over the others: the edge's own layer lies above the labels
@@ -121,12 +161,12 @@ export const bezierPath = (points: readonly XYPosition[]) => {
 };
 
 /**
- * The short piece across the yellow line of the focused node, where the route's arrow ends: a path,
+ * The short piece across the line around the focused node, where the route's arrow ends: a path,
  * and, for a scaled line, the CSS transform that puts the path drawn around the arrow's end there.
  */
 export const focusLineGap = (
   points: readonly XYPosition[],
-  line: FocusLine = STORY_FOCUS_LINE,
+  line: FocusLine = SCREEN_FOCUS_LINE,
 ): { readonly d: string; readonly transform?: string } | undefined => {
   const end = points.at(-1);
   const previous = points.at(-2);
@@ -174,7 +214,7 @@ export const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) 
           y: (start.y + end.y) / 2 - data.label.height / 2,
         }
       : data.label;
-  const line = data.focusLine ?? STORY_FOCUS_LINE;
+  const line = data.focusLine ?? SCREEN_FOCUS_LINE;
   const gap = data.focusTarget === true ? focusLineGap(data.points, line) : undefined;
   return (
     <>
@@ -203,10 +243,12 @@ export const RouteEdgeView = ({ data, markerEnd, style }: EdgeProps<RouteEdge>) 
               lineHeight: `${LABEL_LINE_HEIGHT}px`,
               color: data.color,
               // Moved by `translate` so `scale` keeps it in place: a canvas that sets `--zoom-out`
-              // to one over the zoom keeps its labels as large on the screen at any zoom, and
+              // to one over the zoom keeps its labels as large on the screen at any zoom, or with
+              // `--edge-label-resistance` below 1 lets them shrink a little with the canvas; and
               // `--edge-label-scale` makes them larger than the room laid out for them.
               translate: `${label.x}px ${label.y}px`,
-              scale: 'calc(var(--zoom-out, 1) * var(--edge-label-scale, 1))',
+              scale:
+                'calc(pow(var(--zoom-out, 1), var(--edge-label-resistance, 1)) * var(--edge-label-scale, 1))',
               ...(data.labelZIndex === undefined ? {} : { zIndex: data.labelZIndex }),
               width: label.width,
               height: label.height,

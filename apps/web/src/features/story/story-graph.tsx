@@ -1,6 +1,6 @@
 import '@xyflow/react/dist/style.css';
 import type { GameGraph, GraphNode } from '@gamebook/core';
-import { IconFlag, IconWalk } from '@tabler/icons-react';
+import { IconWalk } from '@tabler/icons-react';
 import {
   Background,
   Controls,
@@ -16,7 +16,6 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { tagColor, type TagColor } from '@/features/editor/tag-colors';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -34,18 +34,33 @@ import {
   FinalDot,
   InitialDot,
   RouteEdgeView,
+  ScreenLines,
+  SELECTED_OUTLINE,
   type FinalFlowNode,
   type InitialFlowNode,
   type RouteEdge,
 } from './graph-edges';
 import {
-  FINAL_ID,
   finalEdgeId,
+  finalRingId,
   INITIAL_ID,
   initialEdgeId,
   layoutBoxes,
+  spacedGaps,
   type BoxLayout,
 } from './graph-layout';
+import { ToolbarPicker } from './graph-toolbar';
+import {
+  DEFAULT_GRAPH_VIEW,
+  EDGE_STYLE_TEXT,
+  EDGE_STYLES,
+  parseEdgeStyle,
+  parseSpacing,
+  SPACING_FACTOR,
+  SPACING_TEXT,
+  SPACINGS,
+  type GraphView,
+} from './graph-view';
 
 const NODE_WIDTH = 240;
 const NODE_HEIGHT = 136;
@@ -90,9 +105,10 @@ const endsOf = (graph: GameGraph) => graph.order.filter((id) => graph.nodes[id]!
 
 /**
  * Layered top-down layout; depends only on the nodes and edges, not on the previews. With
- * `grouped`, the nodes of each chapter are laid out inside a box of their own.
+ * `grouped`, the nodes of each chapter are laid out inside a box of their own; `spacing` times
+ * the gaps between the nodes.
  */
-const layout = (graph: GameGraph, grouped: boolean): Promise<BoxLayout> => {
+const layout = (graph: GameGraph, grouped: boolean, spacing: number): Promise<BoxLayout> => {
   const hasIntro = Object.hasOwn(graph.nodes, graph.introNode);
   return layoutBoxes({
     nodes: graph.order.map((id) => ({ id, width: NODE_WIDTH, height: NODE_HEIGHT })),
@@ -124,6 +140,9 @@ const layout = (graph: GameGraph, grouped: boolean): Promise<BoxLayout> => {
       : {}),
     initial: hasIntro ? [graph.introNode] : [],
     final: endsOf(graph),
+    // Every end has its own ring, as in the editor: a story can end in several places.
+    finalRings: 'each',
+    options: spacedGaps(spacing),
   });
 };
 
@@ -142,6 +161,8 @@ type StoryFlowNode = Node<
     readonly teams: readonly GraphTeam[];
     readonly visits: number | undefined;
     readonly focused: boolean;
+    /** Of the id tag, as the node's in the editor. */
+    readonly color: TagColor;
   },
   'story'
 >;
@@ -201,17 +222,19 @@ const SCAN_EDGE_COLOR = {
   dark: 'oklch(0.75 0.14 250)',
 } as const;
 
-/** The node a test run stands on: its own border stays, a yellow line goes around it. */
-const FOCUSED_CARD = 'outline-1 outline-offset-4 outline-yellow-500';
+/** A quiet tag on a card, as the editor's „začátek“ and „konec“. */
+const CARD_TAG = 'rounded-md bg-muted px-1.5 py-0.5';
 
-/** Above the nodes, so an arrow is drawn over the yellow line of its target. */
+/** Above the nodes, so an arrow is drawn over the line around its target. */
 const FOCUSED_EDGE_Z_INDEX = 1001;
 
 /**
- * Node card: id tag, kind and the text of all its segments, shortened as a whole. The text lines up
- * with the tags' labels rather than their outlines.
+ * Node card, in the editor's look: id tag in the node's color, kind and the text of all its
+ * segments, shortened as a whole. Its outline is a ring as wide on the screen at any zoom.
  */
-const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<StoryFlowNode>) => {
+const StoryNodeCard = ({
+  data: { node, teams, visits, focused, color },
+}: NodeProps<StoryFlowNode>) => {
   const preview = node.preview;
   const stateEntries = Object.entries(preview?.state ?? {});
   return (
@@ -221,32 +244,39 @@ const StoryNodeCard = ({ data: { node, teams, visits, focused } }: NodeProps<Sto
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-lg border bg-card p-2.5 text-card-foreground shadow-sm hover:border-foreground',
-              node.type !== 'passage' && 'border-foreground/60',
+              // The border only keeps its room; the outline is a ring around it.
+              'flex size-full cursor-pointer flex-col gap-2.5 overflow-hidden rounded-lg border border-transparent bg-card/70 p-2.5 text-card-foreground shadow-xs ring-[length:var(--line,1px)] ring-border backdrop-blur-xs hover:ring-foreground',
+              node.type !== 'passage' && 'ring-foreground/60',
               !node.reached && teams.length === 0 && 'opacity-40',
-              teams.length > 0 && 'ring-2 ring-foreground',
-              focused && `opacity-100 ${FOCUSED_CARD}`,
+              teams.length > 0 && 'ring-[length:calc(2*var(--line,1px))] ring-foreground',
+              // Where a test run stands: as the selected card in the editor.
+              focused && `opacity-100 ${SELECTED_OUTLINE}`,
             )}
           >
-            <div className='flex items-center gap-1'>
-              <Badge variant='secondary' className='font-mono'>
+            <div className='flex items-center gap-1 font-mono text-2xs leading-4 text-muted-foreground'>
+              <span
+                title='Id uzlu, jeho název ve skriptu'
+                className={cn(
+                  'mr-auto max-w-full truncate rounded-md px-2 py-0.5 font-semibold',
+                  color.tag,
+                )}
+              >
                 {node.id}
-              </Badge>
-              {node.type === 'intro' && <Badge variant='outline'>Úvod</Badge>}
-              {node.type === 'end' && (
-                <Badge variant='outline' title='Konec'>
-                  <IconFlag />
-                </Badge>
-              )}
-              <span className='flex-1' />
+              </span>
+              {node.type === 'intro' && <span className={CARD_TAG}>úvod</span>}
+              {node.type === 'start' && <span className={CARD_TAG}>začátek</span>}
+              {node.type === 'end' && <span className={CARD_TAG}>konec</span>}
               {visits !== undefined && (
-                <Badge
-                  variant='outline'
-                  className={cn('font-mono', visits === 0 && 'text-muted-foreground')}
+                <span
+                  className={cn(
+                    CARD_TAG,
+                    'flex items-center gap-0.5 tabular-nums',
+                    visits > 0 && 'text-foreground',
+                  )}
                   title={`Klany sem dorazily ${visits}×`}
                 >
-                  <IconWalk /> {visits}
-                </Badge>
+                  <IconWalk className='size-3' /> {visits}
+                </span>
               )}
             </div>
             <div className='graph-preview line-clamp-4 px-2 text-xs leading-snug text-muted-foreground'>
@@ -385,6 +415,8 @@ export interface StoryGraphProps {
   readonly inset?: GraphInset;
   /** Off, the chapters are not framed and the graph is laid out without them. */
   readonly chapters?: boolean;
+  /** How the graph is laid out and drawn, e.g. from `useGraphView` and its `GraphViewPickers`. */
+  readonly view?: GraphView;
   readonly className?: string;
 }
 
@@ -399,21 +431,23 @@ export const StoryGraph = ({
   focus,
   inset = NO_INSET,
   chapters: grouped = true,
+  view: { spacing, edgeStyle } = DEFAULT_GRAPH_VIEW,
   className,
 }: StoryGraphProps) => {
   const { resolved } = useTheme();
   const [laidOut, setLaidOut] = useState<{ readonly key: string; readonly layout: BoxLayout }>();
   const [opened, setOpened] = useState<string>();
+  const smooth = edgeStyle === 'smooth';
 
   const structure = useMemo(
-    () => `${grouped ? 'grouped:' : ''}${structureOf(graph)}`,
-    [graph, grouped],
+    () => `${grouped ? 'grouped:' : ''}${spacing}:${structureOf(graph)}`,
+    [graph, grouped, spacing],
   );
   useEffect(() => {
     // Flipped by the cleanup so a layout finishing after the graph changed is not applied.
     let current = true;
     const cached = layouts.get(structure);
-    const pending = cached ?? layout(graph, grouped);
+    const pending = cached ?? layout(graph, grouped, SPACING_FACTOR[spacing]);
     if (cached === undefined) {
       layouts.set(structure, pending);
     }
@@ -426,7 +460,7 @@ export const StoryGraph = ({
     return () => {
       current = false;
     };
-  }, [graph, structure, grouped]);
+  }, [graph, structure, grouped, spacing]);
 
   // ReactFlow's `nodes` and `edges` props take mutable arrays; the memos are never changed here.
   const nodes = useMemo<
@@ -460,7 +494,7 @@ export const StoryGraph = ({
     });
     return [
       ...frames,
-      ...graph.order.map((id): StoryFlowNode => ({
+      ...graph.order.map((id, index): StoryFlowNode => ({
         id,
         type: 'story',
         position: position(id),
@@ -469,6 +503,7 @@ export const StoryGraph = ({
           teams: teams.filter((team) => team.node === id),
           visits: visits === undefined ? undefined : (visits[id] ?? 0),
           focused: focus === id,
+          color: tagColor(index),
         },
         draggable: false,
       })),
@@ -480,18 +515,14 @@ export const StoryGraph = ({
         draggable: false,
         selectable: false,
       },
-      ...(endsOf(graph).length > 0
-        ? [
-            {
-              id: FINAL_ID,
-              type: 'final',
-              position: position(FINAL_ID),
-              data: {},
-              draggable: false,
-              selectable: false,
-            } satisfies FinalFlowNode,
-          ]
-        : []),
+      ...endsOf(graph).map((id): FinalFlowNode => ({
+        id: finalRingId(id),
+        type: 'final',
+        position: position(finalRingId(id)),
+        data: {},
+        draggable: false,
+        selectable: false,
+      })),
     ];
   }, [graph, laidOut, teams, visits, focus]);
 
@@ -569,7 +600,7 @@ export const StoryGraph = ({
           id: finalEdgeId(id),
           type: 'route',
           source: id,
-          target: FINAL_ID,
+          target: finalRingId(id),
           markerEnd: ARROW_HEAD,
           data: {
             points: laidOut?.layout.edges.get(finalEdgeId(id))?.points ?? [],
@@ -577,6 +608,9 @@ export const StoryGraph = ({
           },
         })),
       ]
+        .map((edge: RouteEdge): RouteEdge =>
+          edge.data === undefined ? edge : { ...edge, data: { ...edge.data, smooth } },
+        )
         .map((edge: RouteEdge) =>
           edge.data?.qr === true
             ? {
@@ -592,15 +626,22 @@ export const StoryGraph = ({
             ? {
                 ...edge,
                 zIndex: FOCUSED_EDGE_Z_INDEX,
-                data: { ...edge.data, focusTarget: true, labelZIndex: FOCUSED_EDGE_Z_INDEX + 1 },
+                data: {
+                  ...edge.data,
+                  focusTarget: true,
+                  labelZIndex: FOCUSED_EDGE_Z_INDEX + 1,
+                },
               }
             : edge,
         ),
-    [graph, laidOut, resolved, focus],
+    [graph, laidOut, resolved, focus, smooth],
   );
 
   return (
-    <div className={cn('story-graph size-full', className)}>
+    // The edges' labels shrink with the canvas more slowly than the cards, so they stay legible
+    // from afar; not larger than the room laid out for them, as the editor's: the labels here are
+    // many and close, and would cover each other.
+    <div className={cn('story-graph relative size-full [--edge-label-resistance:0.5]', className)}>
       {laidOut?.key === structure && (
         <ReactFlow
           nodes={nodes}
@@ -623,6 +664,7 @@ export const StoryGraph = ({
         >
           <Background />
           <Controls showInteractive={false} />
+          <ScreenLines />
           <FocusView center={focusCenter} inset={inset} />
         </ReactFlow>
       )}
@@ -630,3 +672,35 @@ export const StoryGraph = ({
     </div>
   );
 };
+
+/** The spacing and the arrows of a story graph, for its toolbar. */
+export const GraphViewPickers = ({
+  view,
+  onChange,
+}: {
+  readonly view: GraphView;
+  readonly onChange: (view: GraphView) => void;
+}) => (
+  <>
+    <ToolbarPicker
+      name='Rozestupy'
+      options={SPACINGS}
+      texts={SPACING_TEXT}
+      value={view.spacing}
+      parse={parseSpacing}
+      onChange={(spacing) => {
+        onChange({ ...view, spacing });
+      }}
+    />
+    <ToolbarPicker
+      name='Šipky'
+      options={EDGE_STYLES}
+      texts={EDGE_STYLE_TEXT}
+      value={view.edgeStyle}
+      parse={parseEdgeStyle}
+      onChange={(edgeStyle) => {
+        onChange({ ...view, edgeStyle });
+      }}
+    />
+  </>
+);

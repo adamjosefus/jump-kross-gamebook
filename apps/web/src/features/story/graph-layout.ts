@@ -146,6 +146,19 @@ export const LAYOUT_OPTIONS = {
   'elk.edgeLabels.inline': 'true',
 } as const;
 
+/** The gaps of `LAYOUT_OPTIONS` that grow with the spacing chosen in a graph's toolbar. */
+const SPACED_GAPS = {
+  'elk.spacing.nodeNode': 48,
+  'elk.layered.spacing.nodeNodeBetweenLayers': 64,
+  'elk.layered.spacing.edgeNodeBetweenLayers': 24,
+} as const;
+
+/** ELK options with the gaps between nodes and layers `spacing` times as large. */
+export const spacedGaps = (spacing: number): Readonly<Record<string, string>> =>
+  Object.fromEntries(
+    Object.entries(SPACED_GAPS).map(([option, gap]) => [option, String(gap * spacing)]),
+  );
+
 /** Every node of the result, nested ones included; coordinates are absolute (`ROOT`). */
 export const flatten = (node: ElkNode): readonly ElkNode[] =>
   (node.children ?? []).flatMap((child) => [child, ...flatten(child)]);

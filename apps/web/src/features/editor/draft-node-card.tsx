@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SELECTED_OUTLINE } from '@/features/story/graph-edges';
 import { cn } from '@/lib/utils';
 
 import {
@@ -538,9 +539,8 @@ export const DraftNodeCard = ({
         // The border only keeps its room; the outline is a ring around it, as wide on the screen at
         // any zoom of the canvas, which sets `--line` to one screen pixel.
         'group/card relative flex flex-col rounded-lg border border-transparent bg-card/70 text-card-foreground shadow-xs ring-[length:var(--line,1px)] ring-border backdrop-blur-xs',
-        selected &&
-          // A thin line in the text's color: white on the dark canvas.
-          'outline-[length:var(--line,1px)] outline-offset-[calc(3*var(--line,1px))] outline-foreground',
+        // A thin yellow line around the card's own ring.
+        selected && SELECTED_OUTLINE,
         dropTarget &&
           'outline-[length:calc(2*var(--line,1px))] outline-offset-[calc(5*var(--line,1px))] outline-sky-500',
         className,

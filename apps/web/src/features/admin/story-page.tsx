@@ -2,7 +2,9 @@ import { graphProblems } from '@gamebook/core';
 import { IconAlertTriangle, IconLoader2 } from '@tabler/icons-react';
 import { useMemo } from 'react';
 
-import { StoryGraph } from '@/features/story/story-graph';
+import { GraphToolbar } from '@/features/story/graph-toolbar';
+import { useGraphView } from '@/features/story/graph-view';
+import { GraphViewPickers, StoryGraph } from '@/features/story/story-graph';
 import { errorMessage } from '@/lib/api';
 
 import { useStoryGraph } from './queries';
@@ -13,6 +15,7 @@ import { useStoryGraph } from './queries';
  */
 export const StoryPage = () => {
   const graph = useStoryGraph();
+  const [view, setView] = useGraphView();
   const problems = useMemo(
     () => (graph.data === undefined ? [] : graphProblems(graph.data)),
     [graph.data],
@@ -39,8 +42,11 @@ export const StoryPage = () => {
           </span>
         ))}
       </div>
-      <div className='min-h-0 flex-1'>
-        <StoryGraph graph={graph.data} />
+      <div className='relative min-h-0 flex-1'>
+        <StoryGraph graph={graph.data} view={view} />
+        <GraphToolbar label='Nástroje grafu' corner>
+          <GraphViewPickers view={view} onChange={setView} />
+        </GraphToolbar>
       </div>
     </div>
   );

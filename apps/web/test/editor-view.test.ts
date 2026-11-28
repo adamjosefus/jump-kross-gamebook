@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseEdgeStyle, parseSpacing, parseViewport } from '@/features/editor/editor-view';
+import { parseViewport } from '@/features/editor/editor-view';
+import { parseEdgeStyle, parseSpacing } from '@/features/story/graph-view';
 
 describe('parseViewport', () => {
   it('reads back a viewport written as JSON', () => {

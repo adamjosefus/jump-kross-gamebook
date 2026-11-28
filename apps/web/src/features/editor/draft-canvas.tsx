@@ -48,6 +48,8 @@ import {
   ARROW_HEAD,
   FinalDot,
   RouteEdgeView,
+  SCREEN_FOCUS_LINE,
+  ScreenLines,
   type InitialFlowNode,
   type RouteEdge,
 } from '@/features/story/graph-edges';
@@ -59,6 +61,7 @@ import {
   INITIAL_SIZE,
   initialEdgeId,
   layoutBoxes,
+  spacedGaps,
   type BoxLayout,
 } from '@/features/story/graph-layout';
 import { useTheme } from '@/lib/theme';
@@ -686,17 +689,6 @@ const pickOfEdge = (id: string): EdgePick | undefined => {
   return undefined;
 };
 
-/**
- * The line around the selected card, `outline-offset` of 3 and a width of 1 screen pixel off its
- * ring of 1: the arrows into the card clear a gap in it, as large on the screen at any zoom.
- */
-const SELECTED_CARD_LINE = {
-  distance: 3.5,
-  gap: 9,
-  width: 3,
-  scale: 'var(--zoom-out, 1)',
-} as const;
-
 /** Above the nodes, the selected one too, so an arrow is drawn over the line around its card. */
 const INTO_SELECTED_Z_INDEX = 1001;
 
@@ -720,7 +712,7 @@ const portId = (source: string, key: DotKey) => `port:${source}:${key}`;
 /** Every edge enters its card at a point of its own, so the arrows never end on each other. */
 const entryId = (edge: string) => `entry:${edge}`;
 
-/** The text an edge shows: the button's, or „Další“ for the plain arrow. */
+/** How a choice is named to the author: the button's text, or „Další“ for the plain arrow. */
 const edgeText = (label: string) => (label === '' ? NEXT_LABEL : label);
 
 /** What the layout depends on: the nodes, their heights, and where and with what text they lead. */
@@ -731,7 +723,7 @@ const structureOf = (draft: Draft, heights: ReadonlyMap<string, number>) =>
       node.id,
       widthOf(node),
       heights.get(node.id),
-      node.choices.map((choice) => [choice.to, edgeText(choice.label)]),
+      node.choices.map((choice) => [choice.to, choice.label]),
     ]),
   ]);
 
@@ -806,13 +798,6 @@ const entryXs = (count: number, width: number): readonly number[] => {
   });
 };
 
-/** The gaps of the layout that grow with the spacing chosen, as `LAYOUT_OPTIONS` has them. */
-const SPACED_GAPS = {
-  'elk.spacing.nodeNode': 48,
-  'elk.layered.spacing.nodeNodeBetweenLayers': 64,
-  'elk.layered.spacing.edgeNodeBetweenLayers': 24,
-} as const;
-
 /** What a layout of the draft is made with besides the draft. */
 interface LayoutRequest {
   readonly heights: ReadonlyMap<string, number>;
@@ -835,9 +820,7 @@ const layoutPass = (
     direction: 'DOWN',
     options: {
       'elk.layered.layering.strategy': 'LONGEST_PATH_SOURCE',
-      ...Object.fromEntries(
-        Object.entries(SPACED_GAPS).map(([option, gap]) => [option, String(gap * spacing)]),
-      ),
+      ...spacedGaps(spacing),
     },
     nodes: draft.nodes.map((node) => {
       const height = heights.get(node.id) ?? 0;
@@ -879,7 +862,8 @@ const layoutPass = (
             target: choice.to,
             sourcePort: portId(node.id, index),
             targetPort: entryId(id),
-            label: edgeText(choice.label),
+            // The plain arrow has no label, nor room laid out for one.
+            ...(choice.label === '' ? {} : { label: choice.label }),
             // What a choice becomes, a button or a QR code, is decided later: no icon yet.
             labelIcon: false,
           },
@@ -1039,28 +1023,6 @@ const Canvas = ({
   }, []);
   const flow = useReactFlow();
   const store = useStoreApi();
-  // The lines keep their width on the screen at any zoom: `--line` is one screen pixel in the
-  // canvas's units, for the cards' outlines, and the edges are as wide. `--zoom-out` is one over
-  // the zoom, for what should shrink less than the canvas. The arrowheads follow the
-  // edges' width. Set on the element, so zooming does not render the canvas again.
-  useEffect(() => {
-    const element = wrapper.current;
-    if (element === null) {
-      return undefined;
-    }
-
-    const apply = (zoom: number) => {
-      element.style.setProperty('--line', `${1 / zoom}px`);
-      element.style.setProperty('--zoom-out', `${1 / zoom}`);
-      element.style.setProperty('--xy-edge-stroke-width', `${1 / zoom}`);
-      element.style.setProperty('--xy-connectionline-stroke-width', `${1 / zoom}`);
-    };
-
-    apply(store.getState().transform[2]);
-    return store.subscribe((state) => {
-      apply(state.transform[2]);
-    });
-  }, [store]);
   const canvasHeight = useStore((state) => state.height);
   const maxHeight = Math.max(200, canvasHeight - 2 * VIEWPORT_MARGIN);
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(new Map());
@@ -1476,7 +1438,7 @@ const Canvas = ({
           data: {
             ...data,
             focusTarget: true,
-            focusLine: SELECTED_CARD_LINE,
+            focusLine: SCREEN_FOCUS_LINE,
             labelZIndex: RAISED_LABEL_Z_INDEX,
           },
         };
@@ -1501,10 +1463,8 @@ const Canvas = ({
             sourceHandle: dotHandle(index),
             data: {
               points: route(id)?.points ?? [],
-              text: edgeText(choice.label),
+              text: choice.label,
               ...(label === undefined ? {} : { label }),
-              // The plain arrow is no decision, so its label stays in the background.
-              ...(choice.label === '' ? { color: 'var(--muted-foreground)' } : {}),
               dimmed: false,
               smooth: smoothEdges,
             },
@@ -1916,6 +1876,7 @@ const Canvas = ({
           >
             <Background />
             <Controls showInteractive={false} />
+            <ScreenLines />
           </ReactFlow>
           <AlertDialog
             open={removal !== undefined}

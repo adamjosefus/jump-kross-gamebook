@@ -13,15 +13,30 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { saveBlob } from '@/features/admin/download';
+import {
+  GraphToolbar,
+  ToolbarMenu,
+  ToolbarMenus,
+  ToolbarPicker,
+  ToolbarSeparator,
+} from '@/features/story/graph-toolbar';
+import {
+  EDGE_STYLE_TEXT,
+  EDGE_STYLES,
+  parseEdgeStyle,
+  parseSpacing,
+  SPACING_FACTOR,
+  SPACING_TEXT,
+  SPACINGS,
+  type EdgeStyle,
+  type Spacing,
+} from '@/features/story/graph-view';
 
 import { draftProblems, PROBLEM_TEXT, toMermaid, type Draft, type NodeProblems } from './draft';
 import { DraftCanvas, type DraftCanvasHandle } from './draft-canvas';
@@ -31,26 +46,12 @@ import { historyReducer, startHistory } from './draft-history';
 import {
   FileIssueBar,
   FileMenu,
-  FileStart,
   SAVE_TEXT,
   useDraftFile,
   useFileChoice,
+  FileStart,
 } from './editor-file';
-import {
-  EDGE_STYLE_TEXT,
-  EDGE_STYLES,
-  parseEdgeStyle,
-  parseSpacing,
-  readEdgeStyle,
-  readSpacing,
-  SPACING_FACTOR,
-  SPACING_TEXT,
-  SPACINGS,
-  writeEdgeStyle,
-  writeSpacing,
-  type EdgeStyle,
-  type Spacing,
-} from './editor-view';
+import { readEdgeStyle, readSpacing, writeEdgeStyle, writeSpacing } from './editor-view';
 import { FocusDialog } from './focus-dialog';
 import { startTrail, type FocusTrail } from './focus-trail';
 
@@ -71,50 +72,6 @@ const nodesText = (count: number) => {
 const inText = (target: EventTarget | null) =>
   target instanceof Element && target.closest('input, textarea, [contenteditable]') !== null;
 
-/**
- * One of a few ways, as one small button with the name and the way chosen, which opens the list
- * of the ways.
- */
-const Picker = <T extends string>({
-  name,
-  options,
-  texts,
-  value,
-  parse,
-  onChange,
-}: {
-  readonly name: string;
-  readonly options: readonly T[];
-  readonly texts: Readonly<Record<T, string>>;
-  readonly value: T;
-  /** The way a list item's value stands for. */
-  readonly parse: (value: string) => T;
-  readonly onChange: (value: T) => void;
-}) => (
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant='ghost' size='sm' aria-label={`${name}: ${texts[value]}`}>
-        {name}: <span className='text-foreground'>{texts[value]}</span>
-        <IconChevronDown className='opacity-60' />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align='end'>
-      <DropdownMenuRadioGroup
-        value={value}
-        onValueChange={(next) => {
-          onChange(parse(next));
-        }}
-      >
-        {options.map((option) => (
-          <DropdownMenuRadioItem key={option} value={option}>
-            {texts[option]}
-          </DropdownMenuRadioItem>
-        ))}
-      </DropdownMenuRadioGroup>
-    </DropdownMenuContent>
-  </DropdownMenu>
-);
-
 /** Downloads a text file. */
 const download = (text: string, name: string, type: string) => {
   saveBlob(new Blob([text], { type }), name);
@@ -125,7 +82,7 @@ const download = (text: string, name: string, type: string) => {
  * text, or as its own file, the one the editor saves.
  */
 const ExportMenu = ({ draft, name }: { readonly draft: Draft; readonly name: string }) => (
-  <DropdownMenu>
+  <ToolbarMenu>
     <DropdownMenuTrigger asChild>
       <Button variant='ghost' size='sm'>
         <IconDownload /> Export <IconChevronDown className='opacity-60' />
@@ -171,7 +128,7 @@ const ExportMenu = ({ draft, name }: { readonly draft: Draft; readonly name: str
         </span>
       </DropdownMenuItem>
     </DropdownMenuContent>
-  </DropdownMenu>
+  </ToolbarMenu>
 );
 
 /** „1 problém“, „3 problémy“, „5 problémů“. */
@@ -296,90 +253,6 @@ const Editor = ({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
-        <span>
-          {nodesText(draft.nodes.length)} v{' '}
-          <code className='text-foreground'>{file.handle.name}</code>
-        </span>
-        <span aria-live='polite' className={saving.state === 'failed' ? 'text-destructive' : ''}>
-          {SAVE_TEXT[saving.state]}
-        </span>
-        <span
-          role='toolbar'
-          aria-label='Nástroje editoru'
-          className='ml-auto flex items-center gap-1'
-        >
-          <ProblemsIndicator
-            problems={problems}
-            onReveal={(id) => {
-              canvas.current?.reveal(id);
-            }}
-          />
-          <Picker
-            name='Rozestupy'
-            options={SPACINGS}
-            texts={SPACING_TEXT}
-            value={spacing}
-            parse={parseSpacing}
-            onChange={(next) => {
-              setSpacing(next);
-              writeSpacing(next);
-            }}
-          />
-          <Picker
-            name='Šipky'
-            options={EDGE_STYLES}
-            texts={EDGE_STYLE_TEXT}
-            value={edgeStyle}
-            parse={parseEdgeStyle}
-            onChange={(next) => {
-              setEdgeStyle(next);
-              writeEdgeStyle(next);
-            }}
-          />
-          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
-          <FileMenu
-            name={file.handle.name}
-            onNew={afterFlush(onNew)}
-            onOpen={afterFlush(onOpen)}
-            onSaveAs={afterFlush(() => {
-              onSaveAs(draft);
-            })}
-          />
-          <ExportMenu draft={draft} name={file.handle.name} />
-          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
-          <Button
-            variant='ghost'
-            size='sm'
-            disabled={draft.nodes.every((node) => node.size === undefined)}
-            onClick={() => {
-              change(fitAllSizes(draft));
-            }}
-            title='Vrátit všem kartám velikost podle obsahu, jako dvojklik na roh každé karty'
-          >
-            <IconArrowsDiagonalMinimize2 /> Reset velikosti karet
-          </Button>
-          <span className='mx-1 h-4 w-px bg-border' aria-hidden />
-          <Button
-            variant='ghost'
-            size='sm'
-            disabled={history.past.length === 0}
-            onClick={() => dispatch({ type: 'undo' })}
-            title='Zpět (⌘Z)'
-          >
-            <IconArrowBackUp /> Zpět
-          </Button>
-          <Button
-            variant='ghost'
-            size='sm'
-            disabled={history.future.length === 0}
-            onClick={() => dispatch({ type: 'redo' })}
-            title='Znovu (⇧⌘Z)'
-          >
-            <IconArrowForwardUp /> Znovu
-          </Button>
-        </span>
-      </div>
       <FileIssueBar
         issue={saving.issue}
         onLoad={saving.loadFromDisk}
@@ -397,6 +270,98 @@ const Editor = ({
             setTrail(startTrail(id));
           }}
         />
+        {/* The draft's file and its menu on the left, the tools on the right; on a narrow canvas
+          the tools wrap under them, so neither covers the other. Only the bars catch the mouse,
+          and one menu of the two is open at a time. */}
+        <ToolbarMenus>
+          <div className='pointer-events-none absolute inset-x-4 top-4 z-10 flex flex-wrap items-start justify-between gap-2'>
+            <GraphToolbar label='Soubor konceptu' className='max-w-full whitespace-nowrap'>
+              <FileMenu
+                name={file.handle.name}
+                onNew={afterFlush(onNew)}
+                onOpen={afterFlush(onOpen)}
+                onSaveAs={afterFlush(() => {
+                  onSaveAs(draft);
+                })}
+              />
+              <span className='flex min-w-0 items-center gap-4 overflow-hidden px-2'>
+                <span className='truncate'>
+                  {nodesText(draft.nodes.length)} v{' '}
+                  <code className='text-foreground'>{file.handle.name}</code>
+                </span>
+                <span
+                  aria-live='polite'
+                  className={saving.state === 'failed' ? 'text-destructive' : ''}
+                >
+                  {SAVE_TEXT[saving.state]}
+                </span>
+              </span>
+            </GraphToolbar>
+            <GraphToolbar label='Nástroje editoru' className='ml-auto max-w-full overflow-x-auto'>
+              <ProblemsIndicator
+                problems={problems}
+                onReveal={(id) => {
+                  canvas.current?.reveal(id);
+                }}
+              />
+              <ToolbarPicker
+                name='Rozestupy'
+                options={SPACINGS}
+                texts={SPACING_TEXT}
+                value={spacing}
+                parse={parseSpacing}
+                onChange={(next) => {
+                  setSpacing(next);
+                  writeSpacing(next);
+                }}
+              />
+              <ToolbarPicker
+                name='Šipky'
+                options={EDGE_STYLES}
+                texts={EDGE_STYLE_TEXT}
+                value={edgeStyle}
+                parse={parseEdgeStyle}
+                onChange={(next) => {
+                  setEdgeStyle(next);
+                  writeEdgeStyle(next);
+                }}
+              />
+              <ToolbarSeparator />
+              <ExportMenu draft={draft} name={file.handle.name} />
+              <ToolbarSeparator />
+              <Button
+                variant='ghost'
+                size='sm'
+                disabled={draft.nodes.every((node) => node.size === undefined)}
+                onClick={() => {
+                  change(fitAllSizes(draft));
+                }}
+                title='Vrátit všem kartám velikost podle obsahu, jako dvojklik na roh každé karty'
+              >
+                <IconArrowsDiagonalMinimize2 /> Reset velikosti karet
+              </Button>
+              <ToolbarSeparator />
+              <Button
+                variant='ghost'
+                size='sm'
+                disabled={history.past.length === 0}
+                onClick={() => dispatch({ type: 'undo' })}
+                title='Zpět (⌘Z)'
+              >
+                <IconArrowBackUp /> Zpět
+              </Button>
+              <Button
+                variant='ghost'
+                size='sm'
+                disabled={history.future.length === 0}
+                onClick={() => dispatch({ type: 'redo' })}
+                title='Znovu (⇧⌘Z)'
+              >
+                <IconArrowForwardUp /> Znovu
+              </Button>
+            </GraphToolbar>
+          </div>
+        </ToolbarMenus>
         <FocusDialog draft={draft} trail={trail} onTrail={setTrail} onChange={change} />
       </div>
     </div>

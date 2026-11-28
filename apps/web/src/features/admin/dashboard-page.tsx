@@ -49,7 +49,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { StoryGraph } from '@/features/story/story-graph';
+import { GraphToolbar } from '@/features/story/graph-toolbar';
+import { useGraphView } from '@/features/story/graph-view';
+import { GraphViewPickers, StoryGraph } from '@/features/story/story-graph';
 import { TeamAvatar } from '@/features/teams/team-avatar';
 import { api, errorMessage } from '@/lib/api';
 
@@ -406,6 +408,7 @@ const PANEL_TITLES = { teams: 'Klany', log: 'Poslední akce' } as const;
 export const DashboardPage = () => {
   const overview = useOverview(POLL_MS);
   const graph = useStoryGraph().data;
+  const [view, setView] = useGraphView();
   const [moving, setMoving] = useState<TeamStatus>();
   const [panels, setPanels] = usePanels();
   const now = useNow();
@@ -540,6 +543,7 @@ export const DashboardPage = () => {
       ) : (
         <StoryGraph
           graph={graph}
+          view={view}
           teams={teams}
           visits={overview.data.visits}
           onPaneClick={() =>
@@ -553,6 +557,9 @@ export const DashboardPage = () => {
 
       {/* Only the panels catch the mouse, the graph goes on under the empty rest of the column. */}
       <div className='pointer-events-none absolute top-4 right-4 bottom-4 flex w-96 max-w-[calc(100%-2rem)] flex-col items-end gap-2'>
+        <GraphToolbar label='Nástroje grafu'>
+          <GraphViewPickers view={view} onChange={setView} />
+        </GraphToolbar>
         <FloatingPanel
           title='Klany'
           icon={<IconUsers />}
