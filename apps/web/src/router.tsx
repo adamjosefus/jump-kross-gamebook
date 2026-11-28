@@ -103,17 +103,12 @@ const devices = createRoute({
   path: '/devices',
   component: lazyRouteComponent(() => import('@/features/admin/devices-page'), 'DevicesPage'),
 });
-/**
- * The story editor writes its draft through the dev server, so it is there only in development;
- * a production build leaves out the route and the editor's code with it.
- */
-const editor = import.meta.env.DEV
-  ? createRoute({
-      getParentRoute: () => admin,
-      path: '/editor',
-      component: lazyRouteComponent(() => import('@/features/editor/editor-page'), 'EditorPage'),
-    })
-  : undefined;
+/** The story editor, which writes its draft into a file on the author's disk. */
+const editor = createRoute({
+  getParentRoute: () => admin,
+  path: '/editor',
+  component: lazyRouteComponent(() => import('@/features/editor/editor-page'), 'EditorPage'),
+});
 const print = createRoute({
   getParentRoute: () => admin,
   path: '/qr-codes',
@@ -140,7 +135,7 @@ export const router = createRouter({
     admin.addChildren([
       adminIndex,
       story,
-      ...(editor === undefined ? [] : [editor]),
+      editor,
       playtest,
       game,
       dashboard,

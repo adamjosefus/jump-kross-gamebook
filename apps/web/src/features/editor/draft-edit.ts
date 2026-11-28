@@ -431,7 +431,7 @@ export const draftForFile = (draft: Draft): Draft => ({
   nodes: draft.nodes,
 });
 
-/** The text of the draft's file, as the dev server writes it. */
+/** The text of the draft's file, as the editor writes it. */
 export const draftFileText = (draft: Draft) => `${JSON.stringify(draftForFile(draft), null, 2)}\n`;
 
 /** What of a node counts as a change of it: all but the size of its card and the time itself. */

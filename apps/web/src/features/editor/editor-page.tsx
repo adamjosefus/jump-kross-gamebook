@@ -8,10 +8,8 @@ import {
   IconDownload,
   IconFileText,
   IconSchema,
-  IconLoader2,
 } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -27,15 +25,17 @@ import { saveBlob } from '@/features/admin/download';
 
 import { draftProblems, PROBLEM_TEXT, toMermaid, type Draft, type NodeProblems } from './draft';
 import { DraftCanvas, type DraftCanvasHandle } from './draft-canvas';
-import {
-  draftFileText,
-  draftForFile,
-  EMPTY_DRAFT,
-  fitAllSizes,
-  parseDraft,
-  stampChanges,
-} from './draft-edit';
+import { draftFileText, fitAllSizes, stampChanges } from './draft-edit';
+import type { OpenedDraft } from './draft-file';
 import { historyReducer, startHistory } from './draft-history';
+import {
+  FileIssueBar,
+  FileMenu,
+  FileStart,
+  SAVE_TEXT,
+  useDraftFile,
+  useFileChoice,
+} from './editor-file';
 import {
   EDGE_STYLE_TEXT,
   EDGE_STYLES,
@@ -54,55 +54,6 @@ import {
 import { FocusDialog } from './focus-dialog';
 import { startTrail, type FocusTrail } from './focus-trail';
 
-/** Where the dev server keeps the draft; the deployed app has no such address. */
-const DRAFT_URL = '/__editor/draft';
-
-/** The file the draft is kept in, as the author knows it. */
-const DRAFT_PATH = 'packages/story/draft/story-draft.json';
-
-/** How long the editor waits after a change before saving, in ms. */
-const SAVE_DELAY = 500;
-
-/** The draft from its file, or a new one when there is no file yet. */
-const loadDraft = async (): Promise<Draft> => {
-  const response = await fetch(DRAFT_URL);
-  if (response.status === 404) {
-    return EMPTY_DRAFT;
-  }
-
-  if (!response.ok) {
-    throw new Error(`Koncept se nepodařilo načíst (${response.status}).`);
-  }
-
-  const draft = parseDraft(await response.json());
-  if (draft === undefined) {
-    throw new Error(`Soubor ${DRAFT_PATH} nemá tvar konceptu. Opravte ho nebo smažte.`);
-  }
-
-  return draft;
-};
-
-const saveDraft = async (draft: Draft, keepalive = false) => {
-  const response = await fetch(DRAFT_URL, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(draftForFile(draft)),
-    keepalive,
-  });
-  if (!response.ok) {
-    throw new Error(`Koncept se nepodařilo uložit (${response.status}).`);
-  }
-};
-
-type SaveState = 'saved' | 'unsaved' | 'saving' | 'failed';
-
-const SAVE_TEXT: Readonly<Record<SaveState, string>> = {
-  saved: 'Uloženo',
-  unsaved: 'Neuloženo',
-  saving: 'Ukládám…',
-  failed: 'Uložení selhalo',
-};
-
 /** The number of nodes with the Czech word in the right form, e.g. „3 uzly“. */
 const nodesText = (count: number) => {
   if (count === 1) {
@@ -119,45 +70,6 @@ const nodesText = (count: number) => {
 /** Whether a key press belongs to a text being written, which has its own undo. */
 const inText = (target: EventTarget | null) =>
   target instanceof Element && target.closest('input, textarea, [contenteditable]') !== null;
-
-/** Saves the draft a moment after it changes, and right away when the page is left. */
-const useAutosave = (draft: Draft) => {
-  const [state, setState] = useState<SaveState>('saved');
-  const saved = useRef(draft);
-
-  useEffect(() => {
-    if (draft === saved.current) {
-      return undefined;
-    }
-
-    setState('unsaved');
-    const timer = setTimeout(() => {
-      setState('saving');
-      saveDraft(draft)
-        .then(() => {
-          saved.current = draft;
-          setState('saved');
-        })
-        .catch(() => {
-          setState('failed');
-        });
-    }, SAVE_DELAY);
-    // A page left before the delay saves what it has; the request outlives the page.
-    const leave = () => {
-      if (saved.current !== draft) {
-        void saveDraft(draft, true);
-      }
-    };
-
-    window.addEventListener('pagehide', leave);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('pagehide', leave);
-    };
-  }, [draft]);
-
-  return state;
-};
 
 /**
  * One of a few ways, as one small button with the name and the way chosen, which opens the list
@@ -212,7 +124,7 @@ const download = (text: string, name: string, type: string) => {
  * The draft for use outside the editor: as Mermaid diagrams, of the summaries only or of the whole
  * text, or as its own file, the one the editor saves.
  */
-const ExportMenu = ({ draft }: { readonly draft: Draft }) => (
+const ExportMenu = ({ draft, name }: { readonly draft: Draft; readonly name: string }) => (
   <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant='ghost' size='sm'>
@@ -247,14 +159,14 @@ const ExportMenu = ({ draft }: { readonly draft: Draft }) => (
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onSelect={() => {
-          download(draftFileText(draft), 'story-draft.json', 'application/json');
+          download(draftFileText(draft), name, 'application/json');
         }}
       >
         <IconBraces />
         <span className='flex flex-col'>
           Koncept (JSON)
           <span className='text-xs text-muted-foreground'>
-            Jako {DRAFT_PATH.split('/').at(-1)}, s časem změny každého uzlu
+            Jako {name}, s časem změny každého uzlu
           </span>
         </span>
       </DropdownMenuItem>
@@ -312,13 +224,36 @@ const ProblemsIndicator = ({
   );
 };
 
-/** The editor over a loaded draft: the canvas, undo and redo, saving and the detail of a node. */
-const Editor = ({ initial }: { readonly initial: Draft }) => {
-  const [history, dispatch] = useReducer(historyReducer, initial, startHistory);
+/**
+ * The editor over a draft file: the canvas, undo and redo, saving into the file and the detail of
+ * a node.
+ */
+const Editor = ({
+  file,
+  onNew,
+  onOpen,
+  onSaveAs,
+}: {
+  readonly file: OpenedDraft;
+  /** Each gets what is not written yet written first. */
+  readonly onNew: () => void;
+  readonly onOpen: () => void;
+  readonly onSaveAs: (draft: Draft) => void;
+}) => {
+  const [history, dispatch] = useReducer(historyReducer, file.draft, startHistory);
   /** The nodes walked in the focus dialog; closed without one. */
   const [trail, setTrail] = useState<FocusTrail>();
   const draft = history.present;
-  const saving = useAutosave(draft);
+  // What another program wrote into the file is one step of the history, with its own times.
+  const load = useCallback((loaded: Draft) => {
+    dispatch({ type: 'change', draft: loaded, at: Date.now() });
+  }, []);
+  const saving = useDraftFile(file, draft, load);
+  /** The file written up to the last change, then `then`. */
+  const afterFlush = (then: () => void) => () => {
+    void saving.flush().finally(then);
+  };
+
   const canvas = useRef<DraftCanvasHandle>(null);
   /** How far apart the cards are; kept in this browser, it is no part of the draft. */
   const [spacing, setSpacing] = useState<Spacing>(readSpacing);
@@ -363,9 +298,12 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
     <div className='flex h-full flex-col'>
       <div className='flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2 text-sm text-muted-foreground'>
         <span>
-          {nodesText(draft.nodes.length)} v <code className='text-foreground'>{DRAFT_PATH}</code>
+          {nodesText(draft.nodes.length)} v{' '}
+          <code className='text-foreground'>{file.handle.name}</code>
         </span>
-        <span className={saving === 'failed' ? 'text-destructive' : ''}>{SAVE_TEXT[saving]}</span>
+        <span aria-live='polite' className={saving.state === 'failed' ? 'text-destructive' : ''}>
+          {SAVE_TEXT[saving.state]}
+        </span>
         <span
           role='toolbar'
           aria-label='Nástroje editoru'
@@ -400,7 +338,15 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
             }}
           />
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
-          <ExportMenu draft={draft} />
+          <FileMenu
+            name={file.handle.name}
+            onNew={afterFlush(onNew)}
+            onOpen={afterFlush(onOpen)}
+            onSaveAs={afterFlush(() => {
+              onSaveAs(draft);
+            })}
+          />
+          <ExportMenu draft={draft} name={file.handle.name} />
           <span className='mx-1 h-4 w-px bg-border' aria-hidden />
           <Button
             variant='ghost'
@@ -434,6 +380,11 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
           </Button>
         </span>
       </div>
+      <FileIssueBar
+        issue={saving.issue}
+        onLoad={saving.loadFromDisk}
+        onOverwrite={saving.overwrite}
+      />
       <div className='relative min-h-0 flex-1'>
         <DraftCanvas
           ref={canvas}
@@ -453,26 +404,38 @@ const Editor = ({ initial }: { readonly initial: Draft }) => {
 };
 
 /**
- * The story editor, in development only: the draft is written to a file in the repository, and
- * turned into the script later, as `docs/story-draft.md` says.
+ * The story editor: the draft is written into a file on the author's disk, and turned into the
+ * script later, as `docs/story-draft.md` says.
  */
 export const EditorPage = () => {
-  const loaded = useQuery({
-    queryKey: ['story-draft'],
-    queryFn: loadDraft,
-    // Read anew each time the page opens: the editor saved since, and the file is the truth.
-    gcTime: 0,
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
-
-  if (loaded.isPending) {
-    return <IconLoader2 className='m-8 size-6 animate-spin' />;
+  const choice = useFileChoice();
+  if (choice.file === undefined) {
+    return (
+      <FileStart
+        error={choice.error}
+        last={choice.last}
+        checking={choice.checking}
+        onNew={() => void choice.create()}
+        onOpen={() => void choice.open()}
+        onGoOn={(handle) => void choice.goOn(handle)}
+      />
+    );
   }
 
-  if (loaded.isError) {
-    return <p className='p-8 text-destructive'>{loaded.error.message}</p>;
-  }
-
-  return <Editor initial={loaded.data} />;
+  const { handle } = choice.file;
+  return (
+    <>
+      {choice.error !== undefined && (
+        <p className='border-b px-4 py-1.5 text-sm text-destructive'>{choice.error}</p>
+      )}
+      <Editor
+        // Another file, another history: undo does not reach into the file open before.
+        key={choice.opened}
+        file={choice.file}
+        onNew={() => void choice.create()}
+        onOpen={() => void choice.open()}
+        onSaveAs={(draft) => void choice.saveAs(draft, handle)}
+      />
+    </>
+  );
 };
